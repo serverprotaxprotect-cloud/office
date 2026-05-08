@@ -58,6 +58,62 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// POST /api/auth/office-login  (unified: admin + employee)
+router.post('/office-login', async (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password)
+    return res.status(400).json({ success: false, message: 'Username and password required' });
+
+  try {
+    // 1. Try admins table first
+    const adminRes = await db.query(
+      'SELECT username, password, name, email_id, role FROM admins WHERE LOWER(username)=LOWER($1)',
+      [username.trim()]
+    );
+    if (adminRes.rows.length > 0) {
+      const admin = adminRes.rows[0];
+      if (admin.password !== password)
+        return res.status(401).json({ success: false, message: 'Incorrect password' });
+      const token = jwt.sign(
+        { emp_id: admin.username, name: admin.name, role: admin.role, user_type: 'admin', is_admin: true },
+        process.env.JWT_SECRET,
+        { expiresIn: '12h' }
+      );
+      return res.json({
+        success: true, token,
+        user: { emp_id: admin.username, name: admin.name, role: admin.role, user_type: 'admin' }
+      });
+    }
+
+    // 2. Try emplist table
+    const empRes = await db.query(
+      `SELECT emp_id, name, formal_name, designation, status, login_password FROM emplist WHERE LOWER(emp_id)=LOWER($1)`,
+      [username.trim()]
+    );
+    if (empRes.rows.length === 0)
+      return res.status(401).json({ success: false, message: 'Username not found' });
+
+    const emp = empRes.rows[0];
+    if (emp.status !== 'Active')
+      return res.status(403).json({ success: false, message: 'Account is inactive. Contact admin.' });
+    if (emp.login_password !== password)
+      return res.status(401).json({ success: false, message: 'Incorrect password' });
+
+    const token = jwt.sign(
+      { emp_id: emp.emp_id, name: emp.name, formal_name: emp.formal_name, designation: emp.designation, user_type: 'employee' },
+      process.env.JWT_SECRET,
+      { expiresIn: '12h' }
+    );
+    return res.json({
+      success: true, token,
+      user: { emp_id: emp.emp_id, name: emp.formal_name || emp.name, role: emp.designation, user_type: 'employee' }
+    });
+  } catch (err) {
+    console.error('Office login error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 // POST /api/auth/logout
 router.post('/logout', async (req, res) => {
   const authHeader = req.headers['authorization'];

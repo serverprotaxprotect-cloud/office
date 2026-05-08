@@ -261,7 +261,7 @@
   <div class="ol-card">
     <div class="ol-field">
       <label>Employee ID</label>
-      <input type="text" id="olEmpId" placeholder="e.g. PTP-0001" autocomplete="username" />
+      <input type="text" id="olEmpId" placeholder="Admin username or Employee ID" autocomplete="username" />
     </div>
     <div class="ol-field">
       <label>Password</label>
@@ -285,23 +285,23 @@
   <button class="notif-btn" id="notifBtn" onclick="showPanel('notifications')" title="Notifications">
     &#128276;<span class="notif-dot hidden" id="notifDot"></span>
   </button>
-  <button class="btn-back" onclick="openAdminPortal()" style="background:rgba(233,69,96,.25);color:#fca5a5">&#128202; Attendance Admin</button>
+  <button id="attendanceAdminBtn" class="btn-back" onclick="openAdminPortal()" style="background:rgba(233,69,96,.25);color:#fca5a5">&#128202; Attendance Admin</button>
   <button class="btn-back" onclick="logout()" style="background:#e94560">Logout</button>
 </nav>
 
 <div class="layout">
   <!-- Sidebar -->
   <aside class="sidebar">
-    <div class="sb-section">Tasks</div>
+    <div class="sb-section" id="sec-tasks">Tasks</div>
     <div class="sb-item active" id="sb-dashboard" onclick="showPanel('dashboard')"><span class="ic">&#128202;</span>Dashboard</div>
     <div class="sb-item" id="sb-mytasks" onclick="showPanel('mytasks')"><span class="ic">&#9989;</span>My Tasks<span class="sb-badge hidden" id="myBadge">0</span></div>
     <div class="sb-item" id="sb-assignedby" onclick="showPanel('assignedby')"><span class="ic">&#128101;</span>Assigned by Me</div>
     <div class="sb-item" id="sb-alltasks" onclick="showPanel('alltasks')"><span class="ic">&#128203;</span>All Tasks</div>
     <div class="sb-item" id="sb-completed" onclick="showPanel('completed')"><span class="ic">&#9745;</span>Completed</div>
     <div class="sb-item" id="sb-notifications" onclick="showPanel('notifications')"><span class="ic">&#128276;</span>Notifications<span class="sb-badge hidden" id="notifBadge">0</span></div>
-    <div class="sb-section">Clients</div>
+    <div class="sb-section" id="sec-clients">Clients</div>
     <div class="sb-item" id="sb-clients" onclick="showPanel('clients')"><span class="ic">&#128100;</span>Client Search</div>
-    <div class="sb-section">Compliance</div>
+    <div class="sb-section" id="sec-compliance">Compliance</div>
     <div class="sb-item" id="sb-companies" onclick="showPanel('companies')"><span class="ic">&#127970;</span>Companies</div>
     <div class="sb-item" id="sb-directors" onclick="showPanel('directors')"><span class="ic">&#128104;</span>Directors / KYC</div>
     <div class="sb-item" id="sb-comptracking" onclick="showPanel('comptracking')"><span class="ic">&#9989;</span>Compliance Tracking</div>
@@ -928,34 +928,95 @@
 </div>
 
 <script>
-// ── Auth ─────────────────────────────────────────────────────
-let token = localStorage.getItem('att_token');
-let user  = JSON.parse(localStorage.getItem('att_emp') || '{}');
+// ── Auth & RBAC ───────────────────────────────────────────────
+let token = localStorage.getItem('office_token');
+let user  = JSON.parse(localStorage.getItem('office_user') || '{}');
+
+// Role → which sidebar panels are visible
+const ROLE_PERMS = {
+  'Director':       { panels: 'all',  attendance_admin: true },
+  'Office Manager': { panels: ['dashboard','mytasks','assignedby','alltasks','completed','notifications','clients','companies','directors','comptracking'], attendance_admin: true },
+  'Accountant':     { panels: ['dashboard','mytasks','assignedby','completed','notifications','clients','companies','directors','comptracking'], attendance_admin: false },
+  'HR':             { panels: ['dashboard','mytasks','assignedby','alltasks','completed','notifications'], attendance_admin: true },
+  'employee':       { panels: ['mytasks','assignedby','completed','notifications'], attendance_admin: false },
+};
+
+function getRolePerms() {
+  if (!user || !user.role) return ROLE_PERMS['employee'];
+  // exact match first
+  if (ROLE_PERMS[user.role]) return ROLE_PERMS[user.role];
+  // employee type fallback
+  if (user.user_type === 'employee') return ROLE_PERMS['employee'];
+  return ROLE_PERMS['Director']; // unknown admin role → full access
+}
+
+function applyPermissions() {
+  const perms = getRolePerms();
+  const all = perms.panels === 'all';
+
+  const panelMap = {
+    'sb-dashboard':   'dashboard',
+    'sb-mytasks':     'mytasks',
+    'sb-assignedby':  'assignedby',
+    'sb-alltasks':    'alltasks',
+    'sb-completed':   'completed',
+    'sb-notifications':'notifications',
+    'sb-clients':     'clients',
+    'sb-companies':   'companies',
+    'sb-directors':   'directors',
+    'sb-comptracking':'comptracking',
+  };
+
+  Object.entries(panelMap).forEach(([id, panel]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.style.display = (all || perms.panels.includes(panel)) ? '' : 'none';
+  });
+
+  // Section headers: hide if all items below are hidden
+  const clientItems = ['sb-clients'];
+  const compItems   = ['sb-companies','sb-directors','sb-comptracking'];
+  const clientVisible = clientItems.some(id => document.getElementById(id)?.style.display !== 'none');
+  const compVisible   = compItems.some(id => document.getElementById(id)?.style.display !== 'none');
+  const secClients = document.getElementById('sec-clients');
+  const secComp    = document.getElementById('sec-compliance');
+  if (secClients) secClients.style.display = clientVisible ? '' : 'none';
+  if (secComp)    secComp.style.display    = compVisible   ? '' : 'none';
+
+  // Attendance Admin button in navbar
+  const adminBtn = document.getElementById('attendanceAdminBtn');
+  if (adminBtn) adminBtn.style.display = perms.attendance_admin ? '' : 'none';
+
+  // Create Task button — hide for employee
+  const isEmployee = user.user_type === 'employee';
+  document.querySelectorAll('.btn-create-task').forEach(b => b.style.display = isEmployee ? 'none' : '');
+}
 
 function showOfficeApp() {
   document.getElementById('officeLoginOverlay').style.display = 'none';
-  document.getElementById('userChip').textContent = user.formal_name || user.name || '';
+  document.getElementById('userChip').textContent = user.name || user.formal_name || '';
+  applyPermissions();
 }
 
 async function doOfficeLogin() {
-  const empId = document.getElementById('olEmpId').value.trim();
-  const pass  = document.getElementById('olPassword').value;
-  const btn   = document.getElementById('olBtn');
-  const err   = document.getElementById('olErr');
-  if (!empId || !pass) { err.textContent = 'Please enter Employee ID and Password.'; err.classList.remove('hidden'); return; }
+  const username = document.getElementById('olEmpId').value.trim();
+  const pass     = document.getElementById('olPassword').value;
+  const btn      = document.getElementById('olBtn');
+  const err      = document.getElementById('olErr');
+  if (!username || !pass) { err.textContent = 'Please enter Username and Password.'; err.classList.remove('hidden'); return; }
   btn.disabled = true; btn.textContent = 'Logging in...'; err.classList.add('hidden');
   try {
-    const res = await fetch('/api/auth/login', {
+    const res = await fetch('/api/auth/office-login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ emp_id: empId, password: pass })
+      body: JSON.stringify({ username, password: pass })
     });
     const data = await res.json();
     if (data.success) {
-      localStorage.setItem('att_token', data.token);
-      localStorage.setItem('att_emp', JSON.stringify(data.employee));
+      localStorage.setItem('office_token', data.token);
+      localStorage.setItem('office_user', JSON.stringify(data.user));
       token = data.token;
-      user  = data.employee;
+      user  = data.user;
       showOfficeApp();
       initOfficeApp();
     } else {
@@ -970,14 +1031,11 @@ async function doOfficeLogin() {
   }
 }
 
-// Enter key triggers login
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && document.getElementById('officeLoginOverlay').style.display !== 'none') doOfficeLogin();
 });
 
-if (token) {
-  showOfficeApp();
-}
+if (token) { showOfficeApp(); }
 
 const api = async (path, opts = {}) => {
   const r = await fetch('/api' + path, {
@@ -988,7 +1046,7 @@ const api = async (path, opts = {}) => {
 };
 
 function logout() {
-  localStorage.removeItem('att_token'); localStorage.removeItem('att_emp');
+  localStorage.removeItem('office_token'); localStorage.removeItem('office_user');
   window.location.href = '/';
 }
 
