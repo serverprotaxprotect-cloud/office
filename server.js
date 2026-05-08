@@ -39,6 +39,11 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`\n  Attendance System running at http://localhost:${PORT}\n`);
-});
+// Local development me listen karo, Vercel pe export karo
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`\n  Attendance System running at http://localhost:${PORT}\n`);
+  });
+}
+
+module.exports = app;
