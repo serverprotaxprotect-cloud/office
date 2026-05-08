@@ -142,6 +142,43 @@
     .empty-msg{text-align:center;color:#94a3b8;padding:32px;font-size:14px}
     .alert-err{background:#fee2e2;color:#b91c1c;padding:10px 12px;border-radius:8px;font-size:13px;margin-top:8px}
 
+    /* ── Admin Portal Quick Login Modal ── */
+    #adminPortalModal {
+      position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.6);
+      display:flex;align-items:center;justify-content:center;padding:20px;
+    }
+    #adminPortalModal .apm-card {
+      background:#1e293b;border:1px solid rgba(255,255,255,.12);border-radius:20px;
+      padding:36px 32px;width:100%;max-width:380px;
+    }
+    #adminPortalModal .apm-logo {
+      width:60px;height:60px;background:linear-gradient(135deg,#e94560,#c62a47);
+      border-radius:16px;display:flex;align-items:center;justify-content:center;
+      font-size:22px;font-weight:800;color:white;margin:0 auto 14px;
+      box-shadow:0 6px 20px rgba(233,69,96,0.4);
+    }
+    #adminPortalModal h3 { color:white;font-size:18px;font-weight:700;text-align:center;margin-bottom:4px; }
+    #adminPortalModal .apm-sub { color:rgba(255,255,255,0.45);font-size:12px;text-align:center;margin-bottom:24px; }
+    #adminPortalModal .apm-field { margin-bottom:14px; }
+    #adminPortalModal .apm-field label { display:block;color:rgba(255,255,255,.6);font-size:11px;font-weight:600;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px; }
+    #adminPortalModal .apm-field input {
+      width:100%;padding:11px 13px;background:rgba(255,255,255,.07);
+      border:1px solid rgba(255,255,255,.12);border-radius:9px;
+      color:white;font-size:14px;outline:none;
+    }
+    #adminPortalModal .apm-field input:focus { border-color:rgba(233,69,96,.5); }
+    #adminPortalModal .apm-field input::placeholder { color:rgba(255,255,255,.25); }
+    #adminPortalModal .apm-btn {
+      width:100%;padding:12px;background:linear-gradient(135deg,#e94560,#c62a47);
+      border:none;border-radius:9px;color:white;font-size:14px;font-weight:700;
+      cursor:pointer;margin-top:4px;box-shadow:0 4px 14px rgba(233,69,96,.4);
+    }
+    #adminPortalModal .apm-btn:hover { filter:brightness(1.1); }
+    #adminPortalModal .apm-btn:disabled { opacity:.6;cursor:not-allowed; }
+    #adminPortalModal .apm-err { background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);color:#fca5a5;border-radius:8px;padding:9px 12px;font-size:13px;margin-top:10px; }
+    #adminPortalModal .apm-cancel { display:block;text-align:center;margin-top:16px;color:rgba(255,255,255,.35);font-size:13px;cursor:pointer; }
+    #adminPortalModal .apm-cancel:hover { color:rgba(255,255,255,.6); }
+
     /* ── Office Login Overlay ── */
     #officeLoginOverlay {
       position:fixed;inset:0;z-index:9999;
@@ -194,6 +231,26 @@
 </head>
 <body>
 
+<!-- Admin Portal Quick Login Modal -->
+<div id="adminPortalModal" class="hidden">
+  <div class="apm-card">
+    <div class="apm-logo">ADM</div>
+    <h3>Attendance Admin</h3>
+    <p class="apm-sub">PTP Attendance System</p>
+    <div class="apm-field">
+      <label>Admin Username</label>
+      <input type="text" id="apmUser" placeholder="e.g. CSAK2017" autocomplete="off" />
+    </div>
+    <div class="apm-field">
+      <label>Password</label>
+      <input type="password" id="apmPass" placeholder="Enter admin password" autocomplete="off" />
+    </div>
+    <div class="apm-err hidden" id="apmErr"></div>
+    <button class="apm-btn" id="apmBtn" onclick="submitAdminLogin()">Login &amp; Open Admin Panel</button>
+    <span class="apm-cancel" onclick="document.getElementById('adminPortalModal').classList.add('hidden')">Cancel</span>
+  </div>
+</div>
+
 <!-- Office Login Overlay -->
 <div id="officeLoginOverlay">
   <div class="ol-brand">
@@ -228,7 +285,7 @@
   <button class="notif-btn" id="notifBtn" onclick="showPanel('notifications')" title="Notifications">
     &#128276;<span class="notif-dot hidden" id="notifDot"></span>
   </button>
-  <button class="btn-back" onclick="window.location.href='/dashboard.html'">&#8592; Attendance</button>
+  <button class="btn-back" onclick="openAdminPortal()" style="background:rgba(233,69,96,.25);color:#fca5a5">&#128202; Attendance Admin</button>
   <button class="btn-back" onclick="logout()" style="background:#e94560">Logout</button>
 </nav>
 
@@ -933,6 +990,51 @@ const api = async (path, opts = {}) => {
 function logout() {
   localStorage.removeItem('att_token'); localStorage.removeItem('att_emp');
   window.location.href = '/';
+}
+
+function openAdminPortal() {
+  if (localStorage.getItem('admin_token')) {
+    window.open('/admin.html', '_blank');
+    return;
+  }
+  document.getElementById('apmUser').value = '';
+  document.getElementById('apmPass').value = '';
+  document.getElementById('apmErr').classList.add('hidden');
+  document.getElementById('apmBtn').disabled = false;
+  document.getElementById('apmBtn').textContent = 'Login & Open Admin Panel';
+  document.getElementById('adminPortalModal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('apmUser').focus(), 100);
+}
+
+async function submitAdminLogin() {
+  const username = document.getElementById('apmUser').value.trim();
+  const password = document.getElementById('apmPass').value;
+  const btn = document.getElementById('apmBtn');
+  const err = document.getElementById('apmErr');
+  if (!username || !password) { err.textContent = 'Please enter username and password.'; err.classList.remove('hidden'); return; }
+  btn.disabled = true; btn.textContent = 'Logging in...'; err.classList.add('hidden');
+  try {
+    const res = await fetch('/api/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (data.success) {
+      localStorage.setItem('admin_token', data.token);
+      localStorage.setItem('admin_info', JSON.stringify(data.admin));
+      document.getElementById('adminPortalModal').classList.add('hidden');
+      window.open('/admin.html', '_blank');
+    } else {
+      err.textContent = data.message || 'Login failed.';
+      err.classList.remove('hidden');
+      btn.disabled = false; btn.textContent = 'Login & Open Admin Panel';
+    }
+  } catch {
+    err.textContent = 'Network error. Please try again.';
+    err.classList.remove('hidden');
+    btn.disabled = false; btn.textContent = 'Login & Open Admin Panel';
+  }
 }
 
 // ── Helpers ──────────────────────────────────────────────────
