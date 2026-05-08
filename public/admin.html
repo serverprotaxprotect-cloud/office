@@ -241,6 +241,20 @@
     <div class="admin-panel" id="panel-attendance">
       <div class="page-title">Attendance Management</div>
 
+      <!-- Import Card -->
+      <div class="card" style="margin-bottom:20px;border:2px dashed #c7d2fe;background:#f5f3ff;">
+        <div class="card-title" style="color:#4f46e5;">&#128229; Import Attendance from Excel</div>
+        <p style="font-size:13px;color:#64748b;margin-bottom:12px;">Pehle template download karo, fill karo, phir upload karo. Existing records update ho jayenge, naye add honge.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+          <button onclick="downloadTemplate()" style="padding:10px 18px;background:linear-gradient(135deg,#4f46e5,#6366f1);color:#fff;border-radius:8px;font-size:13px;font-weight:700;border:none;cursor:pointer;">&#11015; Download Template</button>
+          <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:220px;">
+            <input type="file" id="attImportFile" accept=".xlsx,.xls" style="flex:1;padding:8px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;"/>
+            <button class="btn-sm" onclick="importAttendance()" style="background:#4f46e5;white-space:nowrap;">Upload &amp; Import</button>
+          </div>
+        </div>
+        <div id="importResult" style="margin-top:12px;display:none;"></div>
+      </div>
+
       <div class="filter-row">
         <select id="attMonth">
           <option value="1">January</option><option value="2">February</option>
@@ -1261,6 +1275,62 @@ async function deleteHoliday(id, name) {
   const data = await api(`/admin/holidays/${id}`, { method: 'DELETE' });
   showToast(data.message, data.success ? 'success' : 'error');
   if (data.success) loadHolidays();
+}
+
+// ── ATTENDANCE IMPORT ────────────────────────────────────────
+async function downloadTemplate() {
+  try {
+    const res = await fetch('/api/admin/attendance/template', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (!res.ok) { showToast('Template download failed', 'error'); return; }
+    const blob = await res.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = 'attendance_import_template.xlsx';
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch(e) { showToast('Download error', 'error'); }
+}
+
+async function importAttendance() {
+  const fileInput = document.getElementById('attImportFile');
+  const resultDiv = document.getElementById('importResult');
+  if (!fileInput.files.length) { showToast('Pehle file select karo', 'error'); return; }
+
+  resultDiv.innerHTML = '<p style="color:#64748b;font-size:13px;">Importing...</p>';
+  resultDiv.style.display = 'block';
+
+  const formData = new FormData();
+  formData.append('file', fileInput.files[0]);
+
+  try {
+    const res = await fetch('/api/admin/attendance/import', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token },
+      body: formData
+    });
+    const data = await res.json();
+    if (data.success) {
+      let html = `<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:12px;">
+        <div style="font-weight:700;color:#15803d;font-size:14px;">&#9989; ${data.message}</div>`;
+      if (data.results.errors.length) {
+        html += `<div style="margin-top:8px;font-size:12px;color:#92400e;"><strong>Skipped rows:</strong><ul style="margin:4px 0 0 16px;">
+          ${data.results.errors.slice(0, 10).map(e => `<li>${e}</li>`).join('')}
+          ${data.results.errors.length > 10 ? `<li>...and ${data.results.errors.length - 10} more</li>` : ''}
+        </ul></div>`;
+      }
+      html += '</div>';
+      resultDiv.innerHTML = html;
+      showToast(data.message, 'success');
+      loadAttendance();
+    } else {
+      resultDiv.innerHTML = `<div class="alert alert-error">${data.message}</div>`;
+    }
+  } catch(e) {
+    resultDiv.innerHTML = `<div class="alert alert-error">Network error: ${e.message}</div>`;
+  }
 }
 
 function adminLogout() {
