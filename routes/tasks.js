@@ -189,7 +189,7 @@ router.get('/notifications', authMiddleware, async (req, res) => {
     }
 
     // Employee view
-    const [dueTodayRes, overdueRes, assignedRes] = await Promise.all([
+    const [dueTodayRes, overdueRes, assignedRes, attCheckRes] = await Promise.all([
       db.query(
         `SELECT task_id, work_name, legal_name, business_name, client_id, due_date, status, priority, assigned_to_name, created_by_name
          FROM tasks WHERE assigned_to_id=$1 AND due_date::date=CURRENT_DATE AND status NOT IN ('Completed','Cancelled') AND active_flag=true ORDER BY priority DESC`,
@@ -205,7 +205,12 @@ router.get('/notifications', authMiddleware, async (req, res) => {
          FROM tasks WHERE assigned_to_id=$1 AND self_assigned=false AND created_at >= NOW()-INTERVAL '7 days' AND active_flag=true ORDER BY created_at DESC LIMIT 20`,
         [emp_id]
       ),
+      db.query(
+        `SELECT COUNT(*) FROM attendance_log WHERE emp_id=$1 AND date::date=CURRENT_DATE`,
+        [emp_id]
+      ),
     ]);
+    const forgotAttendance = parseInt(attCheckRes.rows[0].count) === 0;
     res.json({
       success: true,
       is_admin_view: false,
@@ -213,7 +218,8 @@ router.get('/notifications', authMiddleware, async (req, res) => {
       overdue: overdueRes.rows,
       recently_assigned: assignedRes.rows,
       attendance_not_marked: [],
-      total_alerts: dueTodayRes.rows.length + overdueRes.rows.length,
+      forgot_attendance: forgotAttendance,
+      total_alerts: dueTodayRes.rows.length + overdueRes.rows.length + (forgotAttendance ? 1 : 0),
     });
   } catch (err) {
     console.error(err);
