@@ -316,21 +316,30 @@
       <div class="page-title">Dashboard <small id="dashDate"></small></div>
       <div class="dash-grid">
         <div class="dash-chip" style="--c:#e94560" onclick="showPanel('notifications')">
-          <div class="num" id="d-over">-</div><div class="lbl">Alerts (Due/Overdue)</div>
+          <div class="num" id="d-over">-</div><div class="lbl" id="d-over-lbl">Alerts (Due/Overdue)</div>
         </div>
-        <div class="dash-chip" style="--c:#2563eb" onclick="showPanel('mytasks')">
-          <div class="num" id="d-my">-</div><div class="lbl">My Active Tasks</div>
+        <div class="dash-chip" style="--c:#2563eb" id="dashChip2" onclick="showPanel('mytasks')">
+          <div class="num" id="d-my">-</div><div class="lbl" id="d-my-lbl">My Active Tasks</div>
         </div>
-        <div class="dash-chip" style="--c:#16a34a" onclick="showPanel('assignedby')">
-          <div class="num" id="d-by">-</div><div class="lbl">Assigned by Me</div>
+        <div class="dash-chip" style="--c:#16a34a" id="dashChip3" onclick="showPanel('assignedby')">
+          <div class="num" id="d-by">-</div><div class="lbl" id="d-by-lbl">Assigned by Me</div>
         </div>
         <div class="dash-chip" style="--c:#7c3aed" onclick="showPanel('alltasks')">
-          <div class="num" id="d-all">-</div><div class="lbl">All Active Tasks</div>
+          <div class="num" id="d-all">-</div><div class="lbl" id="d-all-lbl">All Active Tasks</div>
         </div>
       </div>
       <div class="card">
-        <div class="card-head"><h3>My Tasks by Status</h3></div>
+        <div class="card-head"><h3 id="statusBreakdownTitle">Tasks by Status</h3></div>
         <div class="card-body" id="statusBreakdown"></div>
+      </div>
+      <div class="card hidden" id="empBreakdownCard">
+        <div class="card-head"><h3>Tasks by Employee</h3></div>
+        <div class="card-body">
+          <div class="tbl-wrap"><table>
+            <thead><tr><th>#</th><th>Employee</th><th>Active Tasks</th></tr></thead>
+            <tbody id="empBreakdownTable"></tbody>
+          </table></div>
+        </div>
       </div>
     </div>
 
@@ -338,13 +347,17 @@
     <div class="panel" id="panel-mytasks">
       <div class="page-title">
         <span>My Tasks <small>(Assigned to me by others)</small></span>
-        <button class="btn btn-primary" onclick="openCreateTask()">+ Create Task</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-sm" style="background:#0891b2;color:#fff;padding:7px 12px" onclick="exportTable('myTasksTable','My_Tasks')">&#128229; Export</button>
+          <button class="btn-sm" style="background:#475569;color:#fff;padding:7px 12px" onclick="printTableSection('myTasksTable','My Tasks')">&#128438; Print</button>
+          <button class="btn btn-primary" onclick="openCreateTask()">+ Create Task</button>
+        </div>
       </div>
       <div class="filter-row">
         <input type="text" id="mySearch" placeholder="Search..." oninput="debounceLoad('my')" style="max-width:280px"/>
         <select id="myStatusFilter" onchange="loadTasks('my')"><option value="">All Status</option></select>
       </div>
-      <div class="card"><div class="tbl-wrap"><table>
+      <div class="card"><div class="tbl-wrap"><table id="tbl-mytasks">
         <thead><tr><th>Task ID</th><th>Client</th><th>Work</th><th>Assigned By</th><th>Priority</th><th>Status</th><th>Due Date</th><th>Actions</th></tr></thead>
         <tbody id="myTasksTable"></tbody>
       </table></div></div>
@@ -354,13 +367,17 @@
     <div class="panel" id="panel-assignedby">
       <div class="page-title">
         <span>Assigned by Me <small>(Tasks I assigned to others)</small></span>
-        <button class="btn btn-primary" onclick="openCreateTask()">+ Create Task</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-sm" style="background:#0891b2;color:#fff;padding:7px 12px" onclick="exportTable('assignedByTable','Assigned_By_Me')">&#128229; Export</button>
+          <button class="btn-sm" style="background:#475569;color:#fff;padding:7px 12px" onclick="printTableSection('assignedByTable','Assigned By Me')">&#128438; Print</button>
+          <button class="btn btn-primary" onclick="openCreateTask()">+ Create Task</button>
+        </div>
       </div>
       <div class="filter-row">
         <input type="text" id="bySearch" placeholder="Search..." oninput="debounceLoad('assigned_by_me')" style="max-width:280px"/>
         <select id="byStatusFilter" onchange="loadTasks('assigned_by_me')"><option value="">All Status</option></select>
       </div>
-      <div class="card"><div class="tbl-wrap"><table>
+      <div class="card"><div class="tbl-wrap"><table id="tbl-assignedby">
         <thead><tr><th>Task ID</th><th>Client</th><th>Work</th><th>Assigned To</th><th>Priority</th><th>Status</th><th>Due Date</th><th>Actions</th></tr></thead>
         <tbody id="assignedByTable"></tbody>
       </table></div></div>
@@ -369,16 +386,21 @@
     <!-- ════ ALL TASKS ════ -->
     <div class="panel" id="panel-alltasks">
       <div class="page-title">
-        <span>All Tasks</span>
-        <button class="btn btn-primary" onclick="openCreateTask()">+ Create Task</button>
+        <span>All Tasks <small>(All Employees)</small></span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-sm" style="background:#0891b2;color:#fff;padding:7px 12px" onclick="exportTable('allTasksTable','All_Tasks')">&#128229; Export</button>
+          <button class="btn-sm" style="background:#475569;color:#fff;padding:7px 12px" onclick="printTableSection('allTasksTable','All Tasks')">&#128438; Print</button>
+          <button class="btn btn-primary" onclick="openCreateTask()">+ Create Task</button>
+        </div>
       </div>
       <div class="filter-row">
-        <input type="text" id="allSearch" placeholder="Search client, task, work..." oninput="debounceLoad('all')" style="max-width:280px"/>
+        <input type="text" id="allSearch" placeholder="Search client, task, work..." oninput="debounceLoad('all')" style="max-width:220px"/>
+        <select id="allEmpFilter" onchange="loadTasks('all')"><option value="">All Employees</option></select>
         <select id="allStatusFilter" onchange="loadTasks('all')"><option value="">All Status</option></select>
         <select id="allPriorityFilter" onchange="loadTasks('all')"><option value="">All Priority</option></select>
         <select id="allWorkFilter" onchange="loadTasks('all')"><option value="">All Work Types</option></select>
       </div>
-      <div class="card"><div class="tbl-wrap"><table>
+      <div class="card"><div class="tbl-wrap"><table id="tbl-alltasks">
         <thead><tr><th>Task ID</th><th>Client</th><th>Work</th><th>Assigned To</th><th>Priority</th><th>Status</th><th>Due Date</th><th>Actions</th></tr></thead>
         <tbody id="allTasksTable"></tbody>
       </table></div></div>
@@ -386,12 +408,19 @@
 
     <!-- ════ COMPLETED ════ -->
     <div class="panel" id="panel-completed">
-      <div class="page-title">Completed Tasks</div>
-      <div class="filter-row">
-        <input type="text" id="completedSearch" placeholder="Search..." oninput="debounceLoad('completed')" style="max-width:280px"/>
+      <div class="page-title">
+        <span id="completedTitle">Completed Tasks</span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-sm" style="background:#0891b2;color:#fff;padding:7px 12px" onclick="exportTable('completedTable','Completed_Tasks')">&#128229; Export</button>
+          <button class="btn-sm" style="background:#475569;color:#fff;padding:7px 12px" onclick="printTableSection('completedTable','Completed Tasks')">&#128438; Print</button>
+        </div>
       </div>
-      <div class="card"><div class="tbl-wrap"><table>
-        <thead><tr><th>Task ID</th><th>Client</th><th>Work</th><th>Status</th><th>Completed On</th><th>Actions</th></tr></thead>
+      <div class="filter-row">
+        <input type="text" id="completedSearch" placeholder="Search..." oninput="debounceLoad('completed')" style="max-width:220px"/>
+        <select id="completedEmpFilter" onchange="loadCompletedTasks()" class="hidden"><option value="">All Employees</option></select>
+      </div>
+      <div class="card"><div class="tbl-wrap"><table id="tbl-completed">
+        <thead><tr><th>Task ID</th><th>Client</th><th>Work</th><th>Assigned To</th><th>Status</th><th>Completed On</th><th>Actions</th></tr></thead>
         <tbody id="completedTable"></tbody>
       </table></div></div>
     </div>
@@ -1173,6 +1202,9 @@ async function loadMeta() {
     });
   });
 
+  // Employee filter dropdowns for All Tasks / Completed
+  populateEmpFilters(META.employees);
+
   // FY + compliance status dropdowns
   const fyRes = await api('/compliance/records?limit=1');
   if (fyRes.fy_options) {
@@ -1205,7 +1237,7 @@ function showPanel(name) {
       mytasks: () => loadTasks('my'),
       assignedby: () => loadTasks('assigned_by_me'),
       alltasks: () => loadTasks('all'),
-      completed: () => loadTasks('completed'),
+      completed: loadCompletedTasks,
       notifications: loadNotifications,
       clients: searchClients,
       companies: loadCompanies,
@@ -1225,24 +1257,62 @@ async function loadDashboard() {
   const data = await api('/tasks/dashboard');
   if (!data.success) return;
 
-  document.getElementById('d-my').textContent   = data.my_active;
-  document.getElementById('d-by').textContent   = data.assigned_by_me;
-  document.getElementById('d-all').textContent  = data.all_active;
-  document.getElementById('d-over').textContent = data.total_alerts || 0;
+  if (data.is_admin_view) {
+    // Admin view: all-employee stats
+    document.getElementById('d-over').textContent = data.overdue || 0;
+    document.getElementById('d-over-lbl').textContent = 'Overdue Tasks';
+    document.getElementById('d-my').textContent = data.all_active || 0;
+    document.getElementById('d-my-lbl').textContent = 'Total Active Tasks';
+    document.getElementById('dashChip2').onclick = () => showPanel('alltasks');
+    document.getElementById('d-by').textContent = data.completed_today || 0;
+    document.getElementById('d-by-lbl').textContent = 'Completed Today';
+    document.getElementById('dashChip3').onclick = () => showPanel('completed');
+    document.getElementById('d-all').textContent = data.all_active || 0;
+    document.getElementById('d-all-lbl').textContent = 'All Active Tasks';
+    document.getElementById('statusBreakdownTitle').textContent = 'All Tasks by Status';
 
-  const sb = document.getElementById('statusBreakdown');
-  if (data.status_breakdown?.length) {
-    const total = data.my_active || 1;
-    sb.innerHTML = data.status_breakdown.map(s => `
+    const sb = document.getElementById('statusBreakdown');
+    const total = data.all_active || 1;
+    sb.innerHTML = (data.status_breakdown || []).map(s => `
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
         ${statusBadge(s.status)}
         <div style="flex:1;background:#f1f5f9;border-radius:4px;height:8px;overflow:hidden">
           <div style="background:#2155f3;height:100%;width:${Math.min(100,s.cnt/total*100)}%;border-radius:4px"></div>
         </div>
         <span style="font-size:13px;font-weight:700;min-width:28px">${s.cnt}</span>
-      </div>`).join('');
+      </div>`).join('') || '<div class="empty-msg">No active tasks</div>';
+
+    // Employee breakdown
+    const empCard = document.getElementById('empBreakdownCard');
+    empCard.classList.remove('hidden');
+    document.getElementById('empBreakdownTable').innerHTML = (data.emp_breakdown || []).map((e, i) => `
+      <tr>
+        <td>${i+1}</td>
+        <td>${e.assigned_to_name || '--'}</td>
+        <td><strong style="color:#2155f3">${e.cnt}</strong></td>
+      </tr>`).join('') || '<tr><td colspan="3" class="empty-msg">No data</td></tr>';
   } else {
-    sb.innerHTML = '<div class="empty-msg">No active tasks assigned to you</div>';
+    // Employee view
+    document.getElementById('d-over').textContent = data.overdue || 0;
+    document.getElementById('d-over-lbl').textContent = 'Overdue Tasks';
+    document.getElementById('d-my').textContent = data.my_active || 0;
+    document.getElementById('d-my-lbl').textContent = 'My Active Tasks';
+    document.getElementById('d-by').textContent = data.assigned_by_me || 0;
+    document.getElementById('d-by-lbl').textContent = 'Assigned by Me';
+    document.getElementById('d-all').textContent = data.all_active || 0;
+    document.getElementById('d-all-lbl').textContent = 'All Active Tasks';
+    document.getElementById('statusBreakdownTitle').textContent = 'My Tasks by Status';
+
+    const sb = document.getElementById('statusBreakdown');
+    const total = data.my_active || 1;
+    sb.innerHTML = (data.status_breakdown || []).map(s => `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        ${statusBadge(s.status)}
+        <div style="flex:1;background:#f1f5f9;border-radius:4px;height:8px;overflow:hidden">
+          <div style="background:#2155f3;height:100%;width:${Math.min(100,s.cnt/total*100)}%;border-radius:4px"></div>
+        </div>
+        <span style="font-size:13px;font-weight:700;min-width:28px">${s.cnt}</span>
+      </div>`).join('') || '<div class="empty-msg">No active tasks assigned to you</div>';
   }
 }
 
@@ -1250,16 +1320,31 @@ async function loadDashboard() {
 const _dbt = {};
 function debounceLoad(view) {
   clearTimeout(_dbt[view]);
-  _dbt[view] = setTimeout(() => loadTasks(view), 400);
+  _dbt[view] = setTimeout(() => {
+    if (view === 'completed') loadCompletedTasks();
+    else loadTasks(view);
+  }, 400);
+}
+
+// Populate employee filter dropdowns once meta is loaded
+function populateEmpFilters(employees) {
+  ['allEmpFilter','completedEmpFilter'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const existing = el.innerHTML.includes('All Employees') ? '<option value="">All Employees</option>' : el.innerHTML;
+    el.innerHTML = existing + employees.map(e =>
+      `<option value="${e.emp_id}">${e.formal_name || e.name}</option>`
+    ).join('');
+  });
 }
 
 async function loadTasks(view) {
-  const tableMap = { my:'myTasksTable', assigned_by_me:'assignedByTable', all:'allTasksTable', completed:'completedTable' };
+  const tableMap = { my:'myTasksTable', assigned_by_me:'assignedByTable', all:'allTasksTable' };
   const tb = document.getElementById(tableMap[view]);
   if (!tb) return;
   tb.innerHTML = `<tr><td colspan="8" class="empty-msg">Loading...</td></tr>`;
 
-  const params = new URLSearchParams({ view, limit: 100 });
+  const params = new URLSearchParams({ view, limit: 200 });
   if (view === 'my') {
     const q = document.getElementById('mySearch')?.value; if (q) params.set('search', q);
     const st = document.getElementById('myStatusFilter')?.value; if (st) params.set('status', st);
@@ -1270,37 +1355,23 @@ async function loadTasks(view) {
   }
   if (view === 'all') {
     const q = document.getElementById('allSearch')?.value; if (q) params.set('search', q);
+    const ef = document.getElementById('allEmpFilter')?.value; if (ef) params.set('emp_filter', ef);
     const st = document.getElementById('allStatusFilter')?.value; if (st) params.set('status', st);
     const pr = document.getElementById('allPriorityFilter')?.value; if (pr) params.set('priority', pr);
     const wn = document.getElementById('allWorkFilter')?.value; if (wn) params.set('work_name', wn);
-  }
-  if (view === 'completed') {
-    const q = document.getElementById('completedSearch')?.value; if (q) params.set('search', q);
   }
 
   const data = await api('/tasks?' + params.toString());
   if (!data.success) { tb.innerHTML = `<tr><td colspan="8" class="empty-msg">Error loading tasks</td></tr>`; return; }
   if (!data.tasks.length) { tb.innerHTML = `<tr><td colspan="8" class="empty-msg">No tasks found</td></tr>`; return; }
 
+  const showAssign = view === 'assigned_by_me' || view === 'all';
+  const showCreatedBy = view === 'my';
   tb.innerHTML = data.tasks.map(t => {
     const client = t.legal_name || t.business_name || t.client_id || '--';
     const isOverdue = t.is_overdue;
-    const rowCls = isOverdue ? ' class="overdue-row"' : '';
-
-    if (view === 'completed') return `
-      <tr${rowCls}>
-        <td><small style="color:#64748b">${t.task_id}</small></td>
-        <td title="${t.client_id||''}">${client.substring(0,30)}</td>
-        <td>${(t.work_name||'--').substring(0,32)}</td>
-        <td>${statusBadge(t.status)}</td>
-        <td>${fmtDate(t.completion_date)}</td>
-        <td><button class="btn-sm btn-view" onclick="viewTask('${t.task_id}')">View</button></td>
-      </tr>`;
-
-    const showAssign = view === 'assigned_by_me' || view === 'all';
-    const showCreatedBy = view === 'my';
     return `
-      <tr${rowCls}>
+      <tr${isOverdue ? ' class="overdue-row"' : ''}>
         <td><small style="color:#64748b">${t.task_id}</small></td>
         <td title="${t.client_id||''}">${client.substring(0,26)}</td>
         <td>${(t.work_name||'--').substring(0,28)}</td>
@@ -1317,6 +1388,92 @@ async function loadTasks(view) {
         </td>
       </tr>`;
   }).join('');
+}
+
+async function loadCompletedTasks() {
+  const tb = document.getElementById('completedTable');
+  if (!tb) return;
+  tb.innerHTML = `<tr><td colspan="7" class="empty-msg">Loading...</td></tr>`;
+
+  const isAdmin = user.user_type === 'admin' && ['Director','Office Manager','HR'].includes(user.role);
+  const view = isAdmin ? 'all_completed' : 'completed';
+  const params = new URLSearchParams({ view, limit: 200 });
+  const q = document.getElementById('completedSearch')?.value; if (q) params.set('search', q);
+  if (isAdmin) {
+    const ef = document.getElementById('completedEmpFilter')?.value; if (ef) params.set('emp_filter', ef);
+    document.getElementById('completedEmpFilter')?.classList.remove('hidden');
+    document.getElementById('completedTitle').textContent = 'Completed Tasks (All Employees)';
+  }
+
+  const data = await api('/tasks?' + params.toString());
+  if (!data.success) { tb.innerHTML = `<tr><td colspan="7" class="empty-msg">Error loading</td></tr>`; return; }
+  if (!data.tasks.length) { tb.innerHTML = `<tr><td colspan="7" class="empty-msg">No completed tasks found</td></tr>`; return; }
+
+  tb.innerHTML = data.tasks.map(t => {
+    const client = t.legal_name || t.business_name || t.client_id || '--';
+    return `
+      <tr>
+        <td><small style="color:#64748b">${t.task_id}</small></td>
+        <td title="${t.client_id||''}">${client.substring(0,28)}</td>
+        <td>${(t.work_name||'--').substring(0,28)}</td>
+        <td>${t.assigned_to_name||'--'}</td>
+        <td>${statusBadge(t.status)}</td>
+        <td>${fmtDate(t.completion_date)}</td>
+        <td><button class="btn-sm btn-view" onclick="viewTask('${t.task_id}')">View</button></td>
+      </tr>`;
+  }).join('');
+}
+
+// ── Export to Excel (CSV) ─────────────────────────────────────
+function exportTable(tbodyId, filename) {
+  const tbody = document.getElementById(tbodyId);
+  const table = tbody?.closest('table');
+  if (!table) return;
+  const rows = [];
+  // Headers
+  const headers = [...table.querySelectorAll('thead th')].map(th => th.textContent.trim()).filter(h => h !== 'Actions');
+  rows.push(headers.join(','));
+  // Data
+  [...tbody.querySelectorAll('tr')].forEach(tr => {
+    const cells = [...tr.querySelectorAll('td')];
+    // skip last cell (Actions)
+    const vals = cells.slice(0, headers.length).map(td => {
+      const txt = td.textContent.trim().replace(/\n/g,' ').replace(/,/g,' ');
+      return `"${txt}"`;
+    });
+    if (vals.length) rows.push(vals.join(','));
+  });
+  const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${filename}_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+}
+
+// ── Print ─────────────────────────────────────────────────────
+function printTableSection(tbodyId, title) {
+  const tbody = document.getElementById(tbodyId);
+  const table = tbody?.closest('table');
+  if (!table) return;
+  const win = window.open('', '_blank');
+  win.document.write(`
+    <html><head><title>${title}</title>
+    <style>
+      body{font-family:Arial,sans-serif;font-size:12px;padding:20px}
+      h2{color:#1e293b;margin-bottom:4px}
+      p{color:#64748b;margin-bottom:12px;font-size:11px}
+      table{width:100%;border-collapse:collapse}
+      th{background:#1e293b;color:white;padding:8px;text-align:left;font-size:11px}
+      td{padding:6px 8px;border-bottom:1px solid #e2e8f0;font-size:11px}
+      tr:nth-child(even){background:#f8fafc}
+      @media print{button{display:none}}
+    </style></head><body>
+    <h2>${title}</h2>
+    <p>Generated: ${new Date().toLocaleString('en-IN')} &nbsp;|&nbsp; Total: ${tbody.querySelectorAll('tr').length} records</p>
+    <button onclick="window.print()" style="margin-bottom:12px;padding:6px 16px;background:#2155f3;color:white;border:none;border-radius:6px;cursor:pointer">&#128438; Print</button>
+    ${table.outerHTML}
+    </body></html>`);
+  win.document.close();
 }
 
 async function viewTask(taskId) {
@@ -1568,36 +1725,57 @@ async function loadNotifications() {
 
   let html = '';
 
-  // Today due
-  if (data.due_today.length) {
-    html += `<div class="notif-section-title">&#128680; Due Today (${data.due_today.length})</div>`;
+  // ── Admin-only: Attendance not marked ────────────────────────
+  if (data.is_admin_view && data.attendance_not_marked?.length) {
+    html += `<div class="notif-section-title" style="color:#dc2626">&#128683; Attendance Not Marked Today (${data.attendance_not_marked.length})</div>`;
+    html += `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">`;
+    html += data.attendance_not_marked.map(e => `
+      <div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:8px 12px;min-width:180px">
+        <div style="font-weight:700;font-size:13px;color:#991b1b">${e.formal_name||e.name}</div>
+        <div style="font-size:11px;color:#b91c1c">${e.emp_id} | ${e.designation||'--'}</div>
+      </div>`).join('');
+    html += `</div>`;
+  }
+
+  // Due Today
+  if (data.due_today?.length) {
+    const label = data.is_admin_view ? `Due Today — All Employees (${data.due_today.length})` : `Due Today (${data.due_today.length})`;
+    html += `<div class="notif-section-title">&#128680; ${label}</div>`;
     html += data.due_today.map(t => `
       <div class="notif-card" style="--nc:#f59e0b" onclick="viewTask('${t.task_id}')">
         <div class="nc-title">${t.work_name||'--'} <span class="badge b-pending">${t.status}</span></div>
         <div class="nc-meta">${t.legal_name||t.business_name||t.client_id||'--'} | ${t.task_id}</div>
-        <div class="nc-meta" style="margin-top:4px;color:#d97706;font-weight:700">Due: Today | Assigned by: ${t.created_by_name||'--'}</div>
+        <div class="nc-meta" style="margin-top:4px;color:#d97706;font-weight:700">
+          Assigned to: ${t.assigned_to_name||'--'} | By: ${t.created_by_name||'--'}
+        </div>
       </div>`).join('');
   }
 
   // Overdue
-  if (data.overdue.length) {
-    html += `<div class="notif-section-title">&#9888;&#65039; Overdue Tasks (${data.overdue.length})</div>`;
+  if (data.overdue?.length) {
+    const label = data.is_admin_view ? `Overdue — All Employees (${data.overdue.length})` : `Overdue Tasks (${data.overdue.length})`;
+    html += `<div class="notif-section-title">&#9888;&#65039; ${label}</div>`;
     html += data.overdue.map(t => `
       <div class="notif-card" style="--nc:#e94560" onclick="viewTask('${t.task_id}')">
         <div class="nc-title">${t.work_name||'--'} <span class="badge b-cancel">${t.status}</span></div>
         <div class="nc-meta">${t.legal_name||t.business_name||t.client_id||'--'} | ${t.task_id}</div>
-        <div class="nc-meta" style="margin-top:4px;color:#dc2626;font-weight:700">Was due: ${fmtDate(t.due_date)}</div>
+        <div class="nc-meta" style="margin-top:4px;color:#dc2626;font-weight:700">
+          Was due: ${fmtDate(t.due_date)} | Assigned to: ${t.assigned_to_name||'--'}
+        </div>
       </div>`).join('');
   }
 
   // Recently assigned
-  if (data.recently_assigned.length) {
-    html += `<div class="notif-section-title">&#128101; Assigned to You (Last 7 days — ${data.recently_assigned.length})</div>`;
+  if (data.recently_assigned?.length) {
+    const label = data.is_admin_view ? `Recent Tasks — Last 7 Days (${data.recently_assigned.length})` : `Assigned to You — Last 7 Days (${data.recently_assigned.length})`;
+    html += `<div class="notif-section-title">&#128101; ${label}</div>`;
     html += data.recently_assigned.map(t => `
       <div class="notif-card" style="--nc:#2155f3" onclick="viewTask('${t.task_id}')">
         <div class="nc-title">${t.work_name||'--'} ${statusBadge(t.status)}</div>
         <div class="nc-meta">${t.legal_name||t.business_name||t.client_id||'--'} | ${t.task_id}</div>
-        <div class="nc-meta" style="margin-top:4px">Assigned by: <strong>${t.created_by_name||'--'}</strong> | Due: ${fmtDate(t.due_date)}</div>
+        <div class="nc-meta" style="margin-top:4px">
+          Assigned to: <strong>${t.assigned_to_name||'--'}</strong> | By: ${t.created_by_name||'--'} | Due: ${fmtDate(t.due_date)}
+        </div>
       </div>`).join('');
   }
 
