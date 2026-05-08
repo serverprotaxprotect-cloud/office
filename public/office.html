@@ -935,12 +935,14 @@ let token = localStorage.getItem('office_token');
 let user  = JSON.parse(localStorage.getItem('office_user') || '{}');
 
 // Role → which sidebar panels are visible
+// All Tasks + Employee Management → Director / Office Manager / HR only
+// Everything else → open to all
 const ROLE_PERMS = {
-  'Director':       { panels: 'all',  attendance_admin: true },
-  'Office Manager': { panels: ['dashboard','mytasks','assignedby','alltasks','completed','notifications','clients','companies','directors','comptracking'], attendance_admin: true },
+  'Director':       { panels: 'all', attendance_admin: true },
+  'Office Manager': { panels: 'all', attendance_admin: true },
+  'HR':             { panels: 'all', attendance_admin: true },
   'Accountant':     { panels: ['dashboard','mytasks','assignedby','completed','notifications','clients','companies','directors','comptracking'], attendance_admin: false },
-  'HR':             { panels: ['dashboard','mytasks','assignedby','alltasks','completed','notifications'], attendance_admin: true },
-  'employee':       { panels: ['mytasks','assignedby','completed','notifications'], attendance_admin: false },
+  'employee':       { panels: ['dashboard','mytasks','assignedby','completed','notifications','clients','companies','directors','comptracking'], attendance_admin: false },
 };
 
 function getRolePerms() {
