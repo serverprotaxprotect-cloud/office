@@ -445,12 +445,12 @@ router.get('/attendance/template', adminAuth, async (req, res) => {
     const wb = XLSX.utils.book_new();
 
     // Sheet 1: Attendance Data (to be filled)
-    const attHeaders = ['Date (DD/MM/YYYY)', 'Emp ID', 'Employee Name', 'IN Time (HH:MM)', 'OUT Time (HH:MM)', 'Remark'];
+    const attHeaders = ['Date (DD/MM/YYYY)', 'Emp ID', 'Employee Name', 'IN Time (HH:MM)', 'OUT Time (HH:MM)', 'Location', 'Remark'];
     const attData = [attHeaders];
     // Add one example row
-    attData.push(['01/05/2026', empRes.rows[0]?.emp_id || 'PTP-0001', empRes.rows[0]?.formal_name || empRes.rows[0]?.name || 'Employee Name', '10:00', '19:00', '']);
+    attData.push(['01/05/2026', empRes.rows[0]?.emp_id || 'PTP-0001', empRes.rows[0]?.formal_name || empRes.rows[0]?.name || 'Employee Name', '10:00', '19:00', 'Ground Floor, A3, Kankarbagh...', '']);
     const ws1 = XLSX.utils.aoa_to_sheet(attData);
-    ws1['!cols'] = [{ wch: 20 }, { wch: 12 }, { wch: 22 }, { wch: 16 }, { wch: 16 }, { wch: 20 }];
+    ws1['!cols'] = [{ wch: 20 }, { wch: 12 }, { wch: 22 }, { wch: 16 }, { wch: 16 }, { wch: 40 }, { wch: 20 }];
     XLSX.utils.book_append_sheet(wb, ws1, 'Attendance');
 
     // Sheet 2: Employee List (reference)
@@ -515,10 +515,13 @@ router.post('/attendance/import', adminAuth, upload.single('file'), async (req, 
     return null;
   }
 
-  async function upsertAttendance(empId, empName, dateStr, inTime, outTime, lateMinutes, workingHours, finalStatus, remark, adminName) {
+  const crypto = require('crypto');
+
+  async function upsertAttendance(empId, empName, dateStr, inTime, outTime, lateMinutes, workingHours, finalStatus, remark, location, adminName) {
     const dateObj = new Date(dateStr);
     const month   = dateObj.getMonth() + 1;
     const year    = dateObj.getFullYear();
+
     const existing = await db.query(
       `SELECT emp_id FROM daily_attendance WHERE emp_id=$1 AND date::date=$2`,
       [empId, dateStr]
@@ -542,6 +545,28 @@ router.post('/attendance/import', adminAuth, upload.single('file'), async (req, 
          workingHours, finalStatus, lateMinutes, month, year, remark, adminName]
       );
     }
+
+    // Also insert attendance_log entries so punches are visible in employee view
+    if (inTime) {
+      await db.query(
+        `INSERT INTO attendance_log
+           (log_id, date, emp_id, employee_name, formal_name, action, time, address, marked_by, created_at)
+         VALUES ($1,$2,$3,$4,$5,'IN',$6,$7,'Admin-Import',NOW())
+         ON CONFLICT DO NOTHING`,
+        ['ATD-' + crypto.randomBytes(4).toString('hex').toUpperCase(),
+         dateStr, empId, empName, empName, inTime, location || null]
+      ).catch(() => {});
+    }
+    if (outTime) {
+      await db.query(
+        `INSERT INTO attendance_log
+           (log_id, date, emp_id, employee_name, formal_name, action, time, address, marked_by, created_at)
+         VALUES ($1,$2,$3,$4,$5,'OUT',$6,$7,'Admin-Import',NOW())
+         ON CONFLICT DO NOTHING`,
+        ['ATD-' + crypto.randomBytes(4).toString('hex').toUpperCase(),
+         dateStr, empId, empName, empName, outTime, location || null]
+      ).catch(() => {});
+    }
   }
 
   try {
@@ -560,14 +585,15 @@ router.post('/attendance/import', adminAuth, upload.single('file'), async (req, 
 
     const headers = rows[0].map(h => h.toString().toLowerCase().trim());
     const col = {
-      date:    headers.findIndex(h => h.includes('date')),
-      emp_id:  headers.findIndex(h => (h.includes('emp') && h.includes('id')) || h === 'employee id' || h === 'employeeid'),
-      name:    headers.findIndex(h => h === 'name' || h === 'employee name'),
-      action:  headers.findIndex(h => h === 'action' || h === 'type' || h === 'punch'),
-      in:      headers.findIndex(h => (h.includes('in') || h.includes('login')) && !h.includes('emp') && !h.includes('lati') && !h.includes('name')),
-      out:     headers.findIndex(h => h.includes('out') || h.includes('logout')),
-      time:    headers.findIndex(h => h === 'time' || h === 'punch time'),
-      remark:  headers.findIndex(h => h.includes('remark') || h.includes('note')),
+      date:     headers.findIndex(h => h.includes('date')),
+      emp_id:   headers.findIndex(h => (h.includes('emp') && h.includes('id')) || h === 'employee id' || h === 'employeeid'),
+      name:     headers.findIndex(h => h === 'name' || h === 'employee name'),
+      action:   headers.findIndex(h => h === 'action' || h === 'type' || h === 'punch'),
+      in:       headers.findIndex(h => (h.includes('in') || h.includes('login')) && !h.includes('emp') && !h.includes('lati') && !h.includes('name') && !h.includes('out')),
+      out:      headers.findIndex(h => h.includes('out') || h.includes('logout')),
+      time:     headers.findIndex(h => h === 'time' || h === 'punch time'),
+      location: headers.findIndex(h => h.includes('location') || h.includes('address') || h.includes('place')),
+      remark:   headers.findIndex(h => h.includes('remark') || h.includes('note')),
     };
 
     if (col.date < 0 || col.emp_id < 0)
@@ -599,15 +625,16 @@ router.post('/attendance/import', adminAuth, upload.single('file'), async (req, 
         let timeStr = dtTime;
         if (!timeStr && col.time >= 0) timeStr = parseTimeOnly(row[col.time]);
 
+        const loc = col.location >= 0 ? (row[col.location]?.toString().trim() || null) : null;
         const key = `${dateStr}|${empId}`;
-        if (!groups.has(key)) groups.set(key, { dateStr, empId, empName: row[col.name]?.toString().trim() || '', logins: [], logouts: [] });
+        if (!groups.has(key)) groups.set(key, { dateStr, empId, empName: row[col.name]?.toString().trim() || '', logins: [], logouts: [], location: null });
         const g = groups.get(key);
         if (!g.empName && row[col.name]) g.empName = row[col.name].toString().trim();
+        if (loc && !g.location) g.location = loc;
         if (timeStr) {
           if (action === 'login' || action === 'in') g.logins.push(timeStr);
           else if (action === 'logout' || action === 'out') g.logouts.push(timeStr);
         } else {
-          // No time — just record presence
           if (action === 'login' || action === 'in') g.logins.push(null);
           else g.logouts.push(null);
         }
@@ -624,8 +651,9 @@ router.post('/attendance/import', adminAuth, upload.single('file'), async (req, 
           if (!emp) { results.errors.push(`Emp ID "${g.empId}" not found`); results.skipped++; continue; }
           const empName = emp.formal_name || emp.name;
 
-          const inTime  = g.logins[0]  || null; // first login
-          const outTime = g.logouts[g.logouts.length - 1] || null; // last logout
+          const inTime  = g.logins[0]  || null;
+          const outTime = g.logouts[g.logouts.length - 1] || null;
+          const location = g.location || null;
 
           let workingHours = null;
           let finalStatus  = inTime ? 'Pending' : 'Absent';
@@ -640,7 +668,7 @@ router.post('/attendance/import', adminAuth, upload.single('file'), async (req, 
             finalStatus = 'Pending';
           }
 
-          await upsertAttendance(emp.emp_id, empName, g.dateStr, inTime, outTime, lateMinutes, workingHours, finalStatus, null, req.admin.name);
+          await upsertAttendance(emp.emp_id, empName, g.dateStr, inTime, outTime, lateMinutes, workingHours, finalStatus, null, location, req.admin.name);
           results.imported++;
         } catch (e) {
           results.errors.push(`${key}: ${e.message}`);
@@ -668,9 +696,10 @@ router.post('/attendance/import', adminAuth, upload.single('file'), async (req, 
           if (!emp) { results.errors.push(`Row ${rowNum}: Emp ID "${empId}" not found`); results.skipped++; continue; }
           const empName = emp.formal_name || emp.name;
 
-          const inTime  = col.in  >= 0 ? parseTimeOnly(row[col.in])  : null;
-          const outTime = col.out >= 0 ? parseTimeOnly(row[col.out]) : null;
-          const remark  = col.remark >= 0 ? (row[col.remark]?.toString().trim() || null) : null;
+          const inTime   = col.in       >= 0 ? parseTimeOnly(row[col.in])               : null;
+          const outTime  = col.out      >= 0 ? parseTimeOnly(row[col.out])              : null;
+          const location = col.location >= 0 ? (row[col.location]?.toString().trim() || null) : null;
+          const remark   = col.remark   >= 0 ? (row[col.remark]?.toString().trim()  || null) : null;
 
           let workingHours = null;
           let finalStatus  = inTime ? 'Pending' : 'Absent';
@@ -683,7 +712,7 @@ router.post('/attendance/import', adminAuth, upload.single('file'), async (req, 
             finalStatus  = worked >= fullDayMins ? 'Present' : worked >= halfDayMins ? 'Half Day' : 'Short Day';
           }
 
-          await upsertAttendance(emp.emp_id, empName, dateStr, inTime, outTime, lateMinutes, workingHours, finalStatus, remark, req.admin.name);
+          await upsertAttendance(emp.emp_id, empName, dateStr, inTime, outTime, lateMinutes, workingHours, finalStatus, remark, location, req.admin.name);
           results.imported++;
         } catch (rowErr) {
           results.errors.push(`Row ${rowNum}: ${rowErr.message}`);
