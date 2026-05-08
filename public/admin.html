@@ -1,0 +1,1049 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Panel - PTP Attendance</title>
+  <link rel="stylesheet" href="/assets/style.css"/>
+  <style>
+    /* ── Admin-specific styles ── */
+    .admin-body { background:#f1f5f9; min-height:100vh; }
+
+    .admin-navbar {
+      background: linear-gradient(90deg,#1a1a2e,#0f3460);
+      color:#fff; padding:0 24px; height:60px;
+      display:flex; align-items:center; justify-content:space-between;
+      position:sticky; top:0; z-index:100;
+      box-shadow:0 2px 12px rgba(0,0,0,.2);
+    }
+    .admin-navbar .brand { font-size:18px; font-weight:700; }
+    .admin-navbar .brand span { font-weight:300; opacity:.7; font-size:13px; margin-left:8px; }
+    .admin-badge {
+      background:#e94560; color:#fff; font-size:11px; font-weight:700;
+      padding:2px 8px; border-radius:20px; margin-left:8px;
+    }
+
+    /* Sidebar layout */
+    .admin-layout { display:flex; min-height:calc(100vh - 60px); }
+    .sidebar {
+      width:220px; background:#1e293b; flex-shrink:0;
+      padding:20px 0; position:sticky; top:60px; height:calc(100vh - 60px);
+      overflow-y:auto;
+    }
+    .sidebar-item {
+      display:flex; align-items:center; gap:12px;
+      padding:12px 20px; color:#94a3b8; font-size:14px; font-weight:500;
+      cursor:pointer; transition:all .2s; border-left:3px solid transparent;
+      user-select:none;
+    }
+    .sidebar-item:hover { background:rgba(255,255,255,.05); color:#e2e8f0; }
+    .sidebar-item.active { background:rgba(233,69,96,.12); color:#e94560; border-left-color:#e94560; }
+    .sidebar-item .s-icon { font-size:18px; width:24px; text-align:center; }
+    .sidebar-section { padding:16px 20px 6px; font-size:10px; font-weight:700;
+      text-transform:uppercase; letter-spacing:1px; color:#475569; }
+
+    /* Content area */
+    .admin-content { flex:1; padding:24px; overflow-x:hidden; }
+    .admin-panel { display:none; }
+    .admin-panel.active { display:block; }
+
+    /* Stat cards */
+    .stat-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:16px; margin-bottom:24px; }
+    .stat-card {
+      background:#fff; border-radius:12px; padding:20px;
+      box-shadow:0 2px 8px rgba(0,0,0,.06);
+      border-left:4px solid var(--clr, #2563eb);
+    }
+    .stat-card .s-num { font-size:32px; font-weight:800; color:var(--clr,#2563eb); line-height:1; }
+    .stat-card .s-lbl { font-size:13px; color:#64748b; margin-top:4px; }
+    .stat-card .s-icon { font-size:28px; float:right; opacity:.18; }
+
+    /* Page title */
+    .page-title { font-size:20px; font-weight:700; color:#1e293b; margin-bottom:20px; }
+    .page-title span { font-size:13px; font-weight:400; color:#64748b; margin-left:8px; }
+
+    /* Employee today table */
+    .today-table-wrap { background:#fff; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.06); overflow:hidden; }
+    .today-table-head { padding:16px 20px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; }
+    .today-table-head h3 { font-size:15px; font-weight:700; }
+
+    /* Filter row */
+    .filter-row { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; align-items:center; }
+    .filter-row select, .filter-row input {
+      padding:8px 12px; border:1.5px solid #e2e8f0; border-radius:8px;
+      font-size:14px; background:#f8fafc; outline:none;
+    }
+    .filter-row select:focus, .filter-row input:focus { border-color:#2563eb; }
+
+    /* Modal */
+    .modal-backdrop {
+      position:fixed; inset:0; background:rgba(0,0,0,.5);
+      display:flex; align-items:center; justify-content:center;
+      z-index:1000; padding:16px;
+    }
+    .modal {
+      background:#fff; border-radius:16px; padding:28px;
+      width:100%; max-width:500px; max-height:90vh; overflow-y:auto;
+      box-shadow:0 20px 60px rgba(0,0,0,.25);
+    }
+    .modal-title { font-size:18px; font-weight:700; margin-bottom:20px; }
+    .modal-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+    .modal-grid .full { grid-column:1/-1; }
+    .modal label { display:block; font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.4px; margin-bottom:4px; }
+    .modal input, .modal select {
+      width:100%; padding:10px 12px; border:1.5px solid #e2e8f0;
+      border-radius:8px; font-size:14px; outline:none; background:#f8fafc;
+    }
+    .modal input:focus, .modal select:focus { border-color:#2563eb; background:#fff; }
+    .modal-actions { display:flex; gap:10px; margin-top:20px; justify-content:flex-end; }
+    .btn-cancel { padding:10px 20px; background:#f1f5f9; border:none; border-radius:8px; font-size:14px; cursor:pointer; font-weight:600; }
+    .btn-danger { padding:10px 20px; background:#dc2626; color:#fff; border:none; border-radius:8px; font-size:14px; cursor:pointer; font-weight:600; }
+
+    /* Action buttons */
+    .btn-approve { padding:4px 12px; background:#dcfce7; color:#15803d; border:none; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; }
+    .btn-reject  { padding:4px 12px; background:#fee2e2; color:#b91c1c; border:none; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; }
+    .btn-edit    { padding:4px 12px; background:#dbeafe; color:#1d4ed8; border:none; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; }
+    .btn-calc    { padding:4px 12px; background:#fef9c3; color:#92400e; border:none; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; }
+
+    /* Salary totals bar */
+    .salary-total-bar {
+      display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:16px;
+    }
+    .sal-chip {
+      background:#fff; border-radius:10px; padding:14px 16px;
+      box-shadow:0 2px 8px rgba(0,0,0,.06); text-align:center;
+    }
+    .sal-chip .sv { font-size:20px; font-weight:800; }
+    .sal-chip .sl { font-size:11px; color:#64748b; text-transform:uppercase; margin-top:2px; }
+
+    /* Responsive */
+    @media(max-width:768px){
+      .sidebar { display:none; }
+      .admin-content { padding:16px; }
+      .modal-grid { grid-template-columns:1fr; }
+      .stat-grid { grid-template-columns:1fr 1fr; }
+    }
+    /* Mobile bottom nav for admin */
+    .admin-bottom-nav {
+      display:none; position:fixed; bottom:0; left:0; right:0;
+      background:#1e293b; border-top:1px solid #334155;
+      z-index:50;
+    }
+    @media(max-width:768px){
+      .admin-bottom-nav { display:flex; }
+      .admin-content { padding-bottom:80px; }
+    }
+    .admin-tab-btn {
+      flex:1; padding:10px 4px; background:none; border:none;
+      cursor:pointer; display:flex; flex-direction:column; align-items:center;
+      gap:3px; font-size:10px; color:#64748b; font-weight:600;
+    }
+    .admin-tab-btn.active { color:#e94560; }
+    .admin-tab-btn .ti { font-size:20px; }
+  </style>
+</head>
+<body class="admin-body">
+
+<!-- Loading -->
+<div class="loading-overlay" id="loadingOverlay"><div class="loading-spinner"></div></div>
+
+<!-- Navbar -->
+<nav class="admin-navbar">
+  <div class="brand">PTP Admin <span>Attendance System</span><span class="admin-badge">ADMIN</span></div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <span style="font-size:13px;opacity:.8;" id="adminName"></span>
+    <button class="btn-logout" onclick="adminLogout()">Logout</button>
+  </div>
+</nav>
+
+<div class="admin-layout">
+
+  <!-- Sidebar (desktop) -->
+  <aside class="sidebar">
+    <div class="sidebar-section">Main</div>
+    <div class="sidebar-item active" id="s-overview" onclick="showPanel('overview')">
+      <span class="s-icon">&#128202;</span> Overview
+    </div>
+    <div class="sidebar-section">Management</div>
+    <div class="sidebar-item" id="s-attendance" onclick="showPanel('attendance')">
+      <span class="s-icon">&#128197;</span> Attendance
+    </div>
+    <div class="sidebar-item" id="s-employees" onclick="showPanel('employees')">
+      <span class="s-icon">&#128100;</span> Employees
+    </div>
+    <div class="sidebar-item" id="s-leave" onclick="showPanel('leave')">
+      <span class="s-icon">&#128203;</span> Leave
+      <span id="leaveBadge" style="margin-left:auto;background:#e94560;color:#fff;font-size:10px;padding:1px 7px;border-radius:20px;display:none;">0</span>
+    </div>
+    <div class="sidebar-item" id="s-salary" onclick="showPanel('salary')">
+      <span class="s-icon">&#128176;</span> Salary
+    </div>
+  </aside>
+
+  <!-- Content -->
+  <main class="admin-content">
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- OVERVIEW PANEL                                          -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div class="admin-panel active" id="panel-overview">
+      <div class="page-title">Overview <span id="todayDateLbl"></span></div>
+
+      <div class="stat-grid">
+        <div class="stat-card" style="--clr:#2563eb">
+          <span class="s-icon">&#128100;</span>
+          <div class="s-num" id="ovTotal">-</div>
+          <div class="s-lbl">Total Active Employees</div>
+        </div>
+        <div class="stat-card" style="--clr:#16a34a">
+          <span class="s-icon">&#9989;</span>
+          <div class="s-num" id="ovPresent">-</div>
+          <div class="s-lbl">Present Today</div>
+        </div>
+        <div class="stat-card" style="--clr:#d97706">
+          <span class="s-icon">&#127965;</span>
+          <div class="s-num" id="ovLeave">-</div>
+          <div class="s-lbl">On Leave Today</div>
+        </div>
+        <div class="stat-card" style="--clr:#dc2626">
+          <span class="s-icon">&#10060;</span>
+          <div class="s-num" id="ovAbsent">-</div>
+          <div class="s-lbl">Absent Today</div>
+        </div>
+      </div>
+
+      <div class="today-table-wrap">
+        <div class="today-table-head">
+          <h3>All Employees - Today's Status</h3>
+          <button class="btn-sm" onclick="loadOverview()">Refresh</button>
+        </div>
+        <div class="hist-table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>Employee</th><th>Designation</th><th>IN Time</th><th>Status</th></tr></thead>
+            <tbody id="overviewTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- ATTENDANCE PANEL                                        -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div class="admin-panel" id="panel-attendance">
+      <div class="page-title">Attendance Management</div>
+
+      <div class="filter-row">
+        <select id="attMonth">
+          <option value="1">January</option><option value="2">February</option>
+          <option value="3">March</option><option value="4">April</option>
+          <option value="5">May</option><option value="6">June</option>
+          <option value="7">July</option><option value="8">August</option>
+          <option value="9">September</option><option value="10">October</option>
+          <option value="11">November</option><option value="12">December</option>
+        </select>
+        <select id="attYear"></select>
+        <select id="attEmpFilter" onchange="filterAttRecords()" style="min-width:180px;">
+          <option value="">All Employees</option>
+        </select>
+        <button class="btn-sm" onclick="loadAttendance()">Load</button>
+      </div>
+
+      <!-- Employee-wise summary -->
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title">Employee Summary</div>
+        <div class="hist-table-wrap">
+          <table>
+            <thead><tr><th>Employee</th><th>Present</th><th>Late Days</th><th>Total Late Mins</th><th>Pending</th><th>Action</th></tr></thead>
+            <tbody id="attSummaryTable"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Day-wise records -->
+      <div class="card">
+        <div class="card-title">Day-wise Records</div>
+        <div class="hist-table-wrap">
+          <table>
+            <thead><tr><th>Date</th><th>Employee</th><th>IN</th><th>OUT</th><th>Hours</th><th>Late (min)</th><th>Status</th><th>Action</th></tr></thead>
+            <tbody id="attRecordsTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- EMPLOYEES PANEL                                         -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div class="admin-panel" id="panel-employees">
+      <div class="page-title" style="display:flex;align-items:center;justify-content:space-between;">
+        <span>Employee Management</span>
+        <button class="btn-sm" onclick="openAddEmp()">+ Add Employee</button>
+      </div>
+
+      <div class="filter-row">
+        <input type="text" id="empSearch" placeholder="Search by name or ID..." oninput="filterEmps()" style="flex:1;"/>
+        <select id="empStatusFilter" onchange="filterEmps()">
+          <option value="">All Status</option>
+          <option value="Active">Active</option>
+          <option value="Inactive">Inactive</option>
+        </select>
+      </div>
+
+      <div class="today-table-wrap">
+        <div class="hist-table-wrap">
+          <table>
+            <thead><tr><th>Emp ID</th><th>Name</th><th>Designation</th><th>Mobile</th><th>Joined</th><th>Basic Pay</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="empTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- LEAVE PANEL                                             -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div class="admin-panel" id="panel-leave">
+      <div class="page-title">Leave Management</div>
+
+      <div class="filter-row">
+        <select id="leaveStatusFilter" onchange="loadLeaves()">
+          <option value="Pending">Pending</option>
+          <option value="Approved">Approved</option>
+          <option value="Rejected">Rejected</option>
+          <option value="">All</option>
+        </select>
+        <button class="btn-sm" onclick="loadLeaves()">Refresh</button>
+      </div>
+
+      <div class="today-table-wrap">
+        <div class="hist-table-wrap">
+          <table>
+            <thead><tr><th>Req ID</th><th>Employee</th><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Reason</th><th>Applied</th><th>Status</th><th>Action</th></tr></thead>
+            <tbody id="leaveTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- SALARY PANEL                                            -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div class="admin-panel" id="panel-salary">
+      <div class="page-title">Salary Management</div>
+
+      <!-- Tabs inside salary -->
+      <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;">
+        <button class="btn-sm" id="salTab-structure" onclick="showSalTab('structure')" style="background:#1e293b;">Salary Structure</button>
+        <button class="btn-sm" id="salTab-calculate" onclick="showSalTab('calculate')" style="background:#f1f5f9;color:#1e293b;">Calculate</button>
+        <button class="btn-sm" id="salTab-records" onclick="showSalTab('records')" style="background:#f1f5f9;color:#1e293b;">View Records</button>
+      </div>
+
+      <!-- Structure sub-panel -->
+      <div id="sal-structure">
+        <div class="card" style="margin-bottom:16px;">
+          <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;">
+            <span>Salary Structure Setup</span>
+            <button class="btn-sm" onclick="openAddSalary()">+ Add Structure</button>
+          </div>
+          <div class="hist-table-wrap">
+            <table>
+              <thead><tr><th>Emp ID</th><th>Name</th><th>Designation</th><th>Monthly Salary</th><th>Per Day</th><th>Late Fine/Mark</th><th>Grace (min)</th><th>Action</th></tr></thead>
+              <tbody id="structureTable"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card" id="missingStructureCard">
+          <div class="card-title" style="color:#dc2626;">Employees Without Salary Structure</div>
+          <div class="hist-table-wrap">
+            <table>
+              <thead><tr><th>Emp ID</th><th>Name</th><th>Designation</th><th>Basic Pay</th><th>Action</th></tr></thead>
+              <tbody id="missingTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Calculate sub-panel -->
+      <div id="sal-calculate" style="display:none;">
+        <div class="card">
+          <div class="card-title">Calculate Monthly Salary</div>
+          <div class="filter-row">
+            <select id="calMonth">
+              <option value="1">January</option><option value="2">February</option>
+              <option value="3">March</option><option value="4">April</option>
+              <option value="5">May</option><option value="6">June</option>
+              <option value="7">July</option><option value="8">August</option>
+              <option value="9">September</option><option value="10">October</option>
+              <option value="11">November</option><option value="12">December</option>
+            </select>
+            <select id="calYear"></select>
+            <button class="btn-sm" onclick="calculateSalary()" style="background:#16a34a;">Calculate All</button>
+          </div>
+          <div id="calcResult" style="margin-top:16px;"></div>
+        </div>
+      </div>
+
+      <!-- Records sub-panel -->
+      <div id="sal-records" style="display:none;">
+        <div class="filter-row">
+          <select id="recMonth">
+            <option value="1">January</option><option value="2">February</option>
+            <option value="3">March</option><option value="4">April</option>
+            <option value="5">May</option><option value="6">June</option>
+            <option value="7">July</option><option value="8">August</option>
+            <option value="9">September</option><option value="10">October</option>
+            <option value="11">November</option><option value="12">December</option>
+          </select>
+          <select id="recYear"></select>
+          <button class="btn-sm" onclick="loadSalaryRecords()">Load</button>
+        </div>
+        <div class="salary-total-bar">
+          <div class="sal-chip"><div class="sv" id="salTotGross" style="color:#2563eb;">₹0</div><div class="sl">Total Gross</div></div>
+          <div class="sal-chip"><div class="sv" id="salTotDeduct" style="color:#dc2626;">₹0</div><div class="sl">Total Deductions</div></div>
+          <div class="sal-chip"><div class="sv" id="salTotNet" style="color:#16a34a;">₹0</div><div class="sl">Total Net Payable</div></div>
+        </div>
+        <div class="today-table-wrap">
+          <div class="hist-table-wrap">
+            <table>
+              <thead><tr><th>Employee</th><th>Present</th><th>Leave</th><th>Payable Days</th><th>Gross</th><th>Late Fine</th><th>Deduction</th><th>Net Salary</th><th>Action</th></tr></thead>
+              <tbody id="salRecordsTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Mobile bottom nav -->
+<nav class="admin-bottom-nav">
+  <button class="admin-tab-btn active" id="m-overview" onclick="showPanel('overview')"><span class="ti">&#128202;</span>Overview</button>
+  <button class="admin-tab-btn" id="m-attendance" onclick="showPanel('attendance')"><span class="ti">&#128197;</span>Attend.</button>
+  <button class="admin-tab-btn" id="m-employees" onclick="showPanel('employees')"><span class="ti">&#128100;</span>Staff</button>
+  <button class="admin-tab-btn" id="m-leave" onclick="showPanel('leave')"><span class="ti">&#128203;</span>Leave</button>
+  <button class="admin-tab-btn" id="m-salary" onclick="showPanel('salary')"><span class="ti">&#128176;</span>Salary</button>
+</nav>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- ── Modals ─────────────────────────────────────── -->
+
+<!-- Add Employee Modal -->
+<div class="modal-backdrop" id="addEmpModal" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal">
+    <div class="modal-title">Add New Employee</div>
+    <div class="modal-grid">
+      <div><label>Full Name *</label><input id="ae_name" placeholder="Rahul Kumar"/></div>
+      <div><label>Formal Name</label><input id="ae_formal" placeholder="Mr. Rahul Kumar"/></div>
+      <div><label>Designation *</label><input id="ae_desg" placeholder="e.g. Accountant"/></div>
+      <div><label>Email</label><input id="ae_email" type="email" placeholder="rahul@example.com"/></div>
+      <div><label>Mobile</label><input id="ae_mobile" placeholder="9876543210"/></div>
+      <div><label>Date of Joining</label><input id="ae_doj" type="date"/></div>
+      <div><label>Basic Pay (₹/month)</label><input id="ae_pay" type="number" placeholder="25000"/></div>
+      <div><label>Paid Leave/Year</label><input id="ae_leave" type="number" value="12"/></div>
+      <div><label>Education</label><input id="ae_edu" placeholder="B.Com"/></div>
+      <div><label>Gender</label>
+        <select id="ae_sex"><option value="">Select</option><option>Male</option><option>Female</option><option>Other</option></select>
+      </div>
+      <div class="full"><label>Login Password *</label><input id="ae_pass" type="text" placeholder="Set a password"/></div>
+    </div>
+    <div id="addEmpError" class="alert alert-error" style="display:none;margin-top:12px;"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="document.getElementById('addEmpModal').style.display='none'">Cancel</button>
+      <button class="btn-sm" onclick="submitAddEmp()">Add Employee</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Employee Modal -->
+<div class="modal-backdrop" id="editEmpModal" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal">
+    <div class="modal-title">Edit Employee - <span id="editEmpId"></span></div>
+    <div class="modal-grid">
+      <div><label>Designation</label><input id="ed_desg"/></div>
+      <div><label>Email</label><input id="ed_email" type="email"/></div>
+      <div><label>Mobile</label><input id="ed_mobile"/></div>
+      <div><label>Basic Pay (₹)</label><input id="ed_pay" type="number"/></div>
+      <div><label>Paid Leave/Year</label><input id="ed_leave" type="number"/></div>
+      <div><label>Status</label>
+        <select id="ed_status"><option>Active</option><option>Inactive</option></select>
+      </div>
+      <div class="full"><label>Reset Password</label><input id="ed_pass" placeholder="Leave blank to keep current"/></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="document.getElementById('editEmpModal').style.display='none'">Cancel</button>
+      <button class="btn-sm" onclick="submitEditEmp()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Salary Structure Modal -->
+<div class="modal-backdrop" id="addSalModal" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal">
+    <div class="modal-title">Salary Structure - <span id="salEmpLabel"></span></div>
+    <input type="hidden" id="sal_emp_id"/>
+    <div class="modal-grid">
+      <div class="full"><label>Monthly Salary (₹) *</label><input id="sal_monthly" type="number" placeholder="25000"/></div>
+      <div><label>Late Fine per Mark (₹)</label><input id="sal_fine_mark" type="number" value="0" placeholder="0"/></div>
+      <div><label>Late Fine per Minute (₹)</label><input id="sal_fine_min" type="number" value="0" placeholder="0"/></div>
+      <div class="full"><label>Grace Allowed (minutes)</label><input id="sal_grace" type="number" value="0" placeholder="0"/></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="document.getElementById('addSalModal').style.display='none'">Cancel</button>
+      <button class="btn-sm" onclick="submitSalaryStructure()">Save Structure</button>
+    </div>
+  </div>
+</div>
+
+<!-- Update Attendance Modal -->
+<div class="modal-backdrop" id="attUpdateModal" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal">
+    <div class="modal-title">Update Attendance</div>
+    <input type="hidden" id="upd_emp_id"/>
+    <input type="hidden" id="upd_date"/>
+    <div class="modal-grid">
+      <div class="full"><label>Status</label>
+        <select id="upd_status">
+          <option>Present</option><option>Absent</option><option>Half Day</option><option>Leave</option><option>Holiday</option>
+        </select>
+      </div>
+      <div><label>Grace Minutes</label><input id="upd_grace" type="number" value="0"/></div>
+      <div><label>Remark</label><input id="upd_remark" placeholder="Optional remark"/></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="document.getElementById('attUpdateModal').style.display='none'">Cancel</button>
+      <button class="btn-sm" onclick="submitAttUpdate()">Update</button>
+    </div>
+  </div>
+</div>
+
+<!-- Salary Adjust Modal -->
+<div class="modal-backdrop" id="salAdjModal" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal">
+    <div class="modal-title">Adjust Salary - <span id="adjEmpLabel"></span></div>
+    <input type="hidden" id="adj_emp_id"/>
+    <input type="hidden" id="adj_month"/>
+    <input type="hidden" id="adj_year"/>
+    <div class="modal-grid">
+      <div><label>Extra Deduction (₹)</label><input id="adj_deduction" type="number" value="0"/></div>
+      <div><label>Manual Addition (₹)</label><input id="adj_addition" type="number" value="0"/></div>
+      <div class="full"><label>Remark</label><input id="adj_remark" placeholder="Reason for adjustment"/></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="document.getElementById('salAdjModal').style.display='none'">Cancel</button>
+      <button class="btn-sm" onclick="submitSalAdj()">Apply Adjustment</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Auth guard ───────────────────────────────────────────────
+const token = localStorage.getItem('admin_token');
+const admin = JSON.parse(localStorage.getItem('admin_info') || '{}');
+if (!token) window.location.href = '/admin-login.html';
+
+// ── Helpers ──────────────────────────────────────────────────
+const api = async (path, opts = {}) => {
+  const res = await fetch('/api' + path, {
+    ...opts,
+    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', ...(opts.headers||{}) }
+  });
+  return res.json();
+};
+
+function showToast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + type;
+  setTimeout(() => t.className = 'toast', 3500);
+}
+
+function fmt(t) {
+  if (!t) return '--';
+  const parts = String(t).split(':');
+  if (parts.length < 2) return t;
+  let h = parseInt(parts[0]), m = parts[1];
+  return `${h % 12 || 12}:${m} ${h >= 12 ? 'PM' : 'AM'}`;
+}
+function fmtDate(d) {
+  if (!d) return '--';
+  return new Date(d).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+}
+function money(n) { return '₹' + (parseFloat(n)||0).toLocaleString('en-IN'); }
+
+// ── Panel switching ──────────────────────────────────────────
+function showPanel(name) {
+  document.querySelectorAll('.admin-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.sidebar-item').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.admin-tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  document.getElementById('s-' + name)?.classList.add('active');
+  document.getElementById('m-' + name)?.classList.add('active');
+
+  if (name === 'attendance' && !document.getElementById('attSummaryTable').children.length) loadAttendance();
+  if (name === 'employees'  && !document.getElementById('empTable').children.length)       loadEmployees();
+  if (name === 'leave')      loadLeaves();
+  if (name === 'salary')     loadSalaryStructure();
+}
+
+// ── Salary sub-tabs ──────────────────────────────────────────
+function showSalTab(tab) {
+  ['structure','calculate','records'].forEach(t => {
+    document.getElementById('sal-' + t).style.display = t === tab ? 'block' : 'none';
+    const btn = document.getElementById('salTab-' + t);
+    btn.style.background = t === tab ? '#1e293b' : '#f1f5f9';
+    btn.style.color      = t === tab ? '#fff' : '#1e293b';
+  });
+  if (tab === 'structure') loadSalaryStructure();
+  if (tab === 'records')   loadSalaryRecords();
+}
+
+// ── OVERVIEW ─────────────────────────────────────────────────
+async function loadOverview() {
+  try {
+    const data = await api('/admin/overview');
+    if (!data.success) return;
+
+    document.getElementById('ovTotal').textContent   = data.stats.total;
+    document.getElementById('ovPresent').textContent = data.stats.present;
+    document.getElementById('ovLeave').textContent   = data.stats.on_leave;
+    document.getElementById('ovAbsent').textContent  = data.stats.absent;
+    document.getElementById('todayDateLbl').textContent = new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' });
+
+    const tb = document.getElementById('overviewTable');
+    tb.innerHTML = data.employees_today.map((e, i) => {
+      const status = e.final_status || (e.first_in ? 'Pending' : 'Absent');
+      const badge = status === 'Present' ? 'badge-present' : status === 'Leave' ? 'badge-leave' : status === 'Pending' ? 'badge-pending' : 'badge-absent';
+      return `<tr>
+        <td>${i+1}</td>
+        <td><strong>${e.formal_name||e.name}</strong><br><small style="color:#94a3b8">${e.emp_id}</small></td>
+        <td>${e.designation||'--'}</td>
+        <td>${e.first_in ? fmt(e.first_in) : '--'}</td>
+        <td><span class="badge ${badge}">${status}</span></td>
+      </tr>`;
+    }).join('');
+  } catch(e) { console.error(e); }
+}
+
+// ── ATTENDANCE ───────────────────────────────────────────────
+let allAttRecords = [];
+
+async function loadAttendance() {
+  const month = document.getElementById('attMonth').value;
+  const year  = document.getElementById('attYear').value;
+  try {
+    const data = await api(`/admin/attendance?month=${month}&year=${year}`);
+    if (!data.success) return;
+
+    allAttRecords = data.records || [];
+
+    // Populate employee dropdown from summary (unique employees in this month)
+    const empSel = document.getElementById('attEmpFilter');
+    const prevVal = empSel.value;
+    empSel.innerHTML = '<option value="">All Employees</option>';
+    data.summary.forEach(s => {
+      const o = document.createElement('option');
+      o.value = s.emp_id;
+      o.textContent = `${s.employee_name} (${s.emp_id})`;
+      empSel.appendChild(o);
+    });
+    empSel.value = prevVal || '';
+
+    // Summary table
+    const st = document.getElementById('attSummaryTable');
+    st.innerHTML = data.summary.length ? data.summary.map(s => `
+      <tr>
+        <td><strong>${s.employee_name}</strong><br><small style="color:#94a3b8">${s.emp_id}</small></td>
+        <td>${s.present}</td>
+        <td>${s.late_days > 0 ? `<span style="color:#d97706;font-weight:600">${s.late_days}</span>` : 0}</td>
+        <td>${s.total_late_mins > 0 ? `<span style="color:#dc2626">${s.total_late_mins} min</span>` : '0'}</td>
+        <td>${s.pending}</td>
+        <td><button class="btn-edit" onclick="viewEmpAtt('${s.emp_id}')">View</button></td>
+      </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:20px">No records</td></tr>';
+
+    // Render records (respects current dropdown filter)
+    filterAttRecords();
+  } catch(e) { console.error(e); }
+}
+
+function renderAttRecords(records) {
+  const rt = document.getElementById('attRecordsTable');
+  rt.innerHTML = records.length ? records.map(r => {
+    const badge = r.final_status === 'Present' ? 'badge-present' : r.final_status === 'Leave' ? 'badge-leave' : r.final_status === 'Absent' ? 'badge-absent' : 'badge-pending';
+    return `<tr>
+      <td>${fmtDate(r.date)}</td>
+      <td><strong>${r.employee_name}</strong><br><small style="color:#94a3b8">${r.emp_id}</small></td>
+      <td>${fmt(r.first_in)}</td>
+      <td>${fmt(r.last_out)}</td>
+      <td>${r.working_hours||'--'}</td>
+      <td>${r.late_minutes > 0 ? `<span style="color:#dc2626">${r.late_minutes}</span>` : '0'}</td>
+      <td><span class="badge ${badge}">${r.final_status||'Pending'}</span></td>
+      <td><button class="btn-edit" onclick="openAttUpdate('${r.emp_id}','${r.date?.split('T')[0]}','${r.final_status||'Pending'}',${r.grace_minutes_granted||0})">Edit</button></td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:20px">No records found</td></tr>';
+}
+
+function filterAttRecords() {
+  const empId = document.getElementById('attEmpFilter').value;
+  const filtered = empId ? allAttRecords.filter(r => r.emp_id === empId) : allAttRecords;
+  renderAttRecords(filtered);
+}
+
+function viewEmpAtt(empId) {
+  document.getElementById('attEmpFilter').value = empId;
+  filterAttRecords();
+  document.getElementById('attRecordsTable').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function openAttUpdate(empId, date, status, grace) {
+  document.getElementById('upd_emp_id').value = empId;
+  document.getElementById('upd_date').value    = date;
+  document.getElementById('upd_status').value  = status;
+  document.getElementById('upd_grace').value   = grace;
+  document.getElementById('upd_remark').value  = '';
+  document.getElementById('attUpdateModal').style.display = 'flex';
+}
+
+async function submitAttUpdate() {
+  const emp_id = document.getElementById('upd_emp_id').value;
+  const date   = document.getElementById('upd_date').value;
+  const data = await api('/admin/attendance/update', {
+    method: 'POST',
+    body: JSON.stringify({
+      emp_id, date,
+      final_status: document.getElementById('upd_status').value,
+      grace_minutes: document.getElementById('upd_grace').value,
+      remark: document.getElementById('upd_remark').value
+    })
+  });
+  document.getElementById('attUpdateModal').style.display = 'none';
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) loadAttendance();
+}
+
+// ── EMPLOYEES ────────────────────────────────────────────────
+let allEmps = [];
+async function loadEmployees() {
+  const data = await api('/admin/employees');
+  if (!data.success) return;
+  allEmps = data.employees;
+  renderEmps(allEmps);
+}
+
+function renderEmps(emps) {
+  const tb = document.getElementById('empTable');
+  tb.innerHTML = emps.length ? emps.map(e => `
+    <tr>
+      <td><strong>${e.emp_id}</strong></td>
+      <td>${e.formal_name||e.name}</td>
+      <td>${e.designation||'--'}</td>
+      <td>${e.mobile_no||'--'}</td>
+      <td>${fmtDate(e.date_of_joining)}</td>
+      <td>${e.basic_pay ? money(e.basic_pay) : '--'}</td>
+      <td><span class="badge ${e.status==='Active'?'badge-present':'badge-absent'}">${e.status}</span></td>
+      <td>
+        <button class="btn-edit" onclick="openEditEmp(${JSON.stringify(e).replace(/"/g,'&quot;')})">Edit</button>
+      </td>
+    </tr>`).join('') : '<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:20px">No employees</td></tr>';
+}
+
+function filterEmps() {
+  const q = document.getElementById('empSearch').value.toLowerCase();
+  const s = document.getElementById('empStatusFilter').value;
+  renderEmps(allEmps.filter(e =>
+    (!q || e.name.toLowerCase().includes(q) || e.emp_id.toLowerCase().includes(q)) &&
+    (!s || e.status === s)
+  ));
+}
+
+function openAddEmp() {
+  ['ae_name','ae_formal','ae_desg','ae_email','ae_mobile','ae_edu','ae_pass'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('ae_pay').value = '';
+  document.getElementById('ae_leave').value = '12';
+  document.getElementById('ae_doj').value = new Date().toISOString().split('T')[0];
+  document.getElementById('addEmpError').style.display = 'none';
+  document.getElementById('addEmpModal').style.display = 'flex';
+}
+
+async function submitAddEmp() {
+  const err = document.getElementById('addEmpError');
+  err.style.display = 'none';
+  const data = await api('/admin/employees/add', {
+    method: 'POST',
+    body: JSON.stringify({
+      name:             document.getElementById('ae_name').value,
+      formal_name:      document.getElementById('ae_formal').value,
+      designation:      document.getElementById('ae_desg').value,
+      email_id:         document.getElementById('ae_email').value,
+      mobile_no:        document.getElementById('ae_mobile').value,
+      date_of_joining:  document.getElementById('ae_doj').value,
+      basic_pay:        document.getElementById('ae_pay').value,
+      login_password:   document.getElementById('ae_pass').value,
+      paid_leave_per_year: document.getElementById('ae_leave').value,
+      education:        document.getElementById('ae_edu').value,
+      sex:              document.getElementById('ae_sex').value
+    })
+  });
+  if (data.success) {
+    document.getElementById('addEmpModal').style.display = 'none';
+    showToast(data.message, 'success');
+    loadEmployees();
+  } else {
+    err.textContent = data.message; err.style.display = 'block';
+  }
+}
+
+function openEditEmp(e) {
+  document.getElementById('editEmpId').textContent    = e.emp_id;
+  document.getElementById('ed_desg').value            = e.designation||'';
+  document.getElementById('ed_email').value           = e.email_id||'';
+  document.getElementById('ed_mobile').value          = e.mobile_no||'';
+  document.getElementById('ed_pay').value             = e.basic_pay||'';
+  document.getElementById('ed_leave').value           = e.paid_leave_per_year||12;
+  document.getElementById('ed_status').value          = e.status||'Active';
+  document.getElementById('ed_pass').value            = '';
+  document.getElementById('editEmpModal')._empId      = e.emp_id;
+  document.getElementById('editEmpModal').style.display = 'flex';
+}
+
+async function submitEditEmp() {
+  const empId = document.getElementById('editEmpModal')._empId;
+  const pass  = document.getElementById('ed_pass').value;
+  const data  = await api(`/admin/employees/${empId}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      designation:      document.getElementById('ed_desg').value,
+      email_id:         document.getElementById('ed_email').value,
+      mobile_no:        document.getElementById('ed_mobile').value,
+      basic_pay:        document.getElementById('ed_pay').value,
+      paid_leave_per_year: document.getElementById('ed_leave').value,
+      status:           document.getElementById('ed_status').value,
+      login_password:   pass || undefined
+    })
+  });
+  document.getElementById('editEmpModal').style.display = 'none';
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) loadEmployees();
+}
+
+// ── LEAVE ────────────────────────────────────────────────────
+async function loadLeaves() {
+  const status = document.getElementById('leaveStatusFilter').value;
+  const data = await api(`/leave/all${status ? '?status=' + status : ''}`);
+  if (!data.success) return;
+
+  const pending = data.leaves.filter(l => l.status === 'Pending').length;
+  const badge = document.getElementById('leaveBadge');
+  badge.textContent = pending; badge.style.display = pending ? 'inline-block' : 'none';
+
+  const tb = document.getElementById('leaveTable');
+  tb.innerHTML = data.leaves.length ? data.leaves.map(l => {
+    const badge = l.status === 'Approved' ? 'badge-present' : l.status === 'Rejected' ? 'badge-absent' : 'badge-pending';
+    return `<tr>
+      <td><small>${l.request_id}</small></td>
+      <td><strong>${l.employee_name}</strong><br><small style="color:#94a3b8">${l.emp_id}</small></td>
+      <td>${l.leave_type}</td>
+      <td>${fmtDate(l.from_date)}</td>
+      <td>${fmtDate(l.to_date)}</td>
+      <td><strong>${l.days}</strong></td>
+      <td style="max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${l.reason}">${l.reason}</td>
+      <td><small>${new Date(l.applied_at).toLocaleDateString('en-IN')}</small></td>
+      <td><span class="badge ${badge}">${l.status}</span></td>
+      <td>${l.status === 'Pending' ? `
+        <button class="btn-approve" onclick="leaveAction('${l.request_id}','Approved')">Approve</button>
+        <button class="btn-reject"  onclick="leaveAction('${l.request_id}','Rejected')">Reject</button>
+      ` : `<small style="color:#94a3b8">${l.approved_rejected_by||'--'}</small>`}</td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="10" style="text-align:center;color:#94a3b8;padding:20px">No leave requests</td></tr>';
+}
+
+async function leaveAction(reqId, action) {
+  if (!confirm(`${action} this leave request?`)) return;
+  const data = await api('/leave/action', {
+    method: 'POST',
+    body: JSON.stringify({ request_id: reqId, action })
+  });
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) loadLeaves();
+}
+
+// ── SALARY ───────────────────────────────────────────────────
+async function loadSalaryStructure() {
+  const data = await api('/salary/structure');
+  if (!data.success) return;
+
+  const tb = document.getElementById('structureTable');
+  tb.innerHTML = data.structures.length ? data.structures.map(s => `
+    <tr>
+      <td>${s.emp_id}</td>
+      <td>${s.employee_name}</td>
+      <td>${s.designation||'--'}</td>
+      <td><strong>${money(s.monthly_salary)}</strong></td>
+      <td>${money(s.per_day_salary)}</td>
+      <td>${money(s.late_fine_per_mark)}/mark</td>
+      <td>${s.grace_allowed||0} min</td>
+      <td><button class="btn-edit" onclick="openAddSalary('${s.emp_id}','${s.employee_name}',${s.monthly_salary},${s.late_fine_per_mark||0},${s.late_fine_per_minute||0},${s.grace_allowed||0})">Edit</button></td>
+    </tr>`).join('') : '<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:20px">No structures set</td></tr>';
+
+  const mt = document.getElementById('missingTable');
+  document.getElementById('missingStructureCard').style.display = data.missing.length ? 'block' : 'none';
+  mt.innerHTML = data.missing.map(e => `
+    <tr>
+      <td>${e.emp_id}</td><td>${e.name}</td><td>${e.designation}</td>
+      <td>${e.basic_pay ? money(e.basic_pay) : '--'}</td>
+      <td><button class="btn-approve" onclick="openAddSalary('${e.emp_id}','${e.name}',${e.basic_pay||0},0,0,0)">Setup</button></td>
+    </tr>`).join('');
+}
+
+function openAddSalary(empId='', name='', monthly=0, fineM=0, fineMin=0, grace=0) {
+  document.getElementById('sal_emp_id').value      = empId;
+  document.getElementById('salEmpLabel').textContent = name || 'Select Employee';
+  document.getElementById('sal_monthly').value     = monthly || '';
+  document.getElementById('sal_fine_mark').value   = fineM || 0;
+  document.getElementById('sal_fine_min').value    = fineMin || 0;
+  document.getElementById('sal_grace').value       = grace || 0;
+  document.getElementById('addSalModal').style.display = 'flex';
+}
+
+async function submitSalaryStructure() {
+  const data = await api('/salary/structure', {
+    method: 'POST',
+    body: JSON.stringify({
+      emp_id:              document.getElementById('sal_emp_id').value,
+      monthly_salary:      document.getElementById('sal_monthly').value,
+      late_fine_per_mark:  document.getElementById('sal_fine_mark').value,
+      late_fine_per_minute:document.getElementById('sal_fine_min').value,
+      grace_allowed:       document.getElementById('sal_grace').value
+    })
+  });
+  document.getElementById('addSalModal').style.display = 'none';
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) loadSalaryStructure();
+}
+
+async function calculateSalary() {
+  const month = document.getElementById('calMonth').value;
+  const year  = document.getElementById('calYear').value;
+  const res   = document.getElementById('calcResult');
+  res.innerHTML = '<p style="color:#64748b">Calculating...</p>';
+
+  const data = await api('/salary/calculate', {
+    method: 'POST',
+    body: JSON.stringify({ month, year })
+  });
+
+  if (data.success) {
+    showToast(data.message, 'success');
+    res.innerHTML = `
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px;margin-bottom:12px;">
+        <strong style="color:#15803d">Salary Calculated for ${data.results.length} employees</strong>
+        <br><small style="color:#64748b">Working days this month: ${data.working_days}</small>
+      </div>
+      <div class="hist-table-wrap"><table>
+        <thead><tr><th>Employee</th><th>Present</th><th>Leave</th><th>Payable Days</th><th>Gross</th><th>Late Fine</th><th>Net Salary</th></tr></thead>
+        <tbody>${data.results.map(r => `<tr>
+          <td>${r.employee_name}</td>
+          <td>${r.present_days}</td>
+          <td>${r.leave_days}</td>
+          <td>${r.payable_days}</td>
+          <td>${money(r.gross_salary)}</td>
+          <td style="color:#dc2626">${money(r.late_fine)}</td>
+          <td><strong style="color:#16a34a">${money(r.net_salary)}</strong></td>
+        </tr>`).join('')}</tbody>
+      </table></div>`;
+  } else {
+    res.innerHTML = `<div class="alert alert-error">${data.message}</div>`;
+  }
+}
+
+async function loadSalaryRecords() {
+  const month = document.getElementById('recMonth').value;
+  const year  = document.getElementById('recYear').value;
+  const data = await api(`/salary/records?month=${month}&year=${year}`);
+  if (!data.success) return;
+
+  document.getElementById('salTotGross').textContent  = money(data.totals.gross);
+  document.getElementById('salTotDeduct').textContent = money(data.totals.deductions);
+  document.getElementById('salTotNet').textContent    = money(data.totals.net);
+
+  const tb = document.getElementById('salRecordsTable');
+  tb.innerHTML = data.records.length ? data.records.map(r => `
+    <tr>
+      <td><strong>${r.employee_name}</strong><br><small style="color:#94a3b8">${r.emp_id}</small></td>
+      <td>${r.present_days||0}</td>
+      <td>${r.leave_days||0}</td>
+      <td>${r.payable_days||0}</td>
+      <td>${money(r.gross_salary)}</td>
+      <td style="color:#dc2626">${money(r.late_fine)}</td>
+      <td style="color:#dc2626">${money(r.other_deduction)}</td>
+      <td><strong style="color:#16a34a">${money(r.net_salary)}</strong></td>
+      <td><button class="btn-calc" onclick="openSalAdj('${r.emp_id}','${r.employee_name}',${month},${year})">Adjust</button></td>
+    </tr>`).join('') : '<tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:20px">No records. Calculate salary first.</td></tr>';
+}
+
+function openSalAdj(empId, name, month, year) {
+  document.getElementById('adj_emp_id').value       = empId;
+  document.getElementById('adj_month').value         = month;
+  document.getElementById('adj_year').value          = year;
+  document.getElementById('adjEmpLabel').textContent = name;
+  document.getElementById('adj_deduction').value     = 0;
+  document.getElementById('adj_addition').value      = 0;
+  document.getElementById('adj_remark').value        = '';
+  document.getElementById('salAdjModal').style.display = 'flex';
+}
+
+async function submitSalAdj() {
+  const data = await api('/salary/adjust', {
+    method: 'POST',
+    body: JSON.stringify({
+      emp_id:           document.getElementById('adj_emp_id').value,
+      month:            document.getElementById('adj_month').value,
+      year:             document.getElementById('adj_year').value,
+      other_deduction:  document.getElementById('adj_deduction').value,
+      manual_addition:  document.getElementById('adj_addition').value,
+      remark:           document.getElementById('adj_remark').value
+    })
+  });
+  document.getElementById('salAdjModal').style.display = 'none';
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) loadSalaryRecords();
+}
+
+function adminLogout() {
+  localStorage.removeItem('admin_token');
+  localStorage.removeItem('admin_info');
+  window.location.href = '/admin-login.html';
+}
+
+// ── Init ─────────────────────────────────────────────────────
+(async function init() {
+  document.getElementById('adminName').textContent = admin.name || admin.username || '';
+
+  // Populate year selectors
+  const thisYear = new Date().getFullYear();
+  ['attYear','calYear','recYear'].forEach(id => {
+    const sel = document.getElementById(id);
+    for (let y = thisYear; y >= thisYear - 2; y--) {
+      const o = document.createElement('option');
+      o.value = y; o.textContent = y; sel.appendChild(o);
+    }
+  });
+
+  // Set current month
+  const m = new Date().getMonth() + 1;
+  ['attMonth','calMonth','recMonth'].forEach(id => document.getElementById(id).value = m);
+
+  await loadOverview();
+  document.getElementById('loadingOverlay').style.display = 'none';
+
+  // Check pending leaves badge
+  const lData = await api('/leave/all?status=Pending').catch(()=>({leaves:[]}));
+  const pending = lData.leaves?.length || 0;
+  const badge = document.getElementById('leaveBadge');
+  if (pending) { badge.textContent = pending; badge.style.display = 'inline-block'; }
+})();
+</script>
+</body>
+</html>

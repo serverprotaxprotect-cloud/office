@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PTP Attendance - Dashboard</title>
+  <link rel="stylesheet" href="/assets/style.css" />
+  <style>
+    .leave-type-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px; }
+    .leave-type-btn {
+      padding:12px 8px; border:2px solid #e2e8f0; border-radius:10px;
+      background:#f8fafc; cursor:pointer; font-size:13px; font-weight:600;
+      text-align:center; transition:all .2s; color:#64748b;
+    }
+    .leave-type-btn.selected { border-color:#2563eb; background:#eff6ff; color:#2563eb; }
+    .leave-history-item {
+      padding:12px 0; border-bottom:1px solid #f1f5f9;
+    }
+    .leave-history-item:last-child { border-bottom:none; }
+    .lh-top { display:flex; justify-content:space-between; align-items:center; }
+    .lh-dates { font-size:13px; color:#64748b; margin-top:3px; }
+    .lh-reason { font-size:12px; color:#94a3b8; margin-top:3px; }
+  </style>
+</head>
+<body class="dash-body">
+
+<!-- Loading overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-spinner"></div>
+</div>
+
+<!-- Navbar -->
+<nav class="navbar">
+  <div class="navbar-brand">PTP <span>Attendance</span></div>
+  <div class="nav-actions">
+    <span class="nav-emp-name" id="navEmpName"></span>
+    <button class="btn-logout" onclick="logout()">Logout</button>
+  </div>
+</nav>
+
+<!-- Main Content -->
+<div class="dash-main" style="padding-bottom: 90px;">
+
+  <!-- ── TAB: HOME ──────────────────────────────────────── -->
+  <div class="tab-panel active" id="tab-home">
+
+    <!-- Clock Card -->
+    <div class="clock-card">
+      <div class="clock-time" id="clockTime">--:--:--</div>
+      <div class="clock-date" id="clockDate"></div>
+      <div class="clock-emp" id="clockEmp"></div>
+      <div class="status-bar">
+        <div class="status-dot none" id="statusDot"></div>
+        <span id="statusText">Loading...</span>
+      </div>
+    </div>
+
+    <!-- Punch Buttons -->
+    <div class="card">
+      <div class="card-title">Mark Attendance</div>
+      <div class="punch-row">
+        <button class="punch-btn btn-in" id="btnIn" onclick="markAttendance('IN')" disabled>
+          <span class="punch-icon">&#9654;</span>
+          Punch IN
+        </button>
+        <button class="punch-btn btn-out" id="btnOut" onclick="markAttendance('OUT')" disabled>
+          <span class="punch-icon">&#9646;</span>
+          Punch OUT
+        </button>
+      </div>
+      <p style="font-size:12px;color:#94a3b8;text-align:center;margin-top:12px;" id="punchHint"></p>
+    </div>
+
+    <!-- Today Summary -->
+    <div class="card">
+      <div class="card-title">Today's Summary</div>
+      <div class="summary-grid">
+        <div class="summary-chip">
+          <div class="chip-val" id="sumIn">--:--</div>
+          <div class="chip-lbl">First IN</div>
+        </div>
+        <div class="summary-chip">
+          <div class="chip-val" id="sumOut">--:--</div>
+          <div class="chip-lbl">Last OUT</div>
+        </div>
+        <div class="summary-chip">
+          <div class="chip-val" id="sumHours">--</div>
+          <div class="chip-lbl">Hours</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Today's Punch Log -->
+    <div class="card">
+      <div class="card-title">Today's Punches</div>
+      <ul class="timeline" id="punchTimeline">
+        <li style="color:#94a3b8;font-size:14px;text-align:center;padding:16px 0;">No punches yet today</li>
+      </ul>
+    </div>
+
+    <!-- Quick Links -->
+    <div class="card" style="background:linear-gradient(135deg,#13203a,#1d2f57);">
+      <div class="card-title" style="color:#fff;opacity:.85;">Office Management</div>
+      <a href="/office.html" style="display:flex;align-items:center;gap:12px;padding:14px 0;text-decoration:none;">
+        <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#2155f3,#5b82ff);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">&#128203;</div>
+        <div>
+          <div style="color:#fff;font-weight:700;font-size:15px;">Task &amp; Client Management</div>
+          <div style="color:#94a3b8;font-size:12px;margin-top:2px;">Tasks • Clients • Compliance • Master Data</div>
+        </div>
+        <span style="margin-left:auto;color:#5b82ff;font-size:20px;">&#8594;</span>
+      </a>
+    </div>
+
+  </div>
+
+  <!-- ── TAB: HISTORY ───────────────────────────────────── -->
+  <div class="tab-panel" id="tab-history">
+
+    <div class="card">
+      <div class="card-title">Monthly Attendance</div>
+      <div class="history-controls">
+        <select id="selMonth">
+          <option value="1">January</option><option value="2">February</option>
+          <option value="3">March</option><option value="4">April</option>
+          <option value="5">May</option><option value="6">June</option>
+          <option value="7">July</option><option value="8">August</option>
+          <option value="9">September</option><option value="10">October</option>
+          <option value="11">November</option><option value="12">December</option>
+        </select>
+        <select id="selYear"></select>
+        <button class="btn-sm" onclick="loadHistory()">Go</button>
+      </div>
+
+      <!-- Summary chips -->
+      <div class="summary-grid" style="margin-bottom:16px;">
+        <div class="summary-chip">
+          <div class="chip-val" id="hPresent">0</div>
+          <div class="chip-lbl">Present</div>
+        </div>
+        <div class="summary-chip">
+          <div class="chip-val" id="hLate" style="color:var(--warning);">0</div>
+          <div class="chip-lbl">Late Days</div>
+        </div>
+        <div class="summary-chip">
+          <div class="chip-val" id="hPending" style="color:var(--muted);">0</div>
+          <div class="chip-lbl">Pending</div>
+        </div>
+      </div>
+
+      <div class="hist-table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>IN</th>
+              <th>OUT</th>
+              <th>Hours</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="historyBody">
+            <tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:20px;">Select month and click Go</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── TAB: LEAVE ────────────────────────────────────── -->
+  <div class="tab-panel" id="tab-leave">
+
+    <div class="card">
+      <div class="card-title">Apply for Leave</div>
+      <div class="leave-type-grid">
+        <div class="leave-type-btn selected" id="lt-Casual" onclick="selectLeaveType('Casual Leave')">Casual Leave</div>
+        <div class="leave-type-btn" id="lt-Sick"   onclick="selectLeaveType('Sick Leave')">Sick Leave</div>
+        <div class="leave-type-btn" id="lt-Earned" onclick="selectLeaveType('Earned Leave')">Earned Leave</div>
+        <div class="leave-type-btn" id="lt-Other"  onclick="selectLeaveType('Other')">Other</div>
+      </div>
+      <input type="hidden" id="selectedLeaveType" value="Casual Leave"/>
+      <div class="form-group">
+        <label>From Date</label>
+        <input type="date" id="leaveFrom"/>
+      </div>
+      <div class="form-group">
+        <label>To Date</label>
+        <input type="date" id="leaveTo"/>
+      </div>
+      <div class="form-group">
+        <label>Reason</label>
+        <textarea id="leaveReason" rows="3"
+          style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none;resize:vertical;font-family:inherit;"
+          placeholder="Briefly describe your reason..."></textarea>
+      </div>
+      <div id="leaveApplyMsg" class="alert" style="display:none;"></div>
+      <button class="btn-primary" onclick="applyLeave()">Submit Application</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">My Leave History</div>
+      <div id="leaveHistoryList">
+        <p style="color:#94a3b8;font-size:14px;text-align:center;padding:16px 0;">Loading...</p>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── TAB: PROFILE ───────────────────────────────────── -->
+  <div class="tab-panel" id="tab-profile">
+
+    <div class="profile-header">
+      <div class="profile-avatar" id="profileAvatar">?</div>
+      <div>
+        <div class="profile-name" id="profileName">--</div>
+        <div class="profile-desg" id="profileDesg">--</div>
+        <div class="profile-id" id="profileId">--</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Employee Details</div>
+      <div class="info-row">
+        <span class="info-lbl">Email</span>
+        <span class="info-val" id="pEmail">--</span>
+      </div>
+      <div class="info-row">
+        <span class="info-lbl">Mobile</span>
+        <span class="info-val" id="pMobile">--</span>
+      </div>
+      <div class="info-row">
+        <span class="info-lbl">Blood Group</span>
+        <span class="info-val" id="pBlood">--</span>
+      </div>
+      <div class="info-row">
+        <span class="info-lbl">Date of Joining</span>
+        <span class="info-val" id="pDoj">--</span>
+      </div>
+      <div class="info-row">
+        <span class="info-lbl">Status</span>
+        <span class="info-val" id="pStatus">--</span>
+      </div>
+    </div>
+
+    <div class="card" style="text-align:center;">
+      <button class="btn-primary" style="max-width:300px;margin:0 auto;" onclick="logout()">
+        Logout
+      </button>
+    </div>
+
+  </div>
+
+</div><!-- /dash-main -->
+
+<!-- Bottom Navigation -->
+<nav class="bottom-nav">
+  <button class="tab-btn active" id="navHome" onclick="switchTab('home')">
+    <span class="tab-icon">&#127968;</span>Home
+  </button>
+  <button class="tab-btn" id="navHistory" onclick="switchTab('history')">
+    <span class="tab-icon">&#128197;</span>History
+  </button>
+  <button class="tab-btn" id="navLeave" onclick="switchTab('leave')">
+    <span class="tab-icon">&#128203;</span>Leave
+  </button>
+  <button class="tab-btn" id="navProfile" onclick="switchTab('profile')">
+    <span class="tab-icon">&#128100;</span>Profile
+  </button>
+</nav>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── Auth guard ──────────────────────────────────────────
+const token = localStorage.getItem('att_token');
+const emp   = JSON.parse(localStorage.getItem('att_emp') || '{}');
+if (!token) { window.location.href = '/'; }
+
+// ── Helpers ─────────────────────────────────────────────
+const api = async (path, opts = {}) => {
+  const res = await fetch('/api' + path, {
+    ...opts,
+    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', ...(opts.headers||{}) }
+  });
+  return res.json();
+};
+
+function showToast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + type;
+  setTimeout(() => { t.className = 'toast'; }, 3500);
+}
+
+function fmt(timeStr) {
+  if (!timeStr) return '--';
+  const t = typeof timeStr === 'string' ? timeStr : String(timeStr);
+  const parts = t.split(':');
+  if (parts.length < 2) return t;
+  let h = parseInt(parts[0]), m = parts[1];
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${h}:${m} ${ampm}`;
+}
+
+function fmtDate(d) {
+  const dt = new Date(d);
+  return dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+}
+
+// ── Live Clock ───────────────────────────────────────────
+function startClock() {
+  const update = () => {
+    const now = new Date();
+    document.getElementById('clockTime').textContent =
+      now.toLocaleTimeString('en-IN', { hour12: false });
+    document.getElementById('clockDate').textContent =
+      now.toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  };
+  update();
+  setInterval(update, 1000);
+}
+
+// ── Load Today ───────────────────────────────────────────
+async function loadToday() {
+  try {
+    const data = await api('/attendance/today');
+    if (!data.success) return;
+
+    const dot  = document.getElementById('statusDot');
+    const stxt = document.getElementById('statusText');
+    const btnIn  = document.getElementById('btnIn');
+    const btnOut = document.getElementById('btnOut');
+    const hint   = document.getElementById('punchHint');
+
+    const dayComplete = !!data.first_in && !!data.last_out;
+
+    if (dayComplete) {
+      dot.className  = 'status-dot out';
+      stxt.textContent = 'Day complete - IN & OUT done';
+      btnIn.disabled  = true;
+      btnOut.disabled = true;
+      hint.textContent = 'Aaj ki attendance complete ho gayi. Kal phir aayein!';
+    } else if (data.is_currently_in) {
+      dot.className  = 'status-dot in';
+      stxt.textContent = 'Currently IN the office';
+      btnIn.disabled  = true;
+      btnOut.disabled = false;
+      hint.textContent = 'Aap IN hain. Office se jaate waqt OUT punch karo.';
+    } else {
+      dot.className  = 'status-dot none';
+      stxt.textContent = 'Not punched in yet';
+      btnIn.disabled  = false;
+      btnOut.disabled = true;
+      hint.textContent = 'Din shuru karne ke liye Punch IN karo.';
+    }
+
+    // Summary chips
+    document.getElementById('sumIn').textContent  = fmt(data.first_in);
+    document.getElementById('sumOut').textContent = fmt(data.last_out);
+    document.getElementById('sumHours').textContent = data.summary?.working_hours || '--';
+
+    // Timeline
+    const tl = document.getElementById('punchTimeline');
+    if (data.punches.length === 0) {
+      tl.innerHTML = '<li style="color:#94a3b8;font-size:14px;text-align:center;padding:16px 0;">No punches yet today</li>';
+    } else {
+      tl.innerHTML = data.punches.map(p => `
+        <li class="timeline-item">
+          <span class="tl-badge ${p.action}">${p.action}</span>
+          <div>
+            <div class="tl-time">${fmt(p.time)}</div>
+            ${p.address ? `<div class="tl-addr">${p.address}</div>` : ''}
+          </div>
+        </li>
+      `).join('');
+    }
+  } catch(e) {
+    console.error(e);
+  }
+}
+
+// ── Mark Attendance ──────────────────────────────────────
+async function markAttendance(action) {
+  const btnIn  = document.getElementById('btnIn');
+  const btnOut = document.getElementById('btnOut');
+  btnIn.disabled = btnOut.disabled = true;
+
+  showToast('Getting location...', '');
+
+  let latitude = null, longitude = null, address = null;
+
+  try {
+    const pos = await new Promise((resolve, reject) =>
+      navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 8000 })
+    );
+    latitude  = pos.coords.latitude;
+    longitude = pos.coords.longitude;
+
+    // Reverse geocode
+    try {
+      const geo = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`
+      );
+      const gd = await geo.json();
+      address = gd.display_name || null;
+    } catch { /* ignore */ }
+  } catch {
+    // location permission denied - still allow punch
+  }
+
+  const device_info = navigator.userAgent;
+
+  try {
+    const data = await api('/attendance/mark', {
+      method: 'POST',
+      body: JSON.stringify({ action, latitude, longitude, address, device_info })
+    });
+
+    if (data.success) {
+      showToast(data.message, 'success');
+      await loadToday();
+    } else {
+      showToast(data.message, 'error');
+      await loadToday(); // re-sync button states
+    }
+  } catch {
+    showToast('Network error. Please try again.', 'error');
+    btnIn.disabled = btnOut.disabled = false;
+  }
+}
+
+// ── Load History ─────────────────────────────────────────
+async function loadHistory() {
+  const month = document.getElementById('selMonth').value;
+  const year  = document.getElementById('selYear').value;
+  const tbody = document.getElementById('historyBody');
+  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:#94a3b8;">Loading...</td></tr>';
+
+  try {
+    const data = await api(`/attendance/history?month=${month}&year=${year}`);
+    if (!data.success) return;
+
+    document.getElementById('hPresent').textContent = data.summary.present;
+    document.getElementById('hLate').textContent    = data.summary.late;
+    document.getElementById('hPending').textContent = data.summary.pending;
+
+    if (data.records.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:#94a3b8;">No records for this month</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = data.records.map(r => {
+      const badgeClass = r.final_status === 'Present' ? 'badge-present'
+                       : r.final_status === 'Leave'   ? 'badge-leave'
+                       : r.final_status === 'Absent'  ? 'badge-absent'
+                       : 'badge-pending';
+      const late = r.late_minutes > 0 ? `<span style="font-size:11px;color:var(--warning);margin-left:4px;">+${r.late_minutes}m late</span>` : '';
+      return `<tr>
+        <td>${fmtDate(r.date)}</td>
+        <td>${fmt(r.first_in)}${late}</td>
+        <td>${fmt(r.last_out)}</td>
+        <td>${r.working_hours || '--'}</td>
+        <td><span class="badge ${badgeClass}">${r.final_status || 'Pending'}</span></td>
+      </tr>`;
+    }).join('');
+  } catch {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:red;">Error loading data</td></tr>';
+  }
+}
+
+// ── Load Profile ─────────────────────────────────────────
+async function loadProfile() {
+  try {
+    const data = await api('/attendance/profile');
+    if (!data.success) return;
+    const e = data.employee;
+
+    const initials = (e.formal_name || e.name || '?').split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
+    document.getElementById('profileAvatar').textContent = initials;
+    document.getElementById('profileName').textContent   = e.formal_name || e.name || '--';
+    document.getElementById('profileDesg').textContent   = e.designation || '--';
+    document.getElementById('profileId').textContent     = e.emp_id || '--';
+    document.getElementById('pEmail').textContent        = e.email_id || '--';
+    document.getElementById('pMobile').textContent       = e.mobile_no || '--';
+    document.getElementById('pBlood').textContent        = e.blood_group || '--';
+    document.getElementById('pDoj').textContent          = e.date_of_joining ? new Date(e.date_of_joining).toLocaleDateString('en-IN', {day:'2-digit',month:'short',year:'numeric'}) : '--';
+    document.getElementById('pStatus').textContent       = e.status || '--';
+  } catch {}
+}
+
+// ── Tab switching ─────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.getElementById('nav' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('active');
+
+  if (tab === 'history' && document.getElementById('historyBody').innerHTML.includes('Select month')) loadHistory();
+  if (tab === 'profile') loadProfile();
+  if (tab === 'leave')   loadLeaveHistory();
+}
+
+// ── LEAVE functions ──────────────────────────────────────────
+function selectLeaveType(type) {
+  document.getElementById('selectedLeaveType').value = type;
+  ['Casual','Sick','Earned','Other'].forEach(t => {
+    const btn = document.getElementById('lt-' + t);
+    if (btn) btn.classList.toggle('selected', type.startsWith(t));
+  });
+}
+
+async function applyLeave() {
+  const msg      = document.getElementById('leaveApplyMsg');
+  const fromDate = document.getElementById('leaveFrom').value;
+  const toDate   = document.getElementById('leaveTo').value;
+  const reason   = document.getElementById('leaveReason').value.trim();
+  const leaveType= document.getElementById('selectedLeaveType').value;
+
+  msg.style.display = 'none';
+  if (!fromDate || !toDate) { msg.className='alert alert-error'; msg.textContent='From Date aur To Date dono select karo.'; msg.style.display='block'; return; }
+  if (new Date(toDate) < new Date(fromDate)) { msg.className='alert alert-error'; msg.textContent='To Date, From Date se pehle nahi ho sakti.'; msg.style.display='block'; return; }
+  if (!reason) { msg.className='alert alert-error'; msg.textContent='Reason likhna zaroori hai.'; msg.style.display='block'; return; }
+
+  try {
+    const data = await api('/leave/apply', {
+      method: 'POST',
+      body: JSON.stringify({ leave_type: leaveType, from_date: fromDate, to_date: toDate, reason })
+    });
+    if (data.success) {
+      msg.className = 'alert alert-success';
+      msg.textContent = `Application submit ho gayi! (${data.days} din) - Admin se approval ka wait karo.`;
+      msg.style.display = 'block';
+      document.getElementById('leaveFrom').value  = '';
+      document.getElementById('leaveTo').value    = '';
+      document.getElementById('leaveReason').value= '';
+      loadLeaveHistory();
+    } else {
+      msg.className = 'alert alert-error';
+      msg.textContent = data.message;
+      msg.style.display = 'block';
+    }
+  } catch { msg.className='alert alert-error'; msg.textContent='Network error.'; msg.style.display='block'; }
+}
+
+async function loadLeaveHistory() {
+  const list = document.getElementById('leaveHistoryList');
+  try {
+    const data = await api('/leave/my-leaves');
+    if (!data.success || !data.leaves.length) {
+      list.innerHTML = '<p style="color:#94a3b8;font-size:14px;text-align:center;padding:16px 0;">Koi leave history nahi hai</p>';
+      return;
+    }
+    list.innerHTML = data.leaves.map(l => {
+      const badgeClass = l.status === 'Approved' ? 'badge-present' : l.status === 'Rejected' ? 'badge-absent' : 'badge-pending';
+      const from = new Date(l.from_date).toLocaleDateString('en-IN',{day:'2-digit',month:'short'});
+      const to   = new Date(l.to_date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+      return `<div class="leave-history-item">
+        <div class="lh-top">
+          <strong style="font-size:14px;">${l.leave_type} <span style="font-weight:400;color:#64748b;">(${l.days} din)</span></strong>
+          <span class="badge ${badgeClass}">${l.status}</span>
+        </div>
+        <div class="lh-dates">${from} &rarr; ${to}</div>
+        <div class="lh-reason">${l.reason}</div>
+        ${l.admin_remark ? `<div style="font-size:12px;color:#2563eb;margin-top:3px;">Admin: ${l.admin_remark}</div>` : ''}
+      </div>`;
+    }).join('');
+  } catch { list.innerHTML = '<p style="color:#dc2626;font-size:13px;text-align:center;">Error loading leaves</p>'; }
+}
+
+// ── Logout ───────────────────────────────────────────────
+async function logout() {
+  try {
+    await fetch('/api/auth/logout', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+  } catch {}
+  localStorage.removeItem('att_token');
+  localStorage.removeItem('att_emp');
+  window.location.href = '/';
+}
+
+// ── Init ─────────────────────────────────────────────────
+(async function init() {
+  // Set emp name in navbar
+  document.getElementById('navEmpName').textContent = emp.name || '';
+  document.getElementById('clockEmp').textContent   = emp.formal_name || emp.name || '';
+
+  // Year selector
+  const yearSel = document.getElementById('selYear');
+  const thisYear = new Date().getFullYear();
+  for (let y = thisYear; y >= thisYear - 2; y--) {
+    const o = document.createElement('option');
+    o.value = y; o.textContent = y;
+    yearSel.appendChild(o);
+  }
+
+  // Set current month
+  document.getElementById('selMonth').value = new Date().getMonth() + 1;
+
+  startClock();
+  await loadToday();
+
+  document.getElementById('loadingOverlay').style.display = 'none';
+})();
+</script>
+</body>
+</html>

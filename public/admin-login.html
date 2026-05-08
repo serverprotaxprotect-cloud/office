@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Login - PTP Attendance</title>
+  <link rel="stylesheet" href="/assets/style.css" />
+</head>
+<body class="login-body" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);">
+
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="logo-circle" style="background: linear-gradient(135deg, #e94560, #c62a47);">ADM</div>
+      <h2>Admin Panel</h2>
+      <p>PTP Attendance System</p>
+    </div>
+
+    <form id="loginForm">
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" id="username" placeholder="e.g. CSAK2017" autocomplete="username" required />
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <div class="password-wrap">
+          <input type="password" id="password" placeholder="Enter admin password" autocomplete="current-password" required />
+          <span class="eye-btn" onclick="togglePass()">&#128065;</span>
+        </div>
+      </div>
+
+      <div id="loginError" class="alert alert-error" style="display:none"></div>
+
+      <button type="submit" class="btn-primary" id="loginBtn"
+        style="background: linear-gradient(135deg, #e94560, #c62a47);">
+        <span id="loginBtnText">Admin Login</span>
+        <span id="loginSpinner" class="spinner" style="display:none"></span>
+      </button>
+    </form>
+
+    <p class="login-footer" style="margin-top:20px;">
+      <a href="/" style="color:#94a3b8;text-decoration:none;">&#8592; Employee Login</a>
+    </p>
+  </div>
+
+  <script>
+    if (localStorage.getItem('admin_token')) window.location.href = '/admin.html';
+
+    function togglePass() {
+      const p = document.getElementById('password');
+      p.type = p.type === 'password' ? 'text' : 'password';
+    }
+
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('loginBtn');
+      const txt = document.getElementById('loginBtnText');
+      const spin = document.getElementById('loginSpinner');
+      const err = document.getElementById('loginError');
+
+      btn.disabled = true; txt.textContent = 'Logging in...';
+      spin.style.display = 'inline-block'; err.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/admin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: document.getElementById('username').value.trim(),
+            password: document.getElementById('password').value
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          localStorage.setItem('admin_token', data.token);
+          localStorage.setItem('admin_info', JSON.stringify(data.admin));
+          window.location.href = '/admin.html';
+        } else {
+          err.textContent = data.message;
+          err.style.display = 'block';
+          btn.disabled = false; txt.textContent = 'Admin Login';
+          spin.style.display = 'none';
+        }
+      } catch {
+        err.textContent = 'Network error. Please try again.';
+        err.style.display = 'block';
+        btn.disabled = false; txt.textContent = 'Admin Login';
+        spin.style.display = 'none';
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,2339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Office Management - PTP</title>
+  <link rel="stylesheet" href="/assets/style.css"/>
+  <style>
+    :root{--primary:#2155f3;--primary2:#5b82ff;--sidebar:#13203a;--sidebar2:#1d2f57}
+    *{box-sizing:border-box}
+    body{margin:0;background:#f1f5f9;font-family:Inter,Segoe UI,Arial,sans-serif;min-height:100vh}
+    .hidden{display:none!important}
+
+    .topnav{background:linear-gradient(90deg,var(--sidebar),var(--sidebar2));color:#fff;height:56px;display:flex;align-items:center;padding:0 20px;gap:14px;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.2)}
+    .topnav .brand{font-size:16px;font-weight:800;flex:1}
+    .topnav .brand small{opacity:.6;font-weight:400;font-size:12px;margin-left:6px}
+    .user-chip{font-size:12px;background:rgba(255,255,255,.12);border-radius:20px;padding:4px 12px;white-space:nowrap}
+    .btn-back{background:rgba(255,255,255,.12);border:none;color:#fff;padding:6px 14px;border-radius:8px;font-size:12px;cursor:pointer;font-weight:700}
+    .btn-back:hover{background:rgba(255,255,255,.2)}
+    .notif-btn{position:relative;background:rgba(255,255,255,.12);border:none;color:#fff;padding:6px 12px;border-radius:8px;font-size:18px;cursor:pointer;line-height:1}
+    .notif-dot{position:absolute;top:3px;right:3px;width:10px;height:10px;background:#e94560;border-radius:50%;border:2px solid var(--sidebar)}
+
+    .layout{display:flex;min-height:calc(100vh - 56px)}
+    .sidebar{width:220px;background:var(--sidebar);flex-shrink:0;padding:16px 0;position:sticky;top:56px;height:calc(100vh - 56px);overflow-y:auto}
+    .sb-section{padding:14px 18px 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#475569}
+    .sb-item{display:flex;align-items:center;gap:10px;padding:10px 18px;color:#94a3b8;font-size:13px;font-weight:600;cursor:pointer;transition:.15s;border-left:3px solid transparent;user-select:none}
+    .sb-item:hover{background:rgba(255,255,255,.05);color:#e2e8f0}
+    .sb-item.active{background:rgba(33,85,243,.15);color:#7ba2ff;border-left-color:#2155f3}
+    .sb-item .ic{font-size:16px;width:20px;text-align:center}
+    .sb-badge{margin-left:auto;background:#e94560;color:#fff;font-size:10px;padding:1px 6px;border-radius:20px}
+
+    .content{flex:1;padding:20px;overflow-x:hidden}
+    .panel{display:none}.panel.active{display:block}
+
+    .card{background:#fff;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:16px}
+    .card-head{padding:14px 18px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .card-head h3{margin:0;font-size:15px;font-weight:700}
+    .card-body{padding:16px 18px}
+
+    .dash-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:16px}
+    .dash-chip{background:#fff;border-radius:10px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.06);border-left:4px solid var(--c,#2563eb);cursor:pointer;transition:.15s}
+    .dash-chip:hover{transform:translateY(-2px)}
+    .dash-chip .num{font-size:28px;font-weight:800;color:var(--c,#2563eb);line-height:1}
+    .dash-chip .lbl{font-size:12px;color:#64748b;margin-top:4px}
+
+    .filter-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
+    .filter-row select,.filter-row input{padding:7px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;background:#f8fafc;outline:none}
+    .filter-row select:focus,.filter-row input:focus{border-color:#2155f3}
+
+    .tbl-wrap{overflow-x:auto}
+    .tbl-wrap table{width:100%;border-collapse:collapse;font-size:13px}
+    .tbl-wrap th{background:#f8fafc;padding:9px 12px;font-weight:700;color:#475569;text-align:left;white-space:nowrap;border-bottom:2px solid #e2e8f0}
+    .tbl-wrap td{padding:8px 12px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+    .tbl-wrap tr:hover td{background:#f8fafc}
+    .overdue-row td{background:#fff5f5!important}
+
+    .badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap}
+    .b-pending{background:#fef9c3;color:#854d0e}
+    .b-progress{background:#dbeafe;color:#1d4ed8}
+    .b-waiting{background:#fce7f3;color:#9d174d}
+    .b-complete{background:#dcfce7;color:#15803d}
+    .b-cancel{background:#fee2e2;color:#b91c1c}
+    .b-active{background:#dcfce7;color:#15803d}
+    .b-inactive{background:#f1f5f9;color:#64748b}
+    .b-hold{background:#e0f2fe;color:#0369a1}
+    .b-review{background:#f5f3ff;color:#6d28d9}
+    .b-done{background:#dcfce7;color:#15803d}
+
+    .btn{border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;transition:.15s}
+    .btn:hover{opacity:.88;transform:translateY(-1px)}
+    .btn-primary{background:linear-gradient(135deg,var(--primary),var(--primary2));color:#fff;box-shadow:0 6px 16px rgba(33,85,243,.25)}
+    .btn-sm{padding:5px 12px;font-size:12px;border-radius:7px;border:none;cursor:pointer;font-weight:700;transition:.15s}
+    .btn-sm:hover{opacity:.85}
+    .btn-view{background:#eff6ff;color:#1d4ed8}
+    .btn-edit{background:#dbeafe;color:#1d4ed8}
+    .btn-green{background:#dcfce7;color:#15803d}
+    .btn-red{background:#fee2e2;color:#b91c1c}
+
+    .pri{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700}
+    .pri::before{content:'';width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.7}
+    .pri-low{color:#64748b}.pri-medium{color:#d97706}.pri-high{color:#dc2626}.pri-urgent{color:#7c3aed}
+
+    .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:1000;padding:12px}
+    .modal{background:#fff;border-radius:14px;padding:24px;width:100%;max-width:560px;max-height:92vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+    .modal-lg{max-width:720px}
+    .modal-title{font-size:17px;font-weight:800;margin-bottom:18px;display:flex;align-items:center;gap:10px}
+    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .form-grid .full{grid-column:1/-1}
+    .form-group{display:flex;flex-direction:column}
+    .form-group label{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px}
+    .form-group input,.form-group select,.form-group textarea{width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;background:#f8fafc}
+    .form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:#2155f3;background:#fff}
+    .form-group input.required-field{border-color:#fca5a5}
+    .modal-actions{display:flex;gap:8px;margin-top:18px;justify-content:flex-end}
+    .btn-cancel{padding:9px 18px;background:#f1f5f9;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-weight:700}
+
+    /* ── Autocomplete ── */
+    .autocomplete-wrap{position:relative}
+    .autocomplete-list{position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #2155f3;border-radius:0 0 10px 10px;max-height:240px;overflow-y:auto;z-index:300;box-shadow:0 8px 24px rgba(33,85,243,.12)}
+    .ac-item{padding:10px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid #f1f5f9}
+    .ac-item:hover{background:#eff6ff}
+    .ac-name{font-weight:700;color:#1e293b}
+    .ac-meta{font-size:11px;color:#64748b;margin-top:2px}
+    .ac-add{padding:10px 12px;cursor:pointer;font-size:13px;color:#2155f3;font-weight:700;border-top:1px solid #e2e8f0;background:#f8fafc}
+    .ac-add:hover{background:#eff6ff}
+
+    /* ── Selected client chip in task form ── */
+    .client-selected-chip{background:#eff6ff;border:1.5px solid #2155f3;border-radius:8px;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+    .client-selected-chip .cs-name{font-weight:700;font-size:13px;color:#1d4ed8}
+    .client-selected-chip .cs-meta{font-size:11px;color:#64748b}
+    .client-selected-chip .cs-clear{background:none;border:none;color:#94a3b8;cursor:pointer;font-size:16px;padding:0 4px}
+
+    /* ── Task detail ── */
+    .task-detail{background:#f8fafc;border-radius:10px;padding:16px;margin-bottom:12px}
+    .detail-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+    .detail-item label{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.4px}
+    .detail-item .val{font-size:13px;font-weight:600;color:#1e293b;margin-top:2px}
+    .history-item{padding:10px 14px;border-left:3px solid #e2e8f0;margin-bottom:8px;background:#f8fafc;border-radius:0 8px 8px 0;font-size:13px}
+    .history-item .h-action{font-weight:700;color:#1d4ed8}
+    .history-item .h-meta{font-size:11px;color:#94a3b8;margin-top:2px}
+
+    /* ── Notification cards ── */
+    .notif-section-title{font-size:13px;font-weight:800;color:#1e293b;margin:16px 0 8px;display:flex;align-items:center;gap:8px}
+    .notif-card{background:#fff;border-radius:10px;padding:12px 14px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,.06);border-left:4px solid var(--nc,#e2e8f0);cursor:pointer;transition:.15s}
+    .notif-card:hover{box-shadow:0 3px 12px rgba(0,0,0,.1)}
+    .notif-card .nc-title{font-size:13px;font-weight:700;color:#1e293b}
+    .notif-card .nc-meta{font-size:12px;color:#64748b;margin-top:3px}
+    .notif-card .nc-badge{font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;margin-left:6px}
+
+    /* ── Mobile ── */
+    .bot-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--sidebar);border-top:1px solid #1e293b;z-index:50}
+    @media(max-width:768px){
+      .sidebar{display:none}.content{padding:12px;padding-bottom:80px}.bot-nav{display:flex}
+      .dash-grid{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr}
+    }
+    .bot-btn{flex:1;padding:10px 4px;background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10px;color:#64748b;font-weight:700;position:relative}
+    .bot-btn.active{color:#7ba2ff}.bot-btn .ic{font-size:20px}
+    .bot-badge{position:absolute;top:6px;right:calc(50% - 14px);background:#e94560;color:#fff;font-size:9px;padding:1px 5px;border-radius:20px}
+
+    .page-title{font-size:18px;font-weight:800;color:#1e293b;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+    .page-title small{font-size:13px;font-weight:400;color:#64748b}
+    .empty-msg{text-align:center;color:#94a3b8;padding:32px;font-size:14px}
+    .alert-err{background:#fee2e2;color:#b91c1c;padding:10px 12px;border-radius:8px;font-size:13px;margin-top:8px}
+  </style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loadingOverlay"><div class="loading-spinner"></div></div>
+
+<!-- Navbar -->
+<nav class="topnav">
+  <div class="brand">PTP Office <small>Management System</small></div>
+  <span class="user-chip" id="userChip"></span>
+  <button class="notif-btn" id="notifBtn" onclick="showPanel('notifications')" title="Notifications">
+    &#128276;<span class="notif-dot hidden" id="notifDot"></span>
+  </button>
+  <button class="btn-back" onclick="window.location.href='/dashboard.html'">&#8592; Attendance</button>
+  <button class="btn-back" onclick="logout()" style="background:#e94560">Logout</button>
+</nav>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sb-section">Tasks</div>
+    <div class="sb-item active" id="sb-dashboard" onclick="showPanel('dashboard')"><span class="ic">&#128202;</span>Dashboard</div>
+    <div class="sb-item" id="sb-mytasks" onclick="showPanel('mytasks')"><span class="ic">&#9989;</span>My Tasks<span class="sb-badge hidden" id="myBadge">0</span></div>
+    <div class="sb-item" id="sb-assignedby" onclick="showPanel('assignedby')"><span class="ic">&#128101;</span>Assigned by Me</div>
+    <div class="sb-item" id="sb-alltasks" onclick="showPanel('alltasks')"><span class="ic">&#128203;</span>All Tasks</div>
+    <div class="sb-item" id="sb-completed" onclick="showPanel('completed')"><span class="ic">&#9745;</span>Completed</div>
+    <div class="sb-item" id="sb-notifications" onclick="showPanel('notifications')"><span class="ic">&#128276;</span>Notifications<span class="sb-badge hidden" id="notifBadge">0</span></div>
+    <div class="sb-section">Clients</div>
+    <div class="sb-item" id="sb-clients" onclick="showPanel('clients')"><span class="ic">&#128100;</span>Client Search</div>
+    <div class="sb-section">Compliance</div>
+    <div class="sb-item" id="sb-companies" onclick="showPanel('companies')"><span class="ic">&#127970;</span>Companies</div>
+    <div class="sb-item" id="sb-directors" onclick="showPanel('directors')"><span class="ic">&#128104;</span>Directors / KYC</div>
+    <div class="sb-item" id="sb-comptracking" onclick="showPanel('comptracking')"><span class="ic">&#9989;</span>Compliance Tracking</div>
+  </aside>
+
+  <main class="content">
+
+    <!-- ════ DASHBOARD ════ -->
+    <div class="panel active" id="panel-dashboard">
+      <div class="page-title">Dashboard <small id="dashDate"></small></div>
+      <div class="dash-grid">
+        <div class="dash-chip" style="--c:#e94560" onclick="showPanel('notifications')">
+          <div class="num" id="d-over">-</div><div class="lbl">Alerts (Due/Overdue)</div>
+        </div>
+        <div class="dash-chip" style="--c:#2563eb" onclick="showPanel('mytasks')">
+          <div class="num" id="d-my">-</div><div class="lbl">My Active Tasks</div>
+        </div>
+        <div class="dash-chip" style="--c:#16a34a" onclick="showPanel('assignedby')">
+          <div class="num" id="d-by">-</div><div class="lbl">Assigned by Me</div>
+        </div>
+        <div class="dash-chip" style="--c:#7c3aed" onclick="showPanel('alltasks')">
+          <div class="num" id="d-all">-</div><div class="lbl">All Active Tasks</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>My Tasks by Status</h3></div>
+        <div class="card-body" id="statusBreakdown"></div>
+      </div>
+    </div>
+
+    <!-- ════ MY TASKS ════ -->
+    <div class="panel" id="panel-mytasks">
+      <div class="page-title">
+        <span>My Tasks <small>(Assigned to me by others)</small></span>
+        <button class="btn btn-primary" onclick="openCreateTask()">+ Create Task</button>
+      </div>
+      <div class="filter-row">
+        <input type="text" id="mySearch" placeholder="Search..." oninput="debounceLoad('my')" style="max-width:280px"/>
+        <select id="myStatusFilter" onchange="loadTasks('my')"><option value="">All Status</option></select>
+      </div>
+      <div class="card"><div class="tbl-wrap"><table>
+        <thead><tr><th>Task ID</th><th>Client</th><th>Work</th><th>Assigned By</th><th>Priority</th><th>Status</th><th>Due Date</th><th>Actions</th></tr></thead>
+        <tbody id="myTasksTable"></tbody>
+      </table></div></div>
+    </div>
+
+    <!-- ════ ASSIGNED BY ME ════ -->
+    <div class="panel" id="panel-assignedby">
+      <div class="page-title">
+        <span>Assigned by Me <small>(Tasks I assigned to others)</small></span>
+        <button class="btn btn-primary" onclick="openCreateTask()">+ Create Task</button>
+      </div>
+      <div class="filter-row">
+        <input type="text" id="bySearch" placeholder="Search..." oninput="debounceLoad('assigned_by_me')" style="max-width:280px"/>
+        <select id="byStatusFilter" onchange="loadTasks('assigned_by_me')"><option value="">All Status</option></select>
+      </div>
+      <div class="card"><div class="tbl-wrap"><table>
+        <thead><tr><th>Task ID</th><th>Client</th><th>Work</th><th>Assigned To</th><th>Priority</th><th>Status</th><th>Due Date</th><th>Actions</th></tr></thead>
+        <tbody id="assignedByTable"></tbody>
+      </table></div></div>
+    </div>
+
+    <!-- ════ ALL TASKS ════ -->
+    <div class="panel" id="panel-alltasks">
+      <div class="page-title">
+        <span>All Tasks</span>
+        <button class="btn btn-primary" onclick="openCreateTask()">+ Create Task</button>
+      </div>
+      <div class="filter-row">
+        <input type="text" id="allSearch" placeholder="Search client, task, work..." oninput="debounceLoad('all')" style="max-width:280px"/>
+        <select id="allStatusFilter" onchange="loadTasks('all')"><option value="">All Status</option></select>
+        <select id="allPriorityFilter" onchange="loadTasks('all')"><option value="">All Priority</option></select>
+        <select id="allWorkFilter" onchange="loadTasks('all')"><option value="">All Work Types</option></select>
+      </div>
+      <div class="card"><div class="tbl-wrap"><table>
+        <thead><tr><th>Task ID</th><th>Client</th><th>Work</th><th>Assigned To</th><th>Priority</th><th>Status</th><th>Due Date</th><th>Actions</th></tr></thead>
+        <tbody id="allTasksTable"></tbody>
+      </table></div></div>
+    </div>
+
+    <!-- ════ COMPLETED ════ -->
+    <div class="panel" id="panel-completed">
+      <div class="page-title">Completed Tasks</div>
+      <div class="filter-row">
+        <input type="text" id="completedSearch" placeholder="Search..." oninput="debounceLoad('completed')" style="max-width:280px"/>
+      </div>
+      <div class="card"><div class="tbl-wrap"><table>
+        <thead><tr><th>Task ID</th><th>Client</th><th>Work</th><th>Status</th><th>Completed On</th><th>Actions</th></tr></thead>
+        <tbody id="completedTable"></tbody>
+      </table></div></div>
+    </div>
+
+    <!-- ════ NOTIFICATIONS ════ -->
+    <div class="panel" id="panel-notifications">
+      <div class="page-title">Notifications &amp; Alerts</div>
+      <div id="notifContent"><div class="empty-msg">Loading...</div></div>
+    </div>
+
+    <!-- ════ CLIENTS ════ -->
+    <div class="panel" id="panel-clients">
+      <div class="page-title">
+        <span>Client Search</span>
+        <button class="btn btn-primary" onclick="openAddClient()">+ Add Client</button>
+      </div>
+      <div class="filter-row">
+        <input type="text" id="clientSearch" placeholder="Search by name, ID, mobile, agent..." oninput="searchClients()" style="max-width:400px;flex:1"/>
+        <button class="btn-sm btn-view" onclick="searchClients(true)">&#128269; Search</button>
+      </div>
+      <div class="card"><div class="tbl-wrap"><table>
+        <thead><tr><th>Client ID</th><th>Legal Name</th><th>Business Name</th><th>Agent</th><th>Mobile</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="clientTable"></tbody>
+      </table></div></div>
+    </div>
+
+    <!-- ════ COMPANIES ════ -->
+    <div class="panel" id="panel-companies">
+      <div class="page-title">
+        <span>Companies</span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-sm" style="background:#16a34a;color:#fff;padding:8px 14px;font-size:13px" onclick="openExcelImport()">&#128196; Import Excel</button>
+          <button class="btn btn-primary" onclick="openAddCompany()">+ Add Company</button>
+        </div>
+      </div>
+      <div class="filter-row">
+        <input type="text" id="compSearch" placeholder="Search CIN, name, client, agent..." oninput="loadCompanies()" style="max-width:340px;flex:1"/>
+        <select id="compStatusFilter" onchange="loadCompanies()"><option value="">All Status</option><option>Active</option><option>Inactive</option></select>
+      </div>
+      <div class="card"><div class="tbl-wrap"><table>
+        <thead><tr><th>CIN</th><th>Company Name</th><th>Client ID</th><th>Agent</th><th>Incorp. Date</th><th>Last AGM</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="companiesTable"></tbody>
+      </table></div></div>
+    </div>
+
+    <!-- ════ DIRECTORS ════ -->
+    <div class="panel" id="panel-directors">
+      <div class="page-title">
+        <span>Directors / KYC</span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-sm" style="background:#7c3aed;color:#fff;padding:8px 14px;font-size:13px" onclick="openDirSearch()">&#128269; Director Search</button>
+          <button class="btn btn-primary" onclick="openAddDirector()">+ Add Director</button>
+        </div>
+      </div>
+      <div class="filter-row">
+        <input type="text" id="dirSearch" placeholder="Search DIN, name, company, PAN..." oninput="loadDirectors()" style="max-width:340px;flex:1"/>
+        <select id="dirKYCFilter" onchange="loadDirectors()">
+          <option value="">All KYC Status</option>
+          <option>Pending</option><option>Pending by Client</option><option>Filed</option>
+          <option>Under Process</option><option>Not Applicable</option>
+        </select>
+        <select id="dirStatusFilter" onchange="loadDirectors()"><option value="">All Directors</option><option>Active</option><option>Inactive</option></select>
+      </div>
+      <div class="card"><div class="tbl-wrap"><table>
+        <thead><tr><th>DIN</th><th>Director Name</th><th>Company (CIN)</th><th>Designation</th><th>Appointment</th><th>KYC Status</th><th>DIR-3</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="directorsTable"></tbody>
+      </table></div></div>
+    </div>
+
+    <!-- ════ COMPLIANCE TRACKING ════ -->
+    <div class="panel" id="panel-comptracking">
+      <div class="page-title">Compliance Tracking</div>
+
+      <!-- Sub-tab buttons -->
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">
+        <button class="btn-sm" id="ctab-company" onclick="switchCTab('company')" style="background:#2155f3;color:#fff">Company Wise</button>
+        <button class="btn-sm" id="ctab-all" onclick="switchCTab('all')" style="background:#f1f5f9;color:#475569">All Companies Status</button>
+        <button class="btn-sm" id="ctab-kyc" onclick="switchCTab('kyc')" style="background:#f1f5f9;color:#475569">Director KYC</button>
+      </div>
+
+      <!-- Sub-tab: Company Wise -->
+      <div id="ctab-panel-company">
+        <div class="card" style="margin-bottom:12px">
+          <div class="card-body" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+            <div style="flex:2;min-width:200px">
+              <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px;text-transform:uppercase">Select Company *</div>
+              <div class="autocomplete-wrap">
+                <input type="text" id="ct_co_search" placeholder="Type CIN or company name..." autocomplete="off"
+                  oninput="companyAutocomplete(this.value,'ct_co_list','ct_co_sel')" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;background:#f8fafc"/>
+                <div class="autocomplete-list hidden" id="ct_co_list"></div>
+              </div>
+              <input type="hidden" id="ct_co_sel"/>
+            </div>
+            <div style="min-width:140px">
+              <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px;text-transform:uppercase">Financial Year *</div>
+              <select id="ct_fy" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px"></select>
+            </div>
+            <button class="btn btn-primary" onclick="generateCompliance()" style="margin-bottom:0;white-space:nowrap">&#128196; Generate</button>
+            <button class="btn-sm btn-view" onclick="loadCompanyTracking()" style="padding:9px 14px;white-space:nowrap">&#128269; Load</button>
+          </div>
+        </div>
+        <div id="ct_company_info" style="margin-bottom:10px"></div>
+        <div id="ct_company_table"></div>
+      </div>
+
+      <!-- Sub-tab: All Companies Status -->
+      <div id="ctab-panel-all" class="hidden">
+        <div class="card" style="margin-bottom:12px">
+          <div class="card-body" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+            <div style="min-width:140px">
+              <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px;text-transform:uppercase">Financial Year</div>
+              <select id="all_fy" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px"></select>
+            </div>
+            <div style="flex:1;min-width:160px">
+              <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px;text-transform:uppercase">Company / CIN</div>
+              <input type="text" id="all_co_text" placeholder="Company / CIN" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px"/>
+            </div>
+            <div style="flex:1;min-width:140px">
+              <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px;text-transform:uppercase">Agent</div>
+              <input type="text" id="all_agent" placeholder="Agent Name" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px"/>
+            </div>
+            <div style="min-width:160px">
+              <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px;text-transform:uppercase">Compliance Status</div>
+              <select id="all_status" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px">
+                <option value="">All</option>
+              </select>
+            </div>
+            <div style="min-width:140px">
+              <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px;text-transform:uppercase">Company Status</div>
+              <select id="all_co_status" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px">
+                <option value="">All</option><option>Active</option><option>Inactive</option>
+              </select>
+            </div>
+            <button class="btn-sm btn-view" onclick="loadAllCompliance()" style="padding:9px 14px">&#128269; Load</button>
+            <button class="btn-sm btn-green" onclick="bulkGenerateCompliance()" style="padding:9px 14px">&#9889; Bulk Generate</button>
+          </div>
+        </div>
+        <div id="all_summary" style="margin-bottom:10px"></div>
+        <div id="all_co_table"></div>
+      </div>
+
+      <!-- Sub-tab: Director KYC -->
+      <div id="ctab-panel-kyc" class="hidden">
+        <div class="card" style="margin-bottom:12px">
+          <div class="card-body" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+            <div style="min-width:140px">
+              <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px;text-transform:uppercase">Financial Year</div>
+              <select id="kyc_fy" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px"></select>
+            </div>
+            <div style="flex:1;min-width:180px">
+              <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px;text-transform:uppercase">Director / DIN / Company</div>
+              <input type="text" id="kyc_search" placeholder="Director name, DIN, CIN..." style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px"/>
+            </div>
+            <div style="min-width:160px">
+              <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px;text-transform:uppercase">KYC Status</div>
+              <select id="kyc_status_filter" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px">
+                <option value="">All</option>
+              </select>
+            </div>
+            <div style="min-width:140px">
+              <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px;text-transform:uppercase">Company Status</div>
+              <select id="kyc_co_status" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px">
+                <option value="">All</option><option>Active</option><option>Inactive</option>
+              </select>
+            </div>
+            <button class="btn-sm btn-view" onclick="loadKYCTracking()" style="padding:9px 14px">&#128269; Load</button>
+            <button class="btn-sm btn-green" onclick="bulkGenerateKYC()" style="padding:9px 14px">&#9889; Bulk Generate</button>
+          </div>
+        </div>
+        <div id="kyc_summary" style="margin-bottom:10px"></div>
+        <div id="kyc_table"></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Mobile bottom nav -->
+<nav class="bot-nav">
+  <button class="bot-btn active" id="m-dashboard" onclick="showPanel('dashboard')"><span class="ic">&#128202;</span>Dash</button>
+  <button class="bot-btn" id="m-mytasks" onclick="showPanel('mytasks')"><span class="ic">&#9989;</span>My Tasks</button>
+  <button class="bot-btn" id="m-alltasks" onclick="showPanel('alltasks')"><span class="ic">&#128203;</span>All</button>
+  <button class="bot-btn" id="m-clients" onclick="showPanel('clients')"><span class="ic">&#128100;</span>Clients</button>
+  <button class="bot-btn" id="m-notifications" onclick="showPanel('notifications')"><span class="ic">&#128276;</span>Alerts<span class="bot-badge hidden" id="botNotifBadge">0</span></button>
+</nav>
+
+<div class="toast" id="toast"></div>
+
+<!-- ══════════════════ MODALS ══════════════════════════════════ -->
+
+<!-- Create / Edit Task -->
+<div class="modal-backdrop hidden" id="taskModal" onclick="if(event.target===this)closeModal('taskModal')">
+  <div class="modal modal-lg">
+    <div class="modal-title">
+      <span id="taskModalTitle">Create Task</span>
+    </div>
+    <input type="hidden" id="tm_task_id"/>
+
+    <!-- Client search (mandatory select) -->
+    <div style="margin-bottom:14px">
+      <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;display:block">Client * (Must select from list)</label>
+      <div id="tm_client_chip" class="hidden">
+        <div class="client-selected-chip">
+          <div>
+            <div class="cs-name" id="tm_chip_name"></div>
+            <div class="cs-meta" id="tm_chip_meta"></div>
+          </div>
+          <button class="cs-clear" onclick="clearTaskClient()" title="Clear">&#10005;</button>
+        </div>
+      </div>
+      <div id="tm_client_search_wrap" class="autocomplete-wrap">
+        <input type="text" id="tm_client_search" placeholder="Type client name, ID or mobile number..." autocomplete="off" oninput="taskClientSearch(this.value)" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;background:#f8fafc"/>
+        <div class="autocomplete-list hidden" id="tm_ac_list"></div>
+      </div>
+      <input type="hidden" id="tm_client_id"/>
+      <input type="hidden" id="tm_agent_id"/>
+      <input type="hidden" id="tm_agent_name"/>
+    </div>
+
+    <div class="form-grid">
+      <div class="form-group"><label>Legal / Client Name</label><input id="tm_legal_name" placeholder="Auto-filled from client" readonly style="background:#f1f5f9"/></div>
+      <div class="form-group"><label>Business Name</label><input id="tm_biz_name" placeholder="Auto-filled from client" readonly style="background:#f1f5f9"/></div>
+      <div class="form-group"><label>Agent Name</label><input id="tm_agent_display" readonly style="background:#f1f5f9"/></div>
+      <div class="form-group"><label>Mobile</label><input id="tm_mobile_display" readonly style="background:#f1f5f9"/></div>
+      <div class="form-group full">
+        <label>Work Name *</label>
+        <div class="autocomplete-wrap">
+          <input type="text" id="tm_work_name" placeholder="Type to search work names..." autocomplete="off" oninput="workAutocomplete(this.value)"/>
+          <div class="autocomplete-list hidden" id="wn_ac_list"></div>
+        </div>
+      </div>
+      <div class="form-group"><label>Priority</label>
+        <select id="tm_priority"><option value="Low">Low</option><option value="Medium" selected>Medium</option><option value="High">High</option><option value="Urgent">Urgent</option></select>
+      </div>
+      <div class="form-group"><label>Due Date</label><input type="date" id="tm_due_date"/></div>
+      <div class="form-group"><label>Assign To</label>
+        <select id="tm_assign_to"><option value="">Self</option></select>
+      </div>
+      <div class="form-group full"><label>Work Description</label><textarea id="tm_work_desc" rows="2" placeholder="Brief description..."></textarea></div>
+      <div class="form-group full"><label>Internal Remark</label><textarea id="tm_remark" rows="2" placeholder="Internal notes..."></textarea></div>
+      <div class="form-group"><label>Professional Fees (₹)</label><input type="number" id="tm_prof_fees" placeholder="0"/></div>
+      <div class="form-group"><label>Challan Amount (₹)</label><input type="number" id="tm_challan" placeholder="0"/></div>
+      <div class="form-group"><label>Other Expense (₹)</label><input type="number" id="tm_other_exp" placeholder="0"/></div>
+      <div class="form-group"><label>Fees Applicable</label>
+        <select id="tm_fees_appl"><option value="Not Applicable">Not Applicable</option><option value="Yes">Yes</option><option value="No">No</option></select>
+      </div>
+      <div class="form-group full"><label>Drive Link</label><input id="tm_drive_link" placeholder="Google Drive link"/></div>
+    </div>
+    <div id="taskModalErr" class="alert-err hidden"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('taskModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitTask()">Save Task</button>
+    </div>
+  </div>
+</div>
+
+<!-- Update Task Status Modal -->
+<div class="modal-backdrop hidden" id="updateTaskModal" onclick="if(event.target===this)closeModal('updateTaskModal')">
+  <div class="modal">
+    <div class="modal-title">Update Task <small id="upd_task_id_lbl" style="font-size:13px;font-weight:600;color:#64748b"></small></div>
+    <input type="hidden" id="upd_task_id"/>
+    <div class="form-grid">
+      <div class="form-group"><label>Status</label><select id="upd_status"></select></div>
+      <div class="form-group"><label>Priority</label><select id="upd_priority"><option>Low</option><option>Medium</option><option>High</option><option>Urgent</option></select></div>
+      <div class="form-group"><label>Due Date</label><input type="date" id="upd_due_date"/></div>
+      <div class="form-group"><label>Next Followup</label><input type="date" id="upd_followup"/></div>
+      <div class="form-group full"><label>Reassign To</label><select id="upd_assign_to"><option value="">Keep Current</option></select></div>
+      <div class="form-group full"><label>Internal Remark</label><textarea id="upd_internal_remark" rows="2"></textarea></div>
+      <div class="form-group full"><label>Client Pending Remark</label><textarea id="upd_client_remark" rows="2"></textarea></div>
+      <div class="form-group full"><label>Completion Remark</label><textarea id="upd_completion_remark" rows="2"></textarea></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('updateTaskModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitUpdateTask()">Update</button>
+    </div>
+  </div>
+</div>
+
+<!-- Task Detail Modal -->
+<div class="modal-backdrop hidden" id="taskDetailModal" onclick="if(event.target===this)closeModal('taskDetailModal')">
+  <div class="modal modal-lg">
+    <div class="modal-title">Task Detail</div>
+    <div id="taskDetailContent"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('taskDetailModal')">Close</button>
+      <button class="btn btn-primary" onclick="openUpdateFromDetail()">Update Task</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Client Modal -->
+<div class="modal-backdrop hidden" id="addClientModal" onclick="if(event.target===this)closeModal('addClientModal')">
+  <div class="modal">
+    <div class="modal-title" id="addClientTitle">Add Client</div>
+    <input type="hidden" id="ac_mode"/><!-- add / edit -->
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Client ID * <small id="ac_id_hint" style="font-size:10px;color:#2155f3;font-weight:700;cursor:pointer" onclick="autoFillClientId()">(Auto-generate)</small></label>
+        <input id="ac_id" placeholder="PTPCL0XXX"/>
+      </div>
+      <div class="form-group"><label>Legal Name</label><input id="ac_legal" placeholder="Company / Person Name"/></div>
+      <div class="form-group full"><label>Business Name</label><input id="ac_biz" placeholder="Trade name if different"/></div>
+
+      <!-- Agent field with search -->
+      <div class="form-group full">
+        <label>Agent <small id="ac_agent_add_lnk" style="font-size:10px;color:#2155f3;font-weight:700;cursor:pointer;margin-left:6px" onclick="openAddAgent()">(+ Add New Agent)</small></label>
+        <div class="autocomplete-wrap">
+          <input type="text" id="ac_agent_search" placeholder="Type agent name to search or select..." autocomplete="off" oninput="agentAutocomplete(this.value)"/>
+          <div class="autocomplete-list hidden" id="ac_agent_list"></div>
+        </div>
+        <input type="hidden" id="ac_agent_id"/>
+        <input type="hidden" id="ac_agent_name_val"/>
+      </div>
+
+      <div class="form-group"><label>Mobile * <span style="color:#dc2626">Required</span></label><input id="ac_mobile" type="tel" placeholder="9876543210"/></div>
+      <div class="form-group"><label>Email</label><input type="email" id="ac_email"/></div>
+      <div class="form-group"><label>GST No</label><input id="ac_gst"/></div>
+      <div class="form-group"><label>PAN No</label><input id="ac_pan"/></div>
+      <div class="form-group"><label>City</label><input id="ac_city"/></div>
+      <div class="form-group"><label>State</label><input id="ac_state"/></div>
+      <div class="form-group full"><label>Address</label><textarea id="ac_address" rows="2"></textarea></div>
+    </div>
+    <div id="addClientErr" class="alert-err hidden"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('addClientModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitClient()">Save Client</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add New Agent Modal -->
+<div class="modal-backdrop hidden" id="addAgentModal" onclick="if(event.target===this)closeModal('addAgentModal')">
+  <div class="modal">
+    <div class="modal-title">Add New Agent</div>
+    <div class="form-grid">
+      <div class="form-group full"><label>Agent Name *</label><input id="nag_name" placeholder="e.g. Rudra Foundation"/></div>
+      <div class="form-group"><label>Mobile</label><input id="nag_mobile" type="tel"/></div>
+      <div class="form-group"><label>Email</label><input type="email" id="nag_email"/></div>
+    </div>
+    <div id="addAgentErr" class="alert-err hidden"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('addAgentModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitNewAgent()">Add Agent</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Company Modal -->
+<div class="modal-backdrop hidden" id="addCompanyModal" onclick="if(event.target===this)closeModal('addCompanyModal')">
+  <div class="modal">
+    <div class="modal-title">Add Company</div>
+    <div class="form-grid">
+      <div class="form-group"><label>CIN *</label><input id="cm_cin"/></div>
+      <div class="form-group"><label>Company Name *</label><input id="cm_name"/></div>
+      <div class="form-group"><label>Client ID</label><input id="cm_client_id"/></div>
+      <div class="form-group"><label>Agent Name</label><input id="cm_agent"/></div>
+      <div class="form-group"><label>Company Type</label><input id="cm_type" placeholder="Private Limited"/></div>
+      <div class="form-group"><label>Incorporation Date</label><input type="date" id="cm_inc_date"/></div>
+      <div class="form-group"><label>Email</label><input type="email" id="cm_email"/></div>
+      <div class="form-group"><label>Mobile</label><input id="cm_mobile"/></div>
+      <div class="form-group"><label>City</label><input id="cm_city"/></div>
+      <div class="form-group"><label>State</label><input id="cm_state"/></div>
+      <div class="form-group full"><label>Registered Office</label><textarea id="cm_address" rows="2"></textarea></div>
+      <div class="form-group full"><label>Notes</label><textarea id="cm_notes" rows="2"></textarea></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('addCompanyModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitAddCompany()">Save Company</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Director Modal -->
+<div class="modal-backdrop hidden" id="addDirModal" onclick="if(event.target===this)closeModal('addDirModal')">
+  <div class="modal">
+    <div class="modal-title" id="addDirTitle">Add Director</div>
+    <input type="hidden" id="dir_db_id"/>
+    <div class="form-grid">
+      <div class="form-group"><label>DIN *</label><input id="dir_din" placeholder="12345678"/></div>
+      <div class="form-group"><label>Director Name *</label><input id="dir_name"/></div>
+      <div class="form-group"><label>CIN (Company)</label><input id="dir_cin"/></div>
+      <div class="form-group"><label>Company Name</label><input id="dir_company_name"/></div>
+      <div class="form-group"><label>Designation</label><input id="dir_designation" placeholder="Director"/></div>
+      <div class="form-group"><label>Date of Appointment</label><input type="date" id="dir_doa"/></div>
+      <div class="form-group"><label>Mobile</label><input id="dir_mobile"/></div>
+      <div class="form-group"><label>Email</label><input type="email" id="dir_email"/></div>
+      <div class="form-group"><label>PAN No</label><input id="dir_pan"/></div>
+      <div class="form-group"><label>KYC Status</label><select id="dir_kyc"><option>Pending</option><option>Done</option><option>Not Required</option></select></div>
+      <div class="form-group"><label>DIR-3 Filed?</label><select id="dir_3_filed"><option value="">-</option><option>Yes</option><option>No</option></select></div>
+      <div class="form-group"><label>DIR-3 FY</label><input id="dir_3_fy" placeholder="2025-26"/></div>
+      <div class="form-group"><label>Director Status</label><select id="dir_status"><option>Active</option><option>Inactive</option></select></div>
+      <div class="form-group full"><label>Notes</label><textarea id="dir_notes" rows="2"></textarea></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('addDirModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitDirector()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Compliance Record Modal (legacy compat) -->
+<div class="modal-backdrop hidden" id="addRecordModal" onclick="if(event.target===this)closeModal('addRecordModal')">
+  <div class="modal">
+    <div class="modal-title" id="addRecordTitle">Add Compliance Record</div>
+    <input type="hidden" id="rec_db_id"/>
+    <div class="form-grid">
+      <div class="form-group"><label>CIN *</label><input id="rec_cin"/></div>
+      <div class="form-group"><label>Company Name</label><input id="rec_company_name"/></div>
+      <div class="form-group"><label>Financial Year</label><select id="rec_fy_modal"><option value="">Select FY</option></select></div>
+      <div class="form-group"><label>Compliance Type</label><input id="rec_type" placeholder="ROC/Income Tax/GST..."/></div>
+      <div class="form-group"><label>Form Name</label><input id="rec_form" placeholder="AOC-4, MGT-7..."/></div>
+      <div class="form-group"><label>Due Date</label><input type="date" id="rec_due_date"/></div>
+      <div class="form-group"><label>Filing Date</label><input type="date" id="rec_filing_date"/></div>
+      <div class="form-group"><label>Status</label><select id="rec_status_modal"><option>Pending</option><option>Filed</option><option>Overdue</option><option>Exempted</option></select></div>
+      <div class="form-group"><label>SRN Number</label><input id="rec_srn"/></div>
+      <div class="form-group"><label>Filing Fees (₹)</label><input type="number" id="rec_fees"/></div>
+      <div class="form-group full"><label>Remarks</label><textarea id="rec_remarks" rows="2"></textarea></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('addRecordModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitRecord()">Save Record</button>
+    </div>
+  </div>
+</div>
+
+<!-- Excel Import Modal -->
+<div class="modal-backdrop hidden" id="excelImportModal" onclick="if(event.target===this)closeModal('excelImportModal')">
+  <div class="modal">
+    <div class="modal-title">&#128196; Import Excel (MCA Format)</div>
+    <div style="background:#fef9c3;border:1.5px solid #d97706;border-radius:8px;padding:10px 12px;font-size:12px;color:#854d0e;margin-bottom:14px">
+      Excel file should have 3 sheets: <strong>MasterData</strong>, <strong>IndexOfCharges</strong>, <strong>Director Details</strong> — same format as MCA portal download.
+    </div>
+    <div class="form-grid">
+      <div class="form-group full">
+        <label>Client * (Kis client ka company hai?)</label>
+        <div class="autocomplete-wrap">
+          <input type="text" id="imp_client_search" placeholder="Type client name, ID or mobile..." autocomplete="off"
+            oninput="importClientSearch(this.value)" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px"/>
+          <div class="autocomplete-list hidden" id="imp_client_list"></div>
+        </div>
+        <input type="hidden" id="imp_client_id"/>
+        <input type="hidden" id="imp_agent_id"/>
+        <div id="imp_client_chip" class="hidden" style="margin-top:6px">
+          <div class="client-selected-chip">
+            <div><div class="cs-name" id="imp_chip_name"></div><div class="cs-meta" id="imp_chip_meta"></div></div>
+            <button class="cs-clear" onclick="clearImportClient()">&#10005;</button>
+          </div>
+        </div>
+      </div>
+      <div class="form-group full">
+        <label>Excel File (.xlsx) *</label>
+        <input type="file" id="imp_file" accept=".xlsx,.xls" style="padding:8px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;width:100%"/>
+      </div>
+    </div>
+    <div id="imp_result" class="hidden" style="margin-top:10px"></div>
+    <div id="imp_err" class="alert-err hidden"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('excelImportModal')">Cancel</button>
+      <button class="btn btn-primary" id="imp_btn" onclick="submitExcelImport()">&#9889; Import</button>
+    </div>
+  </div>
+</div>
+
+<!-- MCA Style Company View Modal -->
+<div class="modal-backdrop hidden" id="companyViewModal" onclick="if(event.target===this)closeModal('companyViewModal')">
+  <div class="modal modal-lg" style="max-width:900px">
+    <div class="modal-title" id="cvModal_title">Company Details</div>
+    <div id="cvModal_content" style="font-size:13px"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('companyViewModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Director Search Modal -->
+<div class="modal-backdrop hidden" id="dirSearchModal" onclick="if(event.target===this)closeModal('dirSearchModal')">
+  <div class="modal modal-lg" style="max-width:860px">
+    <div class="modal-title">&#128269; Director Search (by DIN or Name)</div>
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <input type="text" id="dsm_search" placeholder="Enter DIN (e.g. 01910553) or Director Name..." style="flex:1;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px" oninput="runDirSearch(this.value)"/>
+    </div>
+    <div id="dsm_results"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('dirSearchModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Compliance Status Update Modal -->
+<div class="modal-backdrop hidden" id="compUpdateModal" onclick="if(event.target===this)closeModal('compUpdateModal')">
+  <div class="modal modal-lg">
+    <div class="modal-title">Update Compliance Status</div>
+    <input type="hidden" id="cu_id"/>
+    <div style="background:#eff6ff;border:1.5px solid #2155f3;border-radius:8px;padding:8px 12px;margin-bottom:14px;font-size:13px;font-weight:700;color:#1d4ed8" id="cu_company_info"></div>
+    <div class="form-grid">
+      <div class="form-group"><label>INC-20A</label><select id="cu_inc20a"></select></div>
+      <div class="form-group"><label>SRN (INC-20A)</label><input id="cu_srn_inc20a" placeholder="SRN number"/></div>
+      <div class="form-group"><label>ADT-1</label><select id="cu_adt1"></select></div>
+      <div class="form-group"><label>SRN (ADT-1)</label><input id="cu_srn_adt1" placeholder="SRN number"/></div>
+      <div class="form-group"><label>AOC-4</label><select id="cu_aoc4"></select></div>
+      <div class="form-group"><label>SRN (AOC-4)</label><input id="cu_srn_aoc4" placeholder="SRN number"/></div>
+      <div class="form-group"><label>MGT-7A</label><select id="cu_mgt7a"></select></div>
+      <div class="form-group"><label>SRN (MGT-7A)</label><input id="cu_srn_mgt7a" placeholder="SRN number"/></div>
+      <div class="form-group"><label>ITR</label><select id="cu_itr"></select></div>
+      <div class="form-group"><label>Documents Status</label><select id="cu_docs"></select></div>
+      <div class="form-group full"><label>Financial Statement</label><select id="cu_finst"></select></div>
+      <div class="form-group full"><label>Remarks</label><textarea id="cu_remarks" rows="2" placeholder="Optional remarks..."></textarea></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('compUpdateModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitCompUpdate()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Director KYC Update Modal -->
+<div class="modal-backdrop hidden" id="kycUpdateModal" onclick="if(event.target===this)closeModal('kycUpdateModal')">
+  <div class="modal">
+    <div class="modal-title">Update Director KYC</div>
+    <input type="hidden" id="ku_id"/>
+    <div style="background:#eff6ff;border-radius:8px;padding:8px 12px;margin-bottom:14px;font-size:12px;color:#1d4ed8;font-weight:600" id="ku_director_info"></div>
+    <div class="form-grid">
+      <div class="form-group"><label>KYC Status</label><select id="ku_kyc_status"></select></div>
+      <div class="form-group"><label>SRN</label><input id="ku_srn" placeholder="SRN number"/></div>
+      <div class="form-group full"><label>Remarks</label><textarea id="ku_remarks" rows="2"></textarea></div>
+      <div class="form-group"><label>Active Flag</label>
+        <select id="ku_active_flag"><option value="Active">Active</option><option value="Inactive">Inactive</option></select>
+      </div>
+      <div class="form-group"><label>Inactive Remarks</label><input id="ku_inactive_remarks" placeholder="Reason if inactive"/></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('kycUpdateModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitKYCUpdate()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Auth ─────────────────────────────────────────────────────
+const token = localStorage.getItem('att_token');
+const user  = JSON.parse(localStorage.getItem('att_emp') || '{}');
+if (!token) { window.location.href = '/'; }
+
+document.getElementById('userChip').textContent = user.formal_name || user.name || '';
+
+const api = async (path, opts = {}) => {
+  const r = await fetch('/api' + path, {
+    ...opts,
+    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', ...(opts.headers||{}) }
+  });
+  return r.json();
+};
+
+function logout() {
+  localStorage.removeItem('att_token'); localStorage.removeItem('att_emp');
+  window.location.href = '/';
+}
+
+// ── Helpers ──────────────────────────────────────────────────
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast show ' + type;
+  setTimeout(() => t.className = 'toast', 3500);
+}
+function closeModal(id) { document.getElementById(id)?.classList.add('hidden'); }
+function openModal(id)  { document.getElementById(id)?.classList.remove('hidden'); }
+
+function fmtDate(d) {
+  if (!d) return '--';
+  return new Date(d).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+}
+function money(n) { return n ? '₹' + parseFloat(n).toLocaleString('en-IN') : '--'; }
+function getCurrentFY() {
+  const now = new Date(); const y = now.getFullYear(); const m = now.getMonth();
+  const sy = m >= 3 ? y : y-1;
+  return `${sy}-${String(sy+1).slice(-2)}`;
+}
+
+function statusBadge(s) {
+  if (!s) return '<span class="badge b-pending">Pending</span>';
+  const cls = {
+    'Pending':'b-pending','In Progress':'b-progress','Waiting for Client':'b-waiting',
+    'Waiting for Government':'b-waiting','Under Review':'b-review','On Hold':'b-hold',
+    'Reassigned':'b-progress','Completed':'b-complete','Cancelled':'b-cancel',
+    'Done':'b-done','Under Process':'b-progress'
+  }[s] || 'b-pending';
+  return `<span class="badge ${cls}">${s}</span>`;
+}
+function priClass(p) {
+  return { Low:'pri-low', Medium:'pri-medium', High:'pri-high', Urgent:'pri-urgent' }[p] || 'pri-medium';
+}
+
+// ── META ─────────────────────────────────────────────────────
+let META = { work_names:[], statuses:[], priorities:[], employees:[] };
+
+async function loadMeta() {
+  const data = await api('/tasks/meta');
+  if (!data.success) return;
+  META = data;
+
+  // Status dropdowns
+  ['allStatusFilter','myStatusFilter','byStatusFilter','upd_status'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const isFilter = id.endsWith('Filter');
+    sel.innerHTML = isFilter ? '<option value="">All Status</option>' : '';
+    META.statuses.forEach(s => sel.innerHTML += `<option value="${s}">${s}</option>`);
+  });
+
+  // Priority dropdown
+  const pf = document.getElementById('allPriorityFilter');
+  if (pf) { META.priorities.forEach(p => pf.innerHTML += `<option value="${p}">${p}</option>`); }
+
+  // Work name filter
+  const wf = document.getElementById('allWorkFilter');
+  if (wf) META.work_names.slice(0,50).forEach(w => wf.innerHTML += `<option value="${w}">${w}</option>`);
+
+  // Employee dropdowns
+  ['tm_assign_to','upd_assign_to'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    sel.innerHTML = id === 'tm_assign_to' ? '<option value="">Self</option>' : '<option value="">Keep Current</option>';
+    META.employees.forEach(e => {
+      if (e.emp_id !== user.emp_id)
+        sel.innerHTML += `<option value="${e.emp_id}" data-name="${e.formal_name||e.name}">${e.formal_name||e.name} (${e.emp_id})</option>`;
+    });
+  });
+
+  // FY + compliance status dropdowns
+  const fyRes = await api('/compliance/records?limit=1');
+  if (fyRes.fy_options) {
+    const cur = getCurrentFY();
+    // Legacy record FY selects
+    ['recFY','rec_fy_modal'].forEach(id => {
+      const sel = document.getElementById(id);
+      if (!sel) return;
+      fyRes.fy_options.forEach(fy => sel.innerHTML += `<option value="${fy}" ${fy===cur?'selected':''}>${fy}</option>`);
+    });
+    // Compliance tracking FY selects
+    populateFYDropdowns(fyRes.fy_options, fyRes.status_options || _statusOptions);
+  }
+}
+
+// ── Panel switching ──────────────────────────────────────────
+const panelLoaded = {};
+function showPanel(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.sb-item').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.bot-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + name)?.classList.add('active');
+  document.getElementById('sb-' + name)?.classList.add('active');
+  document.getElementById('m-' + name)?.classList.add('active');
+
+  if (!panelLoaded[name]) {
+    panelLoaded[name] = true;
+    const loaders = {
+      dashboard: loadDashboard,
+      mytasks: () => loadTasks('my'),
+      assignedby: () => loadTasks('assigned_by_me'),
+      alltasks: () => loadTasks('all'),
+      completed: () => loadTasks('completed'),
+      notifications: loadNotifications,
+      clients: searchClients,
+      companies: loadCompanies,
+      directors: loadDirectors,
+      comprecords: loadCompRecords,
+      comptracking: () => { switchCTab('company'); },
+    };
+    loaders[name]?.();
+  }
+}
+
+// ── DASHBOARD ────────────────────────────────────────────────
+async function loadDashboard() {
+  document.getElementById('dashDate').textContent =
+    new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' });
+
+  const data = await api('/tasks/dashboard');
+  if (!data.success) return;
+
+  document.getElementById('d-my').textContent   = data.my_active;
+  document.getElementById('d-by').textContent   = data.assigned_by_me;
+  document.getElementById('d-all').textContent  = data.all_active;
+  document.getElementById('d-over').textContent = data.total_alerts || 0;
+
+  const sb = document.getElementById('statusBreakdown');
+  if (data.status_breakdown?.length) {
+    const total = data.my_active || 1;
+    sb.innerHTML = data.status_breakdown.map(s => `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        ${statusBadge(s.status)}
+        <div style="flex:1;background:#f1f5f9;border-radius:4px;height:8px;overflow:hidden">
+          <div style="background:#2155f3;height:100%;width:${Math.min(100,s.cnt/total*100)}%;border-radius:4px"></div>
+        </div>
+        <span style="font-size:13px;font-weight:700;min-width:28px">${s.cnt}</span>
+      </div>`).join('');
+  } else {
+    sb.innerHTML = '<div class="empty-msg">No active tasks assigned to you</div>';
+  }
+}
+
+// ── TASKS ────────────────────────────────────────────────────
+const _dbt = {};
+function debounceLoad(view) {
+  clearTimeout(_dbt[view]);
+  _dbt[view] = setTimeout(() => loadTasks(view), 400);
+}
+
+async function loadTasks(view) {
+  const tableMap = { my:'myTasksTable', assigned_by_me:'assignedByTable', all:'allTasksTable', completed:'completedTable' };
+  const tb = document.getElementById(tableMap[view]);
+  if (!tb) return;
+  tb.innerHTML = `<tr><td colspan="8" class="empty-msg">Loading...</td></tr>`;
+
+  const params = new URLSearchParams({ view, limit: 100 });
+  if (view === 'my') {
+    const q = document.getElementById('mySearch')?.value; if (q) params.set('search', q);
+    const st = document.getElementById('myStatusFilter')?.value; if (st) params.set('status', st);
+  }
+  if (view === 'assigned_by_me') {
+    const q = document.getElementById('bySearch')?.value; if (q) params.set('search', q);
+    const st = document.getElementById('byStatusFilter')?.value; if (st) params.set('status', st);
+  }
+  if (view === 'all') {
+    const q = document.getElementById('allSearch')?.value; if (q) params.set('search', q);
+    const st = document.getElementById('allStatusFilter')?.value; if (st) params.set('status', st);
+    const pr = document.getElementById('allPriorityFilter')?.value; if (pr) params.set('priority', pr);
+    const wn = document.getElementById('allWorkFilter')?.value; if (wn) params.set('work_name', wn);
+  }
+  if (view === 'completed') {
+    const q = document.getElementById('completedSearch')?.value; if (q) params.set('search', q);
+  }
+
+  const data = await api('/tasks?' + params.toString());
+  if (!data.success) { tb.innerHTML = `<tr><td colspan="8" class="empty-msg">Error loading tasks</td></tr>`; return; }
+  if (!data.tasks.length) { tb.innerHTML = `<tr><td colspan="8" class="empty-msg">No tasks found</td></tr>`; return; }
+
+  tb.innerHTML = data.tasks.map(t => {
+    const client = t.legal_name || t.business_name || t.client_id || '--';
+    const isOverdue = t.is_overdue;
+    const rowCls = isOverdue ? ' class="overdue-row"' : '';
+
+    if (view === 'completed') return `
+      <tr${rowCls}>
+        <td><small style="color:#64748b">${t.task_id}</small></td>
+        <td title="${t.client_id||''}">${client.substring(0,30)}</td>
+        <td>${(t.work_name||'--').substring(0,32)}</td>
+        <td>${statusBadge(t.status)}</td>
+        <td>${fmtDate(t.completion_date)}</td>
+        <td><button class="btn-sm btn-view" onclick="viewTask('${t.task_id}')">View</button></td>
+      </tr>`;
+
+    const showAssign = view === 'assigned_by_me' || view === 'all';
+    const showCreatedBy = view === 'my';
+    return `
+      <tr${rowCls}>
+        <td><small style="color:#64748b">${t.task_id}</small></td>
+        <td title="${t.client_id||''}">${client.substring(0,26)}</td>
+        <td>${(t.work_name||'--').substring(0,28)}</td>
+        ${showAssign ? `<td>${t.assigned_to_name||'--'}</td>` : ''}
+        ${showCreatedBy ? `<td>${t.created_by_name||'--'}</td>` : ''}
+        <td><span class="pri ${priClass(t.priority)}">${t.priority||'--'}</span></td>
+        <td>${statusBadge(t.status)}</td>
+        <td style="${isOverdue?'color:#dc2626;font-weight:700':''}">
+          ${fmtDate(t.due_date)}${isOverdue?' &#128680;':''}
+        </td>
+        <td style="white-space:nowrap">
+          <button class="btn-sm btn-view" onclick="viewTask('${t.task_id}')">View</button>
+          <button class="btn-sm btn-edit" onclick="quickUpdate('${t.task_id}','${t.status}','${t.priority}','${t.due_date||''}')">Update</button>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+async function viewTask(taskId) {
+  const data = await api(`/tasks/${taskId}`);
+  if (!data.success) { showToast('Task not found','error'); return; }
+  const t = data.task; const h = data.history || [];
+
+  document.getElementById('taskDetailContent').innerHTML = `
+    <div class="task-detail">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+        <strong>${t.task_id}</strong> ${statusBadge(t.status)} <span class="pri ${priClass(t.priority)}">${t.priority}</span>
+      </div>
+      <div class="detail-grid">
+        <div class="detail-item"><label>Client</label><div class="val">${t.legal_name||t.business_name||t.client_id||'--'}</div></div>
+        <div class="detail-item"><label>Work</label><div class="val">${t.work_name||'--'}</div></div>
+        <div class="detail-item"><label>Assigned To</label><div class="val">${t.assigned_to_name||'--'}</div></div>
+        <div class="detail-item"><label>Created By</label><div class="val">${t.created_by_name||'--'}</div></div>
+        <div class="detail-item"><label>Due Date</label><div class="val" style="${t.is_overdue?'color:#dc2626':''}">
+          ${fmtDate(t.due_date)}${t.is_overdue?' ⚠️':''}
+        </div></div>
+        <div class="detail-item"><label>Created On</label><div class="val">${fmtDate(t.created_at)}</div></div>
+        ${t.drive_link ? `<div class="detail-item full"><label>Drive Link</label><div class="val"><a href="${t.drive_link}" target="_blank">&#128279; Open Link</a></div></div>` : ''}
+        ${t.internal_remark ? `<div class="detail-item full"><label>Internal Remark</label><div class="val">${t.internal_remark}</div></div>` : ''}
+        ${t.client_pending_remark ? `<div class="detail-item full"><label>Client Pending</label><div class="val">${t.client_pending_remark}</div></div>` : ''}
+        ${t.professional_fees ? `<div class="detail-item"><label>Fees</label><div class="val">${money(t.professional_fees)}</div></div>` : ''}
+        ${t.next_followup_date ? `<div class="detail-item"><label>Next Followup</label><div class="val">${fmtDate(t.next_followup_date)}</div></div>` : ''}
+      </div>
+    </div>
+    <div style="font-size:13px;font-weight:700;color:#1e293b;margin-bottom:8px">History (${h.length})</div>
+    ${h.length ? h.map(l => `
+      <div class="history-item">
+        <div><span class="h-action">${l.action}</span>
+          ${l.old_status !== l.new_status && l.new_status ? ` → ${statusBadge(l.new_status)}` : ''}
+          ${l.remark ? ` — <em style="color:#64748b">${l.remark}</em>` : ''}
+        </div>
+        <div class="h-meta">by ${l.updated_by_name||'--'} | ${fmtDate(l.updated_at)}</div>
+      </div>`).join('') : '<div class="empty-msg" style="padding:12px">No history</div>'}`;
+
+  document.getElementById('taskDetailModal')._taskId = taskId;
+  document.getElementById('taskDetailModal')._task = data.task;
+  openModal('taskDetailModal');
+}
+
+function openUpdateFromDetail() {
+  const t = document.getElementById('taskDetailModal')._task;
+  closeModal('taskDetailModal');
+  if (t) quickUpdate(t.task_id, t.status, t.priority, t.due_date);
+}
+
+function quickUpdate(taskId, status, priority, dueDate) {
+  document.getElementById('upd_task_id').value = taskId;
+  document.getElementById('upd_task_id_lbl').textContent = taskId;
+  document.getElementById('upd_status').value = status || '';
+  document.getElementById('upd_priority').value = priority || 'Medium';
+  document.getElementById('upd_due_date').value = dueDate ? dueDate.split('T')[0] : '';
+  document.getElementById('upd_followup').value = '';
+  document.getElementById('upd_internal_remark').value = '';
+  document.getElementById('upd_client_remark').value = '';
+  document.getElementById('upd_completion_remark').value = '';
+  document.getElementById('upd_assign_to').value = '';
+  openModal('updateTaskModal');
+}
+
+async function submitUpdateTask() {
+  const taskId = document.getElementById('upd_task_id').value;
+  const assignSel = document.getElementById('upd_assign_to');
+  const assignOpt = assignSel.options[assignSel.selectedIndex];
+  const data = await api(`/tasks/${taskId}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      status: document.getElementById('upd_status').value || undefined,
+      priority: document.getElementById('upd_priority').value || undefined,
+      due_date: document.getElementById('upd_due_date').value || undefined,
+      next_followup_date: document.getElementById('upd_followup').value || undefined,
+      assigned_to_id: assignSel.value || undefined,
+      assigned_to_name: assignSel.value ? assignOpt.dataset.name : undefined,
+      internal_remark: document.getElementById('upd_internal_remark').value || undefined,
+      client_pending_remark: document.getElementById('upd_client_remark').value || undefined,
+      completion_remark: document.getElementById('upd_completion_remark').value || undefined,
+    })
+  });
+  closeModal('updateTaskModal');
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) {
+    ['mytasks','assignedby','alltasks','dashboard'].forEach(p => panelLoaded[p] = false);
+    loadDashboard(); panelLoaded['dashboard'] = true;
+    panelLoaded['notifications'] = false;
+  }
+}
+
+// ── CREATE TASK ──────────────────────────────────────────────
+let _taskClientSelected = false;
+
+function openCreateTask() {
+  _taskClientSelected = false;
+  document.getElementById('tm_task_id').value = '';
+  document.getElementById('tm_client_id').value = '';
+  document.getElementById('tm_agent_id').value = '';
+  document.getElementById('tm_agent_name').value = '';
+  document.getElementById('tm_client_search').value = '';
+  document.getElementById('tm_client_chip').classList.add('hidden');
+  document.getElementById('tm_client_search_wrap').classList.remove('hidden');
+  ['tm_legal_name','tm_biz_name','tm_work_name','tm_work_desc','tm_remark','tm_drive_link',
+   'tm_agent_display','tm_mobile_display'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  ['tm_prof_fees','tm_challan','tm_other_exp'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  document.getElementById('tm_due_date').value = '';
+  document.getElementById('tm_assign_to').value = '';
+  document.getElementById('tm_priority').value = 'Medium';
+  document.getElementById('tm_fees_appl').value = 'Not Applicable';
+  document.getElementById('taskModalTitle').textContent = 'Create Task';
+  document.getElementById('taskModalErr').classList.add('hidden');
+  openModal('taskModal');
+}
+
+function clearTaskClient() {
+  _taskClientSelected = false;
+  document.getElementById('tm_client_id').value = '';
+  document.getElementById('tm_agent_id').value = '';
+  document.getElementById('tm_agent_name').value = '';
+  document.getElementById('tm_client_search').value = '';
+  document.getElementById('tm_legal_name').value = '';
+  document.getElementById('tm_biz_name').value = '';
+  document.getElementById('tm_agent_display').value = '';
+  document.getElementById('tm_mobile_display').value = '';
+  document.getElementById('tm_client_chip').classList.add('hidden');
+  document.getElementById('tm_client_search_wrap').classList.remove('hidden');
+}
+
+let _taskClientTimer;
+async function taskClientSearch(q) {
+  const list = document.getElementById('tm_ac_list');
+  if (!q || q.length < 2) { list.classList.add('hidden'); return; }
+  clearTimeout(_taskClientTimer);
+  _taskClientTimer = setTimeout(async () => {
+    const data = await api('/clients/search?q=' + encodeURIComponent(q));
+    if (!data.success || !data.clients.length) {
+      list.innerHTML = '<div class="ac-item" style="color:#94a3b8">No clients found</div>';
+      list.classList.remove('hidden'); return;
+    }
+    list.innerHTML = data.clients.map(c => {
+      const name = c.legal_name || c.business_name || c.client_id;
+      return `<div class="ac-item" onclick='selectTaskClient(${JSON.stringify(c)})'>
+        <div class="ac-name">${name}</div>
+        <div class="ac-meta">${c.client_id} | ${c.agent_name||'--'} | ${c.mobile_number||''}</div>
+      </div>`;
+    }).join('');
+    list.classList.remove('hidden');
+  }, 300);
+}
+
+function selectTaskClient(c) {
+  _taskClientSelected = true;
+  document.getElementById('tm_client_id').value = c.client_id;
+  document.getElementById('tm_agent_id').value = c.agent_id || '';
+  document.getElementById('tm_agent_name').value = c.agent_name || '';
+  document.getElementById('tm_legal_name').value = c.legal_name || '';
+  document.getElementById('tm_biz_name').value = c.business_name || '';
+  document.getElementById('tm_agent_display').value = c.agent_name || '';
+  document.getElementById('tm_mobile_display').value = c.mobile_number || '';
+  document.getElementById('tm_ac_list').classList.add('hidden');
+
+  const name = c.legal_name || c.business_name || c.client_id;
+  document.getElementById('tm_chip_name').textContent = name;
+  document.getElementById('tm_chip_meta').textContent = `${c.client_id} | Agent: ${c.agent_name||'--'} | Mobile: ${c.mobile_number||'--'}`;
+  document.getElementById('tm_client_chip').classList.remove('hidden');
+  document.getElementById('tm_client_search_wrap').classList.add('hidden');
+  document.getElementById('taskModalErr').classList.add('hidden');
+}
+
+function workAutocomplete(q) {
+  const list = document.getElementById('wn_ac_list');
+  if (!q) { list.classList.add('hidden'); return; }
+  const filtered = META.work_names.filter(w => w.toLowerCase().includes(q.toLowerCase())).slice(0, 12);
+  if (!filtered.length) { list.classList.add('hidden'); return; }
+  list.innerHTML = filtered.map(w =>
+    `<div class="ac-item" onclick="document.getElementById('tm_work_name').value=${JSON.stringify(w)};document.getElementById('wn_ac_list').classList.add('hidden')">
+      <div class="ac-name">${w}</div>
+    </div>`).join('');
+  list.classList.remove('hidden');
+}
+
+async function submitTask() {
+  const err = document.getElementById('taskModalErr');
+  err.classList.add('hidden');
+
+  if (!_taskClientSelected || !document.getElementById('tm_client_id').value) {
+    err.textContent = 'Please select a client from the suggestion list (mandatory)';
+    err.classList.remove('hidden'); return;
+  }
+  const workName = document.getElementById('tm_work_name').value.trim();
+  if (!workName) { err.textContent = 'Work name is required'; err.classList.remove('hidden'); return; }
+
+  const assignSel = document.getElementById('tm_assign_to');
+  const assignOpt = assignSel.options[assignSel.selectedIndex];
+  const assigned_to_id = assignSel.value || null;
+  const assigned_to_name = assignSel.value ? assignOpt.dataset.name : null;
+
+  const data = await api('/tasks', {
+    method: 'POST',
+    body: JSON.stringify({
+      client_id: document.getElementById('tm_client_id').value,
+      agent_id: document.getElementById('tm_agent_id').value || null,
+      agent_name: document.getElementById('tm_agent_name').value || null,
+      legal_name: document.getElementById('tm_legal_name').value || null,
+      business_name: document.getElementById('tm_biz_name').value || null,
+      mobile_number: document.getElementById('tm_mobile_display').value || null,
+      work_name: workName,
+      work_description: document.getElementById('tm_work_desc').value || null,
+      priority: document.getElementById('tm_priority').value,
+      due_date: document.getElementById('tm_due_date').value || null,
+      assigned_to_id, assigned_to_name,
+      internal_remark: document.getElementById('tm_remark').value || null,
+      professional_fees: document.getElementById('tm_prof_fees').value || null,
+      challan_amount: document.getElementById('tm_challan').value || null,
+      other_expense: document.getElementById('tm_other_exp').value || null,
+      fees_applicable: document.getElementById('tm_fees_appl').value,
+      drive_link: document.getElementById('tm_drive_link').value || null,
+    })
+  });
+
+  if (data.success) {
+    closeModal('taskModal');
+    showToast(data.message + ' (' + data.task_id + ')', 'success');
+    ['mytasks','assignedby','alltasks','dashboard'].forEach(p => panelLoaded[p] = false);
+    loadDashboard(); panelLoaded['dashboard'] = true;
+  } else {
+    err.textContent = data.message; err.classList.remove('hidden');
+  }
+}
+
+// ── NOTIFICATIONS ────────────────────────────────────────────
+async function loadNotifications() {
+  const data = await api('/tasks/notifications');
+  const el = document.getElementById('notifContent');
+  if (!data.success) { el.innerHTML = '<div class="empty-msg">Error loading notifications</div>'; return; }
+
+  const total = data.total_alerts || 0;
+  ['notifBadge','botNotifBadge'].forEach(id => {
+    const b = document.getElementById(id);
+    if (total > 0) { b.textContent = total; b.classList.remove('hidden'); }
+    else b.classList.add('hidden');
+  });
+  const notifDot = document.getElementById('notifDot');
+  if (total > 0) notifDot.classList.remove('hidden'); else notifDot.classList.add('hidden');
+
+  let html = '';
+
+  // Today due
+  if (data.due_today.length) {
+    html += `<div class="notif-section-title">&#128680; Due Today (${data.due_today.length})</div>`;
+    html += data.due_today.map(t => `
+      <div class="notif-card" style="--nc:#f59e0b" onclick="viewTask('${t.task_id}')">
+        <div class="nc-title">${t.work_name||'--'} <span class="badge b-pending">${t.status}</span></div>
+        <div class="nc-meta">${t.legal_name||t.business_name||t.client_id||'--'} | ${t.task_id}</div>
+        <div class="nc-meta" style="margin-top:4px;color:#d97706;font-weight:700">Due: Today | Assigned by: ${t.created_by_name||'--'}</div>
+      </div>`).join('');
+  }
+
+  // Overdue
+  if (data.overdue.length) {
+    html += `<div class="notif-section-title">&#9888;&#65039; Overdue Tasks (${data.overdue.length})</div>`;
+    html += data.overdue.map(t => `
+      <div class="notif-card" style="--nc:#e94560" onclick="viewTask('${t.task_id}')">
+        <div class="nc-title">${t.work_name||'--'} <span class="badge b-cancel">${t.status}</span></div>
+        <div class="nc-meta">${t.legal_name||t.business_name||t.client_id||'--'} | ${t.task_id}</div>
+        <div class="nc-meta" style="margin-top:4px;color:#dc2626;font-weight:700">Was due: ${fmtDate(t.due_date)}</div>
+      </div>`).join('');
+  }
+
+  // Recently assigned
+  if (data.recently_assigned.length) {
+    html += `<div class="notif-section-title">&#128101; Assigned to You (Last 7 days — ${data.recently_assigned.length})</div>`;
+    html += data.recently_assigned.map(t => `
+      <div class="notif-card" style="--nc:#2155f3" onclick="viewTask('${t.task_id}')">
+        <div class="nc-title">${t.work_name||'--'} ${statusBadge(t.status)}</div>
+        <div class="nc-meta">${t.legal_name||t.business_name||t.client_id||'--'} | ${t.task_id}</div>
+        <div class="nc-meta" style="margin-top:4px">Assigned by: <strong>${t.created_by_name||'--'}</strong> | Due: ${fmtDate(t.due_date)}</div>
+      </div>`).join('');
+  }
+
+  if (!html) html = '<div class="empty-msg">&#127881; No pending alerts. All tasks are on track!</div>';
+  el.innerHTML = html;
+}
+
+// ── CLIENTS ──────────────────────────────────────────────────
+let _clientDbt;
+function searchClients(immediate) {
+  clearTimeout(_clientDbt);
+  const fn = async () => {
+    const q = document.getElementById('clientSearch')?.value || '';
+    const data = await api('/clients/search?q=' + encodeURIComponent(q));
+    if (!data.success) return;
+    const tb = document.getElementById('clientTable');
+    tb.innerHTML = data.clients.length ? data.clients.map(c => `
+      <tr>
+        <td><strong>${c.client_id}</strong></td>
+        <td>${c.legal_name||'--'}</td>
+        <td>${c.business_name||'--'}</td>
+        <td>${c.agent_name||'--'}</td>
+        <td>${c.mobile_number||'--'}</td>
+        <td><span class="badge ${c.status==='Active'||!c.status?'b-active':'b-inactive'}">${c.status||'Active'}</span></td>
+        <td style="white-space:nowrap">
+          <button class="btn-sm btn-view" onclick='viewClient(${JSON.stringify(c)})'>View</button>
+          <button class="btn-sm btn-edit" onclick='editClient(${JSON.stringify(c)})'>Edit</button>
+        </td>
+      </tr>`).join('') : '<tr><td colspan="7" class="empty-msg">No clients found. Try a different search.</td></tr>';
+  };
+  if (immediate) fn(); else _clientDbt = setTimeout(fn, 350);
+}
+
+function viewClient(c) {
+  const name = c.legal_name || c.business_name || c.client_id;
+  showToast(`${name} | Agent: ${c.agent_name||'--'} | Mobile: ${c.mobile_number||'--'}`, 'success');
+}
+
+async function autoFillClientId() {
+  const r = await api('/clients/next-id');
+  if (r.success) { document.getElementById('ac_id').value = r.next_id; }
+}
+
+function openAddClient() {
+  document.getElementById('ac_mode').value = 'add';
+  document.getElementById('addClientTitle').textContent = 'Add New Client';
+  ['ac_id','ac_legal','ac_biz','ac_mobile','ac_email','ac_gst','ac_pan','ac_city','ac_state','ac_address'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  document.getElementById('ac_agent_search').value = '';
+  document.getElementById('ac_agent_id').value = '';
+  document.getElementById('ac_agent_name_val').value = '';
+  document.getElementById('ac_id').removeAttribute('readonly');
+  document.getElementById('addClientErr').classList.add('hidden');
+  autoFillClientId();
+  openModal('addClientModal');
+}
+
+function editClient(c) {
+  document.getElementById('ac_mode').value = 'edit';
+  document.getElementById('addClientTitle').textContent = `Edit Client — ${c.client_id}`;
+  document.getElementById('ac_id').value = c.client_id;
+  document.getElementById('ac_id').setAttribute('readonly','readonly');
+  document.getElementById('ac_legal').value = c.legal_name || '';
+  document.getElementById('ac_biz').value = c.business_name || '';
+  document.getElementById('ac_agent_search').value = c.agent_name || '';
+  document.getElementById('ac_agent_id').value = c.agent_id || '';
+  document.getElementById('ac_agent_name_val').value = c.agent_name || '';
+  document.getElementById('ac_mobile').value = c.mobile_number || '';
+  document.getElementById('ac_email').value = c.email_id || '';
+  document.getElementById('ac_gst').value = c.gst_no || '';
+  document.getElementById('ac_pan').value = c.pan_no || '';
+  document.getElementById('ac_city').value = c.city || '';
+  document.getElementById('ac_state').value = c.state || '';
+  document.getElementById('ac_address').value = c.address || '';
+  document.getElementById('addClientErr').classList.add('hidden');
+  openModal('addClientModal');
+}
+
+async function submitClient() {
+  const err = document.getElementById('addClientErr');
+  err.classList.add('hidden');
+  const mode = document.getElementById('ac_mode').value;
+  const clientId = document.getElementById('ac_id').value.trim();
+  const mobile = document.getElementById('ac_mobile').value.trim();
+
+  if (!clientId) { err.textContent = 'Client ID required'; err.classList.remove('hidden'); return; }
+  if (!mobile) { err.textContent = 'Mobile number is required'; err.classList.remove('hidden'); return; }
+
+  const body = {
+    agent_id: document.getElementById('ac_agent_id').value || null,
+    agent_name: document.getElementById('ac_agent_name_val').value || document.getElementById('ac_agent_search').value || null,
+    legal_name: document.getElementById('ac_legal').value || null,
+    business_name: document.getElementById('ac_biz').value || null,
+    mobile_number: mobile,
+    email_id: document.getElementById('ac_email').value || null,
+    gst_no: document.getElementById('ac_gst').value || null,
+    pan_no: document.getElementById('ac_pan').value || null,
+    city: document.getElementById('ac_city').value || null,
+    state: document.getElementById('ac_state').value || null,
+    address: document.getElementById('ac_address').value || null,
+  };
+
+  let data;
+  if (mode === 'edit') {
+    data = await api('/clients/' + clientId, { method:'PUT', body:JSON.stringify(body) });
+  } else {
+    data = await api('/clients', { method:'POST', body:JSON.stringify({ client_id: clientId, ...body }) });
+  }
+
+  if (data.success) {
+    closeModal('addClientModal');
+    showToast(data.message, 'success');
+    panelLoaded['clients'] = false;
+    searchClients(true);
+    panelLoaded['clients'] = true;
+  } else {
+    err.textContent = data.message; err.classList.remove('hidden');
+  }
+}
+
+// ── AGENT AUTOCOMPLETE ───────────────────────────────────────
+let _agentDbt;
+async function agentAutocomplete(q) {
+  const list = document.getElementById('ac_agent_list');
+  clearTimeout(_agentDbt);
+  _agentDbt = setTimeout(async () => {
+    const data = await api('/clients/agents?q=' + encodeURIComponent(q));
+    if (!data.success) { list.classList.add('hidden'); return; }
+    list.innerHTML = data.agents.map(a => `
+      <div class="ac-item" onclick='selectAgent(${JSON.stringify(a)})'>
+        <div class="ac-name">${a.name}</div>
+        <div class="ac-meta">${a.agent_id} | ${a.mobile_number||'--'}</div>
+      </div>`).join('');
+    if (!data.agents.length) list.innerHTML = '<div style="padding:10px 12px;color:#94a3b8;font-size:13px">No agents found</div>';
+    list.innerHTML += `<div class="ac-add" onclick="openAddAgent()">+ Add New Agent</div>`;
+    list.classList.remove('hidden');
+  }, 250);
+}
+
+function selectAgent(a) {
+  document.getElementById('ac_agent_search').value = a.name;
+  document.getElementById('ac_agent_id').value = a.agent_id;
+  document.getElementById('ac_agent_name_val').value = a.name;
+  document.getElementById('ac_agent_list').classList.add('hidden');
+}
+
+function openAddAgent() {
+  document.getElementById('addAgentModal').classList.remove('hidden');
+  ['nag_name','nag_mobile','nag_email'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('addAgentErr').classList.add('hidden');
+}
+
+async function submitNewAgent() {
+  const name = document.getElementById('nag_name').value.trim();
+  if (!name) { document.getElementById('addAgentErr').textContent='Name required'; document.getElementById('addAgentErr').classList.remove('hidden'); return; }
+  const data = await api('/clients/agents', {
+    method: 'POST',
+    body: JSON.stringify({ name, mobile_number: document.getElementById('nag_mobile').value||null, email_id: document.getElementById('nag_email').value||null })
+  });
+  if (data.success) {
+    closeModal('addAgentModal');
+    showToast(`Agent ${data.agent_id} added!`, 'success');
+    selectAgent({ agent_id: data.agent_id, name: data.name });
+  } else {
+    document.getElementById('addAgentErr').textContent = data.message;
+    document.getElementById('addAgentErr').classList.remove('hidden');
+  }
+}
+
+// ── COMPANIES ────────────────────────────────────────────────
+async function loadCompanies() {
+  const q = document.getElementById('compSearch')?.value || '';
+  const st = document.getElementById('compStatusFilter')?.value || '';
+  const params = new URLSearchParams(); if (q) params.set('search',q); if (st) params.set('status',st);
+  const data = await api('/compliance/companies?' + params);
+  if (!data.success) return;
+  const tb = document.getElementById('companiesTable');
+  tb.innerHTML = data.companies.length ? data.companies.map(c => `
+    <tr>
+      <td><strong>${c.cin}</strong></td>
+      <td>${c.company_name}</td>
+      <td>${c.client_id||'--'}</td>
+      <td>${c.agent_name||'--'}</td>
+      <td>${fmtDate(c.incorporation_date)}</td>
+      <td>${fmtDate(c.last_agm_date)}</td>
+      <td><span class="badge ${c.company_status==='Active'?'b-active':'b-inactive'}">${c.company_status}</span></td>
+      <td style="white-space:nowrap">
+        <button class="btn-sm btn-view" onclick="viewCompanyFull('${c.cin}')">View</button>
+        <button class="btn-sm ${c.company_status==='Active'?'btn-red':'btn-green'}" onclick="toggleCompanyStatus('${c.cin}','${c.company_status}')">
+          ${c.company_status==='Active'?'Deactivate':'Activate'}
+        </button>
+      </td>
+    </tr>`).join('') : '<tr><td colspan="8" class="empty-msg">No companies. Click "+ Add Company".</td></tr>';
+}
+
+async function viewCompany(cin) {
+  const data = await api('/compliance/companies/' + cin);
+  if (!data.success) { showToast('Not found','error'); return; }
+  const c = data.company;
+  showToast(`${c.company_name} | ${data.directors.length} directors | ${data.compliance_records.length} compliance records`);
+}
+
+async function toggleCompanyStatus(cin, current) {
+  const newStatus = current === 'Active' ? 'Inactive' : 'Active';
+  if (!confirm(`Mark "${cin}" as ${newStatus}?`)) return;
+  const data = await api('/compliance/companies/' + cin + '/status', { method:'PUT', body:JSON.stringify({ status: newStatus }) });
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) loadCompanies();
+}
+
+function openAddCompany() {
+  ['cm_cin','cm_name','cm_client_id','cm_agent','cm_type','cm_email','cm_mobile','cm_city','cm_state','cm_address','cm_notes'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  document.getElementById('cm_inc_date').value = '';
+  openModal('addCompanyModal');
+}
+
+async function submitAddCompany() {
+  const cin = document.getElementById('cm_cin').value.trim();
+  const name = document.getElementById('cm_name').value.trim();
+  if (!cin || !name) { showToast('CIN and Company Name required','error'); return; }
+  const data = await api('/compliance/companies', {
+    method:'POST',
+    body: JSON.stringify({
+      cin, company_name:name,
+      client_id: document.getElementById('cm_client_id').value||null,
+      agent_name: document.getElementById('cm_agent').value||null,
+      company_type: document.getElementById('cm_type').value||null,
+      incorporation_date: document.getElementById('cm_inc_date').value||null,
+      email: document.getElementById('cm_email').value||null,
+      mobile: document.getElementById('cm_mobile').value||null,
+      city: document.getElementById('cm_city').value||null,
+      state: document.getElementById('cm_state').value||null,
+      registered_office: document.getElementById('cm_address').value||null,
+      notes: document.getElementById('cm_notes').value||null,
+    })
+  });
+  if (data.success) { closeModal('addCompanyModal'); showToast(data.message,'success'); panelLoaded['companies']=false; loadCompanies(); }
+  else showToast(data.message,'error');
+}
+
+// ── DIRECTORS ────────────────────────────────────────────────
+async function loadDirectors() {
+  const q = document.getElementById('dirSearch')?.value||'';
+  const ks = document.getElementById('dirKYCFilter')?.value||'';
+  const params = new URLSearchParams(); if (q) params.set('search',q); if (ks) params.set('kyc_status',ks);
+  const data = await api('/compliance/directors?' + params);
+  if (!data.success) return;
+  const tb = document.getElementById('directorsTable');
+  tb.innerHTML = data.directors.length ? data.directors.map((d, i) => `
+    <tr>
+      <td><strong>${d.din}</strong></td>
+      <td>${d.director_name}</td>
+      <td title="${d.cin||''}">${(d.company_name||'--').substring(0,26)}</td>
+      <td>${d.designation||'--'}</td>
+      <td>${fmtDate(d.date_of_appointment)}</td>
+      <td>${compBadge(d.kyc_status||'Pending')}</td>
+      <td>${d.dir_3_filed||'--'}${d.dir_3_fy?' ('+d.dir_3_fy+')':''}</td>
+      <td><span class="badge ${d.director_status==='Active'?'b-active':'b-inactive'}">${d.director_status}</span></td>
+      <td><button class="btn-sm btn-edit" data-di="${i}">Edit</button></td>
+    </tr>`).join('') : '<tr><td colspan="9" class="empty-msg">No directors. Click "+ Add Director".</td></tr>';
+  tb.querySelectorAll('[data-di]').forEach(btn => {
+    const d = data.directors[parseInt(btn.dataset.di)];
+    btn.onclick = () => editDirector(d);
+  });
+}
+
+function openAddDirector() {
+  document.getElementById('dir_db_id').value = '';
+  ['dir_din','dir_name','dir_cin','dir_company_name','dir_designation','dir_mobile','dir_email','dir_pan','dir_3_fy','dir_notes'].forEach(id => {
+    const el = document.getElementById(id); if(el) el.value='';
+  });
+  document.getElementById('dir_doa').value='';
+  document.getElementById('dir_kyc').value='Pending';
+  document.getElementById('dir_3_filed').value='';
+  document.getElementById('dir_status').value='Active';
+  document.getElementById('addDirTitle').textContent='Add Director';
+  openModal('addDirModal');
+}
+
+function editDirector(d) {
+  document.getElementById('dir_db_id').value=d.id;
+  document.getElementById('dir_din').value=d.din;
+  document.getElementById('dir_name').value=d.director_name;
+  document.getElementById('dir_cin').value=d.cin||'';
+  document.getElementById('dir_company_name').value=d.company_name||'';
+  document.getElementById('dir_designation').value=d.designation||'';
+  document.getElementById('dir_mobile').value=d.mobile||'';
+  document.getElementById('dir_email').value=d.email||'';
+  document.getElementById('dir_pan').value=d.pan_no||'';
+  document.getElementById('dir_kyc').value=d.kyc_status||'Pending';
+  document.getElementById('dir_3_filed').value=d.dir_3_filed||'';
+  document.getElementById('dir_3_fy').value=d.dir_3_fy||'';
+  document.getElementById('dir_status').value=d.director_status||'Active';
+  document.getElementById('dir_notes').value=d.notes||'';
+  document.getElementById('addDirTitle').textContent='Edit Director';
+  openModal('addDirModal');
+}
+
+async function submitDirector() {
+  const id = document.getElementById('dir_db_id').value;
+  const din = document.getElementById('dir_din').value.trim();
+  const name = document.getElementById('dir_name').value.trim();
+  if (!din||!name) { showToast('DIN and Name required','error'); return; }
+  const body = {
+    din, director_name:name,
+    cin: document.getElementById('dir_cin').value||null,
+    company_name: document.getElementById('dir_company_name').value||null,
+    designation: document.getElementById('dir_designation').value||null,
+    date_of_appointment: document.getElementById('dir_doa').value||null,
+    mobile: document.getElementById('dir_mobile').value||null,
+    email: document.getElementById('dir_email').value||null,
+    pan_no: document.getElementById('dir_pan').value||null,
+    kyc_status: document.getElementById('dir_kyc').value,
+    dir_3_filed: document.getElementById('dir_3_filed').value||null,
+    dir_3_fy: document.getElementById('dir_3_fy').value||null,
+    director_status: document.getElementById('dir_status').value,
+    notes: document.getElementById('dir_notes').value||null,
+  };
+  const data = id
+    ? await api('/compliance/directors/'+id, {method:'PUT',body:JSON.stringify(body)})
+    : await api('/compliance/directors', {method:'POST',body:JSON.stringify(body)});
+  if (data.success) { closeModal('addDirModal'); showToast(data.message,'success'); panelLoaded['directors']=false; loadDirectors(); }
+  else showToast(data.message,'error');
+}
+
+// ── COMPLIANCE RECORDS ───────────────────────────────────────
+async function loadCompRecords() {
+  const fy=document.getElementById('recFY')?.value||'';
+  const st=document.getElementById('recStatus')?.value||'';
+  const cin=document.getElementById('recCIN')?.value||'';
+  const params=new URLSearchParams(); if(fy) params.set('financial_year',fy); if(st) params.set('status',st); if(cin) params.set('cin',cin);
+  const data = await api('/compliance/records?'+params);
+  if (!data.success) return;
+  const tb = document.getElementById('compRecordsTable');
+  tb.innerHTML = data.records.length ? data.records.map(r => `
+    <tr>
+      <td><strong>${r.cin}</strong></td>
+      <td>${(r.company_name||'--').substring(0,28)}</td>
+      <td>${r.financial_year||'--'}</td>
+      <td>${r.form_name||'--'}</td>
+      <td>${r.compliance_type||'--'}</td>
+      <td>${fmtDate(r.due_date)}</td>
+      <td>${fmtDate(r.filing_date)}</td>
+      <td>${statusBadge(r.status)}</td>
+      <td><button class="btn-sm btn-edit" onclick="editRecord_r${r.id}()">Edit</button></td>
+    </tr>`).join('') : '<tr><td colspan="9" class="empty-msg">No records. Click "+ Add Record".</td></tr>';
+  tb.querySelectorAll('[class*="btn-edit"]').forEach((btn, i) => {
+    const r = data.records[i]; if(r) btn.onclick = () => editRecord(r);
+  });
+}
+
+function openAddRecord() {
+  document.getElementById('rec_db_id').value='';
+  ['rec_cin','rec_company_name','rec_type','rec_form','rec_srn','rec_remarks'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  document.getElementById('rec_due_date').value='';
+  document.getElementById('rec_filing_date').value='';
+  document.getElementById('rec_fees').value='';
+  document.getElementById('rec_status_modal').value='Pending';
+  document.getElementById('addRecordTitle').textContent='Add Compliance Record';
+  openModal('addRecordModal');
+}
+
+function editRecord(r) {
+  document.getElementById('rec_db_id').value=r.id;
+  document.getElementById('rec_cin').value=r.cin||'';
+  document.getElementById('rec_company_name').value=r.company_name||'';
+  document.getElementById('rec_fy_modal').value=r.financial_year||'';
+  document.getElementById('rec_type').value=r.compliance_type||'';
+  document.getElementById('rec_form').value=r.form_name||'';
+  document.getElementById('rec_due_date').value=r.due_date?r.due_date.split('T')[0]:'';
+  document.getElementById('rec_filing_date').value=r.filing_date?r.filing_date.split('T')[0]:'';
+  document.getElementById('rec_status_modal').value=r.status||'Pending';
+  document.getElementById('rec_srn').value=r.srn_number||'';
+  document.getElementById('rec_fees').value=r.filing_fees||'';
+  document.getElementById('rec_remarks').value=r.remarks||'';
+  document.getElementById('addRecordTitle').textContent='Edit Compliance Record';
+  openModal('addRecordModal');
+}
+
+async function submitRecord() {
+  const id=document.getElementById('rec_db_id').value;
+  const cin=document.getElementById('rec_cin').value.trim();
+  if (!cin) { showToast('CIN required','error'); return; }
+  const body={
+    cin, company_name:document.getElementById('rec_company_name').value||null,
+    financial_year:document.getElementById('rec_fy_modal').value||null,
+    compliance_type:document.getElementById('rec_type').value||null,
+    form_name:document.getElementById('rec_form').value||null,
+    due_date:document.getElementById('rec_due_date').value||null,
+    filing_date:document.getElementById('rec_filing_date').value||null,
+    status:document.getElementById('rec_status_modal').value,
+    srn_number:document.getElementById('rec_srn').value||null,
+    filing_fees:document.getElementById('rec_fees').value||null,
+    remarks:document.getElementById('rec_remarks').value||null,
+  };
+  const data = id
+    ? await api('/compliance/records/'+id,{method:'PUT',body:JSON.stringify(body)})
+    : await api('/compliance/records',{method:'POST',body:JSON.stringify(body)});
+  if (data.success) { closeModal('addRecordModal'); showToast(data.message,'success'); panelLoaded['comprecords']=false; loadCompRecords(); }
+  else showToast(data.message,'error');
+}
+
+// ── COMPLIANCE TRACKING ─────────────────────────────────────
+let _fyOptions = [];
+let _statusOptions = ['Pending','Pending by Client','Filed','Under Process','Not Applicable','Received','Prepared'];
+
+function compBadge(s) {
+  if (!s) return '<span class="badge b-pending">Pending</span>';
+  const cls = {
+    'Pending':'b-pending','Pending by Client':'b-waiting',
+    'Filed':'b-complete','Under Process':'b-progress',
+    'Not Applicable':'b-inactive','Received':'b-hold','Prepared':'b-review'
+  }[s] || 'b-pending';
+  return `<span class="badge ${cls}">${s}</span>`;
+}
+
+function populateFYDropdowns(fyOptions, statusOptions) {
+  _fyOptions = fyOptions || _fyOptions;
+  if (statusOptions) _statusOptions = statusOptions;
+  const curFY = getCurrentFY();
+  ['ct_fy','all_fy','kyc_fy'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    sel.innerHTML = '';
+    _fyOptions.forEach(fy => sel.innerHTML += `<option value="${fy}" ${fy===curFY?'selected':''}>${fy}</option>`);
+  });
+  ['all_status','kyc_status_filter'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    sel.innerHTML = '<option value="">All Status</option>';
+    _statusOptions.forEach(s => sel.innerHTML += `<option value="${s}">${s}</option>`);
+  });
+  // Populate compliance update modal selects
+  ['cu_inc20a','cu_adt1','cu_aoc4','cu_mgt7a','cu_itr','cu_docs','cu_finst','ku_kyc_status'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    sel.innerHTML = '';
+    _statusOptions.forEach(s => sel.innerHTML += `<option value="${s}">${s}</option>`);
+  });
+}
+
+function switchCTab(tab) {
+  ['company','all','kyc'].forEach(t => {
+    const panel = document.getElementById('ctab-panel-'+t);
+    const btn = document.getElementById('ctab-'+t);
+    if (!panel || !btn) return;
+    panel.classList.toggle('hidden', t !== tab);
+    btn.style.background = t === tab ? '#2155f3' : '#f1f5f9';
+    btn.style.color = t === tab ? '#fff' : '#475569';
+  });
+}
+
+let _compAcTimer;
+async function companyAutocomplete(q, listId, selId) {
+  const list = document.getElementById(listId);
+  clearTimeout(_compAcTimer);
+  if (!q || q.length < 2) { list.classList.add('hidden'); return; }
+  _compAcTimer = setTimeout(async () => {
+    const data = await api('/compliance/companies?search=' + encodeURIComponent(q));
+    if (!data.success || !data.companies.length) {
+      list.innerHTML = '<div class="ac-item" style="color:#94a3b8">No companies found</div>';
+      list.classList.remove('hidden'); return;
+    }
+    list.innerHTML = data.companies.map(c => {
+      const safeC = JSON.stringify({cin: c.cin, name: c.company_name});
+      return `<div class="ac-item" onclick='_selectCompany(${safeC},"${listId}","${selId}")'>
+        <div class="ac-name">${c.company_name}</div>
+        <div class="ac-meta">${c.cin} | ${c.agent_name||'--'} | <span class="badge ${c.company_status==='Active'?'b-active':'b-inactive'}" style="font-size:10px">${c.company_status}</span></div>
+      </div>`;
+    }).join('');
+    list.classList.remove('hidden');
+  }, 300);
+}
+
+function _selectCompany(c, listId, selId) {
+  document.getElementById('ct_co_search').value = c.name;
+  document.getElementById(selId).value = c.cin;
+  document.getElementById(listId).classList.add('hidden');
+}
+
+async function generateCompliance() {
+  const cin = document.getElementById('ct_co_sel').value;
+  const fy = document.getElementById('ct_fy').value;
+  if (!cin) { showToast('Select a company first', 'error'); return; }
+  if (!fy) { showToast('Select financial year', 'error'); return; }
+  const data = await api('/compliance/tracking/generate', {
+    method: 'POST', body: JSON.stringify({ cin, financial_year: fy })
+  });
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) loadCompanyTracking();
+}
+
+async function loadCompanyTracking() {
+  const cin = document.getElementById('ct_co_sel').value;
+  const fy = document.getElementById('ct_fy').value;
+  const el = document.getElementById('ct_company_table');
+  if (!cin) { showToast('Select a company first', 'error'); return; }
+
+  const coData = await api('/compliance/companies/' + encodeURIComponent(cin));
+  if (coData.success) {
+    const c = coData.company;
+    document.getElementById('ct_company_info').innerHTML = `
+      <div style="background:#eff6ff;border:1.5px solid #2155f3;border-radius:10px;padding:10px 14px;display:flex;gap:16px;flex-wrap:wrap;align-items:center">
+        <strong>${c.company_name}</strong>
+        <span class="badge ${c.company_status==='Active'?'b-active':'b-inactive'}">${c.company_status}</span>
+        <span style="color:#64748b;font-size:12px">CIN: ${c.cin}</span>
+        <span style="color:#64748b;font-size:12px">Agent: ${c.agent_name||'--'}</span>
+        <span style="color:#64748b;font-size:12px">Client: ${c.client_id||'--'}</span>
+      </div>`;
+  }
+
+  el.innerHTML = '<div class="empty-msg">Loading...</div>';
+  const params = new URLSearchParams({ cin });
+  if (fy) params.set('financial_year', fy);
+  const data = await api('/compliance/tracking?' + params);
+  if (!data.success) { el.innerHTML = '<div class="empty-msg">Error loading</div>'; return; }
+
+  if (!data.rows.length) {
+    el.innerHTML = `<div class="card"><div class="card-body empty-msg">No compliance tracking found${fy ? ' for ' + fy : ''}. Click "Generate" to create.</div></div>`;
+    return;
+  }
+  window._ctRows = data.rows;
+  el.innerHTML = `<div class="card"><div class="tbl-wrap"><table>
+    <thead><tr><th>FY</th><th>INC-20A</th><th>ADT-1</th><th>AOC-4</th><th>MGT-7A</th><th>ITR</th><th>Docs</th><th>Fin. Stmt</th><th>Remarks</th><th>Updated By</th><th>Actions</th></tr></thead>
+    <tbody>${data.rows.map(r => `
+      <tr>
+        <td><strong>${r.financial_year}</strong></td>
+        <td>${compBadge(r.inc20a)}${r.srn_inc20a ? `<br><small style="color:#64748b">${r.srn_inc20a}</small>` : ''}</td>
+        <td>${compBadge(r.adt1)}${r.srn_adt1 ? `<br><small style="color:#64748b">${r.srn_adt1}</small>` : ''}</td>
+        <td>${compBadge(r.aoc4)}${r.srn_aoc4 ? `<br><small style="color:#64748b">${r.srn_aoc4}</small>` : ''}</td>
+        <td>${compBadge(r.mgt7a)}${r.srn_mgt7a ? `<br><small style="color:#64748b">${r.srn_mgt7a}</small>` : ''}</td>
+        <td>${compBadge(r.itr)}</td>
+        <td>${compBadge(r.documents_status)}</td>
+        <td>${compBadge(r.financial_statement)}</td>
+        <td style="max-width:120px"><small>${r.remarks || '--'}</small></td>
+        <td><small style="color:#64748b">${r.updated_by_name || '--'}<br>${fmtDate(r.updated_at)}</small></td>
+        <td><button class="btn-sm btn-edit" data-rid="${r.id}" onclick="openCompUpdate(${r.id}, '_ctRows')">Update</button></td>
+      </tr>`).join('')}
+    </tbody>
+  </table></div></div>`;
+}
+
+async function loadAllCompliance() {
+  const fy = document.getElementById('all_fy').value;
+  const coText = document.getElementById('all_co_text').value;
+  const agent = document.getElementById('all_agent').value;
+  const status = document.getElementById('all_status').value;
+  const coStatus = document.getElementById('all_co_status').value;
+  const el = document.getElementById('all_co_table');
+  el.innerHTML = '<div class="empty-msg">Loading...</div>';
+
+  const params = new URLSearchParams();
+  if (fy) params.set('financial_year', fy);
+  if (coText) params.set('company_text', coText);
+  if (agent) params.set('agent_name', agent);
+  if (status) params.set('status', status);
+  if (coStatus) params.set('company_status', coStatus);
+
+  const data = await api('/compliance/tracking?' + params);
+  if (!data.success) { el.innerHTML = '<div class="empty-msg">Error loading</div>'; return; }
+
+  document.getElementById('all_summary').innerHTML = data.rows.length
+    ? `<div style="color:#64748b;font-size:12px;padding:0 2px">${data.rows.length} records found</div>` : '';
+
+  if (!data.rows.length) {
+    el.innerHTML = '<div class="card"><div class="card-body empty-msg">No compliance records found. Use "Bulk Generate" to create records for all active companies.</div></div>';
+    return;
+  }
+  window._allRows = data.rows;
+  el.innerHTML = `<div class="card"><div class="tbl-wrap"><table>
+    <thead><tr><th>Company</th><th>CIN</th><th>FY</th><th>INC-20A</th><th>ADT-1</th><th>AOC-4</th><th>MGT-7A</th><th>ITR</th><th>Docs</th><th>Fin. Stmt</th><th>Agent</th><th>Actions</th></tr></thead>
+    <tbody>${data.rows.map(r => `
+      <tr>
+        <td><strong>${(r.company_name || '--').substring(0, 28)}</strong></td>
+        <td><small>${r.cin}</small></td>
+        <td>${r.financial_year}</td>
+        <td>${compBadge(r.inc20a)}</td>
+        <td>${compBadge(r.adt1)}</td>
+        <td>${compBadge(r.aoc4)}</td>
+        <td>${compBadge(r.mgt7a)}</td>
+        <td>${compBadge(r.itr)}</td>
+        <td>${compBadge(r.documents_status)}</td>
+        <td>${compBadge(r.financial_statement)}</td>
+        <td><small>${r.agent_name || '--'}</small></td>
+        <td><button class="btn-sm btn-edit" onclick="openCompUpdate(${r.id}, '_allRows')">Update</button></td>
+      </tr>`).join('')}
+    </tbody>
+  </table></div></div>`;
+}
+
+async function bulkGenerateCompliance() {
+  const fy = document.getElementById('all_fy').value;
+  if (!fy) { showToast('Select financial year first', 'error'); return; }
+  if (!confirm(`Generate compliance for ALL active companies for ${fy}?\n(Only creates new rows — won't overwrite existing)`)) return;
+  const data = await api('/compliance/tracking/bulk-generate', {
+    method: 'POST', body: JSON.stringify({ financial_year: fy })
+  });
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) loadAllCompliance();
+}
+
+async function loadKYCTracking() {
+  const fy = document.getElementById('kyc_fy').value;
+  const search = document.getElementById('kyc_search').value;
+  const kycStatus = document.getElementById('kyc_status_filter').value;
+  const coStatus = document.getElementById('kyc_co_status').value;
+  const el = document.getElementById('kyc_table');
+  el.innerHTML = '<div class="empty-msg">Loading...</div>';
+
+  const params = new URLSearchParams();
+  if (fy) params.set('financial_year', fy);
+  if (search) params.set('company_text', search);
+  if (kycStatus) params.set('kyc_status', kycStatus);
+  if (coStatus) params.set('company_status', coStatus);
+
+  const data = await api('/compliance/kyc?' + params);
+  if (!data.success) { el.innerHTML = '<div class="empty-msg">Error loading</div>'; return; }
+
+  document.getElementById('kyc_summary').innerHTML = data.rows.length
+    ? `<div style="color:#64748b;font-size:12px;padding:0 2px">${data.rows.length} KYC records found</div>` : '';
+
+  if (!data.rows.length) {
+    el.innerHTML = '<div class="card"><div class="card-body empty-msg">No KYC records found. Use "Bulk Generate" to create records for all active directors.</div></div>';
+    return;
+  }
+  window._kycRows = data.rows;
+  el.innerHTML = `<div class="card"><div class="tbl-wrap"><table>
+    <thead><tr><th>Director</th><th>DIN</th><th>Company</th><th>CIN</th><th>FY</th><th>KYC Status</th><th>SRN</th><th>Active</th><th>Agent</th><th>Updated</th><th>Actions</th></tr></thead>
+    <tbody>${data.rows.map(r => `
+      <tr>
+        <td><strong>${r.director_name}</strong></td>
+        <td><small>${r.din}</small></td>
+        <td>${(r.company_name || '--').substring(0, 24)}</td>
+        <td><small>${r.cin || '--'}</small></td>
+        <td>${r.financial_year}</td>
+        <td>${compBadge(r.kyc_status)}</td>
+        <td><small>${r.srn || '--'}</small></td>
+        <td><span class="badge ${r.active_flag === 'Active' ? 'b-active' : 'b-inactive'}">${r.active_flag || 'Active'}</span></td>
+        <td><small>${r.agent_name || '--'}</small></td>
+        <td><small style="color:#64748b">${fmtDate(r.updated_at)}</small></td>
+        <td><button class="btn-sm btn-edit" onclick="openKYCUpdate(${r.id})">Update</button></td>
+      </tr>`).join('')}
+    </tbody>
+  </table></div></div>`;
+}
+
+async function bulkGenerateKYC() {
+  const fy = document.getElementById('kyc_fy').value;
+  if (!fy) { showToast('Select financial year first', 'error'); return; }
+  if (!confirm(`Generate KYC records for ALL active directors for ${fy}?\n(Won't overwrite existing)`)) return;
+  const data = await api('/compliance/kyc/bulk-generate', {
+    method: 'POST', body: JSON.stringify({ financial_year: fy })
+  });
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) loadKYCTracking();
+}
+
+function openCompUpdate(id, storeKey) {
+  const rows = window[storeKey] || window._ctRows || window._allRows || [];
+  const r = rows.find(x => x.id === id);
+  if (!r) { showToast('Record not found — reload the table first', 'error'); return; }
+  document.getElementById('cu_id').value = r.id;
+  document.getElementById('cu_company_info').textContent = `${r.company_name} | ${r.financial_year}`;
+  const fields = [
+    ['cu_inc20a','inc20a'],['cu_adt1','adt1'],['cu_aoc4','aoc4'],['cu_mgt7a','mgt7a'],
+    ['cu_itr','itr'],['cu_docs','documents_status'],['cu_finst','financial_statement']
+  ];
+  fields.forEach(([elId, key]) => {
+    const el = document.getElementById(elId);
+    if (el) el.value = r[key] || 'Pending';
+  });
+  ['cu_srn_inc20a','cu_srn_adt1','cu_srn_aoc4','cu_srn_mgt7a'].forEach((elId, i) => {
+    const keys = ['srn_inc20a','srn_adt1','srn_aoc4','srn_mgt7a'];
+    const el = document.getElementById(elId);
+    if (el) el.value = r[keys[i]] || '';
+  });
+  document.getElementById('cu_remarks').value = r.remarks || '';
+  // store which table to refresh
+  document.getElementById('compUpdateModal')._storeKey = storeKey;
+  openModal('compUpdateModal');
+}
+
+async function submitCompUpdate() {
+  const id = document.getElementById('cu_id').value;
+  const v = id => document.getElementById(id).value || null;
+  const data = await api('/compliance/tracking/' + id, {
+    method: 'PUT',
+    body: JSON.stringify({
+      inc20a: v('cu_inc20a'), srn_inc20a: v('cu_srn_inc20a'),
+      adt1: v('cu_adt1'), srn_adt1: v('cu_srn_adt1'),
+      aoc4: v('cu_aoc4'), srn_aoc4: v('cu_srn_aoc4'),
+      mgt7a: v('cu_mgt7a'), srn_mgt7a: v('cu_srn_mgt7a'),
+      itr: v('cu_itr'), documents_status: v('cu_docs'),
+      financial_statement: v('cu_finst'), remarks: v('cu_remarks'),
+    })
+  });
+  closeModal('compUpdateModal');
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) {
+    const storeKey = document.getElementById('compUpdateModal')._storeKey;
+    if (storeKey === '_ctRows') loadCompanyTracking();
+    else loadAllCompliance();
+  }
+}
+
+function openKYCUpdate(id) {
+  const rows = window._kycRows || [];
+  const r = rows.find(x => x.id === id);
+  if (!r) { showToast('Record not found — reload the table first', 'error'); return; }
+  document.getElementById('ku_id').value = r.id;
+  document.getElementById('ku_director_info').textContent =
+    `${r.director_name} (DIN: ${r.din}) | ${r.company_name} | FY: ${r.financial_year}`;
+  document.getElementById('ku_kyc_status').value = r.kyc_status || 'Pending';
+  document.getElementById('ku_srn').value = r.srn || '';
+  document.getElementById('ku_remarks').value = r.remarks || '';
+  document.getElementById('ku_active_flag').value = r.active_flag || 'Active';
+  document.getElementById('ku_inactive_remarks').value = r.inactive_remarks || '';
+  openModal('kycUpdateModal');
+}
+
+async function submitKYCUpdate() {
+  const id = document.getElementById('ku_id').value;
+  const v = id => document.getElementById(id).value || null;
+  const data = await api('/compliance/kyc/' + id, {
+    method: 'PUT',
+    body: JSON.stringify({
+      kyc_status: v('ku_kyc_status'), srn: v('ku_srn'),
+      remarks: v('ku_remarks'), active_flag: v('ku_active_flag'),
+      inactive_remarks: v('ku_inactive_remarks'),
+    })
+  });
+  closeModal('kycUpdateModal');
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) loadKYCTracking();
+}
+
+// ── EXCEL IMPORT ─────────────────────────────────────────────
+function openExcelImport() {
+  document.getElementById('imp_client_search').value = '';
+  document.getElementById('imp_client_id').value = '';
+  document.getElementById('imp_agent_id').value = '';
+  document.getElementById('imp_client_chip').classList.add('hidden');
+  document.getElementById('imp_client_search').parentElement.classList.remove('hidden');
+  document.getElementById('imp_file').value = '';
+  document.getElementById('imp_result').classList.add('hidden');
+  document.getElementById('imp_err').classList.add('hidden');
+  document.getElementById('imp_btn').disabled = false;
+  document.getElementById('imp_btn').textContent = '⚡ Import';
+  openModal('excelImportModal');
+}
+
+let _impClientTimer;
+async function importClientSearch(q) {
+  const list = document.getElementById('imp_client_list');
+  clearTimeout(_impClientTimer);
+  if (!q || q.length < 2) { list.classList.add('hidden'); return; }
+  _impClientTimer = setTimeout(async () => {
+    const data = await api('/clients/search?q=' + encodeURIComponent(q));
+    if (!data.success || !data.clients.length) {
+      list.innerHTML = '<div class="ac-item" style="color:#94a3b8">No clients found</div>';
+      list.classList.remove('hidden'); return;
+    }
+    list.innerHTML = data.clients.map(c => {
+      const nm = c.legal_name || c.business_name || c.client_id;
+      return `<div class="ac-item" onclick='selectImportClient(${JSON.stringify(c)})'>
+        <div class="ac-name">${nm}</div>
+        <div class="ac-meta">${c.client_id} | ${c.agent_name||'--'} | ${c.mobile_number||''}</div>
+      </div>`;
+    }).join('');
+    list.classList.remove('hidden');
+  }, 300);
+}
+
+function selectImportClient(c) {
+  document.getElementById('imp_client_id').value = c.client_id;
+  document.getElementById('imp_agent_id').value = c.agent_id || '';
+  document.getElementById('imp_client_list').classList.add('hidden');
+  document.getElementById('imp_client_search').parentElement.classList.add('hidden');
+  const nm = c.legal_name || c.business_name || c.client_id;
+  document.getElementById('imp_chip_name').textContent = nm;
+  document.getElementById('imp_chip_meta').textContent = `${c.client_id} | Agent: ${c.agent_name||'--'}`;
+  document.getElementById('imp_client_chip').classList.remove('hidden');
+}
+
+function clearImportClient() {
+  document.getElementById('imp_client_id').value = '';
+  document.getElementById('imp_agent_id').value = '';
+  document.getElementById('imp_client_search').value = '';
+  document.getElementById('imp_client_chip').classList.add('hidden');
+  document.getElementById('imp_client_search').parentElement.classList.remove('hidden');
+}
+
+async function submitExcelImport() {
+  const err = document.getElementById('imp_err');
+  const res = document.getElementById('imp_result');
+  err.classList.add('hidden'); res.classList.add('hidden');
+
+  const clientId = document.getElementById('imp_client_id').value;
+  const agentId  = document.getElementById('imp_agent_id').value;
+  const fileEl   = document.getElementById('imp_file');
+
+  if (!clientId) { err.textContent = 'Please select a client first'; err.classList.remove('hidden'); return; }
+  if (!fileEl.files.length) { err.textContent = 'Please select an Excel file (.xlsx)'; err.classList.remove('hidden'); return; }
+
+  const btn = document.getElementById('imp_btn');
+  btn.disabled = true; btn.textContent = 'Importing...';
+
+  const fd = new FormData();
+  fd.append('file', fileEl.files[0]);
+  fd.append('client_id', clientId);
+  if (agentId) fd.append('agent_id', agentId);
+
+  try {
+    const r = await fetch('/api/import/excel', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token },
+      body: fd,
+    });
+    const data = await r.json();
+    btn.disabled = false; btn.textContent = '⚡ Import';
+
+    if (data.success) {
+      res.innerHTML = `
+        <div style="background:#dcfce7;border:1.5px solid #16a34a;border-radius:8px;padding:12px 14px">
+          <div style="font-weight:700;color:#15803d;margin-bottom:6px">✅ ${data.message}</div>
+          <div style="font-size:12px;color:#166534">
+            CIN: <strong>${data.cin}</strong> | Company: <strong>${data.company_name}</strong><br>
+            MasterData: ${data.results.master ? '✓ Imported' : '⚠ Skipped'} &nbsp;|&nbsp;
+            Charges: ${data.results.charges} rows &nbsp;|&nbsp;
+            Directors: ${data.results.directors} rows
+          </div>
+          ${data.results.errors?.length ? `<div style="color:#dc2626;font-size:12px;margin-top:4px">Warnings: ${data.results.errors.join(', ')}</div>` : ''}
+        </div>`;
+      res.classList.remove('hidden');
+      panelLoaded['companies'] = false; loadCompanies();
+    } else {
+      err.textContent = data.message; err.classList.remove('hidden');
+    }
+  } catch(e) {
+    btn.disabled = false; btn.textContent = '⚡ Import';
+    err.textContent = 'Network error: ' + e.message; err.classList.remove('hidden');
+  }
+}
+
+// ── MCA-STYLE COMPANY VIEW ────────────────────────────────────
+async function viewCompanyFull(cin) {
+  document.getElementById('cvModal_title').textContent = 'Loading...';
+  document.getElementById('cvModal_content').innerHTML = '<div class="empty-msg">Loading company details...</div>';
+  openModal('companyViewModal');
+
+  const data = await api('/compliance/company-full/' + encodeURIComponent(cin));
+  if (!data.success) {
+    document.getElementById('cvModal_content').innerHTML = '<div class="empty-msg">Company details not found. Import Excel first.</div>';
+    return;
+  }
+  const m = data.master;
+  document.getElementById('cvModal_title').textContent = m.company_name || cin;
+
+  const sec = (title, icon, html) => `
+    <div style="margin-bottom:16px">
+      <div style="font-size:13px;font-weight:800;color:#1e293b;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid #e2e8f0">
+        ${icon} ${title}
+      </div>${html}
+    </div>`;
+
+  const kv = (label, val) => val ? `
+    <div style="display:flex;gap:6px;margin-bottom:5px;font-size:12px">
+      <span style="min-width:180px;color:#64748b;font-weight:600">${label}</span>
+      <span style="color:#1e293b;flex:1">${val}</span>
+    </div>` : '';
+
+  // Section 1: Company Information
+  let masterHtml = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px">
+    ${kv('CIN', m.cin)}
+    ${kv('Company Name', `<strong>${m.company_name||'--'}</strong>`)}
+    ${kv('ROC Name', m.roc_name)}
+    ${kv('Registration Number', m.registration_number)}
+    ${kv('Date of Incorporation', fmtDate(m.date_of_incorporation))}
+    ${kv('Email', m.email_id)}
+    ${kv('Class of Company', m.class_of_company)}
+    ${kv('Category', m.category)}
+    ${kv('Subcategory', m.subcategory)}
+    ${kv('ACTIVE Compliance', m.active_compliance ? `<span class="badge ${m.active_compliance.toLowerCase().includes('active')?'b-active':'b-cancel'}">${m.active_compliance}</span>` : '--')}
+    ${kv('Authorised Capital', m.authorised_capital ? '₹ ' + parseFloat(m.authorised_capital).toLocaleString('en-IN') : '--')}
+    ${kv('Paid Up Capital', m.paid_up_capital ? '₹ ' + parseFloat(m.paid_up_capital).toLocaleString('en-IN') : '--')}
+    ${kv('Date of Last AGM', fmtDate(m.date_of_last_agm))}
+    ${kv('Date of Balance Sheet', fmtDate(m.date_of_balance_sheet))}
+    ${kv('Company Status', m.company_status ? `<span class="badge ${m.company_status==='Active'?'b-active':'b-cancel'}">${m.company_status}</span>` : '--')}
+    ${kv('RD Region', m.rd_region)}
+  </div>
+  ${m.registered_address ? `<div style="font-size:12px;margin-top:6px"><span style="color:#64748b;font-weight:600">Registered Address: </span>${m.registered_address}</div>` : ''}`;
+
+  // Section 2: Directors
+  let dirHtml = '';
+  if (data.directors.length) {
+    dirHtml = `<div class="tbl-wrap"><table>
+      <thead><tr><th>Sr</th><th>DIN/PAN</th><th>Name</th><th>Designation</th><th>Category</th><th>Appointment</th><th>Cessation</th><th>Signatory</th></tr></thead>
+      <tbody>${data.directors.map(d => `<tr>
+        <td>${d.sr_no}</td>
+        <td><code style="font-size:11px">${d.din||'--'}</code></td>
+        <td><strong>${d.director_name||'--'}</strong></td>
+        <td>${d.designation||'--'}</td>
+        <td>${d.category||'--'}</td>
+        <td>${d.appointment_date||'--'}</td>
+        <td>${d.resignation_date||'--'}</td>
+        <td>${d.status2||'--'}</td>
+      </tr>`).join('')}
+      </tbody></table></div>`;
+  } else dirHtml = '<div class="empty-msg" style="padding:10px">No director data. Import Excel to populate.</div>';
+
+  // Section 3: Charges
+  let chargesHtml = '';
+  if (data.charges.length) {
+    chargesHtml = `<div class="tbl-wrap"><table>
+      <thead><tr><th>Sr</th><th>SRN</th><th>Charge ID</th><th>Charge Holder</th><th>Created</th><th>Modified</th><th>Satisfied</th><th>Amount</th></tr></thead>
+      <tbody>${data.charges.map(c => `<tr>
+        <td>${c.sr_no}</td>
+        <td><small>${c.srn||'--'}</small></td>
+        <td><small>${c.charge_id||'--'}</small></td>
+        <td><strong>${c.charge_holder_name||'--'}</strong></td>
+        <td>${c.date_of_creation||'--'}</td>
+        <td>${c.date_of_modification||'--'}</td>
+        <td>${c.date_of_satisfaction ? `<span class="badge b-complete">${c.date_of_satisfaction}</span>` : '<span class="badge b-pending">Open</span>'}</td>
+        <td style="font-weight:700">${c.amount ? '₹ '+parseFloat(c.amount.replace(/,/g,'')).toLocaleString('en-IN') : '--'}</td>
+      </tr>`).join('')}
+      </tbody></table></div>`;
+  } else chargesHtml = '<div class="empty-msg" style="padding:10px">No charge data.</div>';
+
+  // Section 4: Compliance Tracking
+  let ctHtml = '';
+  if (data.compliance_tracking.length) {
+    ctHtml = `<div class="tbl-wrap"><table>
+      <thead><tr><th>FY</th><th>INC-20A</th><th>ADT-1</th><th>AOC-4</th><th>MGT-7A</th><th>ITR</th><th>Docs</th><th>Fin. Stmt</th></tr></thead>
+      <tbody>${data.compliance_tracking.map(r => `<tr>
+        <td><strong>${r.financial_year}</strong></td>
+        <td>${compBadge(r.inc20a)}</td><td>${compBadge(r.adt1)}</td>
+        <td>${compBadge(r.aoc4)}</td><td>${compBadge(r.mgt7a)}</td>
+        <td>${compBadge(r.itr)}</td><td>${compBadge(r.documents_status)}</td>
+        <td>${compBadge(r.financial_statement)}</td>
+      </tr>`).join('')}
+      </tbody></table></div>`;
+  } else ctHtml = '<div class="empty-msg" style="padding:10px">No compliance tracking yet. Use Compliance Tracking panel to generate.</div>';
+
+  document.getElementById('cvModal_content').innerHTML =
+    sec('Company Information', '&#127970;', masterHtml) +
+    sec(`Director / Signatory Details (${data.directors.length})`, '&#128104;', dirHtml) +
+    sec(`Index of Charges (${data.charges.length})`, '&#128196;', chargesHtml) +
+    sec(`Compliance Tracking (${data.compliance_tracking.length} FY)`, '&#9989;', ctHtml);
+}
+
+// ── DIRECTOR SEARCH ───────────────────────────────────────────
+function openDirSearch() {
+  document.getElementById('dsm_search').value = '';
+  document.getElementById('dsm_results').innerHTML = '';
+  openModal('dirSearchModal');
+  setTimeout(() => document.getElementById('dsm_search').focus(), 100);
+}
+
+let _dsTimer;
+function runDirSearch(q) {
+  clearTimeout(_dsTimer);
+  _dsTimer = setTimeout(async () => {
+    const el = document.getElementById('dsm_results');
+    if (!q || q.trim().length < 2) { el.innerHTML = ''; return; }
+    el.innerHTML = '<div class="empty-msg">Searching...</div>';
+    const data = await api('/compliance/director-search?q=' + encodeURIComponent(q.trim()));
+    if (!data.success || !data.directors.length) {
+      el.innerHTML = '<div class="empty-msg">No directors found</div>'; return;
+    }
+    el.innerHTML = data.directors.map(d => `
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">
+          <strong style="font-size:14px">${d.director_name}</strong>
+          ${d.din ? `<code style="background:#eff6ff;color:#1d4ed8;padding:2px 8px;border-radius:6px;font-size:12px">DIN: ${d.din}</code>` : ''}
+          <span style="color:#64748b;font-size:12px">${d.companies.length} company${d.companies.length>1?'ies':''}</span>
+        </div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>Company</th><th>CIN</th><th>Designation</th><th>Category</th><th>Appointment</th><th>Cessation</th><th>Co. Status</th><th></th></tr></thead>
+          <tbody>${d.companies.map(c => `<tr>
+            <td><strong>${c.company_name||'--'}</strong></td>
+            <td><small>${c.cin}</small></td>
+            <td>${c.designation||'--'}</td>
+            <td>${c.category||'--'}</td>
+            <td>${c.appointment_date||'--'}</td>
+            <td>${c.resignation_date||'--'}</td>
+            <td><span class="badge ${c.company_status==='Active'?'b-active':'b-inactive'}">${c.company_status}</span></td>
+            <td><button class="btn-sm btn-view" onclick="closeModal('dirSearchModal');viewCompanyFull('${c.cin}')">View</button></td>
+          </tr>`).join('')}
+          </tbody>
+        </table></div>
+      </div>`).join('');
+  }, 350);
+}
+
+// ── Close autocomplete on outside click ──────────────────────
+document.addEventListener('click', e => {
+  if (!e.target.closest('.autocomplete-wrap')) {
+    document.querySelectorAll('.autocomplete-list').forEach(l => l.classList.add('hidden'));
+  }
+});
+
+// ── INIT ─────────────────────────────────────────────────────
+(async function init() {
+  await loadMeta();
+  await loadDashboard();
+  panelLoaded['dashboard'] = true;
+  // Load notifications silently for badge
+  try {
+    const nd = await api('/tasks/notifications');
+    if (nd.success && nd.total_alerts > 0) {
+      ['notifBadge','botNotifBadge'].forEach(id => {
+        const b = document.getElementById(id);
+        b.textContent = nd.total_alerts; b.classList.remove('hidden');
+      });
+      document.getElementById('notifDot').classList.remove('hidden');
+    }
+  } catch(e) {}
+  document.getElementById('loadingOverlay').style.display = 'none';
+})();
+</script>
+</body>
+</html>
