@@ -20,6 +20,86 @@
     .lh-top { display:flex; justify-content:space-between; align-items:center; }
     .lh-dates { font-size:13px; color:#64748b; margin-top:3px; }
     .lh-reason { font-size:12px; color:#94a3b8; margin-top:3px; }
+
+    /* ── Attendance Calendar ── */
+    .cal-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 3px;
+      margin-top: 12px;
+    }
+    .cal-day-name {
+      text-align: center; font-size: 11px; font-weight: 700;
+      color: #94a3b8; padding: 6px 2px; text-transform: uppercase;
+    }
+    .cal-day-name:first-child { color: #ef4444; }
+    .cal-cell {
+      border-radius: 8px; padding: 5px 4px; min-height: 62px;
+      background: #f8fafc; border: 1px solid #e2e8f0;
+      display: flex; flex-direction: column; align-items: center;
+      font-size: 11px; position: relative; cursor: default;
+    }
+    .cal-cell.empty { background: transparent; border-color: transparent; }
+    .cal-cell.today { border-color: #2563eb; background: #eff6ff; }
+    .cal-cell.sunday .cal-date, .cal-cell.holiday .cal-date { color: #ef4444; }
+    .cal-cell.present { background: #f0fdf4; border-color: #86efac; }
+    .cal-cell.absent  { background: #fff7ed; border-color: #fed7aa; cursor: pointer; }
+    .cal-cell.absent:hover { background: #ffedd5; }
+    .cal-cell.holiday-day { background: #fef2f2; border-color: #fca5a5; }
+    .cal-cell.leave   { background: #eff6ff; border-color: #bfdbfe; }
+    .cal-cell.pending { background: #fefce8; border-color: #fde68a; }
+    .cal-cell.requested { background: #f5f3ff; border-color: #c4b5fd; }
+    .cal-date { font-size: 13px; font-weight: 700; color: #374151; line-height: 1; margin-bottom: 3px; }
+    .cal-badge {
+      font-size: 9px; font-weight: 700; padding: 1px 5px;
+      border-radius: 4px; text-transform: uppercase; letter-spacing: .3px;
+      margin-top: auto;
+    }
+    .cal-badge.present  { background: #dcfce7; color: #15803d; }
+    .cal-badge.absent   { background: #fee2e2; color: #b91c1c; }
+    .cal-badge.holiday  { background: #fee2e2; color: #b91c1c; }
+    .cal-badge.leave    { background: #dbeafe; color: #1d4ed8; }
+    .cal-badge.pending  { background: #fef9c3; color: #92400e; }
+    .cal-badge.halfday  { background: #fef9c3; color: #92400e; }
+    .cal-badge.shortday { background: #fef9c3; color: #92400e; }
+    .cal-badge.requested{ background: #ede9fe; color: #7c3aed; }
+    .cal-time { font-size: 9px; color: #64748b; line-height: 1.3; text-align: center; }
+    .cal-req-btn {
+      font-size: 9px; font-weight: 700; color: #ea580c;
+      background: none; border: none; padding: 0; cursor: pointer;
+      margin-top: 2px;
+    }
+
+    /* Request modal overlay */
+    .req-modal-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,.5);
+      display: flex; align-items: flex-end; justify-content: center;
+      z-index: 200; padding: 0;
+    }
+    .req-modal {
+      background: #fff; border-radius: 20px 20px 0 0;
+      padding: 24px 20px 32px; width: 100%; max-width: 480px;
+      max-height: 85vh; overflow-y: auto;
+    }
+    .req-modal-title { font-size: 17px; font-weight: 700; margin-bottom: 16px; }
+    .req-input-group { margin-bottom: 14px; }
+    .req-input-group label { display:block; font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.4px; margin-bottom:4px; }
+    .req-input-group input, .req-input-group textarea {
+      width:100%; padding:10px 12px; border:1.5px solid #e2e8f0;
+      border-radius:8px; font-size:14px; outline:none; font-family:inherit;
+    }
+    .req-input-group input:focus, .req-input-group textarea:focus { border-color:#2563eb; }
+    .req-actions { display:flex; gap:10px; margin-top:16px; }
+    .req-cancel { flex:1; padding:12px; background:#f1f5f9; border:none; border-radius:10px; font-size:14px; font-weight:600; cursor:pointer; }
+    .req-submit { flex:2; padding:12px; background:linear-gradient(135deg,#2563eb,#3b82f6); color:#fff; border:none; border-radius:10px; font-size:14px; font-weight:700; cursor:pointer; }
+
+    /* My Requests list */
+    .req-item { padding:12px 0; border-bottom:1px solid #f1f5f9; }
+    .req-item:last-child { border-bottom:none; }
+    .req-item-top { display:flex; justify-content:space-between; align-items:center; }
+    .req-item-date { font-size:14px; font-weight:700; }
+    .req-item-reason { font-size:12px; color:#94a3b8; margin-top:3px; }
+    .req-item-remark { font-size:12px; color:#2563eb; margin-top:3px; }
   </style>
 </head>
 <body class="dash-body">
@@ -132,7 +212,7 @@
       </div>
 
       <!-- Summary chips -->
-      <div class="summary-grid" style="margin-bottom:16px;">
+      <div class="summary-grid" style="margin-bottom:8px;grid-template-columns:repeat(4,1fr);">
         <div class="summary-chip">
           <div class="chip-val" id="hPresent">0</div>
           <div class="chip-lbl">Present</div>
@@ -142,26 +222,28 @@
           <div class="chip-lbl">Late Days</div>
         </div>
         <div class="summary-chip">
-          <div class="chip-val" id="hPending" style="color:var(--muted);">0</div>
-          <div class="chip-lbl">Pending</div>
+          <div class="chip-val" id="hHoliday" style="color:#ef4444;">0</div>
+          <div class="chip-lbl">Holidays</div>
+        </div>
+        <div class="summary-chip">
+          <div class="chip-val" id="hAbsent" style="color:var(--muted);">0</div>
+          <div class="chip-lbl">Absent</div>
         </div>
       </div>
 
-      <div class="hist-table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>IN</th>
-              <th>OUT</th>
-              <th>Hours</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody id="historyBody">
-            <tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:20px;">Select month and click Go</td></tr>
-          </tbody>
-        </table>
+      <!-- Full Month Calendar -->
+      <div id="calendarWrap">
+        <div class="cal-grid" id="calGrid">
+          <div style="grid-column:1/-1;text-align:center;color:#94a3b8;padding:20px;font-size:14px;">Select month and click Go</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- My Backdated Requests -->
+    <div class="card">
+      <div class="card-title">My Attendance Requests</div>
+      <div id="myRequestsList">
+        <p style="color:#94a3b8;font-size:14px;text-align:center;padding:12px 0;">Loading...</p>
       </div>
     </div>
 
@@ -270,6 +352,33 @@
 
 <!-- Toast -->
 <div class="toast" id="toast"></div>
+
+<!-- Backdated Attendance Request Modal -->
+<div class="req-modal-backdrop" id="attReqModal" style="display:none;" onclick="if(event.target===this)closeAttReqModal()">
+  <div class="req-modal">
+    <div class="req-modal-title">📋 Request Attendance</div>
+    <div style="background:#fef9c3;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:13px;color:#92400e;">
+      Date: <strong id="reqModalDate">--</strong>
+    </div>
+    <div class="req-input-group">
+      <label>Check-in Time (optional)</label>
+      <input type="time" id="req_in_time" />
+    </div>
+    <div class="req-input-group">
+      <label>Check-out Time (optional)</label>
+      <input type="time" id="req_out_time" />
+    </div>
+    <div class="req-input-group">
+      <label>Reason *</label>
+      <textarea id="req_reason" rows="3" placeholder="Kyu aap attendance mark nahi kar sake? (e.g. Office mein tha, system issue tha)"></textarea>
+    </div>
+    <div id="reqModalMsg" class="alert" style="display:none;margin-bottom:10px;"></div>
+    <div class="req-actions">
+      <button class="req-cancel" onclick="closeAttReqModal()">Cancel</button>
+      <button class="req-submit" onclick="submitAttRequest()">Submit Request</button>
+    </div>
+  </div>
+</div>
 
 <script>
 // ── Auth guard ──────────────────────────────────────────
@@ -431,43 +540,192 @@ async function markAttendance(action) {
   }
 }
 
-// ── Load History ─────────────────────────────────────────
+// ── Load History (Calendar) ──────────────────────────────
 async function loadHistory() {
-  const month = document.getElementById('selMonth').value;
-  const year  = document.getElementById('selYear').value;
-  const tbody = document.getElementById('historyBody');
-  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:#94a3b8;">Loading...</td></tr>';
+  const month = parseInt(document.getElementById('selMonth').value);
+  const year  = parseInt(document.getElementById('selYear').value);
+  const grid  = document.getElementById('calGrid');
+  grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:#94a3b8;padding:20px;font-size:14px;">Loading...</div>';
 
   try {
-    const data = await api(`/attendance/history?month=${month}&year=${year}`);
-    if (!data.success) return;
+    const [histData, holData, reqData] = await Promise.all([
+      api(`/attendance/history?month=${month}&year=${year}`),
+      api(`/attendance/holidays?month=${month}&year=${year}`),
+      api('/attendance/my-requests')
+    ]);
 
-    document.getElementById('hPresent').textContent = data.summary.present;
-    document.getElementById('hLate').textContent    = data.summary.late;
-    document.getElementById('hPending').textContent = data.summary.pending;
+    const holidays = holData.holidays || [];
+    const requests = reqData.requests  || [];
+    const records  = histData.success ? histData.records : [];
 
-    if (data.records.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:#94a3b8;">No records for this month</td></tr>';
-      return;
+    const recMap = {};
+    records.forEach(r => { recMap[r.date.split('T')[0]] = r; });
+
+    const holMap = {};
+    holidays.forEach(h => { holMap[h.holiday_date.split('T')[0]] = h.holiday_name; });
+
+    const reqMap = {};
+    requests.forEach(r => {
+      const d = String(r.request_date).split('T')[0];
+      reqMap[d] = r.status;
+    });
+
+    const today      = new Date().toISOString().split('T')[0];
+    const totalDays  = new Date(year, month, 0).getDate();
+
+    const pastDays = Array.from({length: totalDays}, (_, i) => {
+      const d = `${year}-${String(month).padStart(2,'0')}-${String(i+1).padStart(2,'0')}`;
+      return d <= today ? d : null;
+    }).filter(Boolean);
+
+    const present     = records.filter(r => r.final_status === 'Present').length;
+    const late        = records.filter(r => r.late_minutes > 0).length;
+    const holidayCount = pastDays.filter(d => new Date(d).getDay() === 0 || holMap[d]).length;
+    const absentDays  = pastDays.filter(d => {
+      if (new Date(d).getDay() === 0 || holMap[d]) return false;
+      return !recMap[d];
+    }).length;
+
+    document.getElementById('hPresent').textContent  = present;
+    document.getElementById('hLate').textContent     = late;
+    document.getElementById('hHoliday').textContent  = holidayCount;
+    document.getElementById('hAbsent').textContent   = absentDays;
+
+    renderCalendar(month, year, recMap, holMap, reqMap, today, totalDays);
+    loadMyRequests();
+  } catch(e) {
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:red;padding:20px;">Error loading calendar</div>';
+    console.error(e);
+  }
+}
+
+function renderCalendar(month, year, recMap, holMap, reqMap, today, totalDays) {
+  const grid     = document.getElementById('calGrid');
+  const firstDow = new Date(year, month - 1, 1).getDay();
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+  let html = dayNames.map(d => `<div class="cal-day-name">${d}</div>`).join('');
+  for (let i = 0; i < firstDow; i++) html += '<div class="cal-cell empty"></div>';
+
+  for (let day = 1; day <= totalDays; day++) {
+    const dateStr  = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const dow      = new Date(dateStr).getDay();
+    const isSun    = dow === 0;
+    const isHol    = !!holMap[dateStr];
+    const isFuture = dateStr > today;
+    const isToday  = dateStr === today;
+    const rec      = recMap[dateStr];
+    const reqSts   = reqMap[dateStr];
+
+    let cls = 'cal-cell';
+    if (isSun) cls += ' sunday';
+    if (isToday) cls += ' today';
+
+    let badge = '', time = '', reqBtn = '';
+
+    if (isSun || isHol) {
+      cls += ' holiday-day';
+      const label = isHol ? holMap[dateStr].substring(0, 9) + (holMap[dateStr].length > 9 ? '…' : '') : 'Holiday';
+      badge = `<span class="cal-badge holiday" title="${isHol ? holMap[dateStr] : 'Sunday'}">${label}</span>`;
+    } else if (rec) {
+      const st  = rec.final_status || 'Pending';
+      const bcl = st === 'Present' ? 'present' : st === 'Half Day' ? 'halfday' : st === 'Short Day' ? 'shortday' : st === 'Leave' ? 'leave' : 'pending';
+      cls  += ' ' + bcl;
+      badge = `<span class="cal-badge ${bcl}">${st}</span>`;
+      if (rec.first_in) time = `<div class="cal-time">${fmt(rec.first_in)}${rec.last_out ? '<br>'+fmt(rec.last_out) : ''}</div>`;
+    } else if (!isFuture) {
+      if (reqSts === 'Pending') {
+        cls += ' requested'; badge = `<span class="cal-badge requested">Requested</span>`;
+      } else if (reqSts === 'Approved') {
+        cls += ' present'; badge = `<span class="cal-badge present">Approved</span>`;
+      } else if (reqSts === 'Rejected') {
+        cls += ' absent'; badge = `<span class="cal-badge absent">Rejected</span>`;
+      } else {
+        cls += ' absent'; badge = `<span class="cal-badge absent">Absent</span>`;
+        reqBtn = `<button class="cal-req-btn" onclick="openAttReqModal('${dateStr}')">+ Request</button>`;
+      }
     }
 
-    tbody.innerHTML = data.records.map(r => {
-      const badgeClass = r.final_status === 'Present' ? 'badge-present'
-                       : r.final_status === 'Leave'   ? 'badge-leave'
-                       : r.final_status === 'Absent'  ? 'badge-absent'
-                       : 'badge-pending';
-      const late = r.late_minutes > 0 ? `<span style="font-size:11px;color:var(--warning);margin-left:4px;">+${r.late_minutes}m late</span>` : '';
-      return `<tr>
-        <td>${fmtDate(r.date)}</td>
-        <td>${fmt(r.first_in)}${late}</td>
-        <td>${fmt(r.last_out)}</td>
-        <td>${r.working_hours || '--'}</td>
-        <td><span class="badge ${badgeClass}">${r.final_status || 'Pending'}</span></td>
-      </tr>`;
-    }).join('');
-  } catch {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:red;">Error loading data</td></tr>';
+    html += `<div class="${cls}">
+      <span class="cal-date" style="${isSun?'color:#ef4444;':''}">${day}</span>
+      ${time}${badge}${reqBtn}
+    </div>`;
   }
+  grid.innerHTML = html;
+}
+
+// ── Backdated Attendance Request ──────────────────────────
+let _reqModalDate = '';
+
+function openAttReqModal(dateStr) {
+  _reqModalDate = dateStr;
+  const d = new Date(dateStr);
+  document.getElementById('reqModalDate').textContent =
+    d.toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  document.getElementById('req_in_time').value  = '';
+  document.getElementById('req_out_time').value = '';
+  document.getElementById('req_reason').value   = '';
+  document.getElementById('reqModalMsg').style.display = 'none';
+  document.getElementById('attReqModal').style.display = 'flex';
+}
+
+function closeAttReqModal() {
+  document.getElementById('attReqModal').style.display = 'none';
+}
+
+async function submitAttRequest() {
+  const msg    = document.getElementById('reqModalMsg');
+  const reason = document.getElementById('req_reason').value.trim();
+  if (!reason) {
+    msg.className = 'alert alert-error'; msg.textContent = 'Reason likhna zaroori hai.';
+    msg.style.display = 'block'; return;
+  }
+  msg.style.display = 'none';
+  try {
+    const data = await api('/attendance/request', {
+      method: 'POST',
+      body: JSON.stringify({
+        request_date:   _reqModalDate,
+        check_in_time:  document.getElementById('req_in_time').value  || null,
+        check_out_time: document.getElementById('req_out_time').value || null,
+        reason
+      })
+    });
+    if (data.success) {
+      closeAttReqModal();
+      showToast(data.message, 'success');
+      loadHistory();
+    } else {
+      msg.className = 'alert alert-error'; msg.textContent = data.message;
+      msg.style.display = 'block';
+    }
+  } catch { msg.className='alert alert-error'; msg.textContent='Network error.'; msg.style.display='block'; }
+}
+
+// ── My Requests List ──────────────────────────────────────
+async function loadMyRequests() {
+  const list = document.getElementById('myRequestsList');
+  try {
+    const data = await api('/attendance/my-requests');
+    if (!data.success || !data.requests.length) {
+      list.innerHTML = '<p style="color:#94a3b8;font-size:14px;text-align:center;padding:12px 0;">Koi request nahi hai abhi tak</p>';
+      return;
+    }
+    list.innerHTML = data.requests.map(r => {
+      const d  = String(r.request_date).split('T')[0];
+      const dt = new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+      const bc = r.status === 'Approved' ? 'badge-present' : r.status === 'Rejected' ? 'badge-absent' : 'badge-pending';
+      return `<div class="req-item">
+        <div class="req-item-top">
+          <strong class="req-item-date">${dt}</strong>
+          <span class="badge ${bc}">${r.status}</span>
+        </div>
+        ${r.check_in_time ? `<div class="req-item-reason">${fmt(r.check_in_time)}${r.check_out_time?' → '+fmt(r.check_out_time):''}</div>` : ''}
+        <div class="req-item-reason">${r.reason}</div>
+        ${r.admin_remark ? `<div class="req-item-remark">Admin: ${r.admin_remark}</div>` : ''}
+      </div>`;
+    }).join('');
+  } catch { list.innerHTML = '<p style="color:#dc2626;font-size:13px;text-align:center;">Error loading requests</p>'; }
 }
 
 // ── Load Profile ─────────────────────────────────────────
@@ -497,7 +755,7 @@ function switchTab(tab) {
   document.getElementById('tab-' + tab).classList.add('active');
   document.getElementById('nav' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('active');
 
-  if (tab === 'history' && document.getElementById('historyBody').innerHTML.includes('Select month')) loadHistory();
+  if (tab === 'history' && document.getElementById('calGrid').innerHTML.includes('Select month')) loadHistory();
   if (tab === 'profile') loadProfile();
   if (tab === 'leave')   loadLeaveHistory();
 }

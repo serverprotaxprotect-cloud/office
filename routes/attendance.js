@@ -228,4 +228,100 @@ router.get('/settings', authMiddleware, async (req, res) => {
   }
 });
 
+// ── Helper: ensure holidays table ────────────────────────────
+async function ensureHolidaysTable() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS holidays (
+      id SERIAL PRIMARY KEY,
+      holiday_date DATE NOT NULL UNIQUE,
+      holiday_name VARCHAR(100) NOT NULL,
+      created_by VARCHAR(100),
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+}
+
+// ── Helper: ensure attendance_requests table ─────────────────
+async function ensureRequestsTable() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS attendance_requests (
+      id SERIAL PRIMARY KEY,
+      emp_id VARCHAR(50) NOT NULL,
+      employee_name VARCHAR(100),
+      request_date DATE NOT NULL,
+      check_in_time TIME,
+      check_out_time TIME,
+      reason TEXT,
+      status VARCHAR(20) DEFAULT 'Pending',
+      reviewed_by VARCHAR(100),
+      reviewed_at TIMESTAMPTZ,
+      admin_remark TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+}
+
+// ── GET /api/attendance/holidays ──────────────────────────────
+router.get('/holidays', authMiddleware, async (req, res) => {
+  const month = parseInt(req.query.month) || new Date().getMonth() + 1;
+  const year  = parseInt(req.query.year)  || new Date().getFullYear();
+  try {
+    await ensureHolidaysTable();
+    const result = await db.query(
+      `SELECT id, holiday_date, holiday_name FROM holidays
+       WHERE EXTRACT(MONTH FROM holiday_date) = $1 AND EXTRACT(YEAR FROM holiday_date) = $2
+       ORDER BY holiday_date`,
+      [month, year]
+    );
+    res.json({ success: true, holidays: result.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ── POST /api/attendance/request (backdated attendance) ───────
+router.post('/request', authMiddleware, async (req, res) => {
+  const { emp_id, name, formal_name } = req.user;
+  const { request_date, check_in_time, check_out_time, reason } = req.body;
+  if (!request_date) return res.status(400).json({ success: false, message: 'Date required' });
+  if (!reason) return res.status(400).json({ success: false, message: 'Reason required' });
+  const today = new Date().toISOString().split('T')[0];
+  if (request_date >= today)
+    return res.status(400).json({ success: false, message: 'Sirf past dates ke liye request allowed hai' });
+  try {
+    await ensureRequestsTable();
+    const existing = await db.query(
+      `SELECT id FROM attendance_requests WHERE emp_id=$1 AND request_date=$2 AND status='Pending'`,
+      [emp_id, request_date]
+    );
+    if (existing.rows.length > 0)
+      return res.status(400).json({ success: false, message: 'Is date ke liye pehle se ek request pending hai' });
+    await db.query(
+      `INSERT INTO attendance_requests (emp_id, employee_name, request_date, check_in_time, check_out_time, reason)
+       VALUES ($1,$2,$3,$4,$5,$6)`,
+      [emp_id, formal_name || name, request_date, check_in_time || null, check_out_time || null, reason]
+    );
+    res.json({ success: true, message: 'Request submit ho gayi! HR/Manager se approval ka wait karo.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ── GET /api/attendance/my-requests ───────────────────────────
+router.get('/my-requests', authMiddleware, async (req, res) => {
+  const { emp_id } = req.user;
+  try {
+    await ensureRequestsTable();
+    const result = await db.query(
+      `SELECT * FROM attendance_requests WHERE emp_id=$1 ORDER BY created_at DESC LIMIT 30`,
+      [emp_id]
+    );
+    res.json({ success: true, requests: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 module.exports = router;

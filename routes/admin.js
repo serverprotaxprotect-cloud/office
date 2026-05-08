@@ -192,4 +192,242 @@ router.put('/employees/:id', adminAuth, async (req, res) => {
   }
 });
 
+// ── Helpers for admin routes ──────────────────────────────────
+async function getSettings() {
+  const r = await db.query('SELECT key, value FROM attendance_settings');
+  const s = {};
+  r.rows.forEach(row => { s[row.key] = row.value; });
+  return s;
+}
+function toMinutes(timeStr) {
+  if (!timeStr) return 0;
+  const [h, m] = String(timeStr).split(':').map(Number);
+  return h * 60 + (m || 0);
+}
+async function ensureHolidaysTable() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS holidays (
+      id SERIAL PRIMARY KEY,
+      holiday_date DATE NOT NULL UNIQUE,
+      holiday_name VARCHAR(100) NOT NULL,
+      created_by VARCHAR(100),
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+}
+async function ensureRequestsTable() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS attendance_requests (
+      id SERIAL PRIMARY KEY,
+      emp_id VARCHAR(50) NOT NULL,
+      employee_name VARCHAR(100),
+      request_date DATE NOT NULL,
+      check_in_time TIME,
+      check_out_time TIME,
+      reason TEXT,
+      status VARCHAR(20) DEFAULT 'Pending',
+      reviewed_by VARCHAR(100),
+      reviewed_at TIMESTAMPTZ,
+      admin_remark TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+}
+
+// ── GET /api/admin/holidays ───────────────────────────────────
+router.get('/holidays', adminAuth, async (req, res) => {
+  const year = parseInt(req.query.year) || new Date().getFullYear();
+  try {
+    await ensureHolidaysTable();
+    const result = await db.query(
+      `SELECT id, holiday_date, holiday_name, created_by FROM holidays
+       WHERE EXTRACT(YEAR FROM holiday_date) = $1 ORDER BY holiday_date`,
+      [year]
+    );
+    res.json({ success: true, holidays: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ── POST /api/admin/holidays ──────────────────────────────────
+router.post('/holidays', adminAuth, async (req, res) => {
+  const { holiday_date, holiday_name } = req.body;
+  if (!holiday_date || !holiday_name)
+    return res.status(400).json({ success: false, message: 'Date and name required' });
+  try {
+    await ensureHolidaysTable();
+    await db.query(
+      `INSERT INTO holidays (holiday_date, holiday_name, created_by)
+       VALUES ($1,$2,$3)
+       ON CONFLICT (holiday_date) DO UPDATE SET holiday_name=$2, created_by=$3`,
+      [holiday_date, holiday_name.trim(), req.admin.name]
+    );
+    res.json({ success: true, message: 'Holiday saved!' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ── DELETE /api/admin/holidays/:id ───────────────────────────
+router.delete('/holidays/:id', adminAuth, async (req, res) => {
+  try {
+    await db.query(`DELETE FROM holidays WHERE id=$1`, [req.params.id]);
+    res.json({ success: true, message: 'Holiday removed' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ── GET /api/admin/attendance-requests ───────────────────────
+router.get('/attendance-requests', adminAuth, async (req, res) => {
+  const status = req.query.status || 'Pending';
+  try {
+    await ensureRequestsTable();
+    const result = await db.query(
+      `SELECT ar.*, e.designation FROM attendance_requests ar
+       LEFT JOIN emplist e ON e.emp_id = ar.emp_id
+       WHERE ar.status=$1 ORDER BY ar.created_at DESC`,
+      [status]
+    );
+    res.json({ success: true, requests: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ── PUT /api/admin/attendance-requests/:id ───────────────────
+router.put('/attendance-requests/:id', adminAuth, async (req, res) => {
+  const { id } = req.params;
+  const { action, admin_remark, check_in_time, check_out_time } = req.body;
+  if (!['Approved', 'Rejected'].includes(action))
+    return res.status(400).json({ success: false, message: 'Invalid action' });
+  try {
+    const reqRow = await db.query(`SELECT * FROM attendance_requests WHERE id=$1`, [id]);
+    if (!reqRow.rows.length) return res.status(404).json({ success: false, message: 'Request not found' });
+    const r = reqRow.rows[0];
+
+    await db.query(
+      `UPDATE attendance_requests SET status=$1, reviewed_by=$2, reviewed_at=NOW(), admin_remark=$3 WHERE id=$4`,
+      [action, req.admin.name, admin_remark || null, id]
+    );
+
+    if (action === 'Approved') {
+      const inTime  = check_in_time  || r.check_in_time;
+      const outTime = check_out_time || r.check_out_time;
+      const dateStr = r.request_date instanceof Date
+        ? r.request_date.toISOString().split('T')[0]
+        : String(r.request_date).split('T')[0];
+      const dateObj = new Date(dateStr);
+      const month = dateObj.getMonth() + 1;
+      const year  = dateObj.getFullYear();
+
+      let workingHours = null;
+      let finalStatus  = 'Present';
+      if (inTime && outTime) {
+        const cfg = await getSettings();
+        const fullDayMins = parseInt(cfg.FULL_DAY_MINUTES || '480');
+        const halfDayMins = parseInt(cfg.HALF_DAY_MINUTES || '240');
+        const worked = Math.max(0, toMinutes(outTime) - toMinutes(inTime));
+        workingHours = `${Math.floor(worked/60)}h ${worked%60}m`;
+        finalStatus  = worked >= fullDayMins ? 'Present' : worked >= halfDayMins ? 'Half Day' : 'Short Day';
+      }
+
+      const empRow = await db.query(`SELECT name, formal_name FROM emplist WHERE emp_id=$1`, [r.emp_id]);
+      const empName = empRow.rows[0]?.formal_name || empRow.rows[0]?.name || r.employee_name;
+
+      const existsRow = await db.query(
+        `SELECT emp_id FROM daily_attendance WHERE emp_id=$1 AND date::date=$2`,
+        [r.emp_id, dateStr]
+      );
+      if (existsRow.rows.length > 0) {
+        await db.query(
+          `UPDATE daily_attendance SET
+             first_in=COALESCE($1, first_in), last_out=COALESCE($2, last_out),
+             working_hours=COALESCE($3, working_hours), final_status=$4,
+             remark='Backdated - Approved', approved_by=$5, approved_at=NOW()
+           WHERE emp_id=$6 AND date::date=$7`,
+          [inTime || null, outTime || null, workingHours, finalStatus,
+           req.admin.name, r.emp_id, dateStr]
+        );
+      } else {
+        await db.query(
+          `INSERT INTO daily_attendance
+             (date, emp_id, employee_name, formal_name, first_in, last_out,
+              working_hours, final_status, month, year, remark, approved_by, approved_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'Backdated - Approved',$11,NOW())`,
+          [dateStr, r.emp_id, empName, empName,
+           inTime || null, outTime || null, workingHours, finalStatus,
+           month, year, req.admin.name]
+        );
+      }
+
+      const crypto = require('crypto');
+      if (inTime) {
+        await db.query(
+          `INSERT INTO attendance_log
+             (log_id, date, emp_id, employee_name, formal_name, action, time, marked_by, created_at)
+           VALUES ($1,$2,$3,$4,$5,'IN',$6,'Admin-Approved',NOW())
+           ON CONFLICT DO NOTHING`,
+          ['ATD-' + crypto.randomBytes(4).toString('hex').toUpperCase(),
+           dateStr, r.emp_id, empName, empName, inTime]
+        ).catch(() => {});
+      }
+      if (outTime) {
+        await db.query(
+          `INSERT INTO attendance_log
+             (log_id, date, emp_id, employee_name, formal_name, action, time, marked_by, created_at)
+           VALUES ($1,$2,$3,$4,$5,'OUT',$6,'Admin-Approved',NOW())
+           ON CONFLICT DO NOTHING`,
+          ['ATD-' + crypto.randomBytes(4).toString('hex').toUpperCase(),
+           dateStr, r.emp_id, empName, empName, outTime]
+        ).catch(() => {});
+      }
+    }
+
+    res.json({ success: true, message: `Request ${action}` });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error: ' + err.message });
+  }
+});
+
+// ── POST /api/admin/attendance/modify-time ───────────────────
+router.post('/attendance/modify-time', adminAuth, async (req, res) => {
+  const { emp_id, date, check_in_time, check_out_time } = req.body;
+  if (!emp_id || !date) return res.status(400).json({ success: false, message: 'emp_id and date required' });
+  try {
+    const cfg = await getSettings();
+    const fullDayMins = parseInt(cfg.FULL_DAY_MINUTES || '480');
+    const halfDayMins = parseInt(cfg.HALF_DAY_MINUTES || '240');
+
+    const sets = [];
+    const vals = [];
+    let idx = 1;
+    if (check_in_time)  { sets.push(`first_in=$${idx++}`);  vals.push(check_in_time); }
+    if (check_out_time) { sets.push(`last_out=$${idx++}`);  vals.push(check_out_time); }
+
+    if (check_in_time && check_out_time) {
+      const worked = Math.max(0, toMinutes(check_out_time) - toMinutes(check_in_time));
+      const wh = `${Math.floor(worked/60)}h ${worked%60}m`;
+      const fs = worked >= fullDayMins ? 'Present' : worked >= halfDayMins ? 'Half Day' : 'Short Day';
+      sets.push(`working_hours=$${idx++}`, `final_status=$${idx++}`);
+      vals.push(wh, fs);
+    }
+
+    sets.push(`approved_by=$${idx++}`, `approved_at=NOW()`);
+    vals.push(req.admin.name, emp_id, date);
+
+    await db.query(
+      `UPDATE daily_attendance SET ${sets.join(',')} WHERE emp_id=$${idx++} AND date::date=$${idx}`,
+      vals
+    );
+    res.json({ success: true, message: 'Attendance time updated' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 module.exports = router;

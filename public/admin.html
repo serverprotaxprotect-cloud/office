@@ -179,6 +179,14 @@
     <div class="sidebar-item" id="s-salary" onclick="showPanel('salary')">
       <span class="s-icon">&#128176;</span> Salary
     </div>
+    <div class="sidebar-section">Attendance Tools</div>
+    <div class="sidebar-item" id="s-att-requests" onclick="showPanel('att-requests')">
+      <span class="s-icon">&#128203;</span> Att. Requests
+      <span id="attReqBadge" style="margin-left:auto;background:#e94560;color:#fff;font-size:10px;padding:1px 7px;border-radius:20px;display:none;">0</span>
+    </div>
+    <div class="sidebar-item" id="s-holidays" onclick="showPanel('holidays')">
+      <span class="s-icon">&#127956;</span> Holidays
+    </div>
   </aside>
 
   <!-- Content -->
@@ -414,6 +422,68 @@
       </div>
     </div>
 
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- ATTENDANCE REQUESTS PANEL                               -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div class="admin-panel" id="panel-att-requests">
+      <div class="page-title">Attendance Requests <span>Backdated attendance approvals</span></div>
+
+      <div class="filter-row">
+        <select id="attReqStatusFilter" onchange="loadAttRequests()">
+          <option value="Pending">Pending</option>
+          <option value="Approved">Approved</option>
+          <option value="Rejected">Rejected</option>
+        </select>
+        <button class="btn-sm" onclick="loadAttRequests()">Refresh</button>
+      </div>
+
+      <div class="today-table-wrap">
+        <div class="hist-table-wrap">
+          <table>
+            <thead><tr><th>Employee</th><th>Date</th><th>Req. IN</th><th>Req. OUT</th><th>Reason</th><th>Applied</th><th>Status</th><th>Action</th></tr></thead>
+            <tbody id="attReqTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- HOLIDAYS PANEL                                          -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div class="admin-panel" id="panel-holidays">
+      <div class="page-title">Holiday Management <span>Custom holidays shown in employee calendars</span></div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title">Add Holiday</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+          <div>
+            <label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:4px;">DATE</label>
+            <input type="date" id="hol_date" style="padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none;"/>
+          </div>
+          <div style="flex:1;min-width:180px;">
+            <label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:4px;">HOLIDAY NAME</label>
+            <input type="text" id="hol_name" placeholder="e.g. Durgapuja, Holi, Diwali..." style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none;"/>
+          </div>
+          <button class="btn-sm" onclick="addHoliday()" style="background:#16a34a;">+ Add Holiday</button>
+        </div>
+        <p style="font-size:12px;color:#64748b;margin-top:8px;">&#128161; Sunday is auto-marked as Holiday. Yahan sirf special holidays add karo. Employees marking allowed even on holidays.</p>
+      </div>
+
+      <div class="filter-row">
+        <select id="holYear" onchange="loadHolidays()"></select>
+        <button class="btn-sm" onclick="loadHolidays()">Load</button>
+      </div>
+
+      <div class="today-table-wrap">
+        <div class="hist-table-wrap">
+          <table>
+            <thead><tr><th>Date</th><th>Day</th><th>Holiday Name</th><th>Added By</th><th>Action</th></tr></thead>
+            <tbody id="holidayTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
   </main>
 </div>
 
@@ -421,9 +491,9 @@
 <nav class="admin-bottom-nav">
   <button class="admin-tab-btn active" id="m-overview" onclick="showPanel('overview')"><span class="ti">&#128202;</span>Overview</button>
   <button class="admin-tab-btn" id="m-attendance" onclick="showPanel('attendance')"><span class="ti">&#128197;</span>Attend.</button>
-  <button class="admin-tab-btn" id="m-employees" onclick="showPanel('employees')"><span class="ti">&#128100;</span>Staff</button>
-  <button class="admin-tab-btn" id="m-leave" onclick="showPanel('leave')"><span class="ti">&#128203;</span>Leave</button>
-  <button class="admin-tab-btn" id="m-salary" onclick="showPanel('salary')"><span class="ti">&#128176;</span>Salary</button>
+  <button class="admin-tab-btn" id="m-att-requests" onclick="showPanel('att-requests')"><span class="ti">&#128203;</span>Requests</button>
+  <button class="admin-tab-btn" id="m-holidays" onclick="showPanel('holidays')"><span class="ti">&#127956;</span>Holidays</button>
+  <button class="admin-tab-btn" id="m-leave" onclick="showPanel('leave')"><span class="ti">&#9993;</span>Leave</button>
 </nav>
 
 <!-- Toast -->
@@ -539,6 +609,53 @@
   </div>
 </div>
 
+<!-- Modify Attendance Time Modal -->
+<div class="modal-backdrop" id="attModifyModal" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal">
+    <div class="modal-title">&#9998; Modify Attendance Time</div>
+    <div style="background:#fef9c3;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;margin-bottom:16px;font-size:13px;color:#92400e;">
+      <strong id="modEmpLabel">--</strong> &nbsp;|&nbsp; <span id="modDateLabel">--</span>
+    </div>
+    <input type="hidden" id="mod_emp_id"/>
+    <input type="hidden" id="mod_date"/>
+    <div class="modal-grid">
+      <div><label>Check-in Time</label><input id="mod_in" type="time"/></div>
+      <div><label>Check-out Time</label><input id="mod_out" type="time"/></div>
+    </div>
+    <p style="font-size:12px;color:#64748b;margin-top:8px;">Working hours aur status automatically recalculate ho jayega.</p>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="document.getElementById('attModifyModal').style.display='none'">Cancel</button>
+      <button class="btn-sm" onclick="submitModifyTime()">Update Time</button>
+    </div>
+  </div>
+</div>
+
+<!-- Attendance Request Review Modal -->
+<div class="modal-backdrop" id="attReqReviewModal" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal">
+    <div class="modal-title">&#128203; Review Attendance Request</div>
+    <input type="hidden" id="rev_req_id"/>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px;">
+      <div><strong>Employee:</strong> <span id="revEmpName">--</span></div>
+      <div><strong>Date:</strong> <span id="revDate">--</span></div>
+      <div><strong>Reason:</strong> <span id="revReason">--</span></div>
+    </div>
+    <div class="modal-grid">
+      <div><label>Approve with IN Time</label><input id="rev_in" type="time"/></div>
+      <div><label>Approve with OUT Time</label><input id="rev_out" type="time"/></div>
+    </div>
+    <div class="full" style="margin-top:12px;">
+      <label style="display:block;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;">Admin Remark (optional)</label>
+      <input id="rev_remark" placeholder="e.g. Verified from register" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none;"/>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="document.getElementById('attReqReviewModal').style.display='none'">Cancel</button>
+      <button class="btn-reject" onclick="submitReview('Rejected')">Reject</button>
+      <button class="btn-approve" style="padding:10px 20px;font-size:14px;" onclick="submitReview('Approved')">Approve</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ── Auth guard ───────────────────────────────────────────────
 const token = localStorage.getItem('admin_token');
@@ -583,10 +700,12 @@ function showPanel(name) {
   document.getElementById('s-' + name)?.classList.add('active');
   document.getElementById('m-' + name)?.classList.add('active');
 
-  if (name === 'attendance' && !document.getElementById('attSummaryTable').children.length) loadAttendance();
-  if (name === 'employees'  && !document.getElementById('empTable').children.length)       loadEmployees();
-  if (name === 'leave')      loadLeaves();
-  if (name === 'salary')     loadSalaryStructure();
+  if (name === 'attendance'    && !document.getElementById('attSummaryTable').children.length) loadAttendance();
+  if (name === 'employees'     && !document.getElementById('empTable').children.length)       loadEmployees();
+  if (name === 'leave')         loadLeaves();
+  if (name === 'salary')        loadSalaryStructure();
+  if (name === 'att-requests')  loadAttRequests();
+  if (name === 'holidays')      loadHolidays();
 }
 
 // ── Salary sub-tabs ──────────────────────────────────────────
@@ -681,7 +800,10 @@ function renderAttRecords(records) {
       <td>${r.working_hours||'--'}</td>
       <td>${r.late_minutes > 0 ? `<span style="color:#dc2626">${r.late_minutes}</span>` : '0'}</td>
       <td><span class="badge ${badge}">${r.final_status||'Pending'}</span></td>
-      <td><button class="btn-edit" onclick="openAttUpdate('${r.emp_id}','${r.date?.split('T')[0]}','${r.final_status||'Pending'}',${r.grace_minutes_granted||0})">Edit</button></td>
+      <td style="white-space:nowrap;">
+        <button class="btn-edit" onclick="openAttUpdate('${r.emp_id}','${r.date?.split('T')[0]}','${r.final_status||'Pending'}',${r.grace_minutes_granted||0})">Edit</button>
+        <button class="btn-calc" style="margin-left:4px;" onclick="openModifyTime('${r.emp_id}','${r.employee_name}','${r.date?.split('T')[0]}','${r.first_in||''}','${r.last_out||''}')">Time</button>
+      </td>
     </tr>`;
   }).join('') : '<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:20px">No records found</td></tr>';
 }
@@ -1012,6 +1134,135 @@ async function submitSalAdj() {
   if (data.success) loadSalaryRecords();
 }
 
+// ── MODIFY ATTENDANCE TIME ───────────────────────────────────
+function openModifyTime(empId, empName, date, firstIn, lastOut) {
+  document.getElementById('mod_emp_id').value     = empId;
+  document.getElementById('mod_date').value       = date;
+  document.getElementById('modEmpLabel').textContent = empName;
+  document.getElementById('modDateLabel').textContent = fmtDate(date);
+  document.getElementById('mod_in').value  = firstIn  && firstIn  !== '--' ? firstIn.substring(0,5)  : '';
+  document.getElementById('mod_out').value = lastOut && lastOut !== '--' ? lastOut.substring(0,5) : '';
+  document.getElementById('attModifyModal').style.display = 'flex';
+}
+
+async function submitModifyTime() {
+  const data = await api('/admin/attendance/modify-time', {
+    method: 'POST',
+    body: JSON.stringify({
+      emp_id:         document.getElementById('mod_emp_id').value,
+      date:           document.getElementById('mod_date').value,
+      check_in_time:  document.getElementById('mod_in').value  || null,
+      check_out_time: document.getElementById('mod_out').value || null
+    })
+  });
+  document.getElementById('attModifyModal').style.display = 'none';
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) loadAttendance();
+}
+
+// ── ATTENDANCE REQUESTS ──────────────────────────────────────
+async function loadAttRequests() {
+  const status = document.getElementById('attReqStatusFilter').value;
+  try {
+    const data = await api(`/admin/attendance-requests?status=${status}`);
+    if (!data.success) return;
+
+    const pending = data.requests.filter(r => r.status === 'Pending').length;
+    const badge = document.getElementById('attReqBadge');
+    badge.textContent = pending; badge.style.display = pending ? 'inline-block' : 'none';
+
+    const tb = document.getElementById('attReqTable');
+    tb.innerHTML = data.requests.length ? data.requests.map(r => {
+      const d = String(r.request_date).split('T')[0];
+      const bc = r.status === 'Approved' ? 'badge-present' : r.status === 'Rejected' ? 'badge-absent' : 'badge-pending';
+      return `<tr>
+        <td><strong>${r.employee_name}</strong><br><small style="color:#94a3b8">${r.emp_id}</small></td>
+        <td>${fmtDate(d)}</td>
+        <td>${r.check_in_time  ? fmt(r.check_in_time)  : '--'}</td>
+        <td>${r.check_out_time ? fmt(r.check_out_time) : '--'}</td>
+        <td style="max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${r.reason}">${r.reason}</td>
+        <td><small>${new Date(r.created_at).toLocaleDateString('en-IN')}</small></td>
+        <td><span class="badge ${bc}">${r.status}</span>
+          ${r.reviewed_by ? `<br><small style="color:#94a3b8">${r.reviewed_by}</small>` : ''}
+        </td>
+        <td>${r.status === 'Pending' ? `
+          <button class="btn-approve" onclick="openReviewModal(${r.id},'${r.employee_name}','${d}',${JSON.stringify(r.reason).replace(/"/g,'&quot;')})">Review</button>
+        ` : `<small style="color:#94a3b8">${r.admin_remark || '--'}</small>`}</td>
+      </tr>`;
+    }).join('') : '<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:20px">No requests</td></tr>';
+  } catch(e) { console.error(e); }
+}
+
+function openReviewModal(id, empName, date, reason) {
+  document.getElementById('rev_req_id').value          = id;
+  document.getElementById('revEmpName').textContent    = empName;
+  document.getElementById('revDate').textContent       = fmtDate(date);
+  document.getElementById('revReason').textContent     = reason;
+  document.getElementById('rev_in').value              = '';
+  document.getElementById('rev_out').value             = '';
+  document.getElementById('rev_remark').value          = '';
+  document.getElementById('attReqReviewModal').style.display = 'flex';
+}
+
+async function submitReview(action) {
+  const data = await api(`/admin/attendance-requests/${document.getElementById('rev_req_id').value}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      action,
+      check_in_time:  document.getElementById('rev_in').value  || null,
+      check_out_time: document.getElementById('rev_out').value || null,
+      admin_remark:   document.getElementById('rev_remark').value || null
+    })
+  });
+  document.getElementById('attReqReviewModal').style.display = 'none';
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) loadAttRequests();
+}
+
+// ── HOLIDAYS ─────────────────────────────────────────────────
+async function loadHolidays() {
+  const year = document.getElementById('holYear').value;
+  const data = await api(`/admin/holidays?year=${year}`);
+  if (!data.success) return;
+
+  const tb = document.getElementById('holidayTable');
+  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  tb.innerHTML = data.holidays.length ? data.holidays.map(h => {
+    const d   = String(h.holiday_date).split('T')[0];
+    const dow = days[new Date(d).getDay()];
+    return `<tr>
+      <td><strong>${fmtDate(d)}</strong></td>
+      <td><span style="color:${new Date(d).getDay()===0?'#ef4444':'#374151'};font-weight:600;">${dow}</span></td>
+      <td>${h.holiday_name}</td>
+      <td><small style="color:#94a3b8">${h.created_by || '--'}</small></td>
+      <td><button class="btn-danger" style="padding:4px 10px;font-size:12px;" onclick="deleteHoliday(${h.id},'${h.holiday_name}')">Remove</button></td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:20px">No holidays added yet for this year</td></tr>';
+}
+
+async function addHoliday() {
+  const date = document.getElementById('hol_date').value;
+  const name = document.getElementById('hol_name').value.trim();
+  if (!date || !name) { showToast('Date aur name dono required hai', 'error'); return; }
+  const data = await api('/admin/holidays', {
+    method: 'POST',
+    body: JSON.stringify({ holiday_date: date, holiday_name: name })
+  });
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) {
+    document.getElementById('hol_date').value = '';
+    document.getElementById('hol_name').value = '';
+    loadHolidays();
+  }
+}
+
+async function deleteHoliday(id, name) {
+  if (!confirm(`"${name}" ko holiday list se remove karo?`)) return;
+  const data = await api(`/admin/holidays/${id}`, { method: 'DELETE' });
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) loadHolidays();
+}
+
 function adminLogout() {
   localStorage.removeItem('admin_token');
   localStorage.removeItem('admin_info');
@@ -1024,8 +1275,9 @@ function adminLogout() {
 
   // Populate year selectors
   const thisYear = new Date().getFullYear();
-  ['attYear','calYear','recYear'].forEach(id => {
+  ['attYear','calYear','recYear','holYear'].forEach(id => {
     const sel = document.getElementById(id);
+    if (!sel) return;
     for (let y = thisYear; y >= thisYear - 2; y--) {
       const o = document.createElement('option');
       o.value = y; o.textContent = y; sel.appendChild(o);
@@ -1041,9 +1293,15 @@ function adminLogout() {
 
   // Check pending leaves badge
   const lData = await api('/leave/all?status=Pending').catch(()=>({leaves:[]}));
-  const pending = lData.leaves?.length || 0;
-  const badge = document.getElementById('leaveBadge');
-  if (pending) { badge.textContent = pending; badge.style.display = 'inline-block'; }
+  const pendingLeaves = lData.leaves?.length || 0;
+  const leaveBadge = document.getElementById('leaveBadge');
+  if (pendingLeaves) { leaveBadge.textContent = pendingLeaves; leaveBadge.style.display = 'inline-block'; }
+
+  // Check pending attendance requests badge
+  const rData = await api('/admin/attendance-requests?status=Pending').catch(()=>({requests:[]}));
+  const pendingReqs = rData.requests?.length || 0;
+  const reqBadge = document.getElementById('attReqBadge');
+  if (pendingReqs) { reqBadge.textContent = pendingReqs; reqBadge.style.display = 'inline-block'; }
 })();
 </script>
 </body>
