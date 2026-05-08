@@ -3,94 +3,241 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PTP Attendance - Login</title>
-  <link rel="stylesheet" href="/assets/style.css" />
+  <title>Pro Tax Protect - Portal</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+      background: linear-gradient(135deg, #0f1b35 0%, #1a3a6b 50%, #0d2d5e 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      padding: 20px;
+    }
+
+    .brand {
+      text-align: center;
+      margin-bottom: 48px;
+      animation: fadeDown 0.6s ease;
+    }
+
+    .brand-logo {
+      width: 80px; height: 80px;
+      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      border-radius: 20px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 28px; font-weight: 800; color: white;
+      margin: 0 auto 16px;
+      box-shadow: 0 8px 32px rgba(37,99,235,0.4);
+    }
+
+    .brand h1 {
+      color: white;
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    .brand p {
+      color: rgba(255,255,255,0.6);
+      font-size: 14px;
+      margin-top: 6px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    .portals {
+      display: flex;
+      gap: 24px;
+      animation: fadeUp 0.6s ease 0.15s both;
+    }
+
+    .portal-card {
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 20px;
+      padding: 40px 32px;
+      width: 280px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      text-decoration: none;
+      display: block;
+      position: relative;
+      overflow: hidden;
+      backdrop-filter: blur(12px);
+    }
+
+    .portal-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 20px;
+      opacity: 0;
+      transition: opacity 0.25s;
+    }
+
+    .portal-card.attendance::before {
+      background: linear-gradient(135deg, rgba(37,99,235,0.2), rgba(59,130,246,0.1));
+    }
+
+    .portal-card.office::before {
+      background: linear-gradient(135deg, rgba(5,150,105,0.2), rgba(16,185,129,0.1));
+    }
+
+    .portal-card:hover {
+      transform: translateY(-6px);
+      border-color: rgba(255,255,255,0.25);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+
+    .portal-card:hover::before { opacity: 1; }
+
+    .portal-icon {
+      width: 72px; height: 72px;
+      border-radius: 18px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 32px;
+      margin: 0 auto 20px;
+    }
+
+    .attendance .portal-icon {
+      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      box-shadow: 0 8px 24px rgba(37,99,235,0.35);
+    }
+
+    .office .portal-icon {
+      background: linear-gradient(135deg, #059669, #10b981);
+      box-shadow: 0 8px 24px rgba(5,150,105,0.35);
+    }
+
+    .portal-card h2 {
+      color: white;
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .portal-card p {
+      color: rgba(255,255,255,0.55);
+      font-size: 13.5px;
+      line-height: 1.6;
+      margin-bottom: 28px;
+    }
+
+    .portal-btn {
+      display: inline-block;
+      padding: 12px 28px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .attendance .portal-btn {
+      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      box-shadow: 0 4px 16px rgba(37,99,235,0.4);
+    }
+
+    .office .portal-btn {
+      background: linear-gradient(135deg, #059669, #10b981);
+      box-shadow: 0 4px 16px rgba(5,150,105,0.4);
+    }
+
+    .portal-btn:hover { filter: brightness(1.1); transform: scale(1.02); }
+
+    .features {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: center;
+      margin-bottom: 24px;
+    }
+
+    .feature-tag {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 20px;
+      padding: 4px 10px;
+      font-size: 11px;
+      color: rgba(255,255,255,0.5);
+    }
+
+    .footer {
+      margin-top: 48px;
+      color: rgba(255,255,255,0.3);
+      font-size: 12px;
+      text-align: center;
+      animation: fadeUp 0.6s ease 0.3s both;
+    }
+
+    @keyframes fadeDown {
+      from { opacity: 0; transform: translateY(-20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 640px) {
+      .portals { flex-direction: column; }
+      .portal-card { width: 100%; max-width: 320px; padding: 32px 24px; }
+      .brand h1 { font-size: 22px; }
+    }
+  </style>
 </head>
-<body class="login-body">
+<body>
 
-  <div class="login-card">
-    <div class="login-logo">
-      <div class="logo-circle">PTP</div>
-      <h2>Attendance System</h2>
-      <p>Pro Tax Protect</p>
-    </div>
+  <div class="brand">
+    <div class="brand-logo">PTP</div>
+    <h1>Pro Tax Protect</h1>
+    <p>Office Management System</p>
+  </div>
 
-    <form id="loginForm">
-      <div class="form-group">
-        <label>Employee ID</label>
-        <input type="text" id="empId" placeholder="e.g. PTP-0002" autocomplete="username" required />
+  <div class="portals">
+
+    <a href="/attendance.html" class="portal-card attendance">
+      <div class="portal-icon">&#9200;</div>
+      <h2>Attendance Portal</h2>
+      <p>Mark your daily attendance, apply for leave, and track your attendance history.</p>
+      <div class="features">
+        <span class="feature-tag">Check In / Out</span>
+        <span class="feature-tag">Leave Apply</span>
+        <span class="feature-tag">History</span>
       </div>
-      <div class="form-group">
-        <label>Password</label>
-        <div class="password-wrap">
-          <input type="password" id="password" placeholder="Enter password" autocomplete="current-password" required />
-          <span class="eye-btn" onclick="togglePass()">&#128065;</span>
-        </div>
+      <span class="portal-btn">Employee Login</span>
+    </a>
+
+    <a href="/office.html" class="portal-card office">
+      <div class="portal-icon">&#128188;</div>
+      <h2>Office Management</h2>
+      <p>Manage clients, tasks, compliance, salary, and employee administration.</p>
+      <div class="features">
+        <span class="feature-tag">Clients</span>
+        <span class="feature-tag">Tasks</span>
+        <span class="feature-tag">Compliance</span>
+        <span class="feature-tag">Salary</span>
       </div>
+      <span class="portal-btn">Admin Login</span>
+    </a>
 
-      <div id="loginError" class="alert alert-error" style="display:none"></div>
+  </div>
 
-      <button type="submit" class="btn-primary" id="loginBtn">
-        <span id="loginBtnText">Login</span>
-        <span id="loginSpinner" class="spinner" style="display:none"></span>
-      </button>
-    </form>
-
-    <p class="login-footer">Contact admin if you forgot your password</p>
+  <div class="footer">
+    &copy; 2025 Pro Tax Protect &nbsp;&middot;&nbsp; All rights reserved
   </div>
 
   <script>
-    // Already logged in? redirect
-    if (localStorage.getItem('att_token')) {
-      window.location.href = '/dashboard.html';
-    }
-
-    function togglePass() {
-      const p = document.getElementById('password');
-      p.type = p.type === 'password' ? 'text' : 'password';
-    }
-
-    document.getElementById('loginForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const btn = document.getElementById('loginBtn');
-      const txt = document.getElementById('loginBtnText');
-      const spin = document.getElementById('loginSpinner');
-      const err = document.getElementById('loginError');
-
-      btn.disabled = true;
-      txt.textContent = 'Logging in...';
-      spin.style.display = 'inline-block';
-      err.style.display = 'none';
-
-      try {
-        const res = await fetch('/api/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            emp_id: document.getElementById('empId').value.trim(),
-            password: document.getElementById('password').value
-          })
-        });
-        const data = await res.json();
-        if (data.success) {
-          localStorage.setItem('att_token', data.token);
-          localStorage.setItem('att_emp', JSON.stringify(data.employee));
-          window.location.href = '/dashboard.html';
-        } else {
-          err.textContent = data.message;
-          err.style.display = 'block';
-          btn.disabled = false;
-          txt.textContent = 'Login';
-          spin.style.display = 'none';
-        }
-      } catch {
-        err.textContent = 'Network error. Please try again.';
-        err.style.display = 'block';
-        btn.disabled = false;
-        txt.textContent = 'Login';
-        spin.style.display = 'none';
-      }
-    });
+    // If already logged in, show both options still (user chooses where to go)
+    // No auto-redirect from landing page
   </script>
 </body>
 </html>

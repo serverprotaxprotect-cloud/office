@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PTP Attendance - Login</title>
+  <link rel="stylesheet" href="/assets/style.css" />
+</head>
+<body class="login-body">
+
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="logo-circle">PTP</div>
+      <h2>Attendance Portal</h2>
+      <p>Pro Tax Protect</p>
+    </div>
+
+    <form id="loginForm">
+      <div class="form-group">
+        <label>Employee ID</label>
+        <input type="text" id="empId" placeholder="e.g. PTP-0002" autocomplete="username" required />
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <div class="password-wrap">
+          <input type="password" id="password" placeholder="Enter password" autocomplete="current-password" required />
+          <span class="eye-btn" onclick="togglePass()">&#128065;</span>
+        </div>
+      </div>
+
+      <div id="loginError" class="alert alert-error" style="display:none"></div>
+
+      <button type="submit" class="btn-primary" id="loginBtn">
+        <span id="loginBtnText">Login</span>
+        <span id="loginSpinner" class="spinner" style="display:none"></span>
+      </button>
+    </form>
+
+    <p class="login-footer" style="margin-top:16px;">
+      <a href="/" style="color:#64748b;text-decoration:none;font-size:13px;">&#8592; Back to Portal Selection</a>
+    </p>
+    <p class="login-footer">Contact admin if you forgot your password</p>
+  </div>
+
+  <script>
+    if (localStorage.getItem('att_token')) {
+      window.location.href = '/dashboard.html';
+    }
+
+    function togglePass() {
+      const p = document.getElementById('password');
+      p.type = p.type === 'password' ? 'text' : 'password';
+    }
+
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('loginBtn');
+      const txt = document.getElementById('loginBtnText');
+      const spin = document.getElementById('loginSpinner');
+      const err = document.getElementById('loginError');
+
+      btn.disabled = true;
+      txt.textContent = 'Logging in...';
+      spin.style.display = 'inline-block';
+      err.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            emp_id: document.getElementById('empId').value.trim(),
+            password: document.getElementById('password').value
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          localStorage.setItem('att_token', data.token);
+          localStorage.setItem('att_emp', JSON.stringify(data.employee));
+          window.location.href = '/dashboard.html';
+        } else {
+          err.textContent = data.message;
+          err.style.display = 'block';
+          btn.disabled = false;
+          txt.textContent = 'Login';
+          spin.style.display = 'none';
+        }
+      } catch {
+        err.textContent = 'Network error. Please try again.';
+        err.style.display = 'block';
+        btn.disabled = false;
+        txt.textContent = 'Login';
+        spin.style.display = 'none';
+      }
+    });
+  </script>
+</body>
+</html>

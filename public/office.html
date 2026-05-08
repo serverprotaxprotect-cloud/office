@@ -141,9 +141,83 @@
     .page-title small{font-size:13px;font-weight:400;color:#64748b}
     .empty-msg{text-align:center;color:#94a3b8;padding:32px;font-size:14px}
     .alert-err{background:#fee2e2;color:#b91c1c;padding:10px 12px;border-radius:8px;font-size:13px;margin-top:8px}
+
+    /* ── Office Login Overlay ── */
+    #officeLoginOverlay {
+      position:fixed;inset:0;z-index:9999;
+      background:linear-gradient(135deg,#0f1b35 0%,#1a3a6b 50%,#0d2d5e 100%);
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      padding:20px;
+    }
+    #officeLoginOverlay .ol-brand { text-align:center; margin-bottom:32px; }
+    #officeLoginOverlay .ol-logo {
+      width:72px;height:72px;background:linear-gradient(135deg,#059669,#10b981);
+      border-radius:18px;display:flex;align-items:center;justify-content:center;
+      font-size:26px;font-weight:800;color:white;margin:0 auto 14px;
+      box-shadow:0 8px 32px rgba(5,150,105,0.4);
+    }
+    #officeLoginOverlay h2 { color:white;font-size:22px;font-weight:700;margin-bottom:4px; }
+    #officeLoginOverlay .ol-sub { color:rgba(255,255,255,0.5);font-size:13px;letter-spacing:1.5px;text-transform:uppercase; }
+    #officeLoginOverlay .ol-card {
+      background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.14);
+      border-radius:20px;padding:36px 32px;width:100%;max-width:380px;
+      backdrop-filter:blur(12px);
+    }
+    #officeLoginOverlay .ol-field { margin-bottom:16px; }
+    #officeLoginOverlay .ol-field label { display:block;color:rgba(255,255,255,0.7);font-size:12px;font-weight:600;margin-bottom:6px;letter-spacing:.5px;text-transform:uppercase; }
+    #officeLoginOverlay .ol-field input {
+      width:100%;padding:12px 14px;background:rgba(255,255,255,0.08);
+      border:1px solid rgba(255,255,255,0.15);border-radius:10px;
+      color:white;font-size:14px;outline:none;transition:border .2s;
+    }
+    #officeLoginOverlay .ol-field input::placeholder { color:rgba(255,255,255,0.3); }
+    #officeLoginOverlay .ol-field input:focus { border-color:rgba(16,185,129,0.6); }
+    #officeLoginOverlay .ol-pw-wrap { position:relative; }
+    #officeLoginOverlay .ol-pw-wrap input { padding-right:44px; }
+    #officeLoginOverlay .ol-eye { position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:16px;color:rgba(255,255,255,0.4); }
+    #officeLoginOverlay .ol-btn {
+      width:100%;padding:13px;background:linear-gradient(135deg,#059669,#10b981);
+      border:none;border-radius:10px;color:white;font-size:15px;font-weight:700;
+      cursor:pointer;transition:filter .2s;margin-top:4px;
+      box-shadow:0 4px 16px rgba(5,150,105,0.4);
+    }
+    #officeLoginOverlay .ol-btn:hover { filter:brightness(1.1); }
+    #officeLoginOverlay .ol-btn:disabled { opacity:0.6;cursor:not-allowed; }
+    #officeLoginOverlay .ol-err {
+      background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);
+      color:#fca5a5;border-radius:8px;padding:10px 12px;font-size:13px;margin-top:12px;
+    }
+    #officeLoginOverlay .ol-back { text-align:center;margin-top:20px; }
+    #officeLoginOverlay .ol-back a { color:rgba(255,255,255,0.4);font-size:13px;text-decoration:none; }
+    #officeLoginOverlay .ol-back a:hover { color:rgba(255,255,255,0.7); }
   </style>
 </head>
 <body>
+
+<!-- Office Login Overlay -->
+<div id="officeLoginOverlay">
+  <div class="ol-brand">
+    <div class="ol-logo">&#128188;</div>
+    <h2>Office Management</h2>
+    <p class="ol-sub">Pro Tax Protect</p>
+  </div>
+  <div class="ol-card">
+    <div class="ol-field">
+      <label>Employee ID</label>
+      <input type="text" id="olEmpId" placeholder="e.g. PTP-0001" autocomplete="username" />
+    </div>
+    <div class="ol-field">
+      <label>Password</label>
+      <div class="ol-pw-wrap">
+        <input type="password" id="olPassword" placeholder="Enter password" autocomplete="current-password" />
+        <span class="ol-eye" onclick="document.getElementById('olPassword').type=document.getElementById('olPassword').type==='password'?'text':'password'">&#128065;</span>
+      </div>
+    </div>
+    <div class="ol-err hidden" id="olErr"></div>
+    <button class="ol-btn" id="olBtn" onclick="doOfficeLogin()">Login to Office Management</button>
+    <div class="ol-back"><a href="/">&#8592; Back to Portal Selection</a></div>
+  </div>
+</div>
 
 <div class="loading-overlay" id="loadingOverlay"><div class="loading-spinner"></div></div>
 
@@ -798,11 +872,55 @@
 
 <script>
 // ── Auth ─────────────────────────────────────────────────────
-const token = localStorage.getItem('att_token');
-const user  = JSON.parse(localStorage.getItem('att_emp') || '{}');
-if (!token) { window.location.href = '/'; }
+let token = localStorage.getItem('att_token');
+let user  = JSON.parse(localStorage.getItem('att_emp') || '{}');
 
-document.getElementById('userChip').textContent = user.formal_name || user.name || '';
+function showOfficeApp() {
+  document.getElementById('officeLoginOverlay').style.display = 'none';
+  document.getElementById('userChip').textContent = user.formal_name || user.name || '';
+}
+
+async function doOfficeLogin() {
+  const empId = document.getElementById('olEmpId').value.trim();
+  const pass  = document.getElementById('olPassword').value;
+  const btn   = document.getElementById('olBtn');
+  const err   = document.getElementById('olErr');
+  if (!empId || !pass) { err.textContent = 'Please enter Employee ID and Password.'; err.classList.remove('hidden'); return; }
+  btn.disabled = true; btn.textContent = 'Logging in...'; err.classList.add('hidden');
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emp_id: empId, password: pass })
+    });
+    const data = await res.json();
+    if (data.success) {
+      localStorage.setItem('att_token', data.token);
+      localStorage.setItem('att_emp', JSON.stringify(data.employee));
+      token = data.token;
+      user  = data.employee;
+      showOfficeApp();
+      initOfficeApp();
+    } else {
+      err.textContent = data.message || 'Login failed.';
+      err.classList.remove('hidden');
+      btn.disabled = false; btn.textContent = 'Login to Office Management';
+    }
+  } catch {
+    err.textContent = 'Network error. Please try again.';
+    err.classList.remove('hidden');
+    btn.disabled = false; btn.textContent = 'Login to Office Management';
+  }
+}
+
+// Enter key triggers login
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('officeLoginOverlay').style.display !== 'none') doOfficeLogin();
+});
+
+if (token) {
+  showOfficeApp();
+}
 
 const api = async (path, opts = {}) => {
   const r = await fetch('/api' + path, {
@@ -2317,11 +2435,10 @@ document.addEventListener('click', e => {
 });
 
 // ── INIT ─────────────────────────────────────────────────────
-(async function init() {
+async function initOfficeApp() {
   await loadMeta();
   await loadDashboard();
   panelLoaded['dashboard'] = true;
-  // Load notifications silently for badge
   try {
     const nd = await api('/tasks/notifications');
     if (nd.success && nd.total_alerts > 0) {
@@ -2333,7 +2450,9 @@ document.addEventListener('click', e => {
     }
   } catch(e) {}
   document.getElementById('loadingOverlay').style.display = 'none';
-})();
+}
+
+if (token) { initOfficeApp(); }
 </script>
 </body>
 </html>
