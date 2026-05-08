@@ -305,6 +305,8 @@
     <div class="sb-item" id="sb-companies" onclick="showPanel('companies')"><span class="ic">&#127970;</span>Companies</div>
     <div class="sb-item" id="sb-directors" onclick="showPanel('directors')"><span class="ic">&#128104;</span>Directors / KYC</div>
     <div class="sb-item" id="sb-comptracking" onclick="showPanel('comptracking')"><span class="ic">&#9989;</span>Compliance Tracking</div>
+    <div class="sb-section" id="sec-management">Management</div>
+    <div class="sb-item" id="sb-empmanagement" onclick="openAdminPortal()"><span class="ic">&#128101;</span>Employee Management</div>
   </aside>
 
   <main class="content">
@@ -983,9 +985,13 @@ function applyPermissions() {
   if (secClients) secClients.style.display = clientVisible ? '' : 'none';
   if (secComp)    secComp.style.display    = compVisible   ? '' : 'none';
 
-  // Attendance Admin button in navbar
+  // Attendance Admin navbar button + Employee Management sidebar item
   const adminBtn = document.getElementById('attendanceAdminBtn');
   if (adminBtn) adminBtn.style.display = perms.attendance_admin ? '' : 'none';
+  const empMgmt    = document.getElementById('sb-empmanagement');
+  const secMgmt    = document.getElementById('sec-management');
+  if (empMgmt) empMgmt.style.display = perms.attendance_admin ? '' : 'none';
+  if (secMgmt) secMgmt.style.display = perms.attendance_admin ? '' : 'none';
 
   // Create Task button — hide for employee
   const isEmployee = user.user_type === 'employee';
