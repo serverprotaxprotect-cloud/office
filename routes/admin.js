@@ -476,143 +476,227 @@ router.post('/attendance/import', adminAuth, upload.single('file'), async (req, 
 
   const results = { imported: 0, skipped: 0, errors: [] };
 
+  // ── Shared helpers ──────────────────────────────────────────
+  // Parse Excel serial or DD/MM/YYYY or DD-MM-YYYY → { dateStr, timeStr }
+  function parseDateTime(val) {
+    if (!val && val !== 0) return { dateStr: null, timeStr: null };
+    if (typeof val === 'number') {
+      // Excel datetime serial: integer = date, fraction = time
+      const totalSec = Math.round((val - Math.floor(val)) * 86400);
+      const h = Math.floor(totalSec / 3600);
+      const m = Math.floor((totalSec % 3600) / 60);
+      const s = totalSec % 60;
+      const timeStr = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+      const d = new Date(Math.round((Math.floor(val) - 25569) * 86400 * 1000));
+      const dateStr = d.toISOString().split('T')[0];
+      return { dateStr, timeStr: h > 0 || m > 0 ? timeStr : null };
+    }
+    const s = val.toString().trim();
+    // DD/MM/YYYY HH:MM or DD-MM-YYYY HH:MM
+    const dtm = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})\s+(\d{1,2}:\d{2}(:\d{2})?)$/);
+    if (dtm) return { dateStr: `${dtm[3]}-${dtm[2].padStart(2,'0')}-${dtm[1].padStart(2,'0')}`, timeStr: dtm[4] };
+    // DD/MM/YYYY only
+    const dm = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (dm) return { dateStr: `${dm[3]}-${dm[2].padStart(2,'0')}-${dm[1].padStart(2,'0')}`, timeStr: null };
+    // YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return { dateStr: s, timeStr: null };
+    return { dateStr: null, timeStr: null };
+  }
+
+  function parseTimeOnly(val) {
+    if (!val && val !== 0) return null;
+    const s = val.toString().trim();
+    if (!s || s === '-') return null;
+    if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(s)) return s.includes(':') && s.split(':').length === 2 ? s + ':00' : s;
+    if (typeof val === 'number' && val > 0 && val < 1) {
+      const sec = Math.round(val * 86400);
+      return `${String(Math.floor(sec/3600)).padStart(2,'0')}:${String(Math.floor((sec%3600)/60)).padStart(2,'0')}:00`;
+    }
+    return null;
+  }
+
+  async function upsertAttendance(empId, empName, dateStr, inTime, outTime, lateMinutes, workingHours, finalStatus, remark, adminName) {
+    const dateObj = new Date(dateStr);
+    const month   = dateObj.getMonth() + 1;
+    const year    = dateObj.getFullYear();
+    const existing = await db.query(
+      `SELECT emp_id FROM daily_attendance WHERE emp_id=$1 AND date::date=$2`,
+      [empId, dateStr]
+    );
+    if (existing.rows.length > 0) {
+      await db.query(
+        `UPDATE daily_attendance SET
+           first_in=COALESCE($1, first_in), last_out=COALESCE($2, last_out),
+           working_hours=COALESCE($3, working_hours), final_status=$4,
+           late_minutes=$5, remark=COALESCE($6, remark), approved_by=$7, approved_at=NOW()
+         WHERE emp_id=$8 AND date::date=$9`,
+        [inTime, outTime, workingHours, finalStatus, lateMinutes, remark, adminName, empId, dateStr]
+      );
+    } else {
+      await db.query(
+        `INSERT INTO daily_attendance
+           (date, emp_id, employee_name, formal_name, first_in, last_out,
+            working_hours, final_status, late_minutes, month, year, remark, approved_by, approved_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW())`,
+        [dateStr, empId, empName, empName, inTime, outTime,
+         workingHours, finalStatus, lateMinutes, month, year, remark, adminName]
+      );
+    }
+  }
+
   try {
     const cfg = await getSettings();
-    const fullDayMins = parseInt(cfg.FULL_DAY_MINUTES || '480');
-    const halfDayMins = parseInt(cfg.HALF_DAY_MINUTES || '240');
-    const officeStartMins = toMinutes(cfg.OFFICE_START_TIME || '10:00:00');
+    const fullDayMins     = parseInt(cfg.FULL_DAY_MINUTES    || '480');
+    const halfDayMins     = parseInt(cfg.HALF_DAY_MINUTES    || '240');
+    const officeStartMins = toMinutes(cfg.OFFICE_START_TIME  || '10:00:00');
     const lateThreshold   = parseInt(cfg.LATE_THRESHOLD_MINUTES || '0');
 
     const wb = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: false });
     const ws = wb.Sheets['Attendance'] || wb.Sheets[wb.SheetNames[0]];
-    if (!ws) return res.status(400).json({ success: false, message: 'No "Attendance" sheet found in file' });
+    if (!ws) return res.status(400).json({ success: false, message: 'No sheet found in file' });
 
     const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-    if (rows.length < 2) return res.status(400).json({ success: false, message: 'File is empty or has no data rows' });
+    if (rows.length < 2) return res.status(400).json({ success: false, message: 'File has no data rows' });
 
-    // Detect header row (first row)
     const headers = rows[0].map(h => h.toString().toLowerCase().trim());
-    const colIdx = {
+    const col = {
       date:    headers.findIndex(h => h.includes('date')),
-      emp_id:  headers.findIndex(h => h.includes('emp') && h.includes('id')),
-      name:    headers.findIndex(h => h.includes('name')),
-      in:      headers.findIndex(h => h.includes('in') && !h.includes('name')),
-      out:     headers.findIndex(h => h.includes('out')),
-      remark:  headers.findIndex(h => h.includes('remark')),
+      emp_id:  headers.findIndex(h => (h.includes('emp') && h.includes('id')) || h === 'employee id' || h === 'employeeid'),
+      name:    headers.findIndex(h => h === 'name' || h === 'employee name'),
+      action:  headers.findIndex(h => h === 'action' || h === 'type' || h === 'punch'),
+      in:      headers.findIndex(h => (h.includes('in') || h.includes('login')) && !h.includes('emp') && !h.includes('lati') && !h.includes('name')),
+      out:     headers.findIndex(h => h.includes('out') || h.includes('logout')),
+      time:    headers.findIndex(h => h === 'time' || h === 'punch time'),
+      remark:  headers.findIndex(h => h.includes('remark') || h.includes('note')),
     };
 
-    if (colIdx.date < 0 || colIdx.emp_id < 0)
-      return res.status(400).json({ success: false, message: 'Required columns not found. Ensure "Date" and "Emp ID" columns exist.' });
+    if (col.date < 0 || col.emp_id < 0)
+      return res.status(400).json({ success: false, message: `Columns not found. Need "Date" and "Employee ID". Found: ${headers.join(', ')}` });
 
     const dataRows = rows.slice(1).filter(r => r.some(c => c !== ''));
 
-    for (let i = 0; i < dataRows.length; i++) {
-      const row = dataRows[i];
-      const rowNum = i + 2;
-      try {
-        // Parse date
-        const rawDate = row[colIdx.date];
-        let dateStr = null;
-        if (typeof rawDate === 'number') {
-          const d = new Date(Math.round((rawDate - 25569) * 86400 * 1000));
-          dateStr = d.toISOString().split('T')[0];
+    // ── Detect format ─────────────────────────────────────────
+    // Format A: Raw punch log with Login/Logout in Action column
+    // Format B: Summary sheet with IN and OUT columns
+    const hasActionCol = col.action >= 0 &&
+      dataRows.some(r => /^(login|logout|in|out)$/i.test((r[col.action] || '').toString().trim()));
+
+    if (hasActionCol) {
+      // ── FORMAT A: Punch log (Login/Logout rows) ─────────────
+      // Group all punches by (dateStr, empId)
+      const groups = new Map(); // key = "dateStr|empId"
+
+      for (const row of dataRows) {
+        const rawDate = row[col.date];
+        const { dateStr, timeStr: dtTime } = parseDateTime(rawDate);
+        if (!dateStr) continue;
+
+        const empId = row[col.emp_id]?.toString().trim();
+        if (!empId) continue;
+
+        const action = (row[col.action] || '').toString().trim().toLowerCase();
+        // Extract time: from datetime column, or from separate time column
+        let timeStr = dtTime;
+        if (!timeStr && col.time >= 0) timeStr = parseTimeOnly(row[col.time]);
+
+        const key = `${dateStr}|${empId}`;
+        if (!groups.has(key)) groups.set(key, { dateStr, empId, empName: row[col.name]?.toString().trim() || '', logins: [], logouts: [] });
+        const g = groups.get(key);
+        if (!g.empName && row[col.name]) g.empName = row[col.name].toString().trim();
+        if (timeStr) {
+          if (action === 'login' || action === 'in') g.logins.push(timeStr);
+          else if (action === 'logout' || action === 'out') g.logouts.push(timeStr);
         } else {
-          const s = rawDate.toString().trim();
-          const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
-          if (m) dateStr = `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
-          else if (/^\d{4}-\d{2}-\d{2}$/.test(s)) dateStr = s;
+          // No time — just record presence
+          if (action === 'login' || action === 'in') g.logins.push(null);
+          else g.logouts.push(null);
         }
-        if (!dateStr) { results.errors.push(`Row ${rowNum}: Invalid date "${rawDate}"`); results.skipped++; continue; }
+      }
 
-        const empId = row[colIdx.emp_id]?.toString().trim();
-        if (!empId) { results.errors.push(`Row ${rowNum}: Emp ID missing`); results.skipped++; continue; }
+      // Load all employees once
+      const empCache = {};
+      const allEmps = await db.query(`SELECT emp_id, name, formal_name FROM emplist`);
+      allEmps.rows.forEach(e => { empCache[e.emp_id.toLowerCase()] = e; });
 
-        // Look up employee
-        const empRow = await db.query(
-          `SELECT emp_id, name, formal_name FROM emplist WHERE LOWER(emp_id)=LOWER($1)`,
-          [empId]
-        );
-        if (!empRow.rows.length) { results.errors.push(`Row ${rowNum}: Emp ID "${empId}" not found`); results.skipped++; continue; }
-        const emp = empRow.rows[0];
-        const empName = emp.formal_name || emp.name;
+      for (const [key, g] of groups) {
+        try {
+          const emp = empCache[g.empId.toLowerCase()];
+          if (!emp) { results.errors.push(`Emp ID "${g.empId}" not found`); results.skipped++; continue; }
+          const empName = emp.formal_name || emp.name;
 
-        // Parse times — accept HH:MM or HH:MM:SS
-        const parseTime = v => {
-          if (!v && v !== 0) return null;
-          const s = v.toString().trim();
-          if (!s || s === '-') return null;
-          if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(s)) return s.length === 5 ? s + ':00' : s;
-          // Excel fractional day
-          if (typeof v === 'number' && v > 0 && v < 1) {
-            const totalSec = Math.round(v * 86400);
-            const h = Math.floor(totalSec / 3600);
-            const m = Math.floor((totalSec % 3600) / 60);
-            return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:00`;
+          const inTime  = g.logins[0]  || null; // first login
+          const outTime = g.logouts[g.logouts.length - 1] || null; // last logout
+
+          let workingHours = null;
+          let finalStatus  = inTime ? 'Pending' : 'Absent';
+          let lateMinutes  = 0;
+
+          if (inTime) lateMinutes = Math.max(0, toMinutes(inTime) - officeStartMins - lateThreshold);
+          if (inTime && outTime) {
+            const worked = Math.max(0, toMinutes(outTime) - toMinutes(inTime));
+            workingHours = `${Math.floor(worked/60)}h ${worked%60}m`;
+            finalStatus  = worked >= fullDayMins ? 'Present' : worked >= halfDayMins ? 'Half Day' : 'Short Day';
+          } else if (inTime) {
+            finalStatus = 'Pending';
           }
-          return null;
-        };
 
-        const inTime  = colIdx.in  >= 0 ? parseTime(row[colIdx.in])  : null;
-        const outTime = colIdx.out >= 0 ? parseTime(row[colIdx.out]) : null;
-        const remark  = colIdx.remark >= 0 ? (row[colIdx.remark]?.toString().trim() || null) : null;
-
-        // Calculate working hours and status
-        let workingHours = null;
-        let finalStatus  = inTime ? 'Pending' : 'Absent';
-        let lateMinutes  = 0;
-
-        if (inTime) {
-          lateMinutes = Math.max(0, toMinutes(inTime) - officeStartMins - lateThreshold);
+          await upsertAttendance(emp.emp_id, empName, g.dateStr, inTime, outTime, lateMinutes, workingHours, finalStatus, null, req.admin.name);
+          results.imported++;
+        } catch (e) {
+          results.errors.push(`${key}: ${e.message}`);
+          results.skipped++;
         }
-        if (inTime && outTime) {
-          const worked = Math.max(0, toMinutes(outTime) - toMinutes(inTime));
-          workingHours = `${Math.floor(worked/60)}h ${worked%60}m`;
-          finalStatus  = worked >= fullDayMins ? 'Present' : worked >= halfDayMins ? 'Half Day' : 'Short Day';
+      }
+
+    } else {
+      // ── FORMAT B: Summary sheet (IN / OUT columns) ──────────
+      const empCache = {};
+      const allEmps = await db.query(`SELECT emp_id, name, formal_name FROM emplist`);
+      allEmps.rows.forEach(e => { empCache[e.emp_id.toLowerCase()] = e; });
+
+      for (let i = 0; i < dataRows.length; i++) {
+        const row = dataRows[i];
+        const rowNum = i + 2;
+        try {
+          const { dateStr } = parseDateTime(row[col.date]);
+          if (!dateStr) { results.errors.push(`Row ${rowNum}: Invalid date`); results.skipped++; continue; }
+
+          const empId = row[col.emp_id]?.toString().trim();
+          if (!empId) { results.errors.push(`Row ${rowNum}: Emp ID missing`); results.skipped++; continue; }
+
+          const emp = empCache[empId.toLowerCase()];
+          if (!emp) { results.errors.push(`Row ${rowNum}: Emp ID "${empId}" not found`); results.skipped++; continue; }
+          const empName = emp.formal_name || emp.name;
+
+          const inTime  = col.in  >= 0 ? parseTimeOnly(row[col.in])  : null;
+          const outTime = col.out >= 0 ? parseTimeOnly(row[col.out]) : null;
+          const remark  = col.remark >= 0 ? (row[col.remark]?.toString().trim() || null) : null;
+
+          let workingHours = null;
+          let finalStatus  = inTime ? 'Pending' : 'Absent';
+          let lateMinutes  = 0;
+
+          if (inTime) lateMinutes = Math.max(0, toMinutes(inTime) - officeStartMins - lateThreshold);
+          if (inTime && outTime) {
+            const worked = Math.max(0, toMinutes(outTime) - toMinutes(inTime));
+            workingHours = `${Math.floor(worked/60)}h ${worked%60}m`;
+            finalStatus  = worked >= fullDayMins ? 'Present' : worked >= halfDayMins ? 'Half Day' : 'Short Day';
+          }
+
+          await upsertAttendance(emp.emp_id, empName, dateStr, inTime, outTime, lateMinutes, workingHours, finalStatus, remark, req.admin.name);
+          results.imported++;
+        } catch (rowErr) {
+          results.errors.push(`Row ${rowNum}: ${rowErr.message}`);
+          results.skipped++;
         }
-
-        const dateObj = new Date(dateStr);
-        const month   = dateObj.getMonth() + 1;
-        const year    = dateObj.getFullYear();
-
-        // Upsert into daily_attendance
-        const existing = await db.query(
-          `SELECT emp_id FROM daily_attendance WHERE emp_id=$1 AND date::date=$2`,
-          [emp.emp_id, dateStr]
-        );
-
-        if (existing.rows.length > 0) {
-          await db.query(
-            `UPDATE daily_attendance SET
-               first_in=COALESCE($1, first_in), last_out=COALESCE($2, last_out),
-               working_hours=COALESCE($3, working_hours), final_status=$4,
-               late_minutes=$5, remark=COALESCE($6, remark),
-               approved_by=$7, approved_at=NOW()
-             WHERE emp_id=$8 AND date::date=$9`,
-            [inTime, outTime, workingHours, finalStatus, lateMinutes,
-             remark, req.admin.name, emp.emp_id, dateStr]
-          );
-        } else {
-          await db.query(
-            `INSERT INTO daily_attendance
-               (date, emp_id, employee_name, formal_name, first_in, last_out,
-                working_hours, final_status, late_minutes, month, year, remark, approved_by, approved_at)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW())`,
-            [dateStr, emp.emp_id, empName, empName, inTime, outTime,
-             workingHours, finalStatus, lateMinutes, month, year,
-             remark, req.admin.name]
-          );
-        }
-        results.imported++;
-      } catch (rowErr) {
-        results.errors.push(`Row ${rowNum}: ${rowErr.message}`);
-        results.skipped++;
       }
     }
 
     res.json({
       success: true,
       message: `Import complete! ${results.imported} records imported, ${results.skipped} skipped.`,
-      results
+      results,
+      format_detected: hasActionCol ? 'Punch Log (Login/Logout)' : 'Summary (IN/OUT columns)'
     });
   } catch (err) {
     console.error('Attendance import error:', err);
