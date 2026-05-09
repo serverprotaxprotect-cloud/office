@@ -367,6 +367,21 @@
         <button class="btn-sm" id="salTab-structure" onclick="showSalTab('structure')" style="background:#1e293b;">Salary Structure</button>
         <button class="btn-sm" id="salTab-calculate" onclick="showSalTab('calculate')" style="background:#f1f5f9;color:#1e293b;">Calculate</button>
         <button class="btn-sm" id="salTab-records" onclick="showSalTab('records')" style="background:#f1f5f9;color:#1e293b;">View Records</button>
+        <button class="btn-sm" id="salTab-settings" onclick="showSalTab('settings')" style="background:#f1f5f9;color:#1e293b;">&#9881; Settings</button>
+      </div>
+
+      <!-- Settings sub-panel -->
+      <div id="sal-settings" style="display:none;">
+        <div class="card">
+          <div class="card-title">Salary Slip Settings</div>
+          <div id="salSettingsMsg" class="alert" style="display:none;margin-bottom:12px;"></div>
+          <div class="form-group" style="margin-bottom:14px;">
+            <label style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px;">HR Signatory Name</label>
+            <input type="text" id="hrSignatoryName" placeholder="e.g. Rahul Kumar" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none;" />
+            <p style="font-size:12px;color:#94a3b8;margin-top:4px;">This name appears as the authorised signatory on all salary slips.</p>
+          </div>
+          <button class="btn-sm" style="background:#16a34a;" onclick="saveSalarySettings()">Save Settings</button>
+        </div>
       </div>
 
       <!-- Structure sub-panel -->
@@ -794,14 +809,41 @@ function showPanel(name) {
 
 // ── Salary sub-tabs ──────────────────────────────────────────
 function showSalTab(tab) {
-  ['structure','calculate','records'].forEach(t => {
-    document.getElementById('sal-' + t).style.display = t === tab ? 'block' : 'none';
+  ['structure','calculate','records','settings'].forEach(t => {
+    const el = document.getElementById('sal-' + t);
+    if (el) el.style.display = t === tab ? 'block' : 'none';
     const btn = document.getElementById('salTab-' + t);
-    btn.style.background = t === tab ? '#1e293b' : '#f1f5f9';
-    btn.style.color      = t === tab ? '#fff' : '#1e293b';
+    if (btn) { btn.style.background = t === tab ? '#1e293b' : '#f1f5f9'; btn.style.color = t === tab ? '#fff' : '#1e293b'; }
   });
   if (tab === 'structure') loadSalaryStructure();
   if (tab === 'records')   loadSalaryRecords();
+  if (tab === 'settings')  loadSalarySettings();
+}
+
+async function loadSalarySettings() {
+  try {
+    const data = await api('/admin/settings');
+    if (data.success) {
+      document.getElementById('hrSignatoryName').value = data.settings.HR_SIGNATORY_NAME || '';
+    }
+  } catch {}
+}
+
+async function saveSalarySettings() {
+  const msg = document.getElementById('salSettingsMsg');
+  const hrName = document.getElementById('hrSignatoryName').value.trim();
+  try {
+    const data = await api('/admin/settings', {
+      method: 'POST',
+      body: JSON.stringify({ HR_SIGNATORY_NAME: hrName })
+    });
+    msg.className = data.success ? 'alert alert-success' : 'alert alert-error';
+    msg.textContent = data.success ? 'Settings saved successfully!' : data.message;
+    msg.style.display = 'block';
+    setTimeout(() => { msg.style.display = 'none'; }, 3000);
+  } catch {
+    msg.className = 'alert alert-error'; msg.textContent = 'Network error'; msg.style.display = 'block';
+  }
 }
 
 // ── OVERVIEW ─────────────────────────────────────────────────
@@ -1260,60 +1302,123 @@ async function exportSalaryExcel() {
 async function viewSalarySlip(empId, empName, month, year) {
   const data = await api(`/salary/slip/${empId}?month=${month}&year=${year}`);
   if (!data.success) { showToast(data.message, 'error'); return; }
-  const s = data.slip;
-  const e = data.employee;
+  const s = data.slip, e = data.employee, hrName = data.hr_name || '';
   const MONTHS = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
   const totalDed = (parseFloat(s.late_fine)||0) + (parseFloat(s.other_deduction)||0);
   const totalAdd = parseFloat(s.manual_addition)||0;
-  document.getElementById('salSlipContent').innerHTML = `
-    <div id="slipPrintArea" style="font-family:Arial,sans-serif;padding:8px;">
-      <div style="text-align:center;border-bottom:2px solid #1e293b;padding-bottom:12px;margin-bottom:16px;">
-        <div style="font-size:18px;font-weight:800;color:#1e293b;">PTP ASSOCIATES</div>
-        <div style="font-size:13px;color:#64748b;">Salary Slip — ${MONTHS[month]} ${year}</div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;font-size:13px;">
-        <div><span style="color:#64748b;">Employee:</span> <strong>${e?.formal_name||e?.name||empName}</strong></div>
-        <div><span style="color:#64748b;">Emp ID:</span> ${e?.emp_id||empId}</div>
-        <div><span style="color:#64748b;">Designation:</span> ${e?.designation||'--'}</div>
-        <div><span style="color:#64748b;">Status:</span> <span style="color:${s.calculation_status==='Approved'?'#16a34a':'#f59e0b'};font-weight:700;">${s.calculation_status}</span></div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;background:#f8fafc;border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px;">
-        <div>Present Days: <strong>${s.present_days||0}</strong></div>
-        <div>Half Days: <strong>${s.half_days||0}</strong></div>
-        <div>Leave Days: <strong>${s.leave_days||0}</strong></div>
-        <div>Absent Days: <strong style="color:${(s.absent_days||0)>0?'#dc2626':'inherit'}">${s.absent_days||0}</strong></div>
-        <div>Holiday Credit: <strong style="color:#7c3aed">${s.holiday_days||0}</strong></div>
-        <div>Payable Units: <strong>${s.payable_days||0}</strong></div>
-        <div>Late Count: <strong>${s.late_count||0}</strong></div>
-        <div>Late Minutes: <strong>${s.total_late_minutes||0}</strong></div>
-      </div>
-      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px;">
-        <thead><tr style="background:#1e293b;color:#fff;"><th style="padding:8px;text-align:left;">Earnings</th><th style="padding:8px;text-align:right;">Amount</th></tr></thead>
-        <tbody>
-          <tr><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">Basic Salary (${s.payable_days||0} units × ₹${(parseFloat(s.monthly_salary||0)/30).toFixed(0)}/day)</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #e2e8f0;">${money(s.gross_salary)}</td></tr>
-          ${totalAdd > 0 ? `<tr><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">Bonus / Manual Addition</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #e2e8f0;color:#16a34a;">+${money(totalAdd)}</td></tr>` : ''}
-        </tbody>
-        <thead><tr style="background:#fef2f2;"><th style="padding:8px;text-align:left;">Deductions</th><th style="padding:8px;text-align:right;">Amount</th></tr></thead>
-        <tbody>
-          ${parseFloat(s.late_fine)>0 ? `<tr><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">Late Fine</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #e2e8f0;color:#dc2626;">-${money(s.late_fine)}</td></tr>` : ''}
-          ${parseFloat(s.other_deduction)>0 ? `<tr><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">Other Deduction</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #e2e8f0;color:#dc2626;">-${money(s.other_deduction)}</td></tr>` : ''}
-          ${totalDed===0 ? `<tr><td style="padding:6px 8px;color:#94a3b8;" colspan="2">No deductions</td></tr>` : ''}
-        </tbody>
-      </table>
-      <div style="background:#f0fdf4;border:2px solid #16a34a;border-radius:8px;padding:14px;display:flex;justify-content:space-between;align-items:center;">
-        <span style="font-size:15px;font-weight:700;color:#1e293b;">Net Payable</span>
-        <span style="font-size:22px;font-weight:800;color:#16a34a;">${money(s.net_salary)}</span>
-      </div>
-      ${s.remark ? `<div style="margin-top:10px;font-size:12px;color:#64748b;">Remark: ${s.remark}</div>` : ''}
-    </div>`;
+  document.getElementById('salSlipContent').innerHTML = buildSlipHTML(s, e, month, year, hrName, MONTHS, totalDed, totalAdd, empId, empName);
   document.getElementById('salSlipModal').style.display = 'flex';
+}
+
+function buildSlipHTML(s, e, month, year, hrName, MONTHS, totalDed, totalAdd, empId, empName) {
+  return `<div id="slipPrintArea" style="font-family:Arial,sans-serif;padding:8px;">
+
+    <!-- Company Header -->
+    <div style="display:flex;align-items:center;gap:14px;border-bottom:3px solid #1e3a8a;padding-bottom:12px;margin-bottom:14px;">
+      <img src="https://taxprotect.in/wp-content/uploads/2024/08/Tax-Protect-Logo-09-June-2022-1.png"
+           style="height:52px;width:auto;object-fit:contain;flex-shrink:0;" onerror="this.style.display='none'" />
+      <div style="flex:1;">
+        <div style="font-size:14px;font-weight:900;color:#1e3a8a;letter-spacing:.3px;line-height:1.2;">PROTAX PROTECT SERVICES PRIVATE LIMITED</div>
+        <div style="font-size:10px;color:#64748b;margin-top:2px;">CIN: U74999BR2022PTC058468</div>
+        <div style="font-size:10px;color:#64748b;">A-3, P.C. Colony, Ground Floor, Below Co Working Studio Near Chandan Automobiles, Kankarbagh, Lohia Nagar, Patna – 800020</div>
+        <div style="font-size:10px;color:#64748b;">&#9993; server.protaxprotect@gmail.com &nbsp;|&nbsp; &#9990; 7280031153</div>
+      </div>
+    </div>
+
+    <!-- Slip Title -->
+    <div style="text-align:center;background:#1e3a8a;color:#fff;border-radius:6px;padding:7px;margin-bottom:14px;font-size:13px;font-weight:700;letter-spacing:.5px;">
+      SALARY SLIP — ${MONTHS[month].toUpperCase()} ${year}
+    </div>
+
+    <!-- Employee Info -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-bottom:14px;font-size:13px;">
+      <div><span style="color:#64748b;">Employee Name:</span> <strong>${e?.formal_name||e?.name||empName}</strong></div>
+      <div><span style="color:#64748b;">Employee ID:</span> ${e?.emp_id||empId}</div>
+      <div><span style="color:#64748b;">Designation:</span> ${e?.designation||'--'}</div>
+      <div><span style="color:#64748b;">Date of Joining:</span> ${e?.date_of_joining ? new Date(e.date_of_joining).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '--'}</div>
+      <div><span style="color:#64748b;">Month:</span> ${MONTHS[month]} ${year}</div>
+      <div><span style="color:#64748b;">Status:</span> <span style="color:${s.calculation_status==='Approved'?'#16a34a':'#f59e0b'};font-weight:700;">${s.calculation_status||'Pending'}</span></div>
+    </div>
+
+    <!-- Attendance Summary -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px;font-size:12px;text-align:center;">
+      ${[['Present','#16a34a',s.present_days||0],['Half Day','#f59e0b',s.half_days||0],['Leave','#2563eb',s.leave_days||0],['Holiday','#7c3aed',s.holiday_days||0],['Absent','#dc2626',s.absent_days||0],['Late','#ea580c',s.late_count||0],['Late Mins','#ea580c',s.total_late_minutes||0],['Payable','#1e293b',parseFloat(s.payable_days||0).toFixed(2)]].map(([lbl,clr,val])=>`
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px 4px;">
+          <div style="font-size:14px;font-weight:800;color:${clr};">${val}</div>
+          <div style="color:#64748b;">${lbl}</div>
+        </div>`).join('')}
+    </div>
+
+    <!-- Earnings / Deductions Table -->
+    <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:14px;">
+      <thead>
+        <tr style="background:#1e3a8a;color:#fff;">
+          <th style="padding:8px 10px;text-align:left;">Earnings</th>
+          <th style="padding:8px 10px;text-align:right;">Amount (₹)</th>
+          <th style="padding:8px 10px;text-align:left;border-left:1px solid #334155;">Deductions</th>
+          <th style="padding:8px 10px;text-align:right;">Amount (₹)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;">Basic Salary<br><small style="color:#94a3b8;">${s.payable_days||0} units × ₹${(parseFloat(s.monthly_salary||0)/30).toFixed(0)}/day</small></td>
+          <td style="padding:6px 10px;text-align:right;border-bottom:1px solid #e2e8f0;font-weight:700;">${money(s.gross_salary)}</td>
+          <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;border-left:1px solid #e2e8f0;">${(parseFloat(s.late_fine)||0)>0 ? 'Late Fine' : '—'}</td>
+          <td style="padding:6px 10px;text-align:right;border-bottom:1px solid #e2e8f0;color:#dc2626;">${(parseFloat(s.late_fine)||0)>0 ? '-'+money(s.late_fine) : ''}</td>
+        </tr>
+        ${totalAdd>0?`<tr>
+          <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;">Bonus / Addition</td>
+          <td style="padding:6px 10px;text-align:right;border-bottom:1px solid #e2e8f0;color:#16a34a;font-weight:700;">+${money(totalAdd)}</td>
+          <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;border-left:1px solid #e2e8f0;">${(parseFloat(s.other_deduction)||0)>0 ? 'Other Deduction' : '—'}</td>
+          <td style="padding:6px 10px;text-align:right;border-bottom:1px solid #e2e8f0;color:#dc2626;">${(parseFloat(s.other_deduction)||0)>0 ? '-'+money(s.other_deduction) : ''}</td>
+        </tr>`:''}
+        ${totalAdd===0 && (parseFloat(s.other_deduction)||0)>0 ? `<tr>
+          <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;">—</td><td style="border-bottom:1px solid #e2e8f0;"></td>
+          <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;border-left:1px solid #e2e8f0;">Other Deduction</td>
+          <td style="padding:6px 10px;text-align:right;border-bottom:1px solid #e2e8f0;color:#dc2626;">-${money(s.other_deduction)}</td>
+        </tr>`:''}
+        <tr style="background:#f1f5f9;font-weight:700;">
+          <td style="padding:8px 10px;">Total Earnings</td>
+          <td style="padding:8px 10px;text-align:right;">${money((parseFloat(s.gross_salary)||0)+(totalAdd))}</td>
+          <td style="padding:8px 10px;border-left:1px solid #e2e8f0;">Total Deductions</td>
+          <td style="padding:8px 10px;text-align:right;color:#dc2626;">-${money(totalDed)}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Net Salary -->
+    <div style="background:#1e3a8a;color:#fff;border-radius:8px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <span style="font-size:14px;font-weight:700;opacity:.9;">NET SALARY PAYABLE</span>
+      <span style="font-size:24px;font-weight:900;">${money(s.net_salary)}</span>
+    </div>
+
+    ${s.remark ? `<div style="background:#fef9c3;border:1px solid #fde68a;border-radius:6px;padding:10px;font-size:12px;color:#92400e;margin-bottom:14px;"><strong>Note:</strong> ${s.remark}</div>` : ''}
+
+    <!-- Signing Section -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:24px;font-size:12px;">
+      <div style="border-top:1px solid #1e293b;padding-top:8px;">
+        <div style="font-weight:700;color:#1e293b;">Employee Signature</div>
+        <div style="color:#64748b;margin-top:2px;">${e?.formal_name||e?.name||empName}</div>
+      </div>
+      <div style="border-top:1px solid #1e293b;padding-top:8px;text-align:right;">
+        <div style="font-weight:700;color:#1e293b;">Authorised Signatory (HR)</div>
+        <div style="color:#64748b;margin-top:2px;">${hrName || '________________________'}</div>
+      </div>
+    </div>
+
+    <div style="margin-top:12px;text-align:center;font-size:10px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:8px;">
+      This is a computer-generated salary slip. For queries contact HR at server.protaxprotect@gmail.com
+    </div>
+  </div>`;
 }
 
 function printSalarySlip() {
   const content = document.getElementById('slipPrintArea').innerHTML;
   const w = window.open('', '_blank');
-  w.document.write(`<html><head><title>Salary Slip</title><style>body{font-family:Arial,sans-serif;margin:24px;}table{width:100%;border-collapse:collapse;}th,td{padding:6px 8px;}</style></head><body>${content}</body></html>`);
-  w.document.close(); w.print();
+  w.document.write(`<!DOCTYPE html><html><head><title>Salary Slip – Protax Protect</title>
+    <style>body{font-family:Arial,sans-serif;margin:24px;max-width:700px;}table{width:100%;border-collapse:collapse;}th,td{padding:6px 8px;}@media print{body{margin:12px;}}</style>
+    </head><body>${content}</body></html>`);
+  w.document.close(); w.focus(); setTimeout(()=>w.print(),400);
 }
 
 function openSalAdj(empId, name, month, year, curDed=0, curAdd=0, curRemark='') {

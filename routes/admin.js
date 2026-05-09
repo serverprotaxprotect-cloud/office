@@ -775,4 +775,31 @@ router.post('/attendance/import', adminAuth, upload.single('file'), async (req, 
   }
 });
 
+// ── GET /api/admin/settings ──────────────────────────────────
+router.get('/settings', adminAuth, async (req, res) => {
+  try {
+    const s = await getSettings();
+    res.json({ success: true, settings: s });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ── POST /api/admin/settings ─────────────────────────────────
+router.post('/settings', adminAuth, async (req, res) => {
+  const updates = req.body; // { KEY: value, ... }
+  try {
+    for (const [key, value] of Object.entries(updates)) {
+      await db.query(
+        `INSERT INTO attendance_settings (key, value) VALUES ($1,$2)
+         ON CONFLICT (key) DO UPDATE SET value=$2`,
+        [key, value]
+      );
+    }
+    res.json({ success: true, message: 'Settings updated' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 module.exports = router;

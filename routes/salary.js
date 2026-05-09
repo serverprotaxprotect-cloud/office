@@ -401,12 +401,13 @@ router.get('/slip/:emp_id', adminAuth, async (req, res) => {
   const month = parseInt(req.query.month) || new Date().getMonth() + 1;
   const year  = parseInt(req.query.year)  || new Date().getFullYear();
   try {
-    const [salRow, empRow] = await Promise.all([
+    const [salRow, empRow, cfg] = await Promise.all([
       db.query(`SELECT * FROM salary WHERE emp_id=$1 AND month=$2 AND year=$3`, [emp_id, month, year]),
-      db.query(`SELECT emp_id, name, formal_name, designation, date_of_joining FROM emplist WHERE emp_id=$1`, [emp_id])
+      db.query(`SELECT emp_id, name, formal_name, designation, date_of_joining FROM emplist WHERE emp_id=$1`, [emp_id]),
+      getSettings()
     ]);
     if (!salRow.rows.length) return res.status(404).json({ success: false, message: 'Salary record not found for this month' });
-    res.json({ success: true, slip: salRow.rows[0], employee: empRow.rows[0] });
+    res.json({ success: true, slip: salRow.rows[0], employee: empRow.rows[0], hr_name: cfg.HR_SIGNATORY_NAME || '' });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error' });
   }
@@ -435,12 +436,13 @@ router.get('/my-slip', authMiddleware, async (req, res) => {
   const month = parseInt(req.query.month) || new Date().getMonth() + 1;
   const year  = parseInt(req.query.year)  || new Date().getFullYear();
   try {
-    const [salRow, empRow] = await Promise.all([
+    const [salRow, empRow, cfg] = await Promise.all([
       db.query(`SELECT * FROM salary WHERE emp_id=$1 AND month=$2 AND year=$3`, [emp_id, month, year]),
-      db.query(`SELECT emp_id, name, formal_name, designation, date_of_joining FROM emplist WHERE emp_id=$1`, [emp_id])
+      db.query(`SELECT emp_id, name, formal_name, designation, date_of_joining FROM emplist WHERE emp_id=$1`, [emp_id]),
+      getSettings()
     ]);
     if (!salRow.rows.length) return res.status(404).json({ success: false, message: 'Is mahine ka salary record abhi nahi hai' });
-    res.json({ success: true, slip: salRow.rows[0], employee: empRow.rows[0] });
+    res.json({ success: true, slip: salRow.rows[0], employee: empRow.rows[0], hr_name: cfg.HR_SIGNATORY_NAME || '' });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error' });
   }
