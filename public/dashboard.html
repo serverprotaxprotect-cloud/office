@@ -500,9 +500,15 @@ async function markAttendance(action) {
 
   let latitude = null, longitude = null, address = null;
 
+  if (!navigator.geolocation) {
+    showToast('Aapka browser GPS support nahi karta. Kisi aur device se try karein.', 'error');
+    await loadToday();
+    return;
+  }
+
   try {
     const pos = await new Promise((resolve, reject) =>
-      navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 8000 })
+      navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 })
     );
     latitude  = pos.coords.latitude;
     longitude = pos.coords.longitude;
@@ -515,8 +521,13 @@ async function markAttendance(action) {
       const gd = await geo.json();
       address = gd.display_name || null;
     } catch { /* ignore */ }
-  } catch {
-    // location permission denied - still allow punch
+  } catch (geoErr) {
+    const msg = geoErr.code === 1
+      ? 'Location permission denied hai. Settings mein GPS allow karein, tab attendance mark karein.'
+      : 'GPS location nahi mili. Bahar jaake try karein ya GPS on karein.';
+    showToast(msg, 'error');
+    await loadToday();
+    return;
   }
 
   const device_info = navigator.userAgent;

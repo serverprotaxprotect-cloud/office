@@ -20,6 +20,16 @@ function toMinutes(timeStr) {
   return h * 60 + m;
 }
 
+// Haversine distance in meters between two lat/lng points
+function haversineMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 // ── GET /api/attendance/today ────────────────────────────────
 router.get('/today', authMiddleware, async (req, res) => {
   const { emp_id } = req.user;
@@ -93,6 +103,24 @@ router.post('/mark', authMiddleware, async (req, res) => {
 
     // ── Load settings ────────────────────────────────────────
     const cfg = await getSettings();
+
+    // ── Geofence check ───────────────────────────────────────
+    const officeLat = parseFloat(cfg.OFFICE_LAT || '0');
+    const officeLng = parseFloat(cfg.OFFICE_LNG || '0');
+    const geofenceRadius = parseFloat(cfg.GEOFENCE_RADIUS_METERS || '400');
+    if (officeLat && officeLng) {
+      if (!latitude || !longitude)
+        return res.status(400).json({ success: false, message: 'Location permission required. Please enable GPS and try again.' });
+      const dist = haversineMeters(parseFloat(latitude), parseFloat(longitude), officeLat, officeLng);
+      if (dist > geofenceRadius)
+        return res.status(400).json({
+          success: false,
+          message: `Aap office se bahut door hain (${Math.round(dist)} meters). Attendance sirf ${geofenceRadius} meter ke andar mark ho sakti hai.`,
+          distance_meters: Math.round(dist),
+          allowed_radius: geofenceRadius
+        });
+    }
+
     const officeStartMins = toMinutes(cfg.OFFICE_START_TIME || '10:00:00');
     const lateThreshold   = parseInt(cfg.LATE_THRESHOLD_MINUTES || '0');
     const fullDayMins     = parseInt(cfg.FULL_DAY_MINUTES  || '480');
