@@ -8,6 +8,13 @@ const router = express.Router();
 
 const MONTHS = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
 
+async function getSettings() {
+  const r = await db.query('SELECT key, value FROM attendance_settings');
+  const s = {};
+  r.rows.forEach(row => { s[row.key] = row.value; });
+  return s;
+}
+
 async function ensureIncrementColumns() {
   await db.query(`ALTER TABLE salary_structure ADD COLUMN IF NOT EXISTS increment_effective_date DATE`);
   await db.query(`ALTER TABLE salary_structure ADD COLUMN IF NOT EXISTS new_monthly_salary NUMERIC(10,2)`);
