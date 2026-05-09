@@ -100,6 +100,38 @@
     .req-item-date { font-size:14px; font-weight:700; }
     .req-item-reason { font-size:12px; color:#94a3b8; margin-top:3px; }
     .req-item-remark { font-size:12px; color:#2563eb; margin-top:3px; }
+
+    /* Salary tab */
+    .sal-row { display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid #f1f5f9; }
+    .sal-row:last-child { border-bottom:none; }
+    .sal-month-lbl { font-size:14px; font-weight:700; color:#1e293b; }
+    .sal-meta { font-size:12px; color:#64748b; margin-top:2px; }
+    .sal-net { font-size:16px; font-weight:800; color:#1e293b; }
+    .sal-net.approved { color:#15803d; }
+    .sal-slip-btn { font-size:12px; font-weight:700; color:#2563eb; background:none; border:1px solid #bfdbfe; border-radius:8px; padding:5px 10px; cursor:pointer; margin-top:4px; }
+    .sal-slip-btn:hover { background:#eff6ff; }
+
+    /* Salary slip modal */
+    .slip-modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.55); display:flex; align-items:flex-end; justify-content:center; z-index:300; }
+    .slip-modal { background:#fff; border-radius:20px 20px 0 0; padding:20px 20px 32px; width:100%; max-width:480px; max-height:92vh; overflow-y:auto; }
+    .slip-modal-title { font-size:17px; font-weight:800; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center; }
+    .slip-close { font-size:22px; cursor:pointer; color:#94a3b8; }
+    .slip-header-box { background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:14px; margin-bottom:14px; }
+    .slip-company { font-size:16px; font-weight:800; color:#1e293b; }
+    .slip-company-sub { font-size:12px; color:#64748b; margin-top:2px; }
+    .slip-emp-row { display:flex; justify-content:space-between; margin-top:12px; gap:8px; }
+    .slip-emp-col { flex:1; }
+    .slip-emp-lbl { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; color:#94a3b8; }
+    .slip-emp-val { font-size:13px; font-weight:600; color:#1e293b; }
+    .slip-table { width:100%; border-collapse:collapse; margin-bottom:14px; font-size:13px; }
+    .slip-table th { background:#f1f5f9; padding:7px 10px; text-align:left; font-size:11px; font-weight:700; text-transform:uppercase; color:#64748b; letter-spacing:.3px; }
+    .slip-table td { padding:7px 10px; border-bottom:1px solid #f1f5f9; }
+    .slip-table tr:last-child td { border-bottom:none; }
+    .slip-total-row td { font-weight:700; background:#f8fafc; }
+    .slip-net-box { background:linear-gradient(135deg,#1e3a8a,#2563eb); color:#fff; border-radius:12px; padding:16px; text-align:center; margin-bottom:14px; }
+    .slip-net-label { font-size:12px; opacity:.8; text-transform:uppercase; letter-spacing:.5px; }
+    .slip-net-amount { font-size:28px; font-weight:900; margin-top:4px; }
+    .slip-print-btn { width:100%; padding:13px; background:linear-gradient(135deg,#2563eb,#3b82f6); color:#fff; border:none; border-radius:12px; font-size:15px; font-weight:700; cursor:pointer; }
   </style>
 </head>
 <body class="dash-body">
@@ -335,6 +367,19 @@
 
   </div>
 
+  <!-- ── TAB: SALARY ──────────────────────────────────────── -->
+  <div class="tab-panel" id="tab-salary">
+
+    <div class="card">
+      <div class="card-title">My Salary</div>
+      <p style="font-size:12px;color:#94a3b8;margin-bottom:12px;">Last 12 months salary records. Tap Salary Slip to view details.</p>
+      <div id="mySalaryList">
+        <p style="color:#94a3b8;font-size:14px;text-align:center;padding:16px 0;">Loading...</p>
+      </div>
+    </div>
+
+  </div>
+
 </div><!-- /dash-main -->
 
 <!-- Bottom Navigation -->
@@ -348,6 +393,9 @@
   <button class="tab-btn" id="navLeave" onclick="switchTab('leave')">
     <span class="tab-icon">&#128203;</span>Leave
   </button>
+  <button class="tab-btn" id="navSalary" onclick="switchTab('salary')">
+    <span class="tab-icon">&#128176;</span>Salary
+  </button>
   <button class="tab-btn" id="navProfile" onclick="switchTab('profile')">
     <span class="tab-icon">&#128100;</span>Profile
   </button>
@@ -355,6 +403,18 @@
 
 <!-- Toast -->
 <div class="toast" id="toast"></div>
+
+<!-- Salary Slip Modal -->
+<div class="slip-modal-backdrop" id="mySlipModal" style="display:none;" onclick="if(event.target===this)closeMySlipModal()">
+  <div class="slip-modal">
+    <div class="slip-modal-title">
+      <span>&#128176; Salary Slip</span>
+      <span class="slip-close" onclick="closeMySlipModal()">&#10005;</span>
+    </div>
+    <div id="mySlipContent"></div>
+    <button class="slip-print-btn" onclick="printMySlip()">&#128424; Print / Save PDF</button>
+  </div>
+</div>
 
 <!-- Backdated Attendance Request Modal -->
 <div class="req-modal-backdrop" id="attReqModal" style="display:none;" onclick="if(event.target===this)closeAttReqModal()">
@@ -772,6 +832,160 @@ function switchTab(tab) {
   if (tab === 'history' && document.getElementById('calGrid').innerHTML.includes('Select month')) loadHistory();
   if (tab === 'profile') loadProfile();
   if (tab === 'leave')   loadLeaveHistory();
+  if (tab === 'salary')  loadMySalary();
+}
+
+// ── Salary Tab ────────────────────────────────────────────
+const MONTH_NAMES = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
+
+async function loadMySalary() {
+  const list = document.getElementById('mySalaryList');
+  list.innerHTML = '<p style="color:#94a3b8;font-size:14px;text-align:center;padding:16px 0;">Loading...</p>';
+  try {
+    const data = await api('/salary/my-salary');
+    if (!data.success || !data.salary.length) {
+      list.innerHTML = '<p style="color:#94a3b8;font-size:14px;text-align:center;padding:16px 0;">Koi salary record nahi mila</p>';
+      return;
+    }
+    list.innerHTML = data.salary.map(s => {
+      const isApproved = s.calculation_status === 'Approved';
+      const net = parseFloat(s.net_salary || 0).toLocaleString('en-IN');
+      return `<div class="sal-row">
+        <div style="flex:1;">
+          <div class="sal-month-lbl">${MONTH_NAMES[s.month]} ${s.year}</div>
+          <div class="sal-meta">Present: ${s.present_days||0} | Half: ${s.half_days||0} | Absent: ${s.absent_days||0} | Late: ${s.late_count||0}</div>
+          <div class="sal-meta">Gross: ₹${parseFloat(s.gross_salary||0).toLocaleString('en-IN')}
+            ${parseFloat(s.late_fine||0)>0 ? ' | Late Fine: ₹'+parseFloat(s.late_fine||0).toLocaleString('en-IN') : ''}
+            ${parseFloat(s.other_deduction||0)>0 ? ' | Ded: ₹'+parseFloat(s.other_deduction||0).toLocaleString('en-IN') : ''}
+          </div>
+          <button class="sal-slip-btn" onclick="viewMySlip(${s.month},${s.year})">&#128196; Salary Slip</button>
+        </div>
+        <div style="text-align:right;">
+          <div class="sal-net ${isApproved?'approved':''}">₹${net}</div>
+          <div style="font-size:11px;color:${isApproved?'#15803d':'#f59e0b'};font-weight:700;margin-top:4px;">${isApproved?'✓ Approved':'Pending'}</div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch {
+    list.innerHTML = '<p style="color:#dc2626;font-size:13px;text-align:center;">Error loading salary</p>';
+  }
+}
+
+async function viewMySlip(month, year) {
+  document.getElementById('mySlipContent').innerHTML = '<p style="text-align:center;padding:24px;color:#94a3b8;">Loading slip...</p>';
+  document.getElementById('mySlipModal').style.display = 'flex';
+  try {
+    const data = await api(`/salary/my-slip?month=${month}&year=${year}`);
+    if (!data.success) {
+      document.getElementById('mySlipContent').innerHTML = `<p style="text-align:center;padding:24px;color:#dc2626;">${data.message}</p>`;
+      return;
+    }
+    const s = data.slip, e = data.employee;
+    const empName = e.formal_name || e.name || '';
+    const gross   = parseFloat(s.gross_salary||0);
+    const lateFine= parseFloat(s.late_fine||0);
+    const otherDed= parseFloat(s.other_deduction||0);
+    const manAdd  = parseFloat(s.manual_addition||0);
+    const net     = parseFloat(s.net_salary||0);
+    const totalDed= lateFine + otherDed;
+
+    document.getElementById('mySlipContent').innerHTML = `
+      <div class="slip-header-box">
+        <div class="slip-company">PTP Group</div>
+        <div class="slip-company-sub">Salary Slip — ${MONTH_NAMES[s.month]} ${s.year}</div>
+        <div class="slip-emp-row">
+          <div class="slip-emp-col">
+            <div class="slip-emp-lbl">Employee</div>
+            <div class="slip-emp-val">${empName}</div>
+          </div>
+          <div class="slip-emp-col">
+            <div class="slip-emp-lbl">ID</div>
+            <div class="slip-emp-val">${e.emp_id}</div>
+          </div>
+        </div>
+        <div class="slip-emp-row">
+          <div class="slip-emp-col">
+            <div class="slip-emp-lbl">Designation</div>
+            <div class="slip-emp-val">${e.designation||'--'}</div>
+          </div>
+          <div class="slip-emp-col">
+            <div class="slip-emp-lbl">Status</div>
+            <div class="slip-emp-val" style="color:${s.calculation_status==='Approved'?'#15803d':'#f59e0b'};">${s.calculation_status||'Pending'}</div>
+          </div>
+        </div>
+      </div>
+
+      <table class="slip-table">
+        <thead><tr><th>Attendance</th><th style="text-align:right;">Days</th></tr></thead>
+        <tbody>
+          <tr><td>Present Days</td><td style="text-align:right;">${s.present_days||0}</td></tr>
+          <tr><td>Half Days</td><td style="text-align:right;">${s.half_days||0}</td></tr>
+          <tr><td>Leave Days</td><td style="text-align:right;">${s.leave_days||0}</td></tr>
+          <tr><td>Holidays</td><td style="text-align:right;">${s.holiday_days||0}</td></tr>
+          <tr><td>Absent Days</td><td style="text-align:right;color:#dc2626;">${s.absent_days||0}</td></tr>
+          <tr><td>Late Count</td><td style="text-align:right;color:#f59e0b;">${s.late_count||0}</td></tr>
+          <tr class="slip-total-row"><td>Payable Days</td><td style="text-align:right;">${parseFloat(s.payable_days||0).toFixed(2)}</td></tr>
+        </tbody>
+      </table>
+
+      <table class="slip-table">
+        <thead><tr><th>Earnings</th><th style="text-align:right;">Amount (₹)</th></tr></thead>
+        <tbody>
+          <tr><td>Basic Salary (Monthly)</td><td style="text-align:right;">₹${parseFloat(s.monthly_salary||0).toLocaleString('en-IN')}</td></tr>
+          <tr><td>Gross Payable</td><td style="text-align:right;">₹${gross.toLocaleString('en-IN')}</td></tr>
+          ${manAdd>0?`<tr><td>Bonus / Addition</td><td style="text-align:right;color:#15803d;">+ ₹${manAdd.toLocaleString('en-IN')}</td></tr>`:''}
+        </tbody>
+      </table>
+
+      ${totalDed>0?`<table class="slip-table">
+        <thead><tr><th>Deductions</th><th style="text-align:right;">Amount (₹)</th></tr></thead>
+        <tbody>
+          ${lateFine>0?`<tr><td>Late Fine</td><td style="text-align:right;color:#dc2626;">- ₹${lateFine.toLocaleString('en-IN')}</td></tr>`:''}
+          ${otherDed>0?`<tr><td>Other Deduction</td><td style="text-align:right;color:#dc2626;">- ₹${otherDed.toLocaleString('en-IN')}</td></tr>`:''}
+          <tr class="slip-total-row"><td>Total Deductions</td><td style="text-align:right;color:#dc2626;">- ₹${totalDed.toLocaleString('en-IN')}</td></tr>
+        </tbody>
+      </table>`:''}
+
+      <div class="slip-net-box">
+        <div class="slip-net-label">Net Salary Payable</div>
+        <div class="slip-net-amount">₹${net.toLocaleString('en-IN')}</div>
+      </div>
+      ${s.remark?`<div style="background:#fef9c3;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;font-size:13px;color:#92400e;margin-bottom:14px;"><strong>Note:</strong> ${s.remark}</div>`:''}
+    `;
+    document.getElementById('mySlipModal')._slipInfo = { empName, month: s.month, year: s.year };
+  } catch {
+    document.getElementById('mySlipContent').innerHTML = '<p style="text-align:center;padding:24px;color:#dc2626;">Error loading slip</p>';
+  }
+}
+
+function closeMySlipModal() {
+  document.getElementById('mySlipModal').style.display = 'none';
+}
+
+function printMySlip() {
+  const info = document.getElementById('mySlipModal')._slipInfo || {};
+  const content = document.getElementById('mySlipContent').innerHTML;
+  const w = window.open('', '_blank');
+  w.document.write(`<!DOCTYPE html><html><head><title>Salary Slip – ${info.empName||''} ${MONTH_NAMES[info.month]||''} ${info.year||''}</title>
+    <style>
+      body{font-family:Arial,sans-serif;padding:24px;max-width:600px;margin:0 auto;color:#1e293b;}
+      .slip-header-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;margin-bottom:14px;}
+      .slip-company{font-size:18px;font-weight:800;} .slip-company-sub{font-size:13px;color:#64748b;margin-top:2px;}
+      .slip-emp-row{display:flex;gap:16px;margin-top:12px;} .slip-emp-col{flex:1;}
+      .slip-emp-lbl{font-size:10px;font-weight:700;text-transform:uppercase;color:#94a3b8;}
+      .slip-emp-val{font-size:13px;font-weight:600;}
+      .slip-table{width:100%;border-collapse:collapse;margin-bottom:14px;font-size:13px;}
+      .slip-table th{background:#f1f5f9;padding:7px 10px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;}
+      .slip-table td{padding:7px 10px;border-bottom:1px solid #f1f5f9;}
+      .slip-total-row td{font-weight:700;background:#f8fafc;}
+      .slip-net-box{background:#1e3a8a;color:#fff;border-radius:8px;padding:16px;text-align:center;margin-bottom:14px;}
+      .slip-net-label{font-size:12px;opacity:.8;text-transform:uppercase;}
+      .slip-net-amount{font-size:28px;font-weight:900;margin-top:4px;}
+      .sal-slip-btn,.slip-print-btn,.slip-close{display:none;}
+    </style></head><body>${content}</body></html>`);
+  w.document.close();
+  w.focus();
+  setTimeout(() => { w.print(); }, 500);
 }
 
 // ── LEAVE functions ──────────────────────────────────────────

@@ -378,7 +378,7 @@
           </div>
           <div class="hist-table-wrap">
             <table>
-              <thead><tr><th>Emp ID</th><th>Name</th><th>Designation</th><th>Monthly Salary</th><th>Per Day</th><th>Late Fine/Mark</th><th>Grace (min)</th><th>Action</th></tr></thead>
+              <thead><tr><th>Emp ID</th><th>Name</th><th>Monthly Salary</th><th>Per Day</th><th>Late Fine/Mark</th><th>Late Fine/Min</th><th>Grace</th><th>Increment Date</th><th>New Salary</th><th>Action</th></tr></thead>
               <tbody id="structureTable"></tbody>
             </table>
           </div>
@@ -427,6 +427,8 @@
           </select>
           <select id="recYear"></select>
           <button class="btn-sm" onclick="loadSalaryRecords()">Load</button>
+          <button class="btn-sm" onclick="approveAllSalary()" style="background:#16a34a;">&#10003; Approve All</button>
+          <button class="btn-sm" onclick="exportSalaryExcel()" style="background:#0369a1;">&#8595; Export Excel</button>
         </div>
         <div class="salary-total-bar">
           <div class="sal-chip"><div class="sv" id="salTotGross" style="color:#2563eb;">₹0</div><div class="sl">Total Gross</div></div>
@@ -436,7 +438,7 @@
         <div class="today-table-wrap">
           <div class="hist-table-wrap">
             <table>
-              <thead><tr><th>Employee</th><th>Present</th><th>Leave</th><th>Payable Days</th><th>Gross</th><th>Late Fine</th><th>Deduction</th><th>Net Salary</th><th>Action</th></tr></thead>
+              <thead><tr><th>Employee</th><th>Present</th><th>Half</th><th>Absent</th><th>Payable</th><th>Gross</th><th>Late Fine</th><th>Adj</th><th>Net Salary</th><th>Status</th><th>Action</th></tr></thead>
               <tbody id="salRecordsTable"></tbody>
             </table>
           </div>
@@ -618,17 +620,33 @@
 <!-- Add Salary Structure Modal -->
 <div class="modal-backdrop" id="addSalModal" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
   <div class="modal">
-    <div class="modal-title">Salary Structure - <span id="salEmpLabel"></span></div>
+    <div class="modal-title">Salary Structure — <span id="salEmpLabel"></span></div>
     <input type="hidden" id="sal_emp_id"/>
     <div class="modal-grid">
       <div class="full"><label>Monthly Salary (₹) *</label><input id="sal_monthly" type="number" placeholder="25000"/></div>
       <div><label>Late Fine per Mark (₹)</label><input id="sal_fine_mark" type="number" value="0" placeholder="0"/></div>
       <div><label>Late Fine per Minute (₹)</label><input id="sal_fine_min" type="number" value="0" placeholder="0"/></div>
-      <div class="full"><label>Grace Allowed (minutes)</label><input id="sal_grace" type="number" value="0" placeholder="0"/></div>
+      <div><label>Grace Allowed (minutes)</label><input id="sal_grace" type="number" value="0" placeholder="0"/></div>
+      <div style="grid-column:1/-1;border-top:1px solid #e2e8f0;margin-top:4px;padding-top:12px;">
+        <div style="font-size:12px;font-weight:700;color:#64748b;margin-bottom:10px;">&#8593; INCREMENT (optional — sirf tab fill karo jab is mahine increment hua ho)</div>
+      </div>
+      <div><label>Increment Effective Date</label><input id="sal_inc_date" type="date"/></div>
+      <div><label>New Salary After Increment (₹)</label><input id="sal_inc_salary" type="number" placeholder="New basic pay"/></div>
     </div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="document.getElementById('addSalModal').style.display='none'">Cancel</button>
       <button class="btn-sm" onclick="submitSalaryStructure()">Save Structure</button>
+    </div>
+  </div>
+</div>
+
+<!-- Salary Slip Modal -->
+<div class="modal-backdrop" id="salSlipModal" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal" style="max-width:520px;">
+    <div id="salSlipContent"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="document.getElementById('salSlipModal').style.display='none'">Close</button>
+      <button class="btn-sm" onclick="printSalarySlip()">&#128424; Print</button>
     </div>
   </div>
 </div>
@@ -1067,17 +1085,21 @@ async function loadSalaryStructure() {
   if (!data.success) return;
 
   const tb = document.getElementById('structureTable');
-  tb.innerHTML = data.structures.length ? data.structures.map(s => `
-    <tr>
-      <td>${s.emp_id}</td>
-      <td>${s.employee_name}</td>
-      <td>${s.designation||'--'}</td>
+  tb.innerHTML = data.structures.length ? data.structures.map(s => {
+    const incDate = s.increment_effective_date ? s.increment_effective_date.split('T')[0] : '';
+    return `<tr>
+      <td><small>${s.emp_id}</small></td>
+      <td><strong>${s.employee_name}</strong></td>
       <td><strong>${money(s.monthly_salary)}</strong></td>
-      <td>${money(s.per_day_salary)}</td>
-      <td>${money(s.late_fine_per_mark)}/mark</td>
+      <td style="color:#64748b">₹${parseFloat(s.per_day_salary||0).toFixed(0)}/day</td>
+      <td>${parseFloat(s.late_fine_per_mark||0) > 0 ? `<span style="color:#dc2626">₹${s.late_fine_per_mark}/mark</span>` : '—'}</td>
+      <td>${parseFloat(s.late_fine_per_minute||0) > 0 ? `<span style="color:#dc2626">₹${s.late_fine_per_minute}/min</span>` : '—'}</td>
       <td>${s.grace_allowed||0} min</td>
-      <td><button class="btn-edit" onclick="openAddSalary('${s.emp_id}','${s.employee_name}',${s.monthly_salary},${s.late_fine_per_mark||0},${s.late_fine_per_minute||0},${s.grace_allowed||0})">Edit</button></td>
-    </tr>`).join('') : '<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:20px">No structures set</td></tr>';
+      <td>${incDate ? `<span style="color:#7c3aed;font-size:12px;">${incDate}</span>` : '—'}</td>
+      <td>${s.new_monthly_salary ? `<span style="color:#16a34a;font-weight:700;">${money(s.new_monthly_salary)}</span>` : '—'}</td>
+      <td><button class="btn-edit" onclick="openAddSalary('${s.emp_id}','${s.employee_name}',${s.monthly_salary},${s.late_fine_per_mark||0},${s.late_fine_per_minute||0},${s.grace_allowed||0},'${incDate}',${s.new_monthly_salary||0})">Edit</button></td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="10" style="text-align:center;color:#94a3b8;padding:20px">No structures set</td></tr>';
 
   const mt = document.getElementById('missingTable');
   document.getElementById('missingStructureCard').style.display = data.missing.length ? 'block' : 'none';
@@ -1085,17 +1107,19 @@ async function loadSalaryStructure() {
     <tr>
       <td>${e.emp_id}</td><td>${e.name}</td><td>${e.designation}</td>
       <td>${e.basic_pay ? money(e.basic_pay) : '--'}</td>
-      <td><button class="btn-approve" onclick="openAddSalary('${e.emp_id}','${e.name}',${e.basic_pay||0},0,0,0)">Setup</button></td>
+      <td><button class="btn-approve" onclick="openAddSalary('${e.emp_id}','${e.name}',${e.basic_pay||0},0,0,0,'',0)">Setup</button></td>
     </tr>`).join('');
 }
 
-function openAddSalary(empId='', name='', monthly=0, fineM=0, fineMin=0, grace=0) {
-  document.getElementById('sal_emp_id').value      = empId;
-  document.getElementById('salEmpLabel').textContent = name || 'Select Employee';
-  document.getElementById('sal_monthly').value     = monthly || '';
-  document.getElementById('sal_fine_mark').value   = fineM || 0;
-  document.getElementById('sal_fine_min').value    = fineMin || 0;
-  document.getElementById('sal_grace').value       = grace || 0;
+function openAddSalary(empId='', name='', monthly=0, fineM=0, fineMin=0, grace=0, incDate='', incSal=0) {
+  document.getElementById('sal_emp_id').value         = empId;
+  document.getElementById('salEmpLabel').textContent  = name || 'Select Employee';
+  document.getElementById('sal_monthly').value        = monthly || '';
+  document.getElementById('sal_fine_mark').value      = fineM || 0;
+  document.getElementById('sal_fine_min').value       = fineMin || 0;
+  document.getElementById('sal_grace').value          = grace || 0;
+  document.getElementById('sal_inc_date').value       = incDate || '';
+  document.getElementById('sal_inc_salary').value     = incSal || '';
   document.getElementById('addSalModal').style.display = 'flex';
 }
 
@@ -1103,11 +1127,13 @@ async function submitSalaryStructure() {
   const data = await api('/salary/structure', {
     method: 'POST',
     body: JSON.stringify({
-      emp_id:              document.getElementById('sal_emp_id').value,
-      monthly_salary:      document.getElementById('sal_monthly').value,
-      late_fine_per_mark:  document.getElementById('sal_fine_mark').value,
-      late_fine_per_minute:document.getElementById('sal_fine_min').value,
-      grace_allowed:       document.getElementById('sal_grace').value
+      emp_id:                   document.getElementById('sal_emp_id').value,
+      monthly_salary:           document.getElementById('sal_monthly').value,
+      late_fine_per_mark:       document.getElementById('sal_fine_mark').value,
+      late_fine_per_minute:     document.getElementById('sal_fine_min').value,
+      grace_allowed:            document.getElementById('sal_grace').value,
+      increment_effective_date: document.getElementById('sal_inc_date').value || null,
+      new_monthly_salary:       document.getElementById('sal_inc_salary').value || null
     })
   });
   document.getElementById('addSalModal').style.display = 'none';
@@ -1119,7 +1145,7 @@ async function calculateSalary() {
   const month = document.getElementById('calMonth').value;
   const year  = document.getElementById('calYear').value;
   const res   = document.getElementById('calcResult');
-  res.innerHTML = '<p style="color:#64748b">Calculating...</p>';
+  res.innerHTML = '<p style="color:#64748b;padding:12px;">Calculating... please wait</p>';
 
   const data = await api('/salary/calculate', {
     method: 'POST',
@@ -1128,27 +1154,31 @@ async function calculateSalary() {
 
   if (data.success) {
     showToast(data.message, 'success');
+    const calculated = data.results.filter(r => !r.skipped);
+    const skipped    = data.results.filter(r => r.skipped);
     res.innerHTML = `
       <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px;margin-bottom:12px;">
-        <strong style="color:#15803d">Salary Calculated for ${data.results.length} employees</strong>
+        <strong style="color:#15803d">${data.message}</strong>
+        ${skipped.length ? `<br><small style="color:#92400e">&#9888; ${skipped.length} already Approved (skipped): ${skipped.map(r=>r.employee_name).join(', ')}</small>` : ''}
       </div>
-      <div class="hist-table-wrap"><table>
-        <thead><tr><th>Employee</th><th>Present</th><th>Half Day</th><th>Leave</th><th>Absent</th><th>Holiday+</th><th>Payable Units</th><th>Per Day</th><th>Gross</th><th>Net Salary</th></tr></thead>
-        <tbody>${data.results.map(r => `<tr>
-          <td>${r.employee_name}</td>
+      <div class="hist-table-wrap" style="overflow-x:auto;"><table>
+        <thead><tr><th>Employee</th><th>Present</th><th>Half</th><th>Leave</th><th>Absent</th><th>Holiday+</th><th>Late</th><th>Payable</th><th>Gross</th><th>Late Fine</th><th>Net</th></tr></thead>
+        <tbody>${calculated.map(r => `<tr>
+          <td><strong>${r.employee_name}</strong>${r.increment_from_day ? `<br><span style="font-size:11px;color:#7c3aed;">Incr. from day ${r.increment_from_day}</span>` : ''}</td>
           <td>${r.present_days}</td>
           <td>${r.half_days}</td>
           <td>${r.leave_days}</td>
-          <td>${r.absent_days > 0 ? `<span style="color:#dc2626">${r.absent_days}</span>` : 0}</td>
-          <td>${r.holiday_credited > 0 ? `<span style="color:#7c3aed">${r.holiday_credited}</span>` : 0}</td>
+          <td>${r.absent_days > 0 ? `<span style="color:#dc2626;font-weight:700;">${r.absent_days}</span>` : '0'}</td>
+          <td>${r.holiday_credited > 0 ? `<span style="color:#7c3aed;">${r.holiday_credited}</span>` : '0'}</td>
+          <td>${r.late_count > 0 ? `<span style="color:#d97706;">${r.late_count} (${r.total_late_minutes}m)</span>` : '0'}</td>
           <td>${r.payable_units}</td>
-          <td style="color:#64748b;font-size:13px;">₹${r.per_day}</td>
           <td>${money(r.gross_salary)}</td>
-          <td><strong style="color:#16a34a">${money(r.net_salary)}</strong></td>
+          <td>${r.late_fine > 0 ? `<span style="color:#dc2626;">${money(r.late_fine)}</span>` : '—'}</td>
+          <td><strong style="color:#16a34a;">${money(r.net_salary)}</strong></td>
         </tr>`).join('')}</tbody>
       </table></div>`;
   } else {
-    res.innerHTML = `<div class="alert alert-error">${data.message}</div>`;
+    res.innerHTML = `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:14px;color:#dc2626;">${data.message}</div>`;
   }
 }
 
@@ -1163,28 +1193,137 @@ async function loadSalaryRecords() {
   document.getElementById('salTotNet').textContent    = money(data.totals.net);
 
   const tb = document.getElementById('salRecordsTable');
-  tb.innerHTML = data.records.length ? data.records.map(r => `
-    <tr>
+  tb.innerHTML = data.records.length ? data.records.map(r => {
+    const approved = r.calculation_status === 'Approved';
+    const adjTotal = (parseFloat(r.other_deduction)||0) + (parseFloat(r.manual_addition)||0);
+    return `<tr>
       <td><strong>${r.employee_name}</strong><br><small style="color:#94a3b8">${r.emp_id}</small></td>
       <td>${r.present_days||0}</td>
-      <td>${r.leave_days||0}</td>
+      <td>${r.half_days||0}</td>
+      <td>${r.absent_days > 0 ? `<span style="color:#dc2626">${r.absent_days}</span>` : '0'}</td>
       <td>${r.payable_days||0}</td>
       <td>${money(r.gross_salary)}</td>
-      <td style="color:#dc2626">${money(r.late_fine)}</td>
-      <td style="color:#dc2626">${money(r.other_deduction)}</td>
+      <td>${parseFloat(r.late_fine)>0 ? `<span style="color:#dc2626">${money(r.late_fine)}</span>` : '—'}</td>
+      <td>${adjTotal !== 0 ? `<span style="color:#7c3aed;font-size:12px;">-${money(r.other_deduction||0)} +${money(r.manual_addition||0)}</span>` : '—'}</td>
       <td><strong style="color:#16a34a">${money(r.net_salary)}</strong></td>
-      <td><button class="btn-calc" onclick="openSalAdj('${r.emp_id}','${r.employee_name}',${month},${year})">Adjust</button></td>
-    </tr>`).join('') : '<tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:20px">No records. Calculate salary first.</td></tr>';
+      <td>${approved
+        ? `<span style="color:#16a34a;font-size:12px;font-weight:700;">&#10003; Approved</span><br><small style="color:#94a3b8">${r.verified_by||''}</small>`
+        : `<span style="color:#f59e0b;font-size:12px;">Calculated</span>`}</td>
+      <td style="display:flex;gap:4px;flex-wrap:wrap;">
+        <button class="btn-edit" style="font-size:11px;padding:3px 7px;" onclick="viewSalarySlip('${r.emp_id}','${r.employee_name}',${month},${year})">Slip</button>
+        <button class="btn-calc" style="font-size:11px;padding:3px 7px;" onclick="openSalAdj('${r.emp_id}','${r.employee_name}',${month},${year},${r.other_deduction||0},${r.manual_addition||0},'${r.remark||''}')">Adj</button>
+        ${approved
+          ? `<button class="btn-danger" style="font-size:11px;padding:3px 7px;" onclick="unlockSalary('${r.emp_id}',${month},${year})">Unlock</button>`
+          : `<button class="btn-approve" style="font-size:11px;padding:3px 7px;" onclick="approveSalary('${r.emp_id}',${month},${year})">Approve</button>`}
+      </td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="11" style="text-align:center;color:#94a3b8;padding:20px">No records. Calculate salary first.</td></tr>';
 }
 
-function openSalAdj(empId, name, month, year) {
+async function approveSalary(empId, month, year) {
+  if (!confirm('Is employee ka salary approve aur lock karo?')) return;
+  const data = await api('/salary/approve', { method:'POST', body: JSON.stringify({ emp_id: empId, month, year }) });
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) loadSalaryRecords();
+}
+
+async function unlockSalary(empId, month, year) {
+  if (!confirm('Salary unlock karo? Dobara calculate ho sakta hai.')) return;
+  const data = await api('/salary/approve', { method:'DELETE', body: JSON.stringify({ emp_id: empId, month, year }) });
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) loadSalaryRecords();
+}
+
+async function approveAllSalary() {
+  const month = document.getElementById('recMonth').value;
+  const year  = document.getElementById('recYear').value;
+  if (!confirm(`${month}/${year} ke sabhi calculated salaries approve karo?`)) return;
+  const data = await api('/salary/approve-all', { method:'POST', body: JSON.stringify({ month, year }) });
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) loadSalaryRecords();
+}
+
+async function exportSalaryExcel() {
+  const month = document.getElementById('recMonth').value;
+  const year  = document.getElementById('recYear').value;
+  const res = await fetch(`/api/salary/records/export?month=${month}&year=${year}`, {
+    headers: { 'Authorization': 'Bearer ' + token }
+  });
+  if (!res.ok) { showToast('Export failed', 'error'); return; }
+  const blob = await res.blob();
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = `salary_${month}_${year}.xlsx`; a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function viewSalarySlip(empId, empName, month, year) {
+  const data = await api(`/salary/slip/${empId}?month=${month}&year=${year}`);
+  if (!data.success) { showToast(data.message, 'error'); return; }
+  const s = data.slip;
+  const e = data.employee;
+  const MONTHS = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
+  const totalDed = (parseFloat(s.late_fine)||0) + (parseFloat(s.other_deduction)||0);
+  const totalAdd = parseFloat(s.manual_addition)||0;
+  document.getElementById('salSlipContent').innerHTML = `
+    <div id="slipPrintArea" style="font-family:Arial,sans-serif;padding:8px;">
+      <div style="text-align:center;border-bottom:2px solid #1e293b;padding-bottom:12px;margin-bottom:16px;">
+        <div style="font-size:18px;font-weight:800;color:#1e293b;">PTP ASSOCIATES</div>
+        <div style="font-size:13px;color:#64748b;">Salary Slip — ${MONTHS[month]} ${year}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;font-size:13px;">
+        <div><span style="color:#64748b;">Employee:</span> <strong>${e?.formal_name||e?.name||empName}</strong></div>
+        <div><span style="color:#64748b;">Emp ID:</span> ${e?.emp_id||empId}</div>
+        <div><span style="color:#64748b;">Designation:</span> ${e?.designation||'--'}</div>
+        <div><span style="color:#64748b;">Status:</span> <span style="color:${s.calculation_status==='Approved'?'#16a34a':'#f59e0b'};font-weight:700;">${s.calculation_status}</span></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;background:#f8fafc;border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px;">
+        <div>Present Days: <strong>${s.present_days||0}</strong></div>
+        <div>Half Days: <strong>${s.half_days||0}</strong></div>
+        <div>Leave Days: <strong>${s.leave_days||0}</strong></div>
+        <div>Absent Days: <strong style="color:${(s.absent_days||0)>0?'#dc2626':'inherit'}">${s.absent_days||0}</strong></div>
+        <div>Holiday Credit: <strong style="color:#7c3aed">${s.holiday_days||0}</strong></div>
+        <div>Payable Units: <strong>${s.payable_days||0}</strong></div>
+        <div>Late Count: <strong>${s.late_count||0}</strong></div>
+        <div>Late Minutes: <strong>${s.total_late_minutes||0}</strong></div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px;">
+        <thead><tr style="background:#1e293b;color:#fff;"><th style="padding:8px;text-align:left;">Earnings</th><th style="padding:8px;text-align:right;">Amount</th></tr></thead>
+        <tbody>
+          <tr><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">Basic Salary (${s.payable_days||0} units × ₹${(parseFloat(s.monthly_salary||0)/30).toFixed(0)}/day)</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #e2e8f0;">${money(s.gross_salary)}</td></tr>
+          ${totalAdd > 0 ? `<tr><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">Bonus / Manual Addition</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #e2e8f0;color:#16a34a;">+${money(totalAdd)}</td></tr>` : ''}
+        </tbody>
+        <thead><tr style="background:#fef2f2;"><th style="padding:8px;text-align:left;">Deductions</th><th style="padding:8px;text-align:right;">Amount</th></tr></thead>
+        <tbody>
+          ${parseFloat(s.late_fine)>0 ? `<tr><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">Late Fine</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #e2e8f0;color:#dc2626;">-${money(s.late_fine)}</td></tr>` : ''}
+          ${parseFloat(s.other_deduction)>0 ? `<tr><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">Other Deduction</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #e2e8f0;color:#dc2626;">-${money(s.other_deduction)}</td></tr>` : ''}
+          ${totalDed===0 ? `<tr><td style="padding:6px 8px;color:#94a3b8;" colspan="2">No deductions</td></tr>` : ''}
+        </tbody>
+      </table>
+      <div style="background:#f0fdf4;border:2px solid #16a34a;border-radius:8px;padding:14px;display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:15px;font-weight:700;color:#1e293b;">Net Payable</span>
+        <span style="font-size:22px;font-weight:800;color:#16a34a;">${money(s.net_salary)}</span>
+      </div>
+      ${s.remark ? `<div style="margin-top:10px;font-size:12px;color:#64748b;">Remark: ${s.remark}</div>` : ''}
+    </div>`;
+  document.getElementById('salSlipModal').style.display = 'flex';
+}
+
+function printSalarySlip() {
+  const content = document.getElementById('slipPrintArea').innerHTML;
+  const w = window.open('', '_blank');
+  w.document.write(`<html><head><title>Salary Slip</title><style>body{font-family:Arial,sans-serif;margin:24px;}table{width:100%;border-collapse:collapse;}th,td{padding:6px 8px;}</style></head><body>${content}</body></html>`);
+  w.document.close(); w.print();
+}
+
+function openSalAdj(empId, name, month, year, curDed=0, curAdd=0, curRemark='') {
   document.getElementById('adj_emp_id').value       = empId;
-  document.getElementById('adj_month').value         = month;
-  document.getElementById('adj_year').value          = year;
+  document.getElementById('adj_month').value        = month;
+  document.getElementById('adj_year').value         = year;
   document.getElementById('adjEmpLabel').textContent = name;
-  document.getElementById('adj_deduction').value     = 0;
-  document.getElementById('adj_addition').value      = 0;
-  document.getElementById('adj_remark').value        = '';
+  document.getElementById('adj_deduction').value    = curDed || 0;
+  document.getElementById('adj_addition').value     = curAdd || 0;
+  document.getElementById('adj_remark').value       = curRemark || '';
   document.getElementById('salAdjModal').style.display = 'flex';
 }
 
@@ -1192,12 +1331,12 @@ async function submitSalAdj() {
   const data = await api('/salary/adjust', {
     method: 'POST',
     body: JSON.stringify({
-      emp_id:           document.getElementById('adj_emp_id').value,
-      month:            document.getElementById('adj_month').value,
-      year:             document.getElementById('adj_year').value,
-      other_deduction:  document.getElementById('adj_deduction').value,
-      manual_addition:  document.getElementById('adj_addition').value,
-      remark:           document.getElementById('adj_remark').value
+      emp_id:          document.getElementById('adj_emp_id').value,
+      month:           document.getElementById('adj_month').value,
+      year:            document.getElementById('adj_year').value,
+      other_deduction: document.getElementById('adj_deduction').value,
+      manual_addition: document.getElementById('adj_addition').value,
+      remark:          document.getElementById('adj_remark').value
     })
   });
   document.getElementById('salAdjModal').style.display = 'none';
