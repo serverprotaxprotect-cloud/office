@@ -13,10 +13,9 @@ async function getWorkingDays(month, year) {
     const day = new Date(year, month - 1, d).getDay();
     if (day !== 0) working++; // exclude Sunday
   }
-  // Subtract holidays
   const hols = await db.query(
     `SELECT COUNT(*) FROM holidays
-     WHERE EXTRACT(MONTH FROM date)=$1 AND EXTRACT(YEAR FROM date)=$2`,
+     WHERE EXTRACT(MONTH FROM holiday_date)=$1 AND EXTRACT(YEAR FROM holiday_date)=$2`,
     [month, year]
   );
   return Math.max(1, working - parseInt(hols.rows[0].count));
@@ -58,7 +57,7 @@ router.post('/structure', adminAuth, async (req, res) => {
     if (!emp.rows.length) return res.status(404).json({ success: false, message: 'Employee not found' });
 
     const { name, formal_name } = emp.rows[0];
-    const perDay = (parseFloat(monthly_salary) / 26).toFixed(2);
+    const perDay = (parseFloat(monthly_salary) / 30).toFixed(2);
 
     await db.query(
       `INSERT INTO salary_structure
@@ -81,49 +80,118 @@ router.post('/structure', adminAuth, async (req, res) => {
 });
 
 // ── POST /api/salary/calculate  (admin calculates month salary) ─
+// Method: Google App Script se liya hua
+//   Per Day  = monthly_salary / 30
+//   Units    : Present/Pending=1, Half Day/Short Day=0.5, Leave=1, Absent=0
+//   Holiday chain credit: consecutive non-worked holidays adjacent to a worked day = 1 unit each
+//   Normalization: agar koi absent nahi toh total = 30; otherwise min(rawUnits, 30)
+//   Gross    = (monthly_salary / 30) × normalizedUnits   (no deductions)
 router.post('/calculate', adminAuth, async (req, res) => {
   const { month, year, emp_id } = req.body;
   if (!month || !year) return res.status(400).json({ success: false, message: 'month and year required' });
 
-  try {
-    const workingDays = await getWorkingDays(parseInt(month), parseInt(year));
+  const m = parseInt(month), y = parseInt(year);
+  const daysInMonth = new Date(y, m, 0).getDate();
 
-    // Get employees to calculate (all active or specific)
+  try {
+    // Holidays for this month (declared + Sundays handled inline)
+    const holRes = await db.query(
+      `SELECT EXTRACT(DAY FROM holiday_date)::int AS d FROM holidays
+       WHERE EXTRACT(MONTH FROM holiday_date)=$1 AND EXTRACT(YEAR FROM holiday_date)=$2`,
+      [m, y]
+    );
+    const declaredHolidays = new Set(holRes.rows.map(r => r.d));
+
+    function isDayHoliday(d) {
+      const dow = new Date(y, m - 1, d).getDay();
+      return dow === 0 || declaredHolidays.has(d); // 0 = Sunday
+    }
+
+    // Employees to calculate
     const empQuery = emp_id
       ? `SELECT s.*, e.status FROM salary_structure s JOIN emplist e ON e.emp_id=s.emp_id WHERE s.emp_id=$1 AND s.active='Yes'`
       : `SELECT s.*, e.status FROM salary_structure s JOIN emplist e ON e.emp_id=s.emp_id WHERE s.active='Yes' AND e.status='Active'`;
     const structs = await db.query(empQuery, emp_id ? [emp_id] : []);
 
     const results = [];
+
     for (const s of structs.rows) {
-      // Attendance data for this employee this month
+      // Full month attendance records (date-level)
       const att = await db.query(
-        `SELECT final_status, late_minutes, grace_minutes_granted
-         FROM daily_attendance
-         WHERE emp_id=$1 AND month=$2 AND year=$3`,
-        [s.emp_id, month, year]
+        `SELECT date, final_status FROM daily_attendance WHERE emp_id=$1 AND month=$2 AND year=$3`,
+        [s.emp_id, m, y]
       );
 
-      const rows = att.rows;
-      const presentDays  = rows.filter(r => r.final_status === 'Present').length;
-      const halfDays     = rows.filter(r => r.final_status === 'Half Day').length;
-      const leaveDays    = rows.filter(r => r.final_status === 'Leave').length;
-      const pendingDays  = rows.filter(r => r.final_status === 'Pending').length;
-      const absentDays   = workingDays - presentDays - halfDays - leaveDays - pendingDays;
-      const lateCount    = rows.filter(r => r.late_minutes > 0).length;
-      const totalLateMins= rows.reduce((sum, r) => sum + (parseInt(r.late_minutes) || 0), 0);
-      const graceUsed    = rows.reduce((sum, r) => sum + (parseInt(r.grace_minutes_granted) || 0), 0);
+      // day-of-month → final_status
+      const dayMap = {};
+      att.rows.forEach(r => {
+        const d = new Date(r.date).getDate();
+        dayMap[d] = r.final_status;
+      });
 
-      const payableDays  = presentDays + leaveDays + (halfDays * 0.5) + (pendingDays * 0); // pending = not yet confirmed
-      const perDay       = parseFloat(s.per_day_salary) || parseFloat(s.monthly_salary) / 26;
-      const grossSalary  = Math.round(payableDays * perDay);
-      const lateFine     = Math.round(
-        (parseFloat(s.late_fine_per_mark) || 0) * lateCount +
-        (parseFloat(s.late_fine_per_minute) || 0) * totalLateMins
-      );
-      const netSalary    = Math.max(0, grossSalary - lateFine);
+      // unit value per status
+      function statusUnit(status) {
+        if (!status) return null;
+        if (status === 'Present' || status === 'Pending') return 1;
+        if (status === 'Half Day' || status === 'Short Day') return 0.5;
+        if (status === 'Leave') return 1;
+        return 0; // Absent or unknown
+      }
 
-      // Upsert salary record
+      // presenceFlag: true if employee had attendance/leave (not absent/null) that day
+      const presenceFlag = {};
+      for (let d = 1; d <= daysInMonth; d++) {
+        const st = dayMap[d];
+        presenceFlag[d] = st !== undefined && st !== 'Absent';
+      }
+
+      let rawUnits = 0;
+      let presentDays = 0, halfDays = 0, leaveDays = 0, absentDays = 0, holidayCredited = 0;
+
+      // First pass: worked days (including holiday working = double credit)
+      for (let d = 1; d <= daysInMonth; d++) {
+        const st = dayMap[d];
+        const isHol = isDayHoliday(d);
+
+        if (presenceFlag[d]) {
+          const unit = statusUnit(st);
+          rawUnits += isHol ? Math.min(2, unit * 2) : unit;
+          if (st === 'Present' || st === 'Pending') presentDays++;
+          else if (st === 'Half Day' || st === 'Short Day') halfDays++;
+          else if (st === 'Leave') leaveDays++;
+        } else if (!isHol) {
+          // Non-holiday with no presence = absent
+          if (st === 'Absent' || st === undefined) absentDays++;
+        }
+      }
+
+      // Second pass: holiday chain credit
+      let d = 1;
+      while (d <= daysInMonth) {
+        if (isDayHoliday(d) && !presenceFlag[d]) {
+          const chainStart = d;
+          while (d <= daysInMonth && isDayHoliday(d) && !presenceFlag[d]) d++;
+          const chainEnd = d - 1;
+
+          const prevWorked = chainStart > 1 && presenceFlag[chainStart - 1];
+          const nextWorked = chainEnd < daysInMonth && presenceFlag[chainEnd + 1];
+
+          if (prevWorked || nextWorked) {
+            rawUnits += (chainEnd - chainStart + 1);
+            holidayCredited += (chainEnd - chainStart + 1);
+          }
+        } else {
+          d++;
+        }
+      }
+
+      // Normalize to 30-day rule
+      const normalizedUnits = absentDays === 0 ? 30 : Math.min(rawUnits, 30);
+
+      const perDay      = parseFloat(s.monthly_salary) / 30;
+      const grossSalary = Math.round(perDay * normalizedUnits * 100) / 100;
+      const netSalary   = grossSalary; // no deductions per App Script method
+
       await db.query(
         `INSERT INTO salary
            (month, year, emp_id, employee_name, formal_name, monthly_salary,
@@ -131,18 +199,16 @@ router.post('/calculate', adminAuth, async (req, res) => {
             late_count, total_late_minutes, grace_used, payable_days,
             gross_salary, late_fine, other_deduction, manual_addition,
             net_salary, calculation_status)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,0,$11,$12,$13,$14,$15,$16,0,0,$17,'Calculated')
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,0,0,0,$12,$13,0,0,0,$14,'Calculated')
          ON CONFLICT (month, year, emp_id) DO UPDATE SET
-           present_days=$7, half_days=$8, absent_days=$9, leave_days=$10,
-           late_count=$11, total_late_minutes=$12, grace_used=$13,
-           payable_days=$14, gross_salary=$15, late_fine=$16, net_salary=$17,
+           present_days=$7, half_days=$8, absent_days=$9, leave_days=$10, holiday_days=$11,
+           late_count=0, total_late_minutes=0, grace_used=0,
+           payable_days=$12, gross_salary=$13, late_fine=0, net_salary=$14,
            calculation_status='Calculated'`,
-        [month, year, s.emp_id, s.employee_name, s.formal_name, s.monthly_salary,
-         presentDays, halfDays, Math.max(0, absentDays), leaveDays,
-         lateCount, totalLateMins, graceUsed, payableDays,
-         grossSalary, lateFine, netSalary]
+        [m, y, s.emp_id, s.employee_name, s.formal_name, s.monthly_salary,
+         presentDays, halfDays, absentDays, leaveDays, holidayCredited,
+         normalizedUnits, grossSalary, netSalary]
       ).catch(() => {
-        // If no unique constraint, just insert
         db.query(
           `INSERT INTO salary
              (month, year, emp_id, employee_name, formal_name, monthly_salary,
@@ -150,23 +216,25 @@ router.post('/calculate', adminAuth, async (req, res) => {
               late_count, total_late_minutes, grace_used, payable_days,
               gross_salary, late_fine, other_deduction, manual_addition,
               net_salary, calculation_status)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,0,$11,$12,$13,$14,$15,$16,0,0,$17,'Calculated')`,
-          [month, year, s.emp_id, s.employee_name, s.formal_name, s.monthly_salary,
-           presentDays, halfDays, Math.max(0, absentDays), leaveDays,
-           lateCount, totalLateMins, graceUsed, payableDays,
-           grossSalary, lateFine, netSalary]
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,0,0,0,$12,$13,0,0,0,$14,'Calculated')`,
+          [m, y, s.emp_id, s.employee_name, s.formal_name, s.monthly_salary,
+           presentDays, halfDays, absentDays, leaveDays, holidayCredited,
+           normalizedUnits, grossSalary, netSalary]
         );
       });
 
       results.push({
         emp_id: s.emp_id, employee_name: s.employee_name,
-        present_days: presentDays, leave_days: leaveDays,
-        payable_days: payableDays, gross_salary: grossSalary,
-        late_fine: lateFine, net_salary: netSalary
+        present_days: presentDays, half_days: halfDays,
+        leave_days: leaveDays, absent_days: absentDays,
+        holiday_credited: holidayCredited,
+        payable_units: normalizedUnits,
+        per_day: Math.round(perDay * 100) / 100,
+        gross_salary: grossSalary, net_salary: netSalary
       });
     }
 
-    res.json({ success: true, message: `Salary calculated for ${results.length} employees`, working_days: workingDays, results });
+    res.json({ success: true, message: `Salary calculated for ${results.length} employees`, results });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Server error: ' + err.message });
