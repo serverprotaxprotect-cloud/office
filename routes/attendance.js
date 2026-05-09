@@ -258,15 +258,7 @@ router.get('/settings', authMiddleware, async (req, res) => {
 
 // ── Helper: ensure holidays table ────────────────────────────
 async function ensureHolidaysTable() {
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS holidays (
-      id SERIAL PRIMARY KEY,
-      holiday_date DATE NOT NULL UNIQUE,
-      holiday_name VARCHAR(100) NOT NULL,
-      created_by VARCHAR(100),
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
+  await db.query(`CREATE TABLE IF NOT EXISTS holidays (id SERIAL PRIMARY KEY, holiday_date DATE NOT NULL UNIQUE, holiday_name VARCHAR(100) NOT NULL, created_by VARCHAR(100), created_at TIMESTAMPTZ DEFAULT NOW())`);
 }
 
 // ── Helper: ensure attendance_requests table ─────────────────
@@ -349,6 +341,21 @@ router.get('/my-requests', authMiddleware, async (req, res) => {
     res.json({ success: true, requests: result.rows });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ── GET /api/attendance/notices (active notices for employees) ─
+router.get('/notices', authMiddleware, async (req, res) => {
+  try {
+    const now = new Date().toISOString();
+    const result = await db.query(
+      `SELECT id, title, message, start_at, end_at
+       FROM notices WHERE start_at <= $1 AND end_at >= $1 ORDER BY created_at DESC`,
+      [now]
+    );
+    res.json({ success: true, notices: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, notices: [] });
   }
 });
 

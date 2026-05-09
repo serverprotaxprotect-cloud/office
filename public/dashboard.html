@@ -118,6 +118,9 @@
   </div>
 </nav>
 
+<!-- Notice Banner -->
+<div id="noticeBanner" style="display:none;"></div>
+
 <!-- Main Content -->
 <div class="dash-main" style="padding-bottom: 90px;">
 
@@ -871,9 +874,30 @@ async function logout() {
 
   startClock();
   await loadToday();
+  loadNotices();
 
   document.getElementById('loadingOverlay').style.display = 'none';
 })();
+
+async function loadNotices() {
+  try {
+    const data = await api('/attendance/notices');
+    const banner = document.getElementById('noticeBanner');
+    if (!data.success || !data.notices.length) { banner.style.display = 'none'; return; }
+    banner.style.cssText = 'display:block;background:#fef3c7;border-bottom:2px solid #f59e0b;padding:0;';
+    banner.innerHTML = data.notices.map(n => `
+      <div style="display:flex;align-items:flex-start;gap:12px;padding:12px 20px;border-bottom:1px solid #fde68a;">
+        <span style="font-size:20px;flex-shrink:0;">&#128226;</span>
+        <div style="flex:1;">
+          <div style="font-weight:700;font-size:14px;color:#92400e;">${n.title}</div>
+          <div style="font-size:13px;color:#78350f;margin-top:2px;white-space:pre-wrap;">${n.message}</div>
+          <div style="font-size:11px;color:#b45309;margin-top:4px;">
+            Valid: ${new Date(n.start_at).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})} – ${new Date(n.end_at).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}
+          </div>
+        </div>
+      </div>`).join('');
+  } catch { /* ignore */ }
+}
 </script>
 </body>
 </html>

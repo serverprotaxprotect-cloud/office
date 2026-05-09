@@ -284,6 +284,48 @@ router.delete('/holidays/:id', adminAuth, async (req, res) => {
   }
 });
 
+// ── GET /api/admin/notices ────────────────────────────────────
+router.get('/notices', adminAuth, async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT id, title, message, start_at, end_at, created_by, created_at
+       FROM notices ORDER BY created_at DESC LIMIT 50`
+    );
+    res.json({ success: true, notices: result.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ── POST /api/admin/notices ───────────────────────────────────
+router.post('/notices', adminAuth, async (req, res) => {
+  const { title, message, start_at, end_at } = req.body;
+  if (!title || !message || !start_at || !end_at)
+    return res.status(400).json({ success: false, message: 'Title, message, start and end time required' });
+  try {
+    const r = await db.query(
+      `INSERT INTO notices (title, message, start_at, end_at, created_by)
+       VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+      [title.trim(), message.trim(), start_at, end_at, req.admin.name]
+    );
+    res.json({ success: true, message: 'Notice published!', id: r.rows[0].id });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ── DELETE /api/admin/notices/:id ────────────────────────────
+router.delete('/notices/:id', adminAuth, async (req, res) => {
+  try {
+    await db.query(`DELETE FROM notices WHERE id=$1`, [req.params.id]);
+    res.json({ success: true, message: 'Notice deleted' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 // ── GET /api/admin/attendance-requests ───────────────────────
 router.get('/attendance-requests', adminAuth, async (req, res) => {
   const status = req.query.status || 'Pending';

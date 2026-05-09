@@ -187,6 +187,9 @@
     <div class="sidebar-item" id="s-holidays" onclick="showPanel('holidays')">
       <span class="s-icon">&#127956;</span> Holidays
     </div>
+    <div class="sidebar-item" id="s-notices" onclick="showPanel('notices')">
+      <span class="s-icon">&#128226;</span> Notices
+    </div>
   </aside>
 
   <!-- Content -->
@@ -503,6 +506,49 @@
       </div>
     </div>
 
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- NOTICES PANEL                                           -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div class="admin-panel" id="panel-notices">
+      <div class="page-title">Notice Board <span>Employees ko notices attendance aur work portal pe dikhenge</span></div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title">New Notice Likho</div>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div>
+            <label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:4px;">TITLE *</label>
+            <input type="text" id="ntc_title" placeholder="e.g. Office will remain closed on Monday" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none;box-sizing:border-box;"/>
+          </div>
+          <div>
+            <label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:4px;">MESSAGE *</label>
+            <textarea id="ntc_msg" rows="3" placeholder="Notice ka full message..." style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none;resize:vertical;box-sizing:border-box;"></textarea>
+          </div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;">
+            <div style="flex:1;min-width:180px;">
+              <label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:4px;">LIVE FROM (Date &amp; Time) *</label>
+              <input type="datetime-local" id="ntc_start" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none;box-sizing:border-box;"/>
+            </div>
+            <div style="flex:1;min-width:180px;">
+              <label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:4px;">LIVE UNTIL (Date &amp; Time) *</label>
+              <input type="datetime-local" id="ntc_end" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none;box-sizing:border-box;"/>
+            </div>
+          </div>
+          <div>
+            <button class="btn-sm" onclick="addNotice()" style="background:#2563eb;">&#128226; Publish Notice</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="today-table-wrap">
+        <div class="hist-table-wrap">
+          <table>
+            <thead><tr><th>Title</th><th>Message</th><th>Live From</th><th>Live Until</th><th>Status</th><th>By</th><th>Action</th></tr></thead>
+            <tbody id="noticesTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
   </main>
 </div>
 
@@ -725,6 +771,7 @@ function showPanel(name) {
   if (name === 'salary')        loadSalaryStructure();
   if (name === 'att-requests')  loadAttRequests();
   if (name === 'holidays')      loadHolidays();
+  if (name === 'notices')       loadNotices();
 }
 
 // ── Salary sub-tabs ──────────────────────────────────────────
@@ -778,16 +825,19 @@ async function loadAttendance() {
 
     allAttRecords = data.records || [];
 
-    // Populate employee dropdown from summary (unique employees in this month)
+    // Populate employee dropdown from ALL employees (active + resigned)
     const empSel = document.getElementById('attEmpFilter');
     const prevVal = empSel.value;
-    empSel.innerHTML = '<option value="">All Employees</option>';
-    data.summary.forEach(s => {
-      const o = document.createElement('option');
-      o.value = s.emp_id;
-      o.textContent = `${s.employee_name} (${s.emp_id})`;
-      empSel.appendChild(o);
-    });
+    try {
+      const empData = await api('/admin/employees');
+      empSel.innerHTML = '<option value="">All Employees</option>';
+      (empData.employees || []).forEach(e => {
+        const o = document.createElement('option');
+        o.value = e.emp_id;
+        o.textContent = `${e.name} (${e.emp_id})${e.status === 'Resigned' ? ' — Resigned' : ''}`;
+        empSel.appendChild(o);
+      });
+    } catch { /* fallback to summary */ }
     empSel.value = prevVal || '';
 
     // Summary table
@@ -1280,6 +1330,60 @@ async function deleteHoliday(id, name) {
   const data = await api(`/admin/holidays/${id}`, { method: 'DELETE' });
   showToast(data.message, data.success ? 'success' : 'error');
   if (data.success) loadHolidays();
+}
+
+// ── NOTICES ───────────────────────────────────────────────────
+async function loadNotices() {
+  const data = await api('/admin/notices');
+  if (!data.success) return;
+  const tb = document.getElementById('noticesTable');
+  const now = new Date();
+  tb.innerHTML = data.notices.length ? data.notices.map(n => {
+    const start = new Date(n.start_at), end = new Date(n.end_at);
+    const isLive = now >= start && now <= end;
+    const fmtDT = d => d.toLocaleString('en-IN', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    return `<tr>
+      <td><strong>${n.title}</strong></td>
+      <td style="max-width:200px;white-space:pre-wrap;font-size:13px;">${n.message}</td>
+      <td>${fmtDT(start)}</td>
+      <td>${fmtDT(end)}</td>
+      <td>${isLive ? '<span style="color:#16a34a;font-weight:700;">&#9679; Live</span>' : '<span style="color:#94a3b8;">Inactive</span>'}</td>
+      <td style="font-size:12px;color:#64748b;">${n.created_by || '-'}</td>
+      <td><button class="btn-danger" style="padding:4px 10px;font-size:12px;" onclick="deleteNotice(${n.id},'${n.title.replace(/'/g,"\\'")}')">Delete</button></td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:20px">Koi notice nahi hai abhi</td></tr>';
+}
+
+async function addNotice() {
+  const title = document.getElementById('ntc_title').value.trim();
+  const message = document.getElementById('ntc_msg').value.trim();
+  const start_at = document.getElementById('ntc_start').value;
+  const end_at   = document.getElementById('ntc_end').value;
+  if (!title || !message || !start_at || !end_at) {
+    showToast('Sabhi fields required hain', 'error'); return;
+  }
+  if (new Date(end_at) <= new Date(start_at)) {
+    showToast('End time, start time ke baad honi chahiye', 'error'); return;
+  }
+  const data = await api('/admin/notices', {
+    method: 'POST',
+    body: JSON.stringify({ title, message, start_at, end_at })
+  });
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) {
+    document.getElementById('ntc_title').value = '';
+    document.getElementById('ntc_msg').value = '';
+    document.getElementById('ntc_start').value = '';
+    document.getElementById('ntc_end').value = '';
+    loadNotices();
+  }
+}
+
+async function deleteNotice(id, title) {
+  if (!confirm(`"${title}" notice delete karo?`)) return;
+  const data = await api(`/admin/notices/${id}`, { method: 'DELETE' });
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) loadNotices();
 }
 
 // ── ATTENDANCE IMPORT ────────────────────────────────────────
