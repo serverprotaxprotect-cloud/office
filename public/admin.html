@@ -1131,17 +1131,19 @@ async function calculateSalary() {
     res.innerHTML = `
       <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px;margin-bottom:12px;">
         <strong style="color:#15803d">Salary Calculated for ${data.results.length} employees</strong>
-        <br><small style="color:#64748b">Working days this month: ${data.working_days}</small>
       </div>
       <div class="hist-table-wrap"><table>
-        <thead><tr><th>Employee</th><th>Present</th><th>Leave</th><th>Payable Days</th><th>Gross</th><th>Late Fine</th><th>Net Salary</th></tr></thead>
+        <thead><tr><th>Employee</th><th>Present</th><th>Half Day</th><th>Leave</th><th>Absent</th><th>Holiday+</th><th>Payable Units</th><th>Per Day</th><th>Gross</th><th>Net Salary</th></tr></thead>
         <tbody>${data.results.map(r => `<tr>
           <td>${r.employee_name}</td>
           <td>${r.present_days}</td>
+          <td>${r.half_days}</td>
           <td>${r.leave_days}</td>
-          <td>${r.payable_days}</td>
+          <td>${r.absent_days > 0 ? `<span style="color:#dc2626">${r.absent_days}</span>` : 0}</td>
+          <td>${r.holiday_credited > 0 ? `<span style="color:#7c3aed">${r.holiday_credited}</span>` : 0}</td>
+          <td>${r.payable_units}</td>
+          <td style="color:#64748b;font-size:13px;">₹${r.per_day}</td>
           <td>${money(r.gross_salary)}</td>
-          <td style="color:#dc2626">${money(r.late_fine)}</td>
           <td><strong style="color:#16a34a">${money(r.net_salary)}</strong></td>
         </tr>`).join('')}</tbody>
       </table></div>`;
