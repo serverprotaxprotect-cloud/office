@@ -7,8 +7,8 @@ const router = express.Router();
 const STATUS_OPTIONS = ['Pending','Pending by Client','Filed','Under Process','Not Applicable','Received','Prepared'];
 
 const FY_OPTIONS = () => {
-  const now = new Date();
-  const curYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+  const now = new Date(Date.now() + (5.5 * 60 * 60 * 1000)); // IST
+  const curYear = now.getUTCMonth() >= 3 ? now.getUTCFullYear() : now.getUTCFullYear() - 1;
   const out = [];
   for (let y = curYear - 4; y <= curYear + 4; y++) {
     out.push(`${y}-${String(y + 1).slice(-2)}`);

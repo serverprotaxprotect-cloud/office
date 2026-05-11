@@ -214,8 +214,8 @@ router.post('/mark', authMiddleware, async (req, res) => {
 // ── GET /api/attendance/history ───────────────────────────────
 router.get('/history', authMiddleware, async (req, res) => {
   const { emp_id } = req.user;
-  const month = parseInt(req.query.month) || new Date().getMonth() + 1;
-  const year  = parseInt(req.query.year)  || new Date().getFullYear();
+  const month = parseInt(req.query.month) || (nowIST().getUTCMonth() + 1);
+  const year  = parseInt(req.query.year)  || nowIST().getUTCFullYear();
 
   try {
     const result = await db.query(
@@ -295,8 +295,8 @@ async function ensureRequestsTable() {
 
 // ── GET /api/attendance/holidays ──────────────────────────────
 router.get('/holidays', authMiddleware, async (req, res) => {
-  const month = parseInt(req.query.month) || new Date().getMonth() + 1;
-  const year  = parseInt(req.query.year)  || new Date().getFullYear();
+  const month = parseInt(req.query.month) || (nowIST().getUTCMonth() + 1);
+  const year  = parseInt(req.query.year)  || nowIST().getUTCFullYear();
   try {
     await ensureHolidaysTable();
     const result = await db.query(
@@ -359,7 +359,7 @@ router.get('/my-requests', authMiddleware, async (req, res) => {
 // ── GET /api/attendance/notices (active notices for employees) ─
 router.get('/notices', authMiddleware, async (req, res) => {
   try {
-    const now = new Date().toISOString();
+    const now = nowIST().toISOString();
     const result = await db.query(
       `SELECT id, title, message, start_at, end_at
        FROM notices WHERE start_at <= $1 AND end_at >= $1 ORDER BY created_at DESC`,

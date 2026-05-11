@@ -5,6 +5,10 @@ const authMiddleware = require('../middleware/auth');
 
 const router = express.Router();
 
+// ── IST helper (Asia/Kolkata = UTC+5:30) ─────────────────────
+function nowIST()   { return new Date(Date.now() + (5.5 * 60 * 60 * 1000)); }
+function todayIST() { return nowIST().toISOString().split('T')[0]; }
+
 // Helper: is this user an admin with full-view rights?
 const isAdminView = u => u.user_type === 'admin' && ['Director', 'Office Manager', 'HR'].includes(u.role);
 
@@ -251,7 +255,7 @@ router.post('/', authMiddleware, async (req, res) => {
     internal_remark, professional_fees, challan_amount, other_expense, fees_applicable,
   } = req.body;
   if (!work_name) return res.status(400).json({ success: false, message: 'Work name required' });
-  const now = new Date();
+  const now = nowIST();
   const dateKey = now.toISOString().split('T')[0].replace(/-/g, '');
   try {
     const cnt = await db.query(`SELECT COUNT(*) FROM tasks WHERE created_at::date = CURRENT_DATE`);
@@ -288,7 +292,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
     if (!existing.rows.length) return res.status(404).json({ success: false, message: 'Task not found' });
     const old = existing.rows[0];
     const total = (parseFloat(professional_fees) ?? old.professional_fees ?? 0) + (parseFloat(challan_amount) ?? old.challan_amount ?? 0) + (parseFloat(other_expense) ?? old.other_expense ?? 0);
-    const completionDate = status && ['Completed','Cancelled'].includes(status) && !old.completion_date ? new Date().toISOString().split('T')[0] : old.completion_date;
+    const completionDate = status && ['Completed','Cancelled'].includes(status) && !old.completion_date ? todayIST() : old.completion_date;
     await db.query(
       `UPDATE tasks SET status=COALESCE($1,status), priority=COALESCE($2,priority), due_date=COALESCE($3::date,due_date), assigned_to_id=COALESCE($4,assigned_to_id), assigned_to_name=COALESCE($5,assigned_to_name), internal_remark=COALESCE($6,internal_remark), client_pending_remark=COALESCE($7,client_pending_remark), completion_remark=COALESCE($8,completion_remark), next_followup_date=COALESCE($9::date,next_followup_date), drive_link=COALESCE($10,drive_link), professional_fees=COALESCE($11,professional_fees), challan_amount=COALESCE($12,challan_amount), other_expense=COALESCE($13,other_expense), total_amount=$14, fees_applicable=COALESCE($15,fees_applicable), completion_date=$16, last_updated_at=NOW(), last_updated_by_id=$17, last_updated_by_name=$18 WHERE task_id=$19`,
       [status||null, priority||null, due_date||null, assigned_to_id||null, assigned_to_name||null, internal_remark||null, client_pending_remark||null, completion_remark||null, next_followup_date||null, drive_link||null, parseFloat(professional_fees)||null, parseFloat(challan_amount)||null, parseFloat(other_expense)||null, total||null, fees_applicable||null, completionDate||null, emp_id, formal_name||name, taskId]
