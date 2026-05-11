@@ -5,8 +5,49 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PTP Attendance - Login</title>
   <link rel="stylesheet" href="/assets/style.css" />
+
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#1e3a8a" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="PTP Attend" />
+  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+  <style>
+    #pwaInstallBox {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 999;
+      padding: 10px 16px;
+      background: linear-gradient(135deg, #1e3a8a, #2563eb);
+      display: none; align-items: center; gap: 12px;
+    }
+    #pwaInstallBox img { width: 36px; height: 36px; border-radius: 8px; flex-shrink: 0; }
+    #pwaInstallBox .pwa-text { flex: 1; }
+    #pwaInstallBox .pwa-text strong { display: block; color: #fff; font-size: 13px; }
+    #pwaInstallBox .pwa-text span { color: #93c5fd; font-size: 11px; }
+    #pwaInstallBtn { background: #fff; color: #1e3a8a; border: none; border-radius: 8px; padding: 7px 14px; font-size: 12px; font-weight: 800; cursor: pointer; flex-shrink: 0; }
+    #pwaDismiss { background: none; border: none; color: #93c5fd; font-size: 18px; cursor: pointer; padding: 0 4px; flex-shrink: 0; }
+    body.has-pwa-banner .login-card { margin-top: 70px; }
+  </style>
 </head>
 <body class="login-body">
+
+  <!-- PWA Install Banner (top bar) -->
+  <div id="pwaInstallBox">
+    <img src="/icons/icon-192.png" />
+    <div class="pwa-text">
+      <strong>PTP Attendance Install Karein</strong>
+      <span>Home screen pe app ki tarah use karein</span>
+    </div>
+    <button id="pwaInstallBtn">&#8681; Install</button>
+    <button id="pwaDismiss" onclick="dismissPWA()">&#10005;</button>
+  </div>
+
+  <!-- iOS hint -->
+  <div id="iosHint" style="display:none;position:fixed;top:0;left:0;right:0;z-index:999;background:#1e3a8a;padding:10px 16px;text-align:center;font-size:12px;color:#93c5fd;line-height:1.7;">
+    iPhone pe install: Safari mein <strong style="color:#fff;">Share &#x1F4E4;</strong> → <strong style="color:#fff;">Add to Home Screen</strong>
+    <button onclick="dismissPWA()" style="background:none;border:none;color:#93c5fd;font-size:16px;cursor:pointer;margin-left:8px;">&#10005;</button>
+  </div>
 
   <div class="login-card">
     <div class="login-logo">
@@ -93,6 +134,51 @@
         spin.style.display = 'none';
       }
     });
+  </script>
+
+  <script>
+    // ── PWA Install ──────────────────────────────────────────
+    let _pwaPrompt = null;
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+
+    function dismissPWA() {
+      document.getElementById('pwaInstallBox').style.display = 'none';
+      document.getElementById('iosHint').style.display = 'none';
+      document.body.classList.remove('has-pwa-banner');
+      sessionStorage.setItem('pwa-dismissed', '1');
+    }
+
+    if (!isStandalone && !sessionStorage.getItem('pwa-dismissed')) {
+      if (isIOS) {
+        document.getElementById('iosHint').style.display = 'block';
+        document.body.classList.add('has-pwa-banner');
+      }
+    }
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      _pwaPrompt = e;
+      if (!isStandalone && !sessionStorage.getItem('pwa-dismissed')) {
+        document.getElementById('pwaInstallBox').style.display = 'flex';
+        document.body.classList.add('has-pwa-banner');
+      }
+    });
+
+    document.getElementById('pwaInstallBtn').addEventListener('click', async () => {
+      if (!_pwaPrompt) return;
+      _pwaPrompt.prompt();
+      const { outcome } = await _pwaPrompt.userChoice;
+      if (outcome === 'accepted') dismissPWA();
+      _pwaPrompt = null;
+    });
+
+    window.addEventListener('appinstalled', () => dismissPWA());
+
+    // ── Service Worker ───────────────────────────────────────
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
   </script>
 </body>
 </html>
