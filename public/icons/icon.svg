@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="100" fill="#1e3a8a"/>
+  <!-- Clock circle -->
+  <circle cx="256" cy="230" r="110" fill="none" stroke="#ffffff" stroke-width="22"/>
+  <!-- Clock hands -->
+  <line x1="256" y1="230" x2="256" y2="155" stroke="#ffffff" stroke-width="18" stroke-linecap="round"/>
+  <line x1="256" y1="230" x2="318" y2="268" stroke="#60a5fa" stroke-width="14" stroke-linecap="round"/>
+  <!-- Center dot -->
+  <circle cx="256" cy="230" r="12" fill="#60a5fa"/>
+  <!-- Checkmark bar bottom -->
+  <rect x="148" y="375" width="216" height="28" rx="14" fill="#60a5fa"/>
+  <!-- Fingerprint dots -->
+  <circle cx="200" cy="375" r="0" fill="none"/>
+  <!-- PTP text -->
+  <text x="256" y="430" text-anchor="middle" font-family="Arial,sans-serif" font-weight="900" font-size="52" fill="#ffffff" opacity="0.0">PTP</text>
+</svg>

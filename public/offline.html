@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Offline – PTP Attendance</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      min-height:100vh;
+      background:linear-gradient(135deg,#0f1b35,#1a3a6b);
+      display:flex; flex-direction:column;
+      align-items:center; justify-content:center;
+      font-family:'Segoe UI',system-ui,sans-serif;
+      color:#fff; padding:24px; text-align:center;
+    }
+    .icon { font-size:72px; margin-bottom:24px; opacity:.85; }
+    .title { font-size:22px; font-weight:800; margin-bottom:10px; }
+    .msg {
+      font-size:15px; color:#93c5fd; line-height:1.6;
+      max-width:320px; margin-bottom:32px;
+    }
+    .retry-btn {
+      padding:14px 32px;
+      background:linear-gradient(135deg,#2563eb,#3b82f6);
+      border:none; border-radius:12px;
+      color:#fff; font-size:15px; font-weight:700;
+      cursor:pointer; letter-spacing:.3px;
+    }
+    .retry-btn:active { opacity:.85; }
+    .brand {
+      position:absolute; bottom:24px;
+      font-size:12px; color:#475569;
+    }
+  </style>
+</head>
+<body>
+  <div class="icon">📶</div>
+  <div class="title">Internet nahi hai</div>
+  <div class="msg">
+    Attendance mark karne ke liye internet connection zaroori hai.<br/><br/>
+    WiFi ya mobile data on karo aur phir try karo.
+  </div>
+  <button class="retry-btn" onclick="window.location.reload()">
+    🔄 Dobara Try Karo
+  </button>
+  <div class="brand">PTP Attendance • Protax Protect Services</div>
+</body>
+</html>

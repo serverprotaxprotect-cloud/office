@@ -1,0 +1,44 @@
+{
+  "name": "PTP Attendance",
+  "short_name": "PTP Attend",
+  "description": "Protax Protect Services – Employee Attendance Portal",
+  "start_url": "/dashboard.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#1e3a8a",
+  "theme_color": "#1e3a8a",
+  "lang": "en-IN",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Punch IN",
+      "short_name": "Punch IN",
+      "description": "Mark attendance IN",
+      "url": "/dashboard.html#home",
+      "icons": [{ "src": "/icons/icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "My History",
+      "short_name": "History",
+      "description": "View attendance history",
+      "url": "/dashboard.html#history",
+      "icons": [{ "src": "/icons/icon.svg", "sizes": "any" }]
+    }
+  ]
+}
