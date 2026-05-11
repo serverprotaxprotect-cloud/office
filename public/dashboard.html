@@ -395,6 +395,19 @@
 
   </div>
 
+  <!-- ── TAB: NOTIFICATIONS ───────────────────────────────── -->
+  <div class="tab-panel" id="tab-notif">
+    <div class="card">
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>🔔 Notifications</span>
+        <button class="btn-sm" style="font-size:11px;" onclick="markAllRead()">All Read ✓</button>
+      </div>
+      <div id="notifList">
+        <p style="color:#94a3b8;font-size:14px;text-align:center;padding:20px 0;">Loading...</p>
+      </div>
+    </div>
+  </div>
+
   <!-- ── TAB: SALARY ──────────────────────────────────────── -->
   <div class="tab-panel" id="tab-salary">
 
@@ -420,6 +433,10 @@
   </button>
   <button class="tab-btn" id="navLeave" onclick="switchTab('leave')">
     <span class="tab-icon">&#128203;</span>Leave
+  </button>
+  <button class="tab-btn" id="navNotif" onclick="switchTab('notif')" style="position:relative;">
+    <span class="tab-icon">&#128276;</span>Alerts
+    <span id="notifBadge" style="display:none;position:absolute;top:4px;right:8px;background:#ef4444;color:#fff;font-size:10px;font-weight:800;border-radius:10px;padding:1px 5px;min-width:16px;text-align:center;"></span>
   </button>
   <button class="tab-btn" id="navSalary" onclick="switchTab('salary')">
     <span class="tab-icon">&#128176;</span>Salary
@@ -858,6 +875,134 @@ function switchTab(tab) {
   if (tab === 'profile') { loadProfile(); initPWA(); }
   if (tab === 'leave')   loadLeaveHistory();
   if (tab === 'salary')  loadMySalary();
+  if (tab === 'notif')   { loadNotifications(true); }
+}
+
+// ── 5-Second Alert Sound ─────────────────────────────────────
+function playAlertSound() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const totalSec = 5;
+    for (let i = 0; i < totalSec * 2; i++) {
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.value = i % 2 === 0 ? 880 : 660;
+      const t = ctx.currentTime + i * 0.5;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.35, t + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+      osc.start(t);
+      osc.stop(t + 0.5);
+    }
+  } catch (e) { console.warn('Sound error:', e); }
+}
+
+// ── Notifications ─────────────────────────────────────────────
+let _lastUnread = 0;
+let _notifPolling = null;
+
+const NOTIF_ICONS = {
+  task_assigned:  '📋',
+  task_reassigned:'🔄',
+  task_overdue:   '⚠️',
+  task_status:    '✅',
+};
+
+async function loadNotifications(silent = false) {
+  try {
+    const data = await api('/notifications/my');
+    if (!data.success) return;
+
+    // Badge update
+    const badge = document.getElementById('notifBadge');
+    if (data.unread > 0) {
+      badge.textContent = data.unread > 99 ? '99+' : data.unread;
+      badge.style.display = 'inline-block';
+    } else {
+      badge.style.display = 'none';
+    }
+
+    // Play sound if new unread arrived
+    if (!silent && data.unread > _lastUnread) {
+      playAlertSound();
+      // Browser notification (if permission granted)
+      const newCount = data.unread - _lastUnread;
+      if (Notification.permission === 'granted' && newCount > 0) {
+        const newest = data.notifications.find(n => !n.is_read);
+        if (newest) new Notification(newest.title, { body: newest.message, icon: '/icons/icon-192.png', badge: '/icons/icon-192.png' });
+      }
+    }
+    _lastUnread = data.unread;
+
+    // Render list (only if on notifications tab)
+    if (document.getElementById('tab-notif').classList.contains('active')) {
+      renderNotifList(data.notifications);
+    }
+  } catch {}
+}
+
+function renderNotifList(notifs) {
+  const list = document.getElementById('notifList');
+  if (!notifs.length) {
+    list.innerHTML = '<p style="color:#94a3b8;font-size:14px;text-align:center;padding:24px 0;">Koi notification nahi hai</p>';
+    return;
+  }
+  list.innerHTML = notifs.map(n => {
+    const icon = NOTIF_ICONS[n.type] || '🔔';
+    const time = new Date(n.created_at).toLocaleString('en-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit', hour12:true });
+    const bg   = n.is_read ? '#f8fafc' : '#eff6ff';
+    const border = n.is_read ? '#e2e8f0' : '#bfdbfe';
+    return `<div onclick="markRead(${n.id}, this)"
+      style="padding:12px;margin-bottom:8px;background:${bg};border:1.5px solid ${border};border-radius:12px;cursor:pointer;transition:background .2s;">
+      <div style="display:flex;align-items:flex-start;gap:10px;">
+        <span style="font-size:22px;flex-shrink:0;">${icon}</span>
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:${n.is_read?'600':'800'};color:#1e293b;">${n.title}</div>
+          <div style="font-size:12px;color:#64748b;margin-top:3px;line-height:1.5;">${n.message || ''}</div>
+          <div style="font-size:11px;color:#94a3b8;margin-top:4px;">${time}</div>
+        </div>
+        ${!n.is_read ? '<span style="width:8px;height:8px;background:#2563eb;border-radius:50%;flex-shrink:0;margin-top:4px;"></span>' : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function markRead(id, el) {
+  await api(`/notifications/read/${id}`, { method: 'POST' });
+  if (el) {
+    el.style.background = '#f8fafc';
+    el.style.border = '1.5px solid #e2e8f0';
+    const dot = el.querySelector('span[style*="background:#2563eb"]');
+    if (dot) dot.remove();
+    const title = el.querySelector('div[style*="font-weight:800"]');
+    if (title) title.style.fontWeight = '600';
+  }
+  _lastUnread = Math.max(0, _lastUnread - 1);
+  const badge = document.getElementById('notifBadge');
+  if (_lastUnread === 0) badge.style.display = 'none';
+  else badge.textContent = _lastUnread;
+}
+
+async function markAllRead() {
+  await api('/notifications/read-all', { method: 'POST' });
+  _lastUnread = 0;
+  document.getElementById('notifBadge').style.display = 'none';
+  loadNotifications(true);
+}
+
+function startNotifPolling() {
+  loadNotifications(true); // first load silent
+  _notifPolling = setInterval(() => loadNotifications(false), 30000); // every 30s
+}
+
+// Request browser notification permission
+async function requestNotifPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    await Notification.requestPermission();
+  }
 }
 
 // ── Salary Tab ────────────────────────────────────────────
@@ -1137,6 +1282,8 @@ async function logout() {
   startClock();
   await loadToday();
   loadNotices();
+  requestNotifPermission();
+  startNotifPolling();
 
   document.getElementById('loadingOverlay').style.display = 'none';
 })();

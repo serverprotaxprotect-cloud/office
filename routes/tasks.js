@@ -4,6 +4,7 @@ const db = require('../db');
 const authMiddleware = require('../middleware/auth');
 
 const router = express.Router();
+const { createNotif } = require('./notifications');
 
 // ── IST helper (Asia/Kolkata = UTC+5:30) ─────────────────────
 function nowIST()   { return new Date(Date.now() + (5.5 * 60 * 60 * 1000)); }
@@ -275,6 +276,15 @@ router.post('/', authMiddleware, async (req, res) => {
        VALUES ($1,$2,'Created','Pending',$3,$4,$5,$6,NOW(),$7)`,
       ['LOG_' + uuidv4().replace(/-/g,'').slice(0,10), taskId, toName, due_date||null, emp_id, formal_name||name, internal_remark||null]
     );
+    // ── Notification: task assigned ──────────────────────────
+    if (!isSelf) {
+      await createNotif(
+        toId, 'task_assigned',
+        '📋 Naya Task Assign Hua',
+        `"${work_name}" aapko assign kiya gaya hai by ${formal_name || name}${due_date ? '. Due: ' + new Date(due_date).toLocaleDateString('en-IN', {day:'2-digit',month:'short',year:'numeric'}) : ''}`,
+        taskId
+      );
+    }
     res.json({ success: true, message: 'Task created!', task_id: taskId });
   } catch (err) {
     console.error(err);
@@ -302,6 +312,42 @@ router.put('/:id', authMiddleware, async (req, res) => {
        VALUES ($1,$2,'Updated',$3,$4,$5,$6,$7,$8,$9,$10,NOW(),$11)`,
       ['LOG_' + uuidv4().replace(/-/g,'').slice(0,10), taskId, old.status, status||old.status, old.assigned_to_name, assigned_to_name||old.assigned_to_name, old.due_date, due_date||old.due_date, emp_id, formal_name||name, internal_remark||completion_remark||null]
     );
+    const newAssignee = assigned_to_id || old.assigned_to_id;
+    const newAssigneeName = assigned_to_name || old.assigned_to_name;
+    const taskLabel = `"${old.work_name || old.task_id}"`;
+    const byName = formal_name || name;
+
+    // ── Notification: reassigned ──────────────────────────────
+    if (assigned_to_id && assigned_to_id !== old.assigned_to_id) {
+      // Notify new assignee
+      await createNotif(
+        assigned_to_id, 'task_reassigned',
+        '🔄 Task Aapko Reassign Hua',
+        `${taskLabel} ab aapko assign kiya gaya hai by ${byName}${due_date ? '. Due: ' + new Date(due_date||old.due_date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : ''}`,
+        taskId
+      );
+      // Notify old assignee
+      if (old.assigned_to_id && old.assigned_to_id !== emp_id) {
+        await createNotif(
+          old.assigned_to_id, 'task_reassigned',
+          '🔄 Task Reassign Hua',
+          `${taskLabel} ab ${newAssigneeName} ko assign kiya gaya hai by ${byName}`,
+          taskId
+        );
+      }
+    }
+
+    // ── Notification: status changed (notify creator if someone else updated) ──
+    if (status && status !== old.status && old.created_by_id && old.created_by_id !== emp_id) {
+      const statusLabels = { 'Completed': '✅ Complete', 'Cancelled': '❌ Cancel', 'Pending by Client': '⏳ Client Pending' };
+      await createNotif(
+        old.created_by_id, 'task_status',
+        `${statusLabels[status] || '📝 Status Update'}: ${taskLabel}`,
+        `${taskLabel} ka status "${status}" ho gaya by ${byName}`,
+        taskId
+      );
+    }
+
     res.json({ success: true, message: 'Task updated!' });
   } catch (err) {
     console.error(err);

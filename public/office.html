@@ -2838,6 +2838,49 @@ document.addEventListener('click', e => {
   }
 });
 
+// ── 5-Second Alert Sound ─────────────────────────────────────
+function playAlertSound() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    for (let i = 0; i < 10; i++) {
+      const osc = ctx.createOscillator(), gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.value = i % 2 === 0 ? 880 : 660;
+      const t = ctx.currentTime + i * 0.5;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.35, t + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+      osc.start(t); osc.stop(t + 0.5);
+    }
+  } catch(e) {}
+}
+
+// ── Notification polling for office portal ───────────────────
+let _officeLastUnread = 0;
+
+async function pollOfficeNotifs(silent) {
+  try {
+    const data = await api('/notifications/my');
+    if (!data.success) return;
+    if (!silent && data.unread > _officeLastUnread) {
+      playAlertSound();
+      if (Notification.permission === 'granted') {
+        const n = data.notifications.find(x => !x.is_read);
+        if (n) new Notification(n.title, { body: n.message, icon: '/icons/icon-192.png' });
+      }
+    }
+    _officeLastUnread = data.unread;
+    // Update existing badge if present
+    ['notifBadge','botNotifBadge'].forEach(id => {
+      const b = document.getElementById(id);
+      if (!b) return;
+      if (data.unread > 0) { b.textContent = data.unread; b.classList.remove('hidden'); }
+      else { b.classList.add('hidden'); }
+    });
+  } catch(e) {}
+}
+
 // ── INIT ─────────────────────────────────────────────────────
 async function initOfficeApp() {
   await loadMeta();
@@ -2854,6 +2897,13 @@ async function initOfficeApp() {
     }
   } catch(e) {}
   document.getElementById('loadingOverlay').style.display = 'none';
+
+  // Request browser notification permission + start polling
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+  pollOfficeNotifs(true); // silent first load
+  setInterval(() => pollOfficeNotifs(false), 30000); // every 30s
 }
 
 if (token) { initOfficeApp(); }

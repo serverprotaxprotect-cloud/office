@@ -12,6 +12,7 @@ const tasksRoutes      = require('./routes/tasks');
 const clientsRoutes    = require('./routes/clients');
 const complianceRoutes = require('./routes/compliance');
 const importRoutes     = require('./routes/import');
+const { router: notifRoutes } = require('./routes/notifications');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -32,7 +33,8 @@ app.use('/api/salary',     salaryRoutes);
 app.use('/api/tasks',      tasksRoutes);
 app.use('/api/clients',    clientsRoutes);
 app.use('/api/compliance', complianceRoutes);
-app.use('/api/import',    importRoutes);
+app.use('/api/import',         importRoutes);
+app.use('/api/notifications',  notifRoutes);
 
 // Catch-all: serve index (login page)
 app.get('*', (req, res) => {
