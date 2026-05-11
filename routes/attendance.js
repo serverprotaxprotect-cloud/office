@@ -356,6 +356,29 @@ router.get('/my-requests', authMiddleware, async (req, res) => {
   }
 });
 
+// ── GET /api/attendance/geocode?lat=&lng= (HERE Maps reverse geocode proxy) ──
+router.get('/geocode', authMiddleware, async (req, res) => {
+  const { lat, lng } = req.query;
+  if (!lat || !lng) return res.status(400).json({ success: false, message: 'lat and lng required' });
+
+  const apiKey = process.env.HERE_API_KEY;
+  if (!apiKey) {
+    // Fallback: return coordinates as address if key not configured
+    return res.json({ success: true, address: `${parseFloat(lat).toFixed(5)}, ${parseFloat(lng).toFixed(5)}` });
+  }
+
+  try {
+    const url = `https://revgeocode.search.hereapi.com/v1/revgeocode?at=${lat},${lng}&lang=en-IN&apiKey=${apiKey}`;
+    const response = await fetch(url);
+    const data = await response.json();
+    const address = data?.items?.[0]?.address?.label || `${lat}, ${lng}`;
+    res.json({ success: true, address });
+  } catch (err) {
+    console.error('HERE geocode error:', err);
+    res.json({ success: true, address: `${lat}, ${lng}` }); // fallback
+  }
+});
+
 // ── GET /api/attendance/notices (active notices for employees) ─
 router.get('/notices', authMiddleware, async (req, res) => {
   try {

@@ -576,13 +576,10 @@ async function markAttendance(action) {
     latitude  = pos.coords.latitude;
     longitude = pos.coords.longitude;
 
-    // Reverse geocode
+    // Reverse geocode via HERE Maps (backend proxy)
     try {
-      const geo = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`
-      );
-      const gd = await geo.json();
-      address = gd.display_name || null;
+      const geo = await api(`/attendance/geocode?lat=${latitude}&lng=${longitude}`);
+      address = geo.address || null;
     } catch { /* ignore */ }
   } catch (geoErr) {
     const msg = geoErr.code === 1
