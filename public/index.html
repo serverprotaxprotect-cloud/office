@@ -241,13 +241,74 @@
 
   </div>
 
+  <!-- PWA Install Banner -->
+  <div id="pwaInstallBox" style="display:none;margin:0 auto 24px;max-width:680px;width:100%;padding:0 20px;">
+    <div style="background:linear-gradient(135deg,#1e3a8a,#2563eb);border-radius:16px;padding:16px 20px;display:flex;align-items:center;gap:14px;">
+      <img src="/icons/icon-192.png" style="width:48px;height:48px;border-radius:10px;flex-shrink:0;" />
+      <div style="flex:1;">
+        <div style="color:#fff;font-weight:800;font-size:15px;">PTP Attendance App Install Karein</div>
+        <div style="color:#93c5fd;font-size:12px;margin-top:2px;">Home screen pe add karein — bilkul app jaisa experience</div>
+      </div>
+      <button id="pwaInstallBtn" style="background:#fff;color:#1e3a8a;border:none;border-radius:10px;padding:10px 18px;font-size:13px;font-weight:800;cursor:pointer;flex-shrink:0;">
+        &#8681; Install
+      </button>
+      <button onclick="document.getElementById('pwaInstallBox').style.display='none'" style="background:none;border:none;color:#93c5fd;font-size:20px;cursor:pointer;padding:0 4px;flex-shrink:0;">&#10005;</button>
+    </div>
+    <!-- iOS instructions (shown only on iPhone/iPad) -->
+    <div id="iosInstallHint" style="display:none;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:12px 16px;margin-top:8px;color:#93c5fd;font-size:12px;line-height:1.8;text-align:center;">
+      iPhone/iPad pe install karne ke liye:<br/>
+      Safari mein <strong style="color:#fff;">Share button (&#x1F4E4;)</strong> tap karo →
+      <strong style="color:#fff;">"Add to Home Screen"</strong> select karo
+    </div>
+  </div>
+
   <div class="footer">
     &copy; 2025 Pro Tax Protect &nbsp;&middot;&nbsp; All rights reserved
   </div>
 
   <script>
-    // If already logged in, show both options still (user chooses where to go)
-    // No auto-redirect from landing page
+    // ── PWA Install Logic ─────────────────────────────────────
+    let deferredPrompt = null;
+    const installBox = document.getElementById('pwaInstallBox');
+    const installBtn = document.getElementById('pwaInstallBtn');
+    const iosHint    = document.getElementById('iosInstallHint');
+
+    // Detect iOS
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+
+    if (!isStandalone) {
+      if (isIOS) {
+        // iOS: show Safari share instructions
+        installBox.style.display = 'block';
+        installBtn.style.display = 'none';
+        iosHint.style.display = 'block';
+      }
+    }
+
+    // Android/Desktop: capture install prompt
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      if (!isStandalone) {
+        installBox.style.display = 'block';
+      }
+    });
+
+    installBtn.addEventListener('click', async () => {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        installBox.style.display = 'none';
+      }
+      deferredPrompt = null;
+    });
+
+    // Hide if already installed
+    window.addEventListener('appinstalled', () => {
+      installBox.style.display = 'none';
+    });
 
     // ── Register Service Worker ──
     if ('serviceWorker' in navigator) {
