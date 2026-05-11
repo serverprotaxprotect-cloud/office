@@ -10,6 +10,10 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 
 const router = express.Router();
 
+// ── IST helpers (Asia/Kolkata = UTC+5:30) ────────────────────
+function nowIST()    { return new Date(Date.now() + (5.5 * 60 * 60 * 1000)); }
+function todayIST()  { return nowIST().toISOString().split('T')[0]; }
+
 // ── POST /api/admin/login ────────────────────────────────────
 router.post('/login', async (req, res) => {
   const { username, password } = req.body;
@@ -42,7 +46,7 @@ router.post('/login', async (req, res) => {
 
 // ── GET /api/admin/overview ──────────────────────────────────
 router.get('/overview', adminAuth, async (req, res) => {
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayIST();
   try {
     const [total, present, onLeave, sessions] = await Promise.all([
       db.query(`SELECT COUNT(*) FROM emplist WHERE status='Active'`),
@@ -74,8 +78,8 @@ router.get('/overview', adminAuth, async (req, res) => {
 
 // ── GET /api/admin/attendance?month=&year= ───────────────────
 router.get('/attendance', adminAuth, async (req, res) => {
-  const month = parseInt(req.query.month) || new Date().getMonth() + 1;
-  const year  = parseInt(req.query.year)  || new Date().getFullYear();
+  const month = parseInt(req.query.month) || (nowIST().getUTCMonth() + 1);
+  const year  = parseInt(req.query.year)  || nowIST().getUTCFullYear();
   try {
     const records = await db.query(
       `SELECT a.*, e.designation
@@ -240,7 +244,7 @@ async function ensureRequestsTable() {
 
 // ── GET /api/admin/holidays ───────────────────────────────────
 router.get('/holidays', adminAuth, async (req, res) => {
-  const year = parseInt(req.query.year) || new Date().getFullYear();
+  const year = parseInt(req.query.year) || nowIST().getUTCFullYear();
   try {
     await ensureHolidaysTable();
     const result = await db.query(

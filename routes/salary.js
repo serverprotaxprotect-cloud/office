@@ -6,6 +6,11 @@ const XLSX = require('xlsx');
 
 const router = express.Router();
 
+// ── IST helpers (Asia/Kolkata = UTC+5:30) ────────────────────
+function nowIST()   { return new Date(Date.now() + (5.5 * 60 * 60 * 1000)); }
+function istMonth() { return nowIST().getUTCMonth() + 1; }
+function istYear()  { return nowIST().getUTCFullYear(); }
+
 const MONTHS = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
 
 async function getSettings() {
@@ -282,8 +287,8 @@ router.post('/calculate', adminAuth, async (req, res) => {
 
 // ── GET /api/salary/records ──────────────────────────────────
 router.get('/records', adminAuth, async (req, res) => {
-  const month = parseInt(req.query.month) || new Date().getMonth() + 1;
-  const year  = parseInt(req.query.year)  || new Date().getFullYear();
+  const month = parseInt(req.query.month) || istMonth();
+  const year  = parseInt(req.query.year)  || istYear();
   try {
     const r = await db.query(
       `SELECT s.*, e.designation FROM salary s
@@ -304,8 +309,8 @@ router.get('/records', adminAuth, async (req, res) => {
 
 // ── GET /api/salary/records/export ──────────────────────────
 router.get('/records/export', adminAuth, async (req, res) => {
-  const month = parseInt(req.query.month) || new Date().getMonth() + 1;
-  const year  = parseInt(req.query.year)  || new Date().getFullYear();
+  const month = parseInt(req.query.month) || istMonth();
+  const year  = parseInt(req.query.year)  || istYear();
   try {
     const r = await db.query(
       `SELECT s.emp_id, s.employee_name, s.monthly_salary,
@@ -405,8 +410,8 @@ router.post('/adjust', adminAuth, async (req, res) => {
 // ── GET /api/salary/slip/:emp_id ─────────────────────────────
 router.get('/slip/:emp_id', adminAuth, async (req, res) => {
   const { emp_id } = req.params;
-  const month = parseInt(req.query.month) || new Date().getMonth() + 1;
-  const year  = parseInt(req.query.year)  || new Date().getFullYear();
+  const month = parseInt(req.query.month) || istMonth();
+  const year  = parseInt(req.query.year)  || istYear();
   try {
     const [salRow, empRow, cfg] = await Promise.all([
       db.query(`SELECT * FROM salary WHERE emp_id=$1 AND month=$2 AND year=$3`, [emp_id, month, year]),
@@ -440,8 +445,8 @@ router.get('/my-salary', authMiddleware, async (req, res) => {
 // ── GET /api/salary/my-slip?month=&year= (employee's own slip) ──
 router.get('/my-slip', authMiddleware, async (req, res) => {
   const { emp_id } = req.user;
-  const month = parseInt(req.query.month) || new Date().getMonth() + 1;
-  const year  = parseInt(req.query.year)  || new Date().getFullYear();
+  const month = parseInt(req.query.month) || istMonth();
+  const year  = parseInt(req.query.year)  || istYear();
   try {
     const [salRow, empRow, cfg] = await Promise.all([
       db.query(`SELECT * FROM salary WHERE emp_id=$1 AND month=$2 AND year=$3`, [emp_id, month, year]),

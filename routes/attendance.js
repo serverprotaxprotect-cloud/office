@@ -13,6 +13,18 @@ async function getSettings() {
   return s;
 }
 
+// ── IST helpers (UTC+5:30) ────────────────────────────────────
+function nowIST() {
+  // Always return current time in Asia/Kolkata (IST = UTC+5:30)
+  return new Date(Date.now() + (5.5 * 60 * 60 * 1000));
+}
+function todayIST() {
+  return nowIST().toISOString().split('T')[0]; // YYYY-MM-DD
+}
+function timeStrIST() {
+  return nowIST().toISOString().split('T')[1].split('.')[0]; // HH:MM:SS
+}
+
 // Helper: "HH:MM:SS" → total minutes
 function toMinutes(timeStr) {
   if (!timeStr) return 0;
@@ -33,7 +45,7 @@ function haversineMeters(lat1, lng1, lat2, lng2) {
 // ── GET /api/attendance/today ────────────────────────────────
 router.get('/today', authMiddleware, async (req, res) => {
   const { emp_id } = req.user;
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayIST();
 
   try {
     const [punches, summary, cfg] = await Promise.all([
@@ -81,9 +93,8 @@ router.post('/mark', authMiddleware, async (req, res) => {
     return res.status(400).json({ success: false, message: 'Action must be IN or OUT' });
 
   const upperAction = action.toUpperCase();
-  const now   = new Date();
-  const today = now.toISOString().split('T')[0];
-  const timeStr = now.toTimeString().split(' ')[0]; // HH:MM:SS
+  const today   = todayIST();
+  const timeStr = timeStrIST(); // HH:MM:SS in IST
 
   try {
     // ── One IN + One OUT per day rule ────────────────────────
@@ -137,8 +148,9 @@ router.post('/mark', authMiddleware, async (req, res) => {
        latitude || null, longitude || null, address || null, device_info || null]
     );
 
-    const month = now.getMonth() + 1;
-    const year  = now.getFullYear();
+    const istNow = nowIST();
+    const month  = istNow.getUTCMonth() + 1;
+    const year   = istNow.getUTCFullYear();
 
     if (upperAction === 'IN') {
       // ── Calculate late minutes ─────────────────────────────
@@ -306,7 +318,7 @@ router.post('/request', authMiddleware, async (req, res) => {
   const { request_date, check_in_time, check_out_time, reason } = req.body;
   if (!request_date) return res.status(400).json({ success: false, message: 'Date required' });
   if (!reason) return res.status(400).json({ success: false, message: 'Reason required' });
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayIST();
   if (request_date >= today)
     return res.status(400).json({ success: false, message: 'Sirf past dates ke liye request allowed hai' });
   try {
