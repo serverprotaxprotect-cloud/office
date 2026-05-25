@@ -76,6 +76,7 @@
     .btn-green{background:#dcfce7;color:#15803d}
     .btn-red{background:#fee2e2;color:#b91c1c}
     .btn-dark{background:#334155;color:#fff}
+    .task-actions{display:flex;align-items:center;gap:6px;white-space:nowrap}
 
     .seg-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
     .seg-tabs .btn-sm.active{background:#2155f3;color:#fff}
@@ -1774,6 +1775,9 @@ function statusBadge(s) {
 function priClass(p) {
   return { Low:'pri-low', Medium:'pri-medium', High:'pri-high', Urgent:'pri-urgent' }[p] || 'pri-medium';
 }
+function jsArg(v) {
+  return String(v ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
 
 // ── META ─────────────────────────────────────────────────────
 let META = { work_names:[], statuses:[], priorities:[], employees:[] };
@@ -2199,6 +2203,8 @@ async function loadTasks(view) {
   tb.innerHTML = data.tasks.map(t => {
     const client = t.legal_name || t.business_name || t.client_id || '--';
     const isOverdue = t.is_overdue;
+    const taskId = jsArg(t.task_id);
+    const canComplete = !['Completed','Cancelled'].includes(t.status);
     return `
       <tr${isOverdue ? ' class="overdue-row"' : ''}>
         <td><small style="color:#64748b">${t.task_id}</small></td>
@@ -2212,11 +2218,53 @@ async function loadTasks(view) {
           ${fmtDate(t.due_date)}${isOverdue?' &#128680;':''}
         </td>
         <td style="white-space:nowrap">
-          <button class="btn-sm btn-view" onclick="viewTask('${t.task_id}')">View</button>
-          <button class="btn-sm btn-edit" onclick="quickUpdate('${t.task_id}','${t.status}','${t.priority}','${t.due_date||''}')">Update</button>
+          <div class="task-actions">
+            <button class="btn-sm btn-view" onclick="viewTask('${taskId}')">View</button>
+            <button class="btn-sm btn-edit" onclick="quickUpdate('${taskId}','${jsArg(t.status)}','${jsArg(t.priority)}','${jsArg(t.due_date||'')}')">Update</button>
+            ${canComplete ? `<button class="btn-sm btn-green" title="Mark task complete" onclick="markTaskComplete('${taskId}', this)">&#10003; Complete</button>` : ''}
+          </div>
         </td>
       </tr>`;
   }).join('');
+}
+
+function activeTaskView() {
+  const activePanel = document.querySelector('.panel.active')?.id || '';
+  return {
+    'panel-mytasks': 'my',
+    'panel-assignedby': 'assigned_by_me',
+    'panel-alltasks': 'all',
+    'panel-completed': 'completed',
+  }[activePanel] || null;
+}
+
+function refreshTaskPanels(activeView = activeTaskView()) {
+  ['mytasks','assignedby','alltasks','completed','dashboard'].forEach(p => panelLoaded[p] = false);
+  panelLoaded['notifications'] = false;
+  loadDashboard(); panelLoaded['dashboard'] = true;
+  if (activeView === 'completed') loadCompletedTasks();
+  else if (activeView) loadTasks(activeView);
+}
+
+async function markTaskComplete(taskId, btn) {
+  const oldText = btn?.innerHTML;
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+  let data;
+  try {
+    data = await api(`/tasks/${encodeURIComponent(taskId)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status: 'Completed' })
+    });
+  } catch {
+    data = { success: false, message: 'Network error. Please try again.' };
+  }
+  showToast(data.message || (data.success ? 'Task completed' : 'Task update failed'), data.success ? 'success' : 'error');
+  if (data.success) {
+    refreshTaskPanels();
+  } else if (btn) {
+    btn.disabled = false;
+    btn.innerHTML = oldText;
+  }
 }
 
 async function loadCompletedTasks() {
@@ -2387,9 +2435,7 @@ async function submitUpdateTask() {
   closeModal('updateTaskModal');
   showToast(data.message, data.success ? 'success' : 'error');
   if (data.success) {
-    ['mytasks','assignedby','alltasks','dashboard'].forEach(p => panelLoaded[p] = false);
-    loadDashboard(); panelLoaded['dashboard'] = true;
-    panelLoaded['notifications'] = false;
+    refreshTaskPanels();
   }
 }
 

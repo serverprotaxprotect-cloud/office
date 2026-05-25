@@ -11,6 +11,11 @@ const { syncIncomeTaxForTaskStatus } = require('../services/incomeTaxService');
 // ── IST helper (Asia/Kolkata = UTC+5:30) ─────────────────────
 function nowIST()   { return new Date(Date.now() + (5.5 * 60 * 60 * 1000)); }
 function todayIST() { return nowIST().toISOString().split('T')[0]; }
+function optionalAmount(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const amount = Number(value);
+  return Number.isFinite(amount) ? amount : null;
+}
 
 // Helper: is this user an admin with full-view rights?
 const isAdminView = u => u.user_type === 'admin' && ['Director', 'Office Manager', 'HR'].includes(u.role);
@@ -317,11 +322,14 @@ router.put('/:id', authMiddleware, async (req, res) => {
         err.statusCode = 400;
         throw err;
       }
-      const total = (parseFloat(professional_fees) ?? old.professional_fees ?? 0) + (parseFloat(challan_amount) ?? old.challan_amount ?? 0) + (parseFloat(other_expense) ?? old.other_expense ?? 0);
+      const professionalFees = optionalAmount(professional_fees);
+      const challanAmount = optionalAmount(challan_amount);
+      const otherExpense = optionalAmount(other_expense);
+      const total = (professionalFees ?? Number(old.professional_fees || 0)) + (challanAmount ?? Number(old.challan_amount || 0)) + (otherExpense ?? Number(old.other_expense || 0));
       const completionDate = status && ['Completed','Cancelled'].includes(status) && !old.completion_date ? todayIST() : old.completion_date;
       await conn.query(
         `UPDATE tasks SET status=COALESCE($1,status), priority=COALESCE($2,priority), due_date=COALESCE($3::date,due_date), assigned_to_id=COALESCE($4,assigned_to_id), assigned_to_name=COALESCE($5,assigned_to_name), internal_remark=COALESCE($6,internal_remark), client_pending_remark=COALESCE($7,client_pending_remark), completion_remark=COALESCE($8,completion_remark), next_followup_date=COALESCE($9::date,next_followup_date), drive_link=COALESCE($10,drive_link), professional_fees=COALESCE($11,professional_fees), challan_amount=COALESCE($12,challan_amount), other_expense=COALESCE($13,other_expense), total_amount=$14, fees_applicable=COALESCE($15,fees_applicable), completion_date=$16, last_updated_at=NOW(), last_updated_by_id=$17, last_updated_by_name=$18 WHERE task_id=$19`,
-        [status||null, priority||null, due_date||null, assigned_to_id||null, assigned_to_name||null, internal_remark||null, client_pending_remark||null, completion_remark||null, next_followup_date||null, drive_link||null, parseFloat(professional_fees)||null, parseFloat(challan_amount)||null, parseFloat(other_expense)||null, total||null, fees_applicable||null, completionDate||null, emp_id, formal_name||name, taskId]
+        [status||null, priority||null, due_date||null, assigned_to_id||null, assigned_to_name||null, internal_remark||null, client_pending_remark||null, completion_remark||null, next_followup_date||null, drive_link||null, professionalFees, challanAmount, otherExpense, total||null, fees_applicable||null, completionDate||null, emp_id, formal_name||name, taskId]
       );
       await conn.query(
         `INSERT INTO task_history (log_id,task_id,action,old_status,new_status,old_assigned_to,new_assigned_to,old_due_date,new_due_date,updated_by_id,updated_by_name,updated_at,remark)
