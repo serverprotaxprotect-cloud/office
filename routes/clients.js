@@ -6,6 +6,27 @@ const { hashPassword } = require('../utils/passwords');
 
 const router = express.Router();
 
+async function nextSeriesNumber(conn, { table, idColumn, prefix, organizationId, storedNext }) {
+  const result = await conn.query(
+    `SELECT COALESCE(MAX(substring(${idColumn} from length($1) + 1)::integer), 0) + 1 AS next_no
+     FROM ${table}
+     WHERE organization_id=$2
+       AND left(${idColumn}, length($1))=$1
+       AND substring(${idColumn} from length($1) + 1) ~ '^[0-9]+$'`,
+    [prefix, organizationId]
+  );
+  return Math.max(Number(storedNext || 1), Number(result.rows[0]?.next_no || 1));
+}
+
+function seriesNumberFromId(id, prefix) {
+  const value = String(id || '');
+  const cleanPrefix = String(prefix || '');
+  if (!cleanPrefix || !value.startsWith(cleanPrefix)) return null;
+  const suffix = value.slice(cleanPrefix.length);
+  if (!/^\d+$/.test(suffix)) return null;
+  return Number(suffix);
+}
+
 // ── GET /api/clients/next-id ─────────────────────────────────
 router.get('/next-id', authMiddleware, async (req, res) => {
   try {
@@ -17,7 +38,14 @@ router.get('/next-id', authMiddleware, async (req, res) => {
     );
     const o = org.rows[0] || {};
     ensureOrgSetupComplete(o);
-    const next = `${o.client_id_prefix}${String(Number(o.client_id_next || 1)).padStart(4, '0')}`;
+    const nextNo = await nextSeriesNumber(db, {
+      table: 'clients',
+      idColumn: 'client_id',
+      prefix: o.client_id_prefix,
+      organizationId: req.user.organization_id,
+      storedNext: o.client_id_next,
+    });
+    const next = `${o.client_id_prefix}${String(nextNo).padStart(4, '0')}`;
     res.json({ success: true, next_id: next });
   } catch (err) {
     console.error(err);
@@ -93,15 +121,21 @@ router.post('/agents', authMiddleware, async (req, res) => {
     await requireOrgSetup(conn, req.user.organization_id);
     const org = await conn.query(`SELECT agent_id_prefix, agent_id_next FROM organizations WHERE id=$1 FOR UPDATE`, [req.user.organization_id]);
     const o = org.rows[0] || {};
-    const nextNo = Number(o.agent_id_next || 1);
+    const nextNo = await nextSeriesNumber(conn, {
+      table: 'agents',
+      idColumn: 'agent_id',
+      prefix: o.agent_id_prefix,
+      organizationId: req.user.organization_id,
+      storedNext: o.agent_id_next,
+    });
     const next = `${o.agent_id_prefix}${String(nextNo).padStart(4, '0')}`;
-    await conn.query(`UPDATE organizations SET agent_id_next=$1, updated_at=NOW() WHERE id=$2`, [nextNo + 1, req.user.organization_id]);
     const portalHash = portal_password ? await hashPassword(portal_password) : null;
     await conn.query(
       `INSERT INTO agents (agent_id, name, mobile_number, email_id, portal_enabled, portal_password_hash, portal_password_changed_at)
        VALUES ($1,$2,$3,$4,$5,$6,CASE WHEN $6::text IS NULL THEN NULL ELSE NOW() END)`,
       [next, name, mobile_number || null, email_id || null, !!portal_enabled, portalHash]
     );
+    await conn.query(`UPDATE organizations SET agent_id_next=GREATEST(agent_id_next, $1), updated_at=NOW() WHERE id=$2`, [nextNo + 1, req.user.organization_id]);
     await conn.query('COMMIT');
     res.json({ success: true, message: 'Agent added!', agent_id: next, name });
   } catch (err) {
@@ -271,12 +305,17 @@ router.post('/', authMiddleware, async (req, res) => {
   try {
     await conn.query('BEGIN');
     await requireOrgSetup(conn, req.user.organization_id);
+    const org = await conn.query(`SELECT client_id_prefix, client_id_next FROM organizations WHERE id=$1 FOR UPDATE`, [req.user.organization_id]);
+    const o = org.rows[0] || {};
     if (!client_id) {
-      const org = await conn.query(`SELECT client_id_prefix, client_id_next FROM organizations WHERE id=$1 FOR UPDATE`, [req.user.organization_id]);
-      const o = org.rows[0] || {};
-      const nextNo = Number(o.client_id_next || 1);
+      const nextNo = await nextSeriesNumber(conn, {
+        table: 'clients',
+        idColumn: 'client_id',
+        prefix: o.client_id_prefix,
+        organizationId: req.user.organization_id,
+        storedNext: o.client_id_next,
+      });
       client_id = `${o.client_id_prefix}${String(nextNo).padStart(4, '0')}`;
-      await conn.query(`UPDATE organizations SET client_id_next=$1, updated_at=NOW() WHERE id=$2`, [nextNo + 1, req.user.organization_id]);
     }
     const portalHash = portal_password ? await hashPassword(portal_password) : null;
     await conn.query(
@@ -287,6 +326,10 @@ router.post('/', authMiddleware, async (req, res) => {
        mobile_number, email_id || null, address || null, city || null, state || null, gst_no || null, pan_no || null,
        !!portal_enabled, portalHash]
     );
+    const clientNo = seriesNumberFromId(client_id, o.client_id_prefix);
+    if (clientNo) {
+      await conn.query(`UPDATE organizations SET client_id_next=GREATEST(client_id_next, $1), updated_at=NOW() WHERE id=$2`, [clientNo + 1, req.user.organization_id]);
+    }
     await conn.query('COMMIT');
     res.json({ success: true, message: `Client ${client_id} added successfully!` });
   } catch (err) {

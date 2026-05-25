@@ -32,6 +32,27 @@ function cleanNullable(value) {
   return value;
 }
 
+async function nextSeriesNumber(conn, { table, idColumn, prefix, organizationId, storedNext }) {
+  const result = await conn.query(
+    `SELECT COALESCE(MAX(substring(${idColumn} from length($1) + 1)::integer), 0) + 1 AS next_no
+     FROM ${table}
+     WHERE organization_id=$2
+       AND left(${idColumn}, length($1))=$1
+       AND substring(${idColumn} from length($1) + 1) ~ '^[0-9]+$'`,
+    [prefix, organizationId]
+  );
+  return Math.max(Number(storedNext || 1), Number(result.rows[0]?.next_no || 1));
+}
+
+function seriesNumberFromId(id, prefix) {
+  const value = String(id || '');
+  const cleanPrefix = String(prefix || '');
+  if (!cleanPrefix || !value.startsWith(cleanPrefix)) return null;
+  const suffix = value.slice(cleanPrefix.length);
+  if (!/^\d+$/.test(suffix)) return null;
+  return Number(suffix);
+}
+
 async function nextEmployeeId() {
   const org = await db.query(
     `SELECT latitude, longitude, attendance_radius_meters,
@@ -43,9 +64,15 @@ async function nextEmployeeId() {
   const o = org.rows[0] || {};
   ensureOrgSetupComplete(o);
   const prefix = o.employee_id_prefix;
-  const next = Number(o.employee_id_next || 1);
+  const next = await nextSeriesNumber(db, {
+    table: 'emplist',
+    idColumn: 'emp_id',
+    prefix,
+    organizationId: db.getTenantContext().organizationId,
+    storedNext: o.employee_id_next,
+  });
   const empId = `${prefix}${String(next).padStart(4, '0')}`;
-  await db.query(`UPDATE organizations SET employee_id_next=$1, updated_at=NOW() WHERE id=$2`, [next + 1, db.getTenantContext().organizationId]);
+  await db.query(`UPDATE organizations SET employee_id_next=GREATEST(employee_id_next, $1), updated_at=NOW() WHERE id=$2`, [next + 1, db.getTenantContext().organizationId]);
   return empId;
 }
 
@@ -300,9 +327,14 @@ router.post('/employees/add', adminAuth, async (req, res) => {
     );
     const o = org.rows[0] || {};
     const prefix = o.employee_id_prefix;
-    const next = Number(o.employee_id_next || 1);
+    const next = await nextSeriesNumber(conn, {
+      table: 'emplist',
+      idColumn: 'emp_id',
+      prefix,
+      organizationId: req.user.organization_id,
+      storedNext: o.employee_id_next,
+    });
     const newId = `${prefix}${String(next).padStart(4, '0')}`;
-    await conn.query(`UPDATE organizations SET employee_id_next=$1, updated_at=NOW() WHERE id=$2`, [next + 1, req.user.organization_id]);
     const passwordHash = await hashForStorage(login_password);
     const payload = { ...req.body, formal_name: req.body.formal_name || name, status: req.body.status || 'Active', leave_availed: req.body.leave_availed || 0, paid_leave_per_year: req.body.paid_leave_per_year || 12 };
     payload.leave_rest = payload.leave_rest || payload.paid_leave_per_year;
@@ -310,6 +342,10 @@ router.post('/employees/add', adminAuth, async (req, res) => {
     const values = [newId, ...EMPLOYEE_FIELDS.map(f => cleanNullable(payload[f])), passwordHash];
     const placeholders = values.map((_, i) => `$${i + 1}`).join(',');
     await conn.query(`INSERT INTO emplist (${cols.join(',')}) VALUES (${placeholders})`, values);
+    const employeeNo = seriesNumberFromId(newId, prefix);
+    if (employeeNo) {
+      await conn.query(`UPDATE organizations SET employee_id_next=GREATEST(employee_id_next, $1), updated_at=NOW() WHERE id=$2`, [employeeNo + 1, req.user.organization_id]);
+    }
     await conn.query('COMMIT');
     res.json({ success: true, message: `Employee added with ID: ${newId}`, emp_id: newId });
   } catch (err) {
