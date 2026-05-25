@@ -6,6 +6,15 @@ const db = require('../db');
 const adminAuth = require('../middleware/adminAuth');
 const { buildLoginResponse, hashForStorage } = require('../services/authService');
 const { ensureOrgSetupComplete, requireOrgSetup } = require('../services/organizationSetupGuard');
+const {
+  PERMISSION_CATALOG,
+  requirePermission,
+  hasPermission,
+  listRolePermissions,
+  upsertRolePermissions,
+  userPermissionDetails,
+  upsertUserOverrides,
+} = require('../services/permissions');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -24,7 +33,13 @@ function dateKey(value) {
   return String(value || '').split('T')[0];
 }
 function canManageAdminUsers(admin) {
-  return ['Director', 'Office Manager', 'HR'].includes(admin?.role);
+  return hasPermission(admin, 'admin_users.manage');
+}
+function requireDirectorPermissionManager(req, res, next) {
+  if (req.admin?.role !== 'Director') {
+    return res.status(403).json({ success: false, message: 'Only Director can manage permissions' });
+  }
+  return requirePermission('permissions.manage')(req, res, next);
 }
 
 const EMPLOYEE_FIELDS = [
@@ -103,7 +118,7 @@ router.post('/login', async (req, res) => {
 });
 
 // ── GET /api/admin/overview ──────────────────────────────────
-router.get('/overview', adminAuth, async (req, res) => {
+router.get('/overview', adminAuth, requirePermission('overview.view'), async (req, res) => {
   const today = todayIST();
   try {
     const [total, present, onLeave, sessions] = await Promise.all([
@@ -134,8 +149,80 @@ router.get('/overview', adminAuth, async (req, res) => {
   }
 });
 
+router.get('/me/permissions', adminAuth, async (req, res) => {
+  res.json({ success: true, ...req.admin.permission_details });
+});
+
+router.get('/permissions/catalog', adminAuth, requireDirectorPermissionManager, async (req, res) => {
+  res.json({ success: true, catalog: PERMISSION_CATALOG });
+});
+
+router.get('/permissions/roles', adminAuth, requireDirectorPermissionManager, async (req, res) => {
+  try {
+    res.json({ success: true, roles: await listRolePermissions() });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+router.put('/permissions/roles/:subject_type/:role_name', adminAuth, requireDirectorPermissionManager, async (req, res) => {
+  const { subject_type, role_name } = req.params;
+  if (!['admin', 'employee'].includes(subject_type)) {
+    return res.status(400).json({ success: false, message: 'Invalid subject type' });
+  }
+  try {
+    const role = await upsertRolePermissions(subject_type, role_name, req.body.permissions || [], req.admin.name);
+    res.json({ success: true, role });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+router.get('/permissions/users/:subject_type/:id', adminAuth, requireDirectorPermissionManager, async (req, res) => {
+  const { subject_type, id } = req.params;
+  if (!['admin', 'employee'].includes(subject_type)) {
+    return res.status(400).json({ success: false, message: 'Invalid subject type' });
+  }
+  try {
+    const table = subject_type === 'admin' ? 'admins' : 'emplist';
+    const idColumn = subject_type === 'admin' ? 'id::text' : 'emp_id';
+    const r = await db.query(
+      `SELECT ${idColumn} AS subject_id, ${subject_type === 'admin' ? 'name' : 'COALESCE(formal_name, name)'} AS name,
+              ${subject_type === 'admin' ? 'role' : 'designation'} AS role_name
+       FROM ${table}
+       WHERE ${idColumn}=$1`,
+      [String(id)]
+    );
+    if (!r.rows.length) return res.status(404).json({ success: false, message: 'User not found' });
+    const user = r.rows[0];
+    const details = await userPermissionDetails(subject_type, user.subject_id, user.role_name);
+    res.json({ success: true, user, ...details });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+router.put('/permissions/users/:subject_type/:id', adminAuth, requireDirectorPermissionManager, async (req, res) => {
+  const { subject_type, id } = req.params;
+  if (!['admin', 'employee'].includes(subject_type)) {
+    return res.status(400).json({ success: false, message: 'Invalid subject type' });
+  }
+  try {
+    const saved = await upsertUserOverrides(
+      subject_type,
+      id,
+      req.body.overrides_allow || req.body.allow_permissions || [],
+      req.body.overrides_deny || req.body.deny_permissions || [],
+      req.admin.name
+    );
+    res.json({ success: true, overrides: saved });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 // ── GET /api/admin/attendance?month=&year= ───────────────────
-router.get('/admin-users', adminAuth, async (req, res) => {
+router.get('/admin-users', adminAuth, requirePermission('admin_users.manage'), async (req, res) => {
   if (!canManageAdminUsers(req.admin)) {
     return res.status(403).json({ success: false, message: 'Admin user management access required' });
   }
@@ -152,7 +239,7 @@ router.get('/admin-users', adminAuth, async (req, res) => {
   }
 });
 
-router.post('/admin-users', adminAuth, async (req, res) => {
+router.post('/admin-users', adminAuth, requirePermission('admin_users.manage'), async (req, res) => {
   if (!canManageAdminUsers(req.admin)) {
     return res.status(403).json({ success: false, message: 'Admin user management access required' });
   }
@@ -185,7 +272,7 @@ router.post('/admin-users', adminAuth, async (req, res) => {
   }
 });
 
-router.put('/admin-users/:id', adminAuth, async (req, res) => {
+router.put('/admin-users/:id', adminAuth, requirePermission('admin_users.manage'), async (req, res) => {
   if (!canManageAdminUsers(req.admin)) {
     return res.status(403).json({ success: false, message: 'Admin user management access required' });
   }
@@ -228,7 +315,7 @@ router.put('/admin-users/:id', adminAuth, async (req, res) => {
   }
 });
 
-router.get('/attendance', adminAuth, async (req, res) => {
+router.get('/attendance', adminAuth, requirePermission('attendance.view'), async (req, res) => {
   const month = parseInt(req.query.month) || (nowIST().getUTCMonth() + 1);
   const year  = parseInt(req.query.year)  || nowIST().getUTCFullYear();
   try {
@@ -282,7 +369,7 @@ router.get('/attendance', adminAuth, async (req, res) => {
 });
 
 // ── POST /api/admin/attendance/update ───────────────────────
-router.post('/attendance/update', adminAuth, async (req, res) => {
+router.post('/attendance/update', adminAuth, requirePermission('attendance.edit'), async (req, res) => {
   const { emp_id, date, final_status, grace_minutes, remark } = req.body;
   try {
     await db.query(
@@ -300,7 +387,7 @@ router.post('/attendance/update', adminAuth, async (req, res) => {
 });
 
 // ── GET /api/admin/employees ─────────────────────────────────
-router.get('/employees', adminAuth, async (req, res) => {
+router.get('/employees', adminAuth, requirePermission('employees.view'), async (req, res) => {
   try {
     const r = await db.query(
       `SELECT id, sl_no, emp_id, date_of_joining, name, formal_name, father_name, pan_no, aadhaar_no,
@@ -318,7 +405,7 @@ router.get('/employees', adminAuth, async (req, res) => {
 });
 
 // ── POST /api/admin/employees/add ───────────────────────────
-router.post('/employees/add', adminAuth, async (req, res) => {
+router.post('/employees/add', adminAuth, requirePermission('employees.edit'), async (req, res) => {
   const { login_password } = req.body;
   const name = req.body.name;
   const designation = req.body.designation;
@@ -367,7 +454,7 @@ router.post('/employees/add', adminAuth, async (req, res) => {
 });
 
 // ── PUT /api/admin/employees/:id ─────────────────────────────
-router.put('/employees/:id', adminAuth, async (req, res) => {
+router.put('/employees/:id', adminAuth, requirePermission('employees.edit'), async (req, res) => {
   const { id } = req.params;
   try {
     const setParts = [];
@@ -442,7 +529,7 @@ async function ensureRequestsTable() {
 }
 
 // ── GET /api/admin/holidays ───────────────────────────────────
-router.get('/holidays', adminAuth, async (req, res) => {
+router.get('/holidays', adminAuth, requirePermission('holidays.manage'), async (req, res) => {
   const year = parseInt(req.query.year) || nowIST().getUTCFullYear();
   try {
     await ensureHolidaysTable();
@@ -458,7 +545,7 @@ router.get('/holidays', adminAuth, async (req, res) => {
 });
 
 // ── POST /api/admin/holidays ──────────────────────────────────
-router.post('/holidays', adminAuth, async (req, res) => {
+router.post('/holidays', adminAuth, requirePermission('holidays.manage'), async (req, res) => {
   const { holiday_date, holiday_name } = req.body;
   if (!holiday_date || !holiday_name)
     return res.status(400).json({ success: false, message: 'Date and name required' });
@@ -478,7 +565,7 @@ router.post('/holidays', adminAuth, async (req, res) => {
 });
 
 // ── DELETE /api/admin/holidays/:id ───────────────────────────
-router.delete('/holidays/:id', adminAuth, async (req, res) => {
+router.delete('/holidays/:id', adminAuth, requirePermission('holidays.manage'), async (req, res) => {
   try {
     await db.query(`DELETE FROM holidays WHERE id=$1`, [req.params.id]);
     res.json({ success: true, message: 'Holiday removed' });
@@ -488,7 +575,7 @@ router.delete('/holidays/:id', adminAuth, async (req, res) => {
 });
 
 // ── GET /api/admin/notices ────────────────────────────────────
-router.get('/notices', adminAuth, async (req, res) => {
+router.get('/notices', adminAuth, requirePermission('notices.manage'), async (req, res) => {
   try {
     const result = await db.query(
       `SELECT id, title, message, start_at, end_at, created_by, created_at
@@ -502,7 +589,7 @@ router.get('/notices', adminAuth, async (req, res) => {
 });
 
 // ── POST /api/admin/notices ───────────────────────────────────
-router.post('/notices', adminAuth, async (req, res) => {
+router.post('/notices', adminAuth, requirePermission('notices.manage'), async (req, res) => {
   const { title, message, start_at, end_at } = req.body;
   if (!title || !message || !start_at || !end_at)
     return res.status(400).json({ success: false, message: 'Title, message, start and end time required' });
@@ -520,7 +607,7 @@ router.post('/notices', adminAuth, async (req, res) => {
 });
 
 // ── DELETE /api/admin/notices/:id ────────────────────────────
-router.delete('/notices/:id', adminAuth, async (req, res) => {
+router.delete('/notices/:id', adminAuth, requirePermission('notices.manage'), async (req, res) => {
   try {
     await db.query(`DELETE FROM notices WHERE id=$1`, [req.params.id]);
     res.json({ success: true, message: 'Notice deleted' });
@@ -530,7 +617,7 @@ router.delete('/notices/:id', adminAuth, async (req, res) => {
 });
 
 // ── GET /api/admin/attendance-requests ───────────────────────
-router.get('/attendance-requests', adminAuth, async (req, res) => {
+router.get('/attendance-requests', adminAuth, requirePermission('attendance_requests.view'), async (req, res) => {
   const status = req.query.status || 'Pending';
   try {
     await ensureRequestsTable();
@@ -550,7 +637,7 @@ router.get('/attendance-requests', adminAuth, async (req, res) => {
 });
 
 // ── PUT /api/admin/attendance-requests/:id ───────────────────
-router.put('/attendance-requests/:id', adminAuth, async (req, res) => {
+router.put('/attendance-requests/:id', adminAuth, requirePermission('attendance_requests.approve'), async (req, res) => {
   const { id } = req.params;
   const { action, admin_remark, check_in_time, check_out_time } = req.body;
   if (!['Approved', 'Rejected'].includes(action))
@@ -661,7 +748,7 @@ router.put('/attendance-requests/:id', adminAuth, async (req, res) => {
 });
 
 // ── POST /api/admin/attendance/modify-time ───────────────────
-router.post('/attendance/modify-time', adminAuth, async (req, res) => {
+router.post('/attendance/modify-time', adminAuth, requirePermission('attendance.edit'), async (req, res) => {
   const { emp_id, date, check_in_time, check_out_time } = req.body;
   if (!emp_id || !date) return res.status(400).json({ success: false, message: 'emp_id and date required' });
   try {
@@ -699,7 +786,7 @@ router.post('/attendance/modify-time', adminAuth, async (req, res) => {
 
 // ── GET /api/admin/attendance/template ───────────────────────
 // Returns a downloadable Excel template for attendance import
-router.get('/attendance/template', adminAuth, async (req, res) => {
+router.get('/attendance/template', adminAuth, requirePermission('attendance.edit'), async (req, res) => {
   try {
     const empRes = await db.query(
       `SELECT emp_id, formal_name, name FROM emplist WHERE status='Active' ORDER BY emp_id`
@@ -734,7 +821,7 @@ router.get('/attendance/template', adminAuth, async (req, res) => {
 });
 
 // ── POST /api/admin/attendance/import ────────────────────────
-router.post('/attendance/import', adminAuth, upload.single('file'), async (req, res) => {
+router.post('/attendance/import', adminAuth, requirePermission('attendance.edit'), upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
 
   const results = { imported: 0, skipped: 0, errors: [] };
@@ -997,7 +1084,7 @@ router.post('/attendance/import', adminAuth, upload.single('file'), async (req, 
 });
 
 // ── GET /api/admin/settings ──────────────────────────────────
-router.get('/settings', adminAuth, async (req, res) => {
+router.get('/settings', adminAuth, requirePermission('settings.manage'), async (req, res) => {
   try {
     const s = await getSettings();
     res.json({ success: true, settings: s });
@@ -1007,7 +1094,7 @@ router.get('/settings', adminAuth, async (req, res) => {
 });
 
 // ── POST /api/admin/settings ─────────────────────────────────
-router.post('/settings', adminAuth, async (req, res) => {
+router.post('/settings', adminAuth, requirePermission('settings.manage'), async (req, res) => {
   const updates = req.body; // { KEY: value, ... }
   try {
     for (const [key, value] of Object.entries(updates)) {

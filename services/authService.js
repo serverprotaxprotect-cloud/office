@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const db = require('../db');
 const { verifyPassword, hashPassword } = require('../utils/passwords');
+const { effectivePermissionsForUser } = require('./permissions');
 
 function normalizeIdentifier(value) {
   return String(value || '').trim();
@@ -87,6 +88,17 @@ function signUser(candidate) {
   const payload = userPayload(candidate);
   const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '12h' });
   return { token, payload };
+}
+
+async function withPermissions(payload) {
+  return db.runWithTenant({ organizationId: payload.organization_id }, async () => {
+    const details = await effectivePermissionsForUser(payload);
+    return {
+      ...payload,
+      permissions: details.effective_permissions,
+      permission_details: details,
+    };
+  });
 }
 
 function signSelection(candidates, mode) {
@@ -210,8 +222,9 @@ async function buildLoginResponse(identifier, password, mode = 'all') {
   }
 
   const { token, payload } = signUser(matches[0]);
-  await recordSession(token, payload);
-  return { requires_selection: false, token, user: payload };
+  const user = await withPermissions(payload);
+  await recordSession(token, user);
+  return { requires_selection: false, token, user };
 }
 
 async function selectOrganization(selectionToken, accountKey) {
@@ -271,8 +284,9 @@ async function selectOrganization(selectionToken, accountKey) {
   }
 
   const { token, payload } = signUser(candidate);
-  await recordSession(token, payload);
-  return { token, user: payload };
+  const user = await withPermissions(payload);
+  await recordSession(token, user);
+  return { token, user };
 }
 
 async function recordSession(token, payload) {

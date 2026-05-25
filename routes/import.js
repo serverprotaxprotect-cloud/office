@@ -3,6 +3,7 @@ const multer  = require('multer');
 const XLSX    = require('xlsx');
 const db      = require('../db');
 const authMiddleware = require('../middleware/auth');
+const { requirePermission } = require('../services/permissions');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -35,7 +36,7 @@ function parseAmount(v) {
 }
 
 // ── POST /api/import/excel ───────────────────────────────────
-router.post('/excel', authMiddleware, upload.single('file'), async (req, res) => {
+router.post('/excel', authMiddleware, requirePermission('data_import.manage'), upload.single('file'), async (req, res) => {
   const { emp_id, name, formal_name } = req.user;
   const { client_id, agent_id } = req.body;
 

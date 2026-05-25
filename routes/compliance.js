@@ -1,8 +1,19 @@
 const express = require('express');
 const db = require('../db');
 const authMiddleware = require('../middleware/auth');
+const { requirePermission } = require('../services/permissions');
 
 const router = express.Router();
+router.use(authMiddleware);
+router.use((req, res, next) => {
+  const path = req.path;
+  let permission = 'compliance.view';
+  if (path.startsWith('/companies')) permission = req.method === 'GET' ? 'companies.view' : 'companies.edit';
+  else if (path.startsWith('/directors') || path.startsWith('/kyc') || path.startsWith('/director-search')) {
+    permission = req.method === 'GET' ? 'directors.view' : 'directors.edit';
+  } else if (path.startsWith('/tracking')) permission = req.method === 'GET' ? 'compliance.view' : 'compliance.edit';
+  return requirePermission(permission)(req, res, next);
+});
 
 const STATUS_OPTIONS = ['Pending','Pending by Client','Filed','Under Process','Not Applicable','Received','Prepared'];
 
