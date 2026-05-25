@@ -56,6 +56,8 @@
     .cal-cell.present { background: #f0fdf4; border-color: #86efac; }
     .cal-cell.absent  { background: #fff7ed; border-color: #fed7aa; cursor: pointer; }
     .cal-cell.absent:hover { background: #ffedd5; }
+    .cal-cell.needs-request { cursor: pointer; }
+    .cal-cell.needs-request:hover { filter: brightness(.98); box-shadow: inset 0 0 0 1px #fb923c; }
     .cal-cell.holiday-day { background: #fef2f2; border-color: #fca5a5; }
     .cal-cell.leave   { background: #eff6ff; border-color: #bfdbfe; }
     .cal-cell.pending { background: #fefce8; border-color: #fde68a; }
@@ -103,6 +105,14 @@
     .req-actions { display:flex; gap:10px; margin-top:16px; }
     .req-cancel { flex:1; padding:12px; background:#f1f5f9; border:none; border-radius:10px; font-size:14px; font-weight:600; cursor:pointer; }
     .req-submit { flex:2; padding:12px; background:linear-gradient(135deg,#2563eb,#3b82f6); color:#fff; border:none; border-radius:10px; font-size:14px; font-weight:700; cursor:pointer; }
+    .work-progress-card { border:1px solid #e2e8f0; border-radius:12px; padding:12px; margin-top:12px; background:#f8fafc; }
+    .work-progress-card.danger { background:#fef2f2; border-color:#fecaca; }
+    .work-progress-card.ok { background:#f0fdf4; border-color:#bbf7d0; }
+    .work-progress-top { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:13px; font-weight:800; color:#1e293b; }
+    .work-progress-sub { font-size:12px; color:#64748b; margin-top:4px; }
+    .work-progress-bar { height:8px; background:#e2e8f0; border-radius:999px; overflow:hidden; margin-top:9px; }
+    .work-progress-fill { height:100%; width:0%; background:#ef4444; transition:width .25s, background .25s; }
+    .work-progress-card.ok .work-progress-fill { background:#16a34a; }
 
     /* My Requests list */
     .req-item { padding:12px 0; border-bottom:1px solid #f1f5f9; }
@@ -178,6 +188,14 @@
       <div class="status-bar">
         <div class="status-dot none" id="statusDot"></div>
         <span id="statusText">Loading...</span>
+      </div>
+      <div class="work-progress-card danger" id="workProgressCard" style="display:none;">
+        <div class="work-progress-top">
+          <span id="workProgressTitle">Worked --</span>
+          <span id="workProgressNeed">Need --</span>
+        </div>
+        <div class="work-progress-sub" id="workProgressSub">Punch IN ke baad live hours yahan dikhega.</div>
+        <div class="work-progress-bar"><div class="work-progress-fill" id="workProgressFill"></div></div>
       </div>
     </div>
 
@@ -469,7 +487,8 @@
   <div class="req-modal">
     <div class="req-modal-title">📋 Request Attendance</div>
     <div style="background:#fef9c3;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:13px;color:#92400e;">
-      Date: <strong id="reqModalDate">--</strong>
+      <div style="font-weight:700;margin-bottom:6px;">Date: <span id="reqModalDate">--</span></div>
+      <input type="date" id="req_date_input" onchange="setAttReqDate(this.value)" style="width:100%;padding:9px 10px;border:1px solid #fde68a;border-radius:8px;font-size:14px;outline:none;"/>
     </div>
     <div class="req-input-group">
       <label>Request Type</label>
@@ -580,6 +599,7 @@ async function loadToday() {
   try {
     const data = await api('/attendance/today');
     if (!data.success) return;
+    _todayState = data;
 
     const dot  = document.getElementById('statusDot');
     const stxt = document.getElementById('statusText');
@@ -613,6 +633,7 @@ async function loadToday() {
     document.getElementById('sumIn').textContent  = fmt(data.first_in);
     document.getElementById('sumOut').textContent = fmt(data.last_out);
     document.getElementById('sumHours').textContent = data.summary?.working_hours || '--';
+    updateWorkProgress();
 
     // Timeline
     const tl = document.getElementById('punchTimeline');
@@ -716,7 +737,7 @@ async function loadHistory() {
     const reqMap = {};
     requests.forEach(r => {
       const d = dateKey(r.request_date);
-      reqMap[d] = r.status;
+      if (!reqMap[d] || r.status === 'Pending') reqMap[d] = r.status;
     });
 
     const today      = dateKey();
@@ -782,6 +803,13 @@ function renderCalendar(month, year, recMap, holMap, reqMap, today, totalDays) {
       cls  += ' ' + bcl;
       badge = `<span class="cal-badge ${bcl}">${st}</span>`;
       if (rec.first_in) time = `<div class="cal-time">${fmt(rec.first_in)}${rec.last_out ? '<br>'+fmt(rec.last_out) : ''}</div>`;
+      const canRequestCorrection = !isFuture && reqSts !== 'Pending' && ['Pending','Half Day','Short Day'].includes(st);
+      if (canRequestCorrection) {
+        cls += ' needs-request';
+        reqBtn = `<button class="cal-req-btn" onclick="event.stopPropagation();openAttReqModal('${dateStr}')">+ Request</button>`;
+      } else if (reqSts === 'Pending') {
+        reqBtn = `<button class="cal-req-btn" disabled style="color:#7c3aed;cursor:default;">Requested</button>`;
+      }
     } else if (!isFuture) {
       if (reqSts === 'Pending') {
         cls += ' requested'; badge = `<span class="cal-badge requested">Requested</span>`;
@@ -791,11 +819,12 @@ function renderCalendar(month, year, recMap, holMap, reqMap, today, totalDays) {
         cls += ' absent'; badge = `<span class="cal-badge absent">Rejected</span>`;
       } else {
         cls += ' absent'; badge = `<span class="cal-badge absent">Absent</span>`;
-        reqBtn = `<button class="cal-req-btn" onclick="openAttReqModal('${dateStr}')">+ Request</button>`;
+        reqBtn = `<button class="cal-req-btn" onclick="event.stopPropagation();openAttReqModal('${dateStr}')">+ Request</button>`;
       }
     }
 
-    html += `<div class="${cls}">
+    const clickAttr = reqBtn && !reqSts?.includes?.('Pending') ? ` onclick="openAttReqModal('${dateStr}')"` : '';
+    html += `<div class="${cls}"${clickAttr}>
       <span class="cal-date" style="${isSun?'color:#ef4444;':''}">${day}</span>
       ${time}${badge}${reqBtn}
     </div>`;
@@ -805,6 +834,51 @@ function renderCalendar(month, year, recMap, holMap, reqMap, today, totalDays) {
 
 // ── Backdated Attendance Request ──────────────────────────
 let _reqModalDate = '';
+let _todayState = null;
+
+function parseTimeToMinutes(value) {
+  if (!value) return null;
+  const [h, m] = String(value).split(':').map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  return h * 60 + m;
+}
+
+function minutesLabel(total) {
+  const mins = Math.max(0, Math.floor(total || 0));
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${h}h ${String(m).padStart(2, '0')}m`;
+}
+
+function currentMinutesOfDay() {
+  const d = new Date();
+  return d.getHours() * 60 + d.getMinutes();
+}
+
+function updateWorkProgress() {
+  const card = document.getElementById('workProgressCard');
+  if (!card || !_todayState?.first_in || _todayState?.last_out) {
+    if (card) card.style.display = 'none';
+    return;
+  }
+  const inMins = parseTimeToMinutes(_todayState.first_in);
+  if (inMins === null) { card.style.display = 'none'; return; }
+
+  const fullDayMins = parseInt(_todayState.settings?.FULL_DAY_MINUTES || '480');
+  const worked = Math.max(0, currentMinutesOfDay() - inMins);
+  const target = fullDayMins || 480;
+  const enough = worked >= target;
+  const pct = Math.min(100, Math.round((worked / target) * 100));
+
+  card.style.display = 'block';
+  card.className = `work-progress-card ${enough ? 'ok' : 'danger'}`;
+  document.getElementById('workProgressTitle').textContent = `Worked ${minutesLabel(worked)}`;
+  document.getElementById('workProgressNeed').textContent = `Full day ${minutesLabel(target)}`;
+  document.getElementById('workProgressSub').textContent = enough
+    ? `Full day working hour complete. Ab OUT karne par half day ka risk nahi hai.`
+    : `${minutesLabel(target - worked)} aur rukna better hai, warna half/short day lag sakta hai.`;
+  document.getElementById('workProgressFill').style.width = `${pct}%`;
+}
 
 function todayStr() {
   const d = new Date();
@@ -812,11 +886,17 @@ function todayStr() {
   return d.toISOString().slice(0, 10);
 }
 
-function openAttReqModal(dateStr) {
+function setAttReqDate(dateStr) {
   _reqModalDate = dateStr;
   const d = dateFromKey(dateStr);
   document.getElementById('reqModalDate').textContent =
     d.toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  document.getElementById('req_date_input').value = dateStr;
+  document.getElementById('req_date_input').max = todayStr();
+}
+
+function openAttReqModal(dateStr) {
+  setAttReqDate(dateStr);
   document.getElementById('req_in_time').value  = '';
   document.getElementById('req_out_time').value = '';
   document.getElementById('req_reason').value   = '';
@@ -1359,6 +1439,7 @@ async function logout() {
 
   startClock();
   await loadToday();
+  setInterval(updateWorkProgress, 30000);
   loadNotices();
   requestNotifPermission();
   startNotifPolling();
