@@ -1602,8 +1602,7 @@ function showOfficeApp() {
   const brand = document.getElementById('officeBrandName');
   if (brand) brand.textContent = user.organization_name || 'Office';
   applyPermissions();
-  if (!Array.isArray(user.permissions) || !user.permissions.length) refreshOfficePermissions();
-  else setTimeout(refreshOfficePermissions, 800);
+  refreshOfficePermissions();
 }
 
 function escapeHTML(value) {

@@ -64,23 +64,6 @@ const ACCOUNTANT_DEFAULT = [
 ];
 
 let ensured = false;
-const seededOrgs = new Set();
-const seedPromises = new Map();
-const permissionCache = new Map();
-const permissionPromises = new Map();
-const CACHE_TTL_MS = 60 * 1000;
-
-function cacheKeyForUser(user) {
-  const subjectType = user?.user_type === 'admin' || user?.is_admin ? 'admin' : 'employee';
-  const subjectId = subjectType === 'admin' ? user?.id : user?.id || user?.emp_id;
-  const roleName = user?.role || user?.designation || 'employee';
-  return `${db.getTenantContext().organizationId || user?.organization_id || ''}:${subjectType}:${subjectId || ''}:${roleName}`;
-}
-
-function clearPermissionCache() {
-  permissionCache.clear();
-  permissionPromises.clear();
-}
 
 function normalizeList(list) {
   return Array.from(new Set((Array.isArray(list) ? list : []).filter(k => ALL_PERMISSIONS.includes(k))));
@@ -129,9 +112,6 @@ async function seedRoleDefaultsForOrg(updatedBy = 'System') {
   await ensurePermissionTables();
   const orgId = db.getTenantContext().organizationId;
   if (!orgId) return;
-  if (seededOrgs.has(String(orgId))) return;
-  if (seedPromises.has(String(orgId))) return seedPromises.get(String(orgId));
-  const seedPromise = (async () => {
   const roles = [
     ...ADMIN_ROLES.map(role => ({ subjectType: 'admin', role })),
     { subjectType: 'employee', role: 'employee' },
@@ -146,10 +126,6 @@ async function seedRoleDefaultsForOrg(updatedBy = 'System') {
       [orgId, item.subjectType, item.role, roleDefaults(item.subjectType, item.role), updatedBy]
     );
   }
-  seededOrgs.add(String(orgId));
-  })().finally(() => seedPromises.delete(String(orgId)));
-  seedPromises.set(String(orgId), seedPromise);
-  return seedPromise;
 }
 
 async function getRolePermissions(subjectType, roleName) {
@@ -179,49 +155,17 @@ async function effectivePermissionsForUser(user) {
   const subjectType = user?.user_type === 'admin' || user?.is_admin ? 'admin' : 'employee';
   const subjectId = subjectType === 'admin' ? user?.id : user?.id || user?.emp_id;
   const roleName = user?.role || user?.designation || 'employee';
-  const cacheKey = cacheKeyForUser(user);
-  const cached = permissionCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) return cached.value;
-  if (permissionPromises.has(cacheKey)) return permissionPromises.get(cacheKey);
-
-  const permissionPromise = (async () => {
-  await seedRoleDefaultsForOrg();
-  const result = await db.query(
-    `SELECT rp.permissions AS role_permissions,
-            up.allow_permissions,
-            up.deny_permissions
-     FROM (SELECT $1::text AS subject_type, $2::text AS role_name, $3::text AS subject_id) input
-     LEFT JOIN role_permissions rp
-       ON rp.organization_id=$4
-      AND rp.subject_type=input.subject_type
-      AND lower(rp.role_name)=lower(input.role_name)
-     LEFT JOIN user_permission_overrides up
-       ON up.organization_id=$4
-      AND up.subject_type=input.subject_type
-      AND up.subject_id=input.subject_id
-     LIMIT 1`,
-    [subjectType, roleName || 'employee', String(subjectId || ''), db.getTenantContext().organizationId]
-  );
-  const row = result.rows[0] || {};
-  const rolePermissions = normalizeList(row.role_permissions?.length ? row.role_permissions : roleDefaults(subjectType, roleName));
-  const overrides = {
-    allow_permissions: row.allow_permissions || [],
-    deny_permissions: row.deny_permissions || [],
-  };
+  const rolePermissions = await getRolePermissions(subjectType, roleName);
+  const overrides = await getUserOverrides(subjectType, subjectId);
   const effective = new Set(rolePermissions);
   normalizeList(overrides.allow_permissions).forEach(p => effective.add(p));
   normalizeList(overrides.deny_permissions).forEach(p => effective.delete(p));
-  const value = {
+  return {
     effective_permissions: Array.from(effective),
     role_permissions: rolePermissions,
     overrides_allow: normalizeList(overrides.allow_permissions),
     overrides_deny: normalizeList(overrides.deny_permissions),
   };
-  permissionCache.set(cacheKey, { value, expiresAt: Date.now() + CACHE_TTL_MS });
-  return value;
-  })().finally(() => permissionPromises.delete(cacheKey));
-  permissionPromises.set(cacheKey, permissionPromise);
-  return permissionPromise;
 }
 
 function hasPermission(user, permission) {
@@ -264,7 +208,6 @@ async function upsertRolePermissions(subjectType, roleName, permissions, updated
      RETURNING subject_type, role_name, permissions, updated_by, updated_at`,
     [db.getTenantContext().organizationId, subjectType, roleName, clean, updatedBy]
   );
-  clearPermissionCache();
   return r.rows[0];
 }
 
@@ -298,7 +241,6 @@ async function upsertUserOverrides(subjectType, subjectId, allow, deny, updatedB
      RETURNING subject_type, subject_id, allow_permissions, deny_permissions, updated_by, updated_at`,
     [db.getTenantContext().organizationId, subjectType, String(subjectId), allowClean, denyClean, updatedBy]
   );
-  clearPermissionCache();
   return r.rows[0];
 }
 
@@ -314,5 +256,4 @@ module.exports = {
   upsertRolePermissions,
   userPermissionDetails,
   upsertUserOverrides,
-  clearPermissionCache,
 };

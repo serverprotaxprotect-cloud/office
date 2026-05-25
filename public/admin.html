@@ -877,18 +877,6 @@ function hasPerm(key) {
 }
 
 async function loadMyPermissions() {
-  if (Array.isArray(admin.permissions) && admin.permissions.length) {
-    ADMIN_PERMISSIONS = admin.permissions;
-    api('/admin/me/permissions').then(data => {
-      if (data.success) {
-        ADMIN_PERMISSIONS = data.effective_permissions || ADMIN_PERMISSIONS;
-        admin.permissions = ADMIN_PERMISSIONS;
-        localStorage.setItem('admin_info', JSON.stringify(admin));
-        applyAdminPermissions();
-      }
-    }).catch(() => {});
-    return;
-  }
   const data = await api('/admin/me/permissions').catch(() => ({ success:false }));
   if (data.success) ADMIN_PERMISSIONS = data.effective_permissions || [];
 }
