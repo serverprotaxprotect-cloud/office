@@ -9,7 +9,6 @@ const {
 } = require('../services/authService');
 const { verifyPassword } = require('../utils/passwords');
 const { sendEmail } = require('../utils/email');
-const authMiddleware = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -170,10 +169,6 @@ router.post('/office-login', async (req, res) => {
   } catch (err) {
     return handleLoginError(res, err);
   }
-});
-
-router.get('/me', authMiddleware, (req, res) => {
-  res.json({ success: true, user: req.user, ...req.user.permission_details });
 });
 
 // POST /api/auth/select-organization

@@ -2,7 +2,6 @@ const express = require('express');
 const db = require('../db');
 const authMiddleware = require('../middleware/auth');
 const { orgSetupErrors } = require('../services/organizationSetupGuard');
-const { hasPermission, requirePermission } = require('../services/permissions');
 
 const router = express.Router();
 
@@ -11,7 +10,7 @@ function cleanText(value) {
 }
 
 function adminCanEdit(user) {
-  return hasPermission(user, 'organization.manage');
+  return user?.user_type === 'admin' && ['Director', 'Office Manager', 'HR'].includes(user.role);
 }
 
 router.post('/signup', async (req, res) => {
@@ -80,7 +79,7 @@ router.get('/profile', authMiddleware, async (req, res) => {
   }
 });
 
-router.put('/profile', authMiddleware, requirePermission('organization.manage'), async (req, res) => {
+router.put('/profile', authMiddleware, async (req, res) => {
   if (!adminCanEdit(req.user)) {
     return res.status(403).json({ success: false, message: 'Admin access required' });
   }

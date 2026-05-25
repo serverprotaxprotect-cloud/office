@@ -343,10 +343,7 @@
     <div class="admin-panel" id="panel-admin-users">
       <div class="page-title" style="display:flex;align-items:center;justify-content:space-between;">
         <span>Admin Users</span>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button class="btn-sm perm-manage-only" onclick="openRolePermissions()">Role Permissions</button>
-          <button class="btn-sm" onclick="openAddAdminUser()">+ Add Admin</button>
-        </div>
+        <button class="btn-sm" onclick="openAddAdminUser()">+ Add Admin</button>
       </div>
       <div class="today-table-wrap">
         <div class="hist-table-wrap">
@@ -634,24 +631,6 @@
   </div>
 </div>
 
-<div class="modal-backdrop" id="permissionModal" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
-  <div class="modal" style="max-width:900px;">
-    <div class="modal-title" id="permModalTitle">Permissions</div>
-    <div id="permTargetWrap" class="modal-grid" style="margin-bottom:12px;">
-      <div><label>Type</label><select id="perm_subject_type" onchange="loadRolePermissionEditor()"><option value="admin">Admin Role</option><option value="employee">Employee Designation</option></select></div>
-      <div><label>Role / Designation</label><input id="perm_role_name" list="permRoleList" placeholder="Director" oninput="loadRolePermissionEditor()"/></div>
-      <datalist id="permRoleList"></datalist>
-    </div>
-    <div id="permUserInfo" style="display:none;margin-bottom:10px;font-size:13px;font-weight:700;color:#334155;"></div>
-    <div id="permMsg" class="alert" style="display:none;margin-bottom:12px;"></div>
-    <div id="permGrid" style="max-height:52vh;overflow:auto;border:1px solid #e2e8f0;border-radius:10px;padding:10px;background:#f8fafc;"></div>
-    <div class="modal-actions">
-      <button class="btn-cancel" onclick="document.getElementById('permissionModal').style.display='none'">Cancel</button>
-      <button class="btn-sm" onclick="savePermissions()">Save Permissions</button>
-    </div>
-  </div>
-</div>
-
 <!-- Add Employee Modal -->
 <div class="modal-backdrop" id="addEmpModal" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
   <div class="modal">
@@ -831,11 +810,6 @@
 const token = localStorage.getItem('admin_token');
 const admin = JSON.parse(localStorage.getItem('admin_info') || '{}');
 if (!token) window.location.href = '/admin-login.html';
-let ADMIN_PERMISSIONS = [];
-let PERMISSION_CATALOG = [];
-let ROLE_PERMISSION_ROWS = [];
-let PERM_MODE = 'role';
-let PERM_USER = null;
 
 // ── Helpers ──────────────────────────────────────────────────
 const api = async (path, opts = {}) => {
@@ -872,49 +846,8 @@ function fmtDate(d) {
 }
 function money(n) { return '₹' + (parseFloat(n)||0).toLocaleString('en-IN'); }
 
-function hasPerm(key) {
-  return ADMIN_PERMISSIONS.includes(key);
-}
-
-async function loadMyPermissions() {
-  const data = await api('/admin/me/permissions').catch(() => ({ success:false }));
-  if (data.success) ADMIN_PERMISSIONS = data.effective_permissions || [];
-}
-
-function applyAdminPermissions() {
-  const panelPerms = {
-    overview:'overview.view', attendance:'attendance.view', employees:'employees.view',
-    'admin-users':'admin_users.manage', leave:'leave.view', salary:'salary.view',
-    'att-requests':'attendance_requests.view', holidays:'holidays.manage', notices:'notices.manage'
-  };
-  Object.entries(panelPerms).forEach(([panel, perm]) => {
-    const allowed = hasPerm(perm);
-    const side = document.getElementById('s-' + panel);
-    const mobile = document.getElementById('m-' + panel);
-    if (side) side.style.display = allowed ? '' : 'none';
-    if (mobile) mobile.style.display = allowed ? '' : 'none';
-  });
-  document.querySelectorAll('.perm-manage-only').forEach(el => {
-    el.style.display = hasPerm('permissions.manage') && admin.role === 'Director' ? '' : 'none';
-  });
-  const salTabs = { structure:'salary.view', calculate:'salary.calculate', records:'salary.view', settings:'settings.manage' };
-  Object.entries(salTabs).forEach(([tab, perm]) => {
-    const el = document.getElementById('salTab-' + tab);
-    if (el) el.style.display = hasPerm(perm) ? '' : 'none';
-  });
-}
-
 // ── Panel switching ──────────────────────────────────────────
 function showPanel(name) {
-  const panelPerms = {
-    overview:'overview.view', attendance:'attendance.view', employees:'employees.view',
-    'admin-users':'admin_users.manage', leave:'leave.view', salary:'salary.view',
-    'att-requests':'attendance_requests.view', holidays:'holidays.manage', notices:'notices.manage'
-  };
-  if (panelPerms[name] && !hasPerm(panelPerms[name])) {
-    showToast('Access denied', 'error');
-    return;
-  }
   document.querySelectorAll('.admin-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.sidebar-item').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.admin-tab-btn').forEach(b => b.classList.remove('active'));
@@ -1230,10 +1163,7 @@ async function loadAdminUsers() {
       <td>${a.mobile_no || '--'}</td>
       <td><span class="badge ${a.status === 'Active' ? 'badge-present' : 'badge-absent'}">${a.status}</span></td>
       <td>${fmtDate(a.created_at)}</td>
-      <td>
-        <button class="btn-edit" onclick="toggleAdminUser(${a.id}, '${a.status === 'Active' ? 'Inactive' : 'Active'}')">${a.status === 'Active' ? 'Inactive' : 'Active'}</button>
-        <button class="btn-edit perm-manage-only" onclick="openUserPermissions('admin','${a.id}','${(a.name || a.username || '').replace(/'/g, '&#39;')}','${(a.role || '').replace(/'/g, '&#39;')}')">Permissions</button>
-      </td>
+      <td><button class="btn-edit" onclick="toggleAdminUser(${a.id}, '${a.status === 'Active' ? 'Inactive' : 'Active'}')">${a.status === 'Active' ? 'Inactive' : 'Active'}</button></td>
     </tr>`).join('') : '<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:20px">No admin users</td></tr>';
 }
 
@@ -1277,102 +1207,6 @@ async function submitAddAdminUser() {
   }
 }
 
-async function ensurePermissionCatalog() {
-  if (PERMISSION_CATALOG.length) return;
-  const [cat, roles] = await Promise.all([api('/admin/permissions/catalog'), api('/admin/permissions/roles')]);
-  if (!cat.success) throw new Error(cat.message || 'Catalog load failed');
-  PERMISSION_CATALOG = cat.catalog || [];
-  ROLE_PERMISSION_ROWS = roles.roles || [];
-  document.getElementById('permRoleList').innerHTML = ROLE_PERMISSION_ROWS.map(r => `<option value="${r.role_name}">${r.subject_type}</option>`).join('');
-}
-
-function renderPermissionChecks({ effective = [], role = [], allow = [], deny = [], mode = 'role' }) {
-  const groups = {};
-  PERMISSION_CATALOG.forEach(p => { (groups[p.module] ||= []).push(p); });
-  document.getElementById('permGrid').innerHTML = Object.entries(groups).map(([module, items]) => `
-    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px;margin-bottom:10px;">
-      <div style="font-weight:800;margin-bottom:8px;color:#0f172a;">${module}</div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:7px;">
-        ${items.map(p => {
-          if (mode === 'user') {
-            const current = effective.includes(p.key);
-            return `<label style="font-size:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:7px;">
-              <div style="font-weight:700;margin-bottom:5px;">${p.action}</div>
-              <label><input type="checkbox" class="perm-allow" value="${p.key}" ${allow.includes(p.key)?'checked':''}> Allow override</label><br>
-              <label><input type="checkbox" class="perm-deny" value="${p.key}" ${deny.includes(p.key)?'checked':''}> Deny override</label>
-              <div style="color:#64748b;margin-top:4px;">Current: ${current ? 'Allowed' : 'Blocked'}</div>
-            </label>`;
-          }
-          return `<label style="font-size:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:7px;">
-            <input type="checkbox" class="perm-role" value="${p.key}" ${role.includes(p.key)?'checked':''}> ${p.action}
-          </label>`;
-        }).join('')}
-      </div>
-    </div>`).join('');
-  document.querySelectorAll('.perm-allow').forEach(cb => cb.onchange = () => { if (cb.checked) document.querySelector(`.perm-deny[value="${cb.value}"]`).checked = false; });
-  document.querySelectorAll('.perm-deny').forEach(cb => cb.onchange = () => { if (cb.checked) document.querySelector(`.perm-allow[value="${cb.value}"]`).checked = false; });
-}
-
-async function openRolePermissions() {
-  PERM_MODE = 'role'; PERM_USER = null;
-  await ensurePermissionCatalog();
-  document.getElementById('permModalTitle').textContent = 'Role Permissions';
-  document.getElementById('permTargetWrap').style.display = 'grid';
-  document.getElementById('permUserInfo').style.display = 'none';
-  document.getElementById('perm_subject_type').value = 'admin';
-  document.getElementById('perm_role_name').value = 'Director';
-  document.getElementById('permissionModal').style.display = 'flex';
-  loadRolePermissionEditor();
-}
-
-function loadRolePermissionEditor() {
-  const subjectType = document.getElementById('perm_subject_type').value;
-  const roleName = document.getElementById('perm_role_name').value || 'employee';
-  const row = ROLE_PERMISSION_ROWS.find(r => r.subject_type === subjectType && r.role_name.toLowerCase() === roleName.toLowerCase());
-  renderPermissionChecks({ role: row?.permissions || [], mode: 'role' });
-}
-
-async function openUserPermissions(subjectType, id, name, roleName) {
-  PERM_MODE = 'user';
-  await ensurePermissionCatalog();
-  const data = await api(`/admin/permissions/users/${subjectType}/${encodeURIComponent(id)}`);
-  if (!data.success) { showToast(data.message || 'Permission load failed', 'error'); return; }
-  PERM_USER = { subjectType, id };
-  document.getElementById('permModalTitle').textContent = 'User Permission Overrides';
-  document.getElementById('permTargetWrap').style.display = 'none';
-  document.getElementById('permUserInfo').style.display = 'block';
-  document.getElementById('permUserInfo').textContent = `${name} (${subjectType}) - ${data.user?.role_name || roleName || 'employee'}`;
-  document.getElementById('permissionModal').style.display = 'flex';
-  renderPermissionChecks({
-    effective: data.effective_permissions || [],
-    role: data.role_permissions || [],
-    allow: data.overrides_allow || [],
-    deny: data.overrides_deny || [],
-    mode: 'user'
-  });
-}
-
-async function savePermissions() {
-  const msg = document.getElementById('permMsg');
-  msg.style.display = 'none';
-  let data;
-  if (PERM_MODE === 'role') {
-    const subjectType = document.getElementById('perm_subject_type').value;
-    const roleName = document.getElementById('perm_role_name').value.trim();
-    const permissions = [...document.querySelectorAll('.perm-role:checked')].map(cb => cb.value);
-    data = await api(`/admin/permissions/roles/${subjectType}/${encodeURIComponent(roleName)}`, { method:'PUT', body:JSON.stringify({ permissions }) });
-    if (data.success) ROLE_PERMISSION_ROWS = (await api('/admin/permissions/roles')).roles || [];
-  } else {
-    const overrides_allow = [...document.querySelectorAll('.perm-allow:checked')].map(cb => cb.value);
-    const overrides_deny = [...document.querySelectorAll('.perm-deny:checked')].map(cb => cb.value);
-    data = await api(`/admin/permissions/users/${PERM_USER.subjectType}/${encodeURIComponent(PERM_USER.id)}`, { method:'PUT', body:JSON.stringify({ overrides_allow, overrides_deny }) });
-  }
-  msg.className = data.success ? 'alert alert-success' : 'alert alert-error';
-  msg.textContent = data.success ? 'Permissions saved' : (data.message || 'Save failed');
-  msg.style.display = 'block';
-  if (data.success) setTimeout(() => { document.getElementById('permissionModal').style.display = 'none'; }, 650);
-}
-
 let allEmps = [];
 async function loadEmployees() {
   const data = await api('/admin/employees');
@@ -1394,7 +1228,6 @@ function renderEmps(emps) {
       <td><span class="badge ${e.status==='Active'?'badge-present':'badge-absent'}">${e.status}</span></td>
       <td>
         <button class="btn-edit" onclick="openEditEmp(${JSON.stringify(e).replace(/"/g,'&quot;')})">Edit</button>
-        <button class="btn-edit perm-manage-only" onclick="openUserPermissions('employee','${e.emp_id}','${(e.formal_name || e.name || '').replace(/'/g, '&#39;')}','${(e.designation || 'employee').replace(/'/g, '&#39;')}')">Permissions</button>
       </td>
     </tr>`).join('') : '<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:20px">No employees</td></tr>';
 }
@@ -2076,8 +1909,6 @@ function adminLogout() {
 // ── Init ─────────────────────────────────────────────────────
 (async function init() {
   document.getElementById('adminName').textContent = admin.name || admin.username || '';
-  await loadMyPermissions();
-  applyAdminPermissions();
   loadOrgBranding();
 
   // Populate year selectors
@@ -2095,25 +1926,17 @@ function adminLogout() {
   const m = new Date().getMonth() + 1;
   ['attMonth','calMonth','recMonth'].forEach(id => document.getElementById(id).value = m);
 
-  if (hasPerm('overview.view')) await loadOverview();
-  else {
-    const firstPanel = [
-      ['attendance','attendance.view'], ['employees','employees.view'], ['admin-users','admin_users.manage'],
-      ['leave','leave.view'], ['salary','salary.view'], ['att-requests','attendance_requests.view'],
-      ['holidays','holidays.manage'], ['notices','notices.manage']
-    ].find(([, perm]) => hasPerm(perm));
-    if (firstPanel) showPanel(firstPanel[0]);
-  }
+  await loadOverview();
   document.getElementById('loadingOverlay').style.display = 'none';
 
   // Check pending leaves badge
-  const lData = hasPerm('leave.view') ? await api('/leave/all?status=Pending').catch(()=>({leaves:[]})) : { leaves: [] };
+  const lData = await api('/leave/all?status=Pending').catch(()=>({leaves:[]}));
   const pendingLeaves = lData.leaves?.length || 0;
   const leaveBadge = document.getElementById('leaveBadge');
   if (pendingLeaves) { leaveBadge.textContent = pendingLeaves; leaveBadge.style.display = 'inline-block'; }
 
   // Check pending attendance requests badge
-  const rData = hasPerm('attendance_requests.view') ? await api('/admin/attendance-requests?status=Pending').catch(()=>({requests:[]})) : { requests: [] };
+  const rData = await api('/admin/attendance-requests?status=Pending').catch(()=>({requests:[]}));
   const pendingReqs = rData.requests?.length || 0;
   const reqBadge = document.getElementById('attReqBadge');
   if (pendingReqs) { reqBadge.textContent = pendingReqs; reqBadge.style.display = 'inline-block'; }

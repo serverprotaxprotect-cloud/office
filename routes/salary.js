@@ -2,7 +2,6 @@ const express = require('express');
 const db = require('../db');
 const adminAuth = require('../middleware/adminAuth');
 const authMiddleware = require('../middleware/auth');
-const { requirePermission } = require('../services/permissions');
 const XLSX = require('xlsx');
 
 const router = express.Router();
@@ -55,7 +54,7 @@ async function ensureIncrementColumns() {
 }
 
 // ── GET /api/salary/structure ────────────────────────────────
-router.get('/structure', adminAuth, requirePermission('salary.view'), async (req, res) => {
+router.get('/structure', adminAuth, async (req, res) => {
   try {
     await ensureIncrementColumns();
     const r = await db.query(
@@ -75,7 +74,7 @@ router.get('/structure', adminAuth, requirePermission('salary.view'), async (req
 });
 
 // ── POST /api/salary/structure ───────────────────────────────
-router.post('/structure', adminAuth, requirePermission('salary.edit'), async (req, res) => {
+router.post('/structure', adminAuth, async (req, res) => {
   const { emp_id, monthly_salary, late_fine_per_mark, late_fine_per_minute,
           grace_allowed, increment_effective_date, new_monthly_salary } = req.body;
   if (!emp_id || !monthly_salary)
@@ -116,7 +115,7 @@ router.post('/structure', adminAuth, requirePermission('salary.edit'), async (re
 //   Normalization: no absents → 30; else min(rawUnits, 30)
 //   Late fine: (fine_per_mark × lateCount) + (fine_per_minute × totalLateMins)
 //   Mid-month increment: split calculation at increment_effective_date
-router.post('/calculate', adminAuth, requirePermission('salary.calculate'), async (req, res) => {
+router.post('/calculate', adminAuth, async (req, res) => {
   const { month, year, emp_id } = req.body;
   if (!month || !year) return res.status(400).json({ success: false, message: 'month and year required' });
   const m = parseInt(month), y = parseInt(year);
@@ -315,7 +314,7 @@ router.post('/calculate', adminAuth, requirePermission('salary.calculate'), asyn
 });
 
 // ── GET /api/salary/records ──────────────────────────────────
-router.get('/records', adminAuth, requirePermission('salary.view'), async (req, res) => {
+router.get('/records', adminAuth, async (req, res) => {
   const month = parseInt(req.query.month) || istMonth();
   const year  = parseInt(req.query.year)  || istYear();
   try {
@@ -337,7 +336,7 @@ router.get('/records', adminAuth, requirePermission('salary.view'), async (req, 
 });
 
 // ── GET /api/salary/records/export ──────────────────────────
-router.get('/records/export', adminAuth, requirePermission('salary.export'), async (req, res) => {
+router.get('/records/export', adminAuth, async (req, res) => {
   const month = parseInt(req.query.month) || istMonth();
   const year  = parseInt(req.query.year)  || istYear();
   try {
@@ -373,7 +372,7 @@ router.get('/records/export', adminAuth, requirePermission('salary.export'), asy
 });
 
 // ── POST /api/salary/approve ─────────────────────────────────
-router.post('/approve', adminAuth, requirePermission('salary.approve'), async (req, res) => {
+router.post('/approve', adminAuth, async (req, res) => {
   const { emp_id, month, year } = req.body;
   try {
     await db.query(
@@ -388,7 +387,7 @@ router.post('/approve', adminAuth, requirePermission('salary.approve'), async (r
 });
 
 // ── POST /api/salary/approve-all ────────────────────────────
-router.post('/approve-all', adminAuth, requirePermission('salary.approve'), async (req, res) => {
+router.post('/approve-all', adminAuth, async (req, res) => {
   const { month, year } = req.body;
   try {
     const r = await db.query(
@@ -403,7 +402,7 @@ router.post('/approve-all', adminAuth, requirePermission('salary.approve'), asyn
 });
 
 // ── DELETE /api/salary/approve ───────────────────────────────
-router.delete('/approve', adminAuth, requirePermission('salary.approve'), async (req, res) => {
+router.delete('/approve', adminAuth, async (req, res) => {
   const { emp_id, month, year } = req.body;
   try {
     await db.query(
@@ -418,7 +417,7 @@ router.delete('/approve', adminAuth, requirePermission('salary.approve'), async 
 });
 
 // ── POST /api/salary/adjust ──────────────────────────────────
-router.post('/adjust', adminAuth, requirePermission('salary.edit'), async (req, res) => {
+router.post('/adjust', adminAuth, async (req, res) => {
   const { month, year, emp_id, other_deduction, manual_addition, remark } = req.body;
   try {
     await db.query(
@@ -437,7 +436,7 @@ router.post('/adjust', adminAuth, requirePermission('salary.edit'), async (req, 
 });
 
 // ── GET /api/salary/slip/:emp_id ─────────────────────────────
-router.get('/slip/:emp_id', adminAuth, requirePermission('salary.export'), async (req, res) => {
+router.get('/slip/:emp_id', adminAuth, async (req, res) => {
   const { emp_id } = req.params;
   const month = parseInt(req.query.month) || istMonth();
   const year  = parseInt(req.query.year)  || istYear();

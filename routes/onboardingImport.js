@@ -6,7 +6,6 @@ const authMiddleware = require('../middleware/auth');
 const { hashForStorage } = require('../services/authService');
 const { requireOrgSetup } = require('../services/organizationSetupGuard');
 const { encryptText, normalizeGstNo } = require('../utils/gstUtils');
-const { hasPermission, requirePermission } = require('../services/permissions');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -55,8 +54,8 @@ const TYPES = {
 };
 
 function requireImportAdmin(req, res) {
-  if (!hasPermission(req.user, 'data_import.manage')) {
-    res.status(403).json({ success: false, message: 'Access denied', required_permission: 'data_import.manage' });
+  if (req.user?.user_type !== 'admin' || !ADMIN_ROLES.has(req.user?.role)) {
+    res.status(403).json({ success: false, message: 'Director, Office Manager or HR access required' });
     return false;
   }
   return true;

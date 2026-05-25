@@ -1491,32 +1491,7 @@ const ROLE_PERMS = {
   'employee':       { panels: ['dashboard','mytasks','assignedby','completed','notifications','clients','companies','directors','comptracking','gstclients','incometax'], attendance_admin: false },
 };
 
-function hasOfficePerm(key) {
-  return Array.isArray(user.permissions) && user.permissions.includes(key);
-}
-
 function getRolePerms() {
-  if (Array.isArray(user.permissions) && user.permissions.length) {
-    const panelPerms = {
-      dashboard: 'overview.view',
-      mytasks: 'tasks.view',
-      assignedby: 'tasks.view',
-      alltasks: 'tasks.view_all',
-      completed: 'tasks.view',
-      notifications: 'tasks.view',
-      clients: 'clients.view',
-      companies: 'companies.view',
-      directors: 'directors.view',
-      comptracking: 'compliance.view',
-      gstclients: 'gst.view',
-      incometax: 'income_tax.view',
-      dataimport: 'data_import.manage',
-    };
-    return {
-      panels: Object.entries(panelPerms).filter(([, perm]) => hasOfficePerm(perm)).map(([panel]) => panel),
-      attendance_admin: hasOfficePerm('attendance.view') || hasOfficePerm('employees.view') || hasOfficePerm('salary.view'),
-    };
-  }
   if (!user || !user.role) return ROLE_PERMS['employee'];
   // exact match first
   if (ROLE_PERMS[user.role]) return ROLE_PERMS[user.role];
@@ -1550,11 +1525,6 @@ function applyPermissions() {
     if (!el) return;
     el.style.display = (all || perms.panels.includes(panel)) ? '' : 'none';
   });
-  const mobileMap = { 'm-dashboard':'dashboard', 'm-mytasks':'mytasks', 'm-alltasks':'alltasks', 'm-clients':'clients', 'm-notifications':'notifications' };
-  Object.entries(mobileMap).forEach(([id, panel]) => {
-    const el = document.getElementById(id);
-    if (el) el.style.display = (all || perms.panels.includes(panel)) ? '' : 'none';
-  });
 
   // Section headers: hide if all items below are hidden
   const clientItems = ['sb-clients'];
@@ -1579,20 +1549,8 @@ function applyPermissions() {
   if (secMgmt) secMgmt.style.display = perms.attendance_admin ? '' : 'none';
 
   // Create Task button — hide for employee
-  const usesDynamicPerms = Array.isArray(user.permissions) && user.permissions.length;
-  const canCreateTask = usesDynamicPerms ? hasOfficePerm('tasks.create') : user.user_type !== 'employee';
-  document.querySelectorAll('.btn-create-task').forEach(b => b.style.display = canCreateTask ? '' : 'none');
-  document.querySelectorAll('.gst-admin-only').forEach(b => b.style.display = !usesDynamicPerms || hasOfficePerm('gst.edit') ? '' : 'none');
-}
-
-async function refreshOfficePermissions() {
-  if (!token) return;
-  const data = await api('/auth/me').catch(() => ({ success:false }));
-  if (data.success && data.user) {
-    user = { ...user, ...data.user, permissions: data.effective_permissions || data.user.permissions || [] };
-    localStorage.setItem('office_user', JSON.stringify(user));
-    applyPermissions();
-  }
+  const isEmployee = user.user_type === 'employee';
+  document.querySelectorAll('.btn-create-task').forEach(b => b.style.display = isEmployee ? 'none' : '');
 }
 
 function showOfficeApp() {
@@ -1602,7 +1560,6 @@ function showOfficeApp() {
   const brand = document.getElementById('officeBrandName');
   if (brand) brand.textContent = user.organization_name || 'Office';
   applyPermissions();
-  refreshOfficePermissions();
 }
 
 function escapeHTML(value) {
@@ -1880,11 +1837,6 @@ async function loadMeta() {
 const panelLoaded = {};
 const alwaysReloadPanels = new Set(['dashboard','mytasks','assignedby','alltasks','completed','notifications','gstclients','incometax']);
 function showPanel(name) {
-  const perms = getRolePerms();
-  if (perms.panels !== 'all' && !perms.panels.includes(name)) {
-    showToast('Access denied', 'error');
-    return;
-  }
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.sb-item').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.bot-btn').forEach(b => b.classList.remove('active'));

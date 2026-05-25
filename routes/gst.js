@@ -2,7 +2,6 @@ const express = require('express');
 const multer = require('multer');
 const db = require('../db');
 const authMiddleware = require('../middleware/auth');
-const { hasPermission, requirePermission } = require('../services/permissions');
 const {
   GST_STATUSES,
   RETURN_TYPES,
@@ -47,8 +46,8 @@ function handleError(res, err) {
 }
 
 function requireAdmin(req, res) {
-  if (!hasPermission(req.user, 'gst.edit')) {
-    res.status(403).json({ success: false, message: 'Access denied', required_permission: 'gst.edit' });
+  if (!isGstAdmin(req.user)) {
+    res.status(403).json({ success: false, message: 'Admin access required' });
     return false;
   }
   return true;
@@ -67,7 +66,7 @@ function fyOptions() {
   return out;
 }
 
-router.get('/meta', authMiddleware, requirePermission('gst.view'), async (req, res) => {
+router.get('/meta', authMiddleware, async (req, res) => {
   try {
     const emps = await db.query(
       `SELECT emp_id, formal_name, name
@@ -103,7 +102,7 @@ router.get('/meta', authMiddleware, requirePermission('gst.view'), async (req, r
   }
 });
 
-router.get('/clients', authMiddleware, requirePermission('gst.view'), async (req, res) => {
+router.get('/clients', authMiddleware, async (req, res) => {
   const { search, status = 'Active', frequency, assignee_id, unassigned, page = 1, limit = 300 } = req.query;
   const params = [];
   const conds = ['1=1'];
@@ -156,7 +155,7 @@ router.get('/clients', authMiddleware, requirePermission('gst.view'), async (req
   }
 });
 
-router.get('/unassigned', authMiddleware, requirePermission('gst.view'), async (req, res) => {
+router.get('/unassigned', authMiddleware, async (req, res) => {
   const taxYear = Number(req.query.tax_year);
   const taxMonth = Number(req.query.tax_month);
   const limit = Math.min(Number(req.query.limit || 500), 1000);
@@ -239,7 +238,7 @@ router.get('/unassigned', authMiddleware, requirePermission('gst.view'), async (
   }
 });
 
-router.post('/clients', authMiddleware, requirePermission('gst.edit'), async (req, res) => {
+router.post('/clients', authMiddleware, async (req, res) => {
   const {
     client_id,
     firm_name,
@@ -314,7 +313,7 @@ router.post('/clients', authMiddleware, requirePermission('gst.edit'), async (re
   }
 });
 
-router.put('/clients/:id', authMiddleware, requirePermission('gst.edit'), async (req, res) => {
+router.put('/clients/:id', authMiddleware, async (req, res) => {
   if (!requireAdmin(req, res)) return;
   const id = parseInt(req.params.id, 10);
   const allowed = ['firm_name', 'gst_no', 'gst_login_id', 'filing_frequency', 'qrmp_gstr3b_due_day'];
@@ -360,7 +359,7 @@ router.put('/clients/:id', authMiddleware, requirePermission('gst.edit'), async 
   }
 });
 
-router.put('/clients/:id/assign', authMiddleware, requirePermission('gst.edit'), async (req, res) => {
+router.put('/clients/:id/assign', authMiddleware, async (req, res) => {
   const id = parseInt(req.params.id, 10);
   const { default_assignee_id } = req.body;
   if (!default_assignee_id) return res.status(400).json({ success: false, message: 'Employee required' });
@@ -375,7 +374,7 @@ router.put('/clients/:id/assign', authMiddleware, requirePermission('gst.edit'),
       throw err;
     }
     const periodAssign = Boolean(req.body.tax_year && req.body.tax_month);
-    const admin = hasPermission(req.user, 'gst.edit');
+    const admin = isGstAdmin(req.user);
     if (!admin && old.rows[0].default_assignee_id && !periodAssign) {
       const err = new Error('Only admin can change an already assigned GST client');
       err.statusCode = 403;
@@ -422,7 +421,7 @@ router.put('/clients/:id/assign', authMiddleware, requirePermission('gst.edit'),
   }
 });
 
-router.put('/clients/:id/status', authMiddleware, requirePermission('gst.edit'), async (req, res) => {
+router.put('/clients/:id/status', authMiddleware, async (req, res) => {
   if (!requireAdmin(req, res)) return;
   const id = parseInt(req.params.id, 10);
   const status = req.body.status === 'Inactive' ? 'Inactive' : 'Active';
@@ -460,7 +459,7 @@ router.put('/clients/:id/status', authMiddleware, requirePermission('gst.edit'),
   }
 });
 
-router.get('/filings', authMiddleware, requirePermission('gst.view'), async (req, res) => {
+router.get('/filings', authMiddleware, async (req, res) => {
   const { tax_year, tax_month, financial_year, client_id, gst_client_id, return_type, status, assigned_to_id, unassigned, search, limit = 500 } = req.query;
   const params = [];
   const conds = ['1=1'];
@@ -507,7 +506,7 @@ router.get('/filings', authMiddleware, requirePermission('gst.view'), async (req
   }
 });
 
-router.post('/generate', authMiddleware, requirePermission('gst.edit'), async (req, res) => {
+router.post('/generate', authMiddleware, async (req, res) => {
   if (!requireAdmin(req, res)) return;
   const taxYear = Number(req.body.tax_year);
   const taxMonth = Number(req.body.tax_month);
@@ -567,7 +566,7 @@ router.get('/cron/generate', async (req, res) => {
   }
 });
 
-router.put('/filings/:id/status', authMiddleware, requirePermission('gst.edit'), async (req, res) => {
+router.put('/filings/:id/status', authMiddleware, async (req, res) => {
   try {
     await updateFilingStatus(parseInt(req.params.id, 10), req.body.status, req.body.remark || null, req.user);
     res.json({ success: true, message: 'GST filing status updated' });
@@ -576,7 +575,7 @@ router.put('/filings/:id/status', authMiddleware, requirePermission('gst.edit'),
   }
 });
 
-router.put('/filings/:id/assign', authMiddleware, requirePermission('gst.edit'), async (req, res) => {
+router.put('/filings/:id/assign', authMiddleware, async (req, res) => {
   try {
     const result = await assignFiling(parseInt(req.params.id, 10), req.body.assigned_to_id, req.body.remark || null, req.user);
     res.json({ success: true, message: 'GST filing reassigned', ...result });
@@ -585,7 +584,7 @@ router.put('/filings/:id/assign', authMiddleware, requirePermission('gst.edit'),
   }
 });
 
-router.get('/reports/summary', authMiddleware, requirePermission('gst.view'), async (req, res) => {
+router.get('/reports/summary', authMiddleware, async (req, res) => {
   const { tax_year, tax_month, financial_year, client_id, assigned_to_id, return_type } = req.query;
   const params = [];
   const conds = ['1=1'];
@@ -607,7 +606,7 @@ router.get('/reports/summary', authMiddleware, requirePermission('gst.view'), as
   }
 });
 
-router.get('/history', authMiddleware, requirePermission('gst.view'), async (req, res) => {
+router.get('/history', authMiddleware, async (req, res) => {
   const { gst_client_id, filing_id } = req.query;
   const params = [];
   const conds = ['1=1'];
@@ -624,7 +623,7 @@ router.get('/history', authMiddleware, requirePermission('gst.view'), async (req
   }
 });
 
-router.post('/import/preview', authMiddleware, requirePermission('gst.edit'), upload.single('file'), async (req, res) => {
+router.post('/import/preview', authMiddleware, upload.single('file'), async (req, res) => {
   if (!requireAdmin(req, res)) return;
   try {
     if (!req.file) return res.status(400).json({ success: false, message: 'Excel file required' });
@@ -636,7 +635,7 @@ router.post('/import/preview', authMiddleware, requirePermission('gst.edit'), up
   }
 });
 
-router.post('/import', authMiddleware, requirePermission('gst.edit'), upload.single('file'), async (req, res) => {
+router.post('/import', authMiddleware, upload.single('file'), async (req, res) => {
   if (!requireAdmin(req, res)) return;
   try {
     if (!req.file) return res.status(400).json({ success: false, message: 'Excel file required' });

@@ -3,7 +3,6 @@ const db = require('../db');
 const authMiddleware = require('../middleware/auth');
 const { ensureOrgSetupComplete, requireOrgSetup } = require('../services/organizationSetupGuard');
 const { hashPassword } = require('../utils/passwords');
-const { requirePermission } = require('../services/permissions');
 
 const router = express.Router();
 
@@ -29,7 +28,7 @@ function seriesNumberFromId(id, prefix) {
 }
 
 // ── GET /api/clients/next-id ─────────────────────────────────
-router.get('/next-id', authMiddleware, requirePermission('clients.edit'), async (req, res) => {
+router.get('/next-id', authMiddleware, async (req, res) => {
   try {
     const org = await db.query(
       `SELECT latitude, longitude, attendance_radius_meters,
@@ -55,7 +54,7 @@ router.get('/next-id', authMiddleware, requirePermission('clients.edit'), async 
 });
 
 // ── GET /api/clients/agents  (search agents) ─────────────────
-router.get('/agents', authMiddleware, requirePermission('clients.view'), async (req, res) => {
+router.get('/agents', authMiddleware, async (req, res) => {
   const q = (req.query.q || '').trim();
   try {
     let result;
@@ -83,7 +82,7 @@ router.get('/agents', authMiddleware, requirePermission('clients.view'), async (
 });
 
 // ── PUT /api/clients/agents/:id/portal ───────────────────────
-router.put('/agents/:id/portal', authMiddleware, requirePermission('clients.edit'), async (req, res) => {
+router.put('/agents/:id/portal', authMiddleware, async (req, res) => {
   const { portal_enabled, password } = req.body;
   const sets = [];
   const params = [];
@@ -113,7 +112,7 @@ router.put('/agents/:id/portal', authMiddleware, requirePermission('clients.edit
 });
 
 // ── POST /api/clients/agents  (add new agent) ────────────────
-router.post('/agents', authMiddleware, requirePermission('clients.edit'), async (req, res) => {
+router.post('/agents', authMiddleware, async (req, res) => {
   const { name, mobile_number, email_id, portal_enabled, portal_password } = req.body;
   if (!name) return res.status(400).json({ success: false, message: 'Agent name required' });
   const conn = await db.pool.connect();
@@ -150,7 +149,7 @@ router.post('/agents', authMiddleware, requirePermission('clients.edit'), async 
 });
 
 // ── PUT /api/clients/agents/:id  (update agent details) ─────────
-router.put('/agents/:id', authMiddleware, requirePermission('clients.edit'), async (req, res) => {
+router.put('/agents/:id', authMiddleware, async (req, res) => {
   const { name, mobile_number, email_id, portal_enabled, portal_password } = req.body;
   if (name === '') return res.status(400).json({ success: false, message: 'Agent name required' });
 
@@ -199,7 +198,7 @@ router.put('/agents/:id', authMiddleware, requirePermission('clients.edit'), asy
 });
 
 // ── GET /api/clients/search?q= ────────────────────────────────
-router.get('/search', authMiddleware, requirePermission('clients.view'), async (req, res) => {
+router.get('/search', authMiddleware, async (req, res) => {
   const q = (req.query.q || '').trim();
   try {
     let result;
@@ -240,7 +239,7 @@ router.get('/search', authMiddleware, requirePermission('clients.view'), async (
 });
 
 // ── PUT /api/clients/:id/portal ──────────────────────────────
-router.put('/:id/portal', authMiddleware, requirePermission('clients.edit'), async (req, res) => {
+router.put('/:id/portal', authMiddleware, async (req, res) => {
   const { portal_enabled, password } = req.body;
   const sets = [];
   const params = [];
@@ -270,7 +269,7 @@ router.put('/:id/portal', authMiddleware, requirePermission('clients.edit'), asy
 });
 
 // ── GET /api/clients/:id ──────────────────────────────────────
-router.get('/:id', authMiddleware, requirePermission('clients.view'), async (req, res) => {
+router.get('/:id', authMiddleware, async (req, res) => {
   try {
     const r = await db.query('SELECT * FROM clients WHERE client_id=$1', [req.params.id]);
     if (!r.rows.length) return res.status(404).json({ success: false, message: 'Client not found' });
@@ -293,7 +292,7 @@ router.get('/:id', authMiddleware, requirePermission('clients.view'), async (req
 });
 
 // ── POST /api/clients  (add new) ─────────────────────────────
-router.post('/', authMiddleware, requirePermission('clients.edit'), async (req, res) => {
+router.post('/', authMiddleware, async (req, res) => {
   let {
     client_id, agent_id, agent_name, legal_name, business_name,
     mobile_number, email_id, address, city, state, gst_no, pan_no,
@@ -344,7 +343,7 @@ router.post('/', authMiddleware, requirePermission('clients.edit'), async (req, 
 });
 
 // ── PUT /api/clients/:id  (update) ───────────────────────────
-router.put('/:id', authMiddleware, requirePermission('clients.edit'), async (req, res) => {
+router.put('/:id', authMiddleware, async (req, res) => {
   const {
     agent_id, agent_name, legal_name, business_name,
     mobile_number, email_id, address, city, state, gst_no, pan_no, status,

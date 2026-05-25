@@ -2,7 +2,6 @@ const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
 const authMiddleware = require('../middleware/auth');
-const { hasPermission, requirePermission } = require('../services/permissions');
 
 const router = express.Router();
 const { createNotif } = require('./notifications');
@@ -19,11 +18,11 @@ function optionalAmount(value) {
 }
 
 // Helper: is this user an admin with full-view rights?
-const isAdminView = u => hasPermission(u, 'tasks.view_all');
+const isAdminView = u => u.user_type === 'admin' && ['Director', 'Office Manager', 'HR'].includes(u.role);
 const orgTaskPrefix = u => String(u.organization_code || 'ORG').replace(/[^a-z0-9]/gi, '').toUpperCase().slice(0, 8) || 'ORG';
 
 // ── GET /api/tasks/meta ───────────────────────────────────────
-router.get('/meta', authMiddleware, requirePermission('tasks.view'), async (req, res) => {
+router.get('/meta', authMiddleware, async (req, res) => {
   try {
     const [wn, st, pr, emps] = await Promise.all([
       db.query('SELECT name FROM work_names ORDER BY name'),
@@ -45,7 +44,7 @@ router.get('/meta', authMiddleware, requirePermission('tasks.view'), async (req,
 });
 
 // ── GET /api/tasks/dashboard ──────────────────────────────────
-router.get('/dashboard', authMiddleware, requirePermission('tasks.view'), async (req, res) => {
+router.get('/dashboard', authMiddleware, async (req, res) => {
   const { emp_id } = req.user;
   try {
     if (isAdminView(req.user)) {
@@ -95,14 +94,11 @@ router.get('/dashboard', authMiddleware, requirePermission('tasks.view'), async 
 });
 
 // ── GET /api/tasks ────────────────────────────────────────────
-router.get('/', authMiddleware, requirePermission('tasks.view'), async (req, res) => {
+router.get('/', authMiddleware, async (req, res) => {
   const { emp_id } = req.user;
   const { view = 'my', status, priority, work_name, search, emp_filter, page = 1, limit = 100 } = req.query;
 
   const offset = (parseInt(page) - 1) * parseInt(limit);
-  if (['all', 'all_completed'].includes(view) && !hasPermission(req.user, 'tasks.view_all')) {
-    return res.status(403).json({ success: false, message: 'Access denied', required_permission: 'tasks.view_all' });
-  }
   const params = [];
   const conds = ['t.active_flag = true'];
 
@@ -165,7 +161,7 @@ router.get('/', authMiddleware, requirePermission('tasks.view'), async (req, res
 });
 
 // ── GET /api/tasks/notifications ─────────────────────────────
-router.get('/notifications', authMiddleware, requirePermission('tasks.view'), async (req, res) => {
+router.get('/notifications', authMiddleware, async (req, res) => {
   const { emp_id } = req.user;
   try {
     if (isAdminView(req.user)) {
@@ -244,7 +240,7 @@ router.get('/notifications', authMiddleware, requirePermission('tasks.view'), as
 });
 
 // ── GET /api/tasks/:id ────────────────────────────────────────
-router.get('/:id', authMiddleware, requirePermission('tasks.view'), async (req, res) => {
+router.get('/:id', authMiddleware, async (req, res) => {
   try {
     const r = await db.query('SELECT * FROM tasks WHERE task_id=$1', [req.params.id]);
     if (!r.rows.length) return res.status(404).json({ success: false, message: 'Task not found' });
@@ -257,7 +253,7 @@ router.get('/:id', authMiddleware, requirePermission('tasks.view'), async (req, 
 });
 
 // ── POST /api/tasks (create) ──────────────────────────────────
-router.post('/', authMiddleware, requirePermission('tasks.create'), async (req, res) => {
+router.post('/', authMiddleware, async (req, res) => {
   const { emp_id, name, formal_name } = req.user;
   const {
     client_id, agent_id, agent_name, legal_name, business_name,
@@ -305,7 +301,7 @@ router.post('/', authMiddleware, requirePermission('tasks.create'), async (req, 
 });
 
 // ── PUT /api/tasks/:id (update) ───────────────────────────────
-router.put('/:id', authMiddleware, requirePermission('tasks.edit'), async (req, res) => {
+router.put('/:id', authMiddleware, async (req, res) => {
   const { emp_id, name, formal_name } = req.user;
   const taskId = req.params.id;
   const { status, priority, due_date, assigned_to_id, assigned_to_name, internal_remark, client_pending_remark, completion_remark, next_followup_date, drive_link, professional_fees, challan_amount, other_expense, fees_applicable } = req.body;

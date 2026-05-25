@@ -1,7 +1,6 @@
 const jwt = require('jsonwebtoken');
 const db = require('../db');
 const { organizationReadOnly } = require('../services/authService');
-const { effectivePermissionsForUser } = require('../services/permissions');
 
 const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
@@ -50,15 +49,10 @@ module.exports = async (req, res, next) => {
     decoded.organization_code = org.org_code;
     decoded.organization_name = org.office_name;
     decoded.read_only = readOnly;
+    req.admin = decoded;
+    req.user = decoded;
     req.organization = org;
-    return db.runWithTenant({ organizationId: org.id, readOnly }, async () => {
-      const permissionDetails = await effectivePermissionsForUser(decoded);
-      decoded.permissions = permissionDetails.effective_permissions;
-      decoded.permission_details = permissionDetails;
-      req.admin = decoded;
-      req.user = decoded;
-      next();
-    });
+    return db.runWithTenant({ organizationId: org.id, readOnly }, () => next());
   } catch {
     return res.status(401).json({ success: false, message: 'Session expired, please login again' });
   }

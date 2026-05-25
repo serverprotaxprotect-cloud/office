@@ -3,7 +3,6 @@ const multer = require('multer');
 const XLSX = require('xlsx');
 const db = require('../db');
 const authMiddleware = require('../middleware/auth');
-const { hasPermission, requirePermission } = require('../services/permissions');
 const {
   ITR_STATUSES,
   ITR_TYPES,
@@ -46,8 +45,8 @@ function handleError(res, err) {
 }
 
 function requireAdmin(req, res) {
-  if (hasPermission(req.user, 'income_tax.edit')) return true;
-  res.status(403).json({ success: false, message: 'Access denied', required_permission: 'income_tax.edit' });
+  if (isIncomeTaxAdmin(req.user)) return true;
+  res.status(403).json({ success: false, message: 'Admin access required' });
   return false;
 }
 
@@ -94,7 +93,7 @@ async function loadAssigneeOptions() {
   return result.rows;
 }
 
-router.get('/meta', authMiddleware, requirePermission('income_tax.view'), async (req, res) => {
+router.get('/meta', authMiddleware, async (req, res) => {
   try {
     const [emps, latest] = await Promise.all([
       loadAssigneeOptions(),
@@ -124,7 +123,7 @@ router.get('/meta', authMiddleware, requirePermission('income_tax.view'), async 
   }
 });
 
-router.get('/clients', authMiddleware, requirePermission('income_tax.view'), async (req, res) => {
+router.get('/clients', authMiddleware, async (req, res) => {
   const { search, status = 'Active', assignee_id, unassigned, page = 1, limit = 300 } = req.query;
   const params = [];
   const conds = ['1=1'];
@@ -170,7 +169,7 @@ router.get('/clients', authMiddleware, requirePermission('income_tax.view'), asy
   }
 });
 
-router.get('/unassigned', authMiddleware, requirePermission('income_tax.view'), async (req, res) => {
+router.get('/unassigned', authMiddleware, async (req, res) => {
   const assessmentYear = cleanText(req.query.assessment_year || currentAssessmentYear());
   const limit = Math.min(Number(req.query.limit || 500), 1000);
   const search = cleanText(req.query.search || '');
@@ -232,7 +231,7 @@ router.get('/unassigned', authMiddleware, requirePermission('income_tax.view'), 
   }
 });
 
-router.post('/clients', authMiddleware, requirePermission('income_tax.edit'), async (req, res) => {
+router.post('/clients', authMiddleware, async (req, res) => {
   const {
     client_id,
     taxpayer_name,
@@ -304,7 +303,7 @@ router.post('/clients', authMiddleware, requirePermission('income_tax.edit'), as
   }
 });
 
-router.put('/clients/:id', authMiddleware, requirePermission('income_tax.edit'), async (req, res) => {
+router.put('/clients/:id', authMiddleware, async (req, res) => {
   if (!requireAdmin(req, res)) return;
   const id = parseInt(req.params.id, 10);
   const allowed = ['taxpayer_name', 'contact_number', 'pan_number', 'reference_client_name'];
@@ -347,7 +346,7 @@ router.put('/clients/:id', authMiddleware, requirePermission('income_tax.edit'),
   }
 });
 
-router.put('/clients/:id/assign', authMiddleware, requirePermission('income_tax.edit'), async (req, res) => {
+router.put('/clients/:id/assign', authMiddleware, async (req, res) => {
   const id = parseInt(req.params.id, 10);
   const conn = await db.pool.connect();
   try {
@@ -359,7 +358,7 @@ router.put('/clients/:id/assign', authMiddleware, requirePermission('income_tax.
       throw err;
     }
     const yearAssign = Boolean(req.body.assessment_year);
-    const admin = hasPermission(req.user, 'income_tax.edit');
+    const admin = isIncomeTaxAdmin(req.user);
     if (!admin && old.rows[0].default_assignee_id && !yearAssign) {
       const err = new Error('Only admin can change an already assigned Income Tax client');
       err.statusCode = 403;
@@ -409,7 +408,7 @@ router.put('/clients/:id/assign', authMiddleware, requirePermission('income_tax.
   }
 });
 
-router.put('/clients/:id/status', authMiddleware, requirePermission('income_tax.edit'), async (req, res) => {
+router.put('/clients/:id/status', authMiddleware, async (req, res) => {
   if (!requireAdmin(req, res)) return;
   const id = parseInt(req.params.id, 10);
   const status = req.body.status === 'Inactive' ? 'Inactive' : 'Active';
@@ -437,7 +436,7 @@ router.put('/clients/:id/status', authMiddleware, requirePermission('income_tax.
   }
 });
 
-router.get('/filings', authMiddleware, requirePermission('income_tax.view'), async (req, res) => {
+router.get('/filings', authMiddleware, async (req, res) => {
   const { assessment_year, financial_year, client_id, income_tax_client_id, itr_type, status, assigned_to_id, unassigned, search, limit = 500 } = req.query;
   const params = [];
   const conds = ['1=1'];
@@ -486,7 +485,7 @@ router.get('/filings', authMiddleware, requirePermission('income_tax.view'), asy
   }
 });
 
-router.post('/generate', authMiddleware, requirePermission('income_tax.edit'), async (req, res) => {
+router.post('/generate', authMiddleware, async (req, res) => {
   if (!requireAdmin(req, res)) return;
   const assessmentYear = req.body.assessment_year || currentAssessmentYear();
   const dueDate = normalizeDueDate(req.body.due_date, assessmentYear);
@@ -498,7 +497,7 @@ router.post('/generate', authMiddleware, requirePermission('income_tax.edit'), a
   }
 });
 
-router.put('/filings/:id/status', authMiddleware, requirePermission('income_tax.edit'), async (req, res) => {
+router.put('/filings/:id/status', authMiddleware, async (req, res) => {
   try {
     await updateFilingStatus(parseInt(req.params.id, 10), {
       status: req.body.status,
@@ -512,7 +511,7 @@ router.put('/filings/:id/status', authMiddleware, requirePermission('income_tax.
   }
 });
 
-router.put('/filings/:id/assign', authMiddleware, requirePermission('income_tax.edit'), async (req, res) => {
+router.put('/filings/:id/assign', authMiddleware, async (req, res) => {
   try {
     const result = await assignFiling(parseInt(req.params.id, 10), req.body.assigned_to_id, req.body.remark || null, req.user);
     res.json({ success: true, message: 'Income Tax filing reassigned', ...result });
@@ -521,7 +520,7 @@ router.put('/filings/:id/assign', authMiddleware, requirePermission('income_tax.
   }
 });
 
-router.get('/reports/summary', authMiddleware, requirePermission('income_tax.view'), async (req, res) => {
+router.get('/reports/summary', authMiddleware, async (req, res) => {
   const { assessment_year, financial_year, client_id, assigned_to_id, itr_type } = req.query;
   const params = [];
   const conds = ['1=1'];
@@ -542,7 +541,7 @@ router.get('/reports/summary', authMiddleware, requirePermission('income_tax.vie
   }
 });
 
-router.get('/history', authMiddleware, requirePermission('income_tax.view'), async (req, res) => {
+router.get('/history', authMiddleware, async (req, res) => {
   const params = [];
   const conds = ['1=1'];
   if (req.query.client_id) { params.push(Number(req.query.client_id)); conds.push(`income_tax_client_id=$${params.length}`); }
@@ -560,7 +559,7 @@ router.get('/history', authMiddleware, requirePermission('income_tax.view'), asy
   }
 });
 
-router.get('/import/template', authMiddleware, requirePermission('income_tax.edit'), (req, res) => {
+router.get('/import/template', authMiddleware, (req, res) => {
   const headers = [
     'client_id',
     'taxpayer_name',
@@ -664,7 +663,7 @@ async function buildImportPreview(parsed) {
   };
 }
 
-router.post('/import/preview', authMiddleware, requirePermission('income_tax.edit'), upload.single('file'), async (req, res) => {
+router.post('/import/preview', authMiddleware, upload.single('file'), async (req, res) => {
   if (!requireAdmin(req, res)) return;
   try {
     if (!req.file) return res.status(400).json({ success: false, message: 'Excel file required' });
@@ -676,7 +675,7 @@ router.post('/import/preview', authMiddleware, requirePermission('income_tax.edi
   }
 });
 
-router.post('/import', authMiddleware, requirePermission('income_tax.edit'), upload.single('file'), async (req, res) => {
+router.post('/import', authMiddleware, upload.single('file'), async (req, res) => {
   if (!requireAdmin(req, res)) return;
   const duplicatePolicy = req.body.duplicate_policy || 'update_existing';
   const conn = await db.pool.connect();

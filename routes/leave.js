@@ -3,7 +3,6 @@ const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
 const authMiddleware  = require('../middleware/auth');
 const adminAuth = require('../middleware/adminAuth');
-const { requirePermission } = require('../services/permissions');
 
 const router = express.Router();
 
@@ -64,7 +63,7 @@ router.get('/my-leaves', authMiddleware, async (req, res) => {
 });
 
 // ── GET /api/leave/all  (admin) ──────────────────────────────
-router.get('/all', adminAuth, requirePermission('leave.view'), async (req, res) => {
+router.get('/all', adminAuth, async (req, res) => {
   const { status } = req.query;
   try {
     const r = await db.query(
@@ -80,7 +79,7 @@ router.get('/all', adminAuth, requirePermission('leave.view'), async (req, res) 
 });
 
 // ── POST /api/leave/action  (admin approve/reject) ───────────
-router.post('/action', adminAuth, requirePermission('leave.approve'), async (req, res) => {
+router.post('/action', adminAuth, async (req, res) => {
   const { request_id, action, remark } = req.body;
   if (!request_id || !['Approved', 'Rejected'].includes(action))
     return res.status(400).json({ success: false, message: 'request_id and action (Approved/Rejected) required' });
