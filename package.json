@@ -5,7 +5,15 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "gst:migrate": "node scripts/gst_migrate.js",
+    "gst:migrate:apply": "node scripts/gst_migrate.js --apply",
+    "multi-office:migrate": "node scripts/multi_office_migrate.js",
+    "multi-office:migrate:apply": "node scripts/multi_office_migrate.js --apply",
+    "portal:migrate": "node scripts/portal_migrate.js",
+    "portal:migrate:apply": "node scripts/portal_migrate.js --apply",
+    "gst:import:preview": "node scripts/gst_import.js C:/Users/HP/Downloads/GST_CLIENTS.xlsx",
+    "gst:import": "node scripts/gst_import.js C:/Users/HP/Downloads/GST_CLIENTS.xlsx --apply"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -19,6 +27,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "jimp": "^1.6.1",
     "nodemon": "^3.1.4"
   }
 }

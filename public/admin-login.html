@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Admin Login - PTP Attendance</title>
+  <title>Admin Login - Gee Bharat Attendance</title>
   <link rel="stylesheet" href="/assets/style.css" />
 </head>
 <body class="login-body" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);">
@@ -12,13 +12,13 @@
     <div class="login-logo">
       <div class="logo-circle" style="background: linear-gradient(135deg, #e94560, #c62a47);">ADM</div>
       <h2>Admin Panel</h2>
-      <p>PTP Attendance System</p>
+      <p>Gee Bharat Attendance System</p>
     </div>
 
     <form id="loginForm">
       <div class="form-group">
-        <label>Username</label>
-        <input type="text" id="username" placeholder="e.g. CSAK2017" autocomplete="username" required />
+        <label>Login ID / Email / Mobile</label>
+        <input type="text" id="username" placeholder="Admin username, email or mobile" autocomplete="username" required />
       </div>
       <div class="form-group">
         <label>Password</label>
@@ -29,6 +29,7 @@
       </div>
 
       <div id="loginError" class="alert alert-error" style="display:none"></div>
+      <div id="orgChoices" class="alert" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;margin-bottom:12px"></div>
 
       <button type="submit" class="btn-primary" id="loginBtn"
         style="background: linear-gradient(135deg, #e94560, #c62a47);">
@@ -40,6 +41,7 @@
     <p class="login-footer" style="margin-top:20px;">
       <a href="/" style="color:#94a3b8;text-decoration:none;">&#8592; Employee Login</a>
     </p>
+    <p class="login-footer"><a href="/forgot-password.html?from=admin" style="color:#94a3b8;">Forgot password?</a></p>
   </div>
 
   <script>
@@ -48,6 +50,41 @@
     function togglePass() {
       const p = document.getElementById('password');
       p.type = p.type === 'password' ? 'text' : 'password';
+    }
+
+    function escapeHTML(value) {
+      return String(value || '').replace(/[&<>"']/g, ch => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[ch]));
+    }
+
+    function showOrgChoices(selectionToken, choices) {
+      const box = document.getElementById('orgChoices');
+      box.innerHTML = `<strong>Select organisation</strong><div style="margin-top:8px;display:grid;gap:8px">${(choices || []).map(c => `
+        <button type="button" style="padding:9px 10px;border:1px solid #93c5fd;background:white;border-radius:8px;text-align:left;cursor:pointer"
+          onclick="selectOrg('${selectionToken}','${c.account_key}')">
+          <strong>${escapeHTML(c.organization_name)}</strong><br><small>${escapeHTML(c.organization_code)} - ${escapeHTML(c.display_name)}</small>
+        </button>`).join('')}</div>`;
+      box.style.display = 'block';
+    }
+
+    async function selectOrg(selectionToken, accountKey) {
+      const err = document.getElementById('loginError');
+      try {
+        const res = await fetch('/api/auth/select-organization', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ selection_token: selectionToken, account_key: accountKey })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message || 'Selection failed');
+        localStorage.setItem('admin_token', data.token);
+        localStorage.setItem('admin_info', JSON.stringify(data.user));
+        window.location.href = '/admin.html';
+      } catch (e) {
+        err.textContent = e.message || 'Selection failed';
+        err.style.display = 'block';
+      }
     }
 
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
@@ -59,18 +96,23 @@
 
       btn.disabled = true; txt.textContent = 'Logging in...';
       spin.style.display = 'inline-block'; err.style.display = 'none';
+      document.getElementById('orgChoices').style.display = 'none';
 
       try {
         const res = await fetch('/api/admin/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            username: document.getElementById('username').value.trim(),
+            login_id: document.getElementById('username').value.trim(),
             password: document.getElementById('password').value
           })
         });
         const data = await res.json();
-        if (data.success) {
+        if (data.success && data.requires_selection) {
+          showOrgChoices(data.selection_token, data.choices || []);
+          btn.disabled = false; txt.textContent = 'Admin Login';
+          spin.style.display = 'none';
+        } else if (data.success) {
           localStorage.setItem('admin_token', data.token);
           localStorage.setItem('admin_info', JSON.stringify(data.admin));
           window.location.href = '/admin.html';

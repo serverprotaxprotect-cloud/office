@@ -63,7 +63,7 @@ router.post('/structure', adminAuth, async (req, res) => {
           half_day_rule, late_fine_per_mark, late_fine_per_minute, grace_allowed,
           increment_effective_date, new_monthly_salary, active, updated_at)
        VALUES ($1,$2,$3,$4,$5,'Half Day = 0.5',$6,$7,$8,$9,$10,'Yes',NOW())
-       ON CONFLICT (emp_id) DO UPDATE SET
+       ON CONFLICT (organization_id, emp_id) DO UPDATE SET
          monthly_salary=$4, per_day_salary=$5,
          late_fine_per_mark=$6, late_fine_per_minute=$7, grace_allowed=$8,
          increment_effective_date=$9, new_monthly_salary=$10,
@@ -242,7 +242,7 @@ router.post('/calculate', adminAuth, async (req, res) => {
             gross_salary, late_fine, other_deduction, manual_addition,
             net_salary, calculation_status)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,0,$14,$15,$16,0,0,$17,'Calculated')
-         ON CONFLICT (month, year, emp_id) DO UPDATE SET
+         ON CONFLICT (organization_id, month, year, emp_id) DO UPDATE SET
            present_days=$7, half_days=$8, absent_days=$9, leave_days=$10, holiday_days=$11,
            late_count=$12, total_late_minutes=$13, payable_days=$14,
            gross_salary=$15, late_fine=$16, net_salary=$17, calculation_status='Calculated'`,

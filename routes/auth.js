@@ -1,128 +1,312 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const db = require('../db');
+const {
+  buildLoginResponse,
+  selectOrganization,
+  hashForStorage,
+} = require('../services/authService');
+const { verifyPassword } = require('../utils/passwords');
+const { sendEmail } = require('../utils/email');
 
 const router = express.Router();
 
+function sendLoginResponse(res, result, mode) {
+  if (result.requires_selection) {
+    return res.json({
+      success: true,
+      requires_selection: true,
+      selection_token: result.selection_token,
+      choices: result.choices,
+    });
+  }
+
+  if (mode === 'employee') {
+    return res.json({
+      success: true,
+      token: result.token,
+      employee: {
+        emp_id: result.user.emp_id,
+        name: result.user.name,
+        formal_name: result.user.formal_name,
+        designation: result.user.designation,
+        organization_code: result.user.organization_code,
+        organization_name: result.user.organization_name,
+        read_only: result.user.read_only,
+      },
+      user: result.user,
+    });
+  }
+
+  return res.json({ success: true, token: result.token, user: result.user });
+}
+
+function handleLoginError(res, err) {
+  console.error('Login error:', err.message);
+  return res.status(err.statusCode || 500).json({
+    success: false,
+    message: err.statusCode ? err.message : 'Server error',
+  });
+}
+
+function normalizeMobile(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function decodeJwtPart(part) {
+  return JSON.parse(Buffer.from(part.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'));
+}
+
+let firebaseCertCache = { expiresAt: 0, certs: {} };
+
+async function getFirebaseCerts() {
+  if (Date.now() < firebaseCertCache.expiresAt && Object.keys(firebaseCertCache.certs).length) {
+    return firebaseCertCache.certs;
+  }
+  const response = await fetch('https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com');
+  if (!response.ok) throw new Error('Firebase cert fetch failed');
+  const cacheControl = response.headers.get('cache-control') || '';
+  const maxAge = Number(cacheControl.match(/max-age=(\d+)/)?.[1] || 3600);
+  firebaseCertCache = {
+    expiresAt: Date.now() + (maxAge * 1000),
+    certs: await response.json()
+  };
+  return firebaseCertCache.certs;
+}
+
+async function verifyFirebaseIdToken(idToken) {
+  const projectId = process.env.FIREBASE_PROJECT_ID;
+  if (!projectId) throw new Error('Firebase project not configured');
+
+  const parts = String(idToken || '').split('.');
+  if (parts.length !== 3) throw new Error('Invalid Firebase token');
+
+  const header = decodeJwtPart(parts[0]);
+  const payload = decodeJwtPart(parts[1]);
+  const certs = await getFirebaseCerts();
+  const cert = certs[header.kid];
+  if (!cert) throw new Error('Unknown Firebase token key');
+
+  const verifier = crypto.createVerify('RSA-SHA256');
+  verifier.update(`${parts[0]}.${parts[1]}`);
+  verifier.end();
+  const ok = verifier.verify(cert, parts[2].replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+  if (!ok) throw new Error('Invalid Firebase token signature');
+
+  const now = Math.floor(Date.now() / 1000);
+  if (payload.aud !== projectId) throw new Error('Invalid Firebase audience');
+  if (payload.iss !== `https://securetoken.google.com/${projectId}`) throw new Error('Invalid Firebase issuer');
+  if (!payload.sub || payload.exp <= now || payload.iat > now + 60) throw new Error('Expired Firebase token');
+  if (!payload.phone_number) throw new Error('Firebase phone number missing');
+  return payload;
+}
+
+async function findResetCandidates(identifier) {
+  const login = String(identifier || '').trim();
+  const mobile = normalizeMobile(login);
+  return db.runWithTenant({ bypassTenant: true }, async () => {
+    const admins = await db.query(
+      `SELECT 'admin' AS user_type, a.id, a.username AS login_id, a.name, a.email_id, a.mobile_no,
+              o.id AS organization_id, o.office_name, o.status
+       FROM admins a JOIN organizations o ON o.id=a.organization_id
+       WHERE COALESCE(a.status,'Active')='Active'
+         AND (lower(a.username)=lower($1) OR lower(coalesce(a.email_id,''))=lower($1)
+              OR regexp_replace(coalesce(a.mobile_no,''), '[^0-9]', '', 'g')=$2)`,
+      [login, mobile]
+    );
+    const employees = await db.query(
+      `SELECT 'employee' AS user_type, e.id, e.emp_id AS login_id, COALESCE(e.formal_name,e.name) AS name,
+              e.email_id, e.mobile_no, o.id AS organization_id, o.office_name, o.status
+       FROM emplist e JOIN organizations o ON o.id=e.organization_id
+       WHERE e.status='Active'
+         AND (lower(e.emp_id)=lower($1) OR lower(coalesce(e.email_id,''))=lower($1)
+              OR regexp_replace(coalesce(e.mobile_no,''), '[^0-9]', '', 'g')=$2)`,
+      [login, mobile]
+    );
+    return [...admins.rows, ...employees.rows].filter(r => r.status === 'Active');
+  });
+}
+
+async function sendResetEmail(to, code, account) {
+  const html = `<p>Your password reset OTP is:</p><h2>${code}</h2><p>This code expires in 10 minutes.</p><p>Office: ${account.office_name}</p>`;
+  return sendEmail({
+    to,
+    subject: 'Password reset OTP',
+    html,
+  });
+}
+
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
-  const { emp_id, password } = req.body;
+  const loginId = req.body.login_id || req.body.emp_id || req.body.username;
+  const { password } = req.body;
 
-  if (!emp_id || !password)
-    return res.status(400).json({ success: false, message: 'Employee ID and Password required' });
+  if (!loginId || !password) {
+    return res.status(400).json({ success: false, message: 'Login ID and Password required' });
+  }
 
   try {
-    const result = await db.query(
-      `SELECT emp_id, name, formal_name, designation, status, login_password
-       FROM emplist WHERE LOWER(emp_id) = LOWER($1)`,
-      [emp_id.trim()]
-    );
-
-    if (result.rows.length === 0)
-      return res.status(401).json({ success: false, message: 'Employee ID not found' });
-
-    const emp = result.rows[0];
-
-    if (emp.status !== 'Active')
-      return res.status(403).json({ success: false, message: 'Your account is inactive. Contact admin.' });
-
-    if (emp.login_password !== password)
-      return res.status(401).json({ success: false, message: 'Incorrect password' });
-
-    const token = jwt.sign(
-      { emp_id: emp.emp_id, name: emp.name, formal_name: emp.formal_name, designation: emp.designation },
-      process.env.JWT_SECRET,
-      { expiresIn: '12h' }
-    );
-
-    // Log session
-    await db.query(
-      `INSERT INTO attendance_sessions (session_token, login_type, user_id, user_name, role, login_at, last_seen_at, status)
-       VALUES ($1, 'Employee', $2, $3, $4, NOW(), NOW(), 'Active')`,
-      [token.slice(-24), emp.emp_id, emp.formal_name || emp.name, emp.designation]
-    );
-
-    res.json({
-      success: true,
-      token,
-      employee: {
-        emp_id: emp.emp_id,
-        name: emp.name,
-        formal_name: emp.formal_name,
-        designation: emp.designation
-      }
-    });
+    const result = await buildLoginResponse(loginId, password, 'employee');
+    return sendLoginResponse(res, result, 'employee');
   } catch (err) {
-    console.error('Login error:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
+    return handleLoginError(res, err);
   }
 });
 
-// POST /api/auth/office-login  (unified: admin + employee)
+// POST /api/auth/office-login
 router.post('/office-login', async (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password)
-    return res.status(400).json({ success: false, message: 'Username and password required' });
+  const loginId = req.body.login_id || req.body.username || req.body.emp_id;
+  const { password } = req.body;
+
+  if (!loginId || !password) {
+    return res.status(400).json({ success: false, message: 'Login ID and password required' });
+  }
 
   try {
-    // 1. Try admins table first
-    const adminRes = await db.query(
-      'SELECT username, password, name, email_id, role FROM admins WHERE LOWER(username)=LOWER($1)',
-      [username.trim()]
-    );
-    if (adminRes.rows.length > 0) {
-      const admin = adminRes.rows[0];
-      if (admin.password !== password)
-        return res.status(401).json({ success: false, message: 'Incorrect password' });
-      const token = jwt.sign(
-        { emp_id: admin.username, name: admin.name, role: admin.role, user_type: 'admin', is_admin: true },
-        process.env.JWT_SECRET,
-        { expiresIn: '12h' }
-      );
-      return res.json({
-        success: true, token,
-        user: { emp_id: admin.username, name: admin.name, role: admin.role, user_type: 'admin' }
+    const result = await buildLoginResponse(loginId, password, 'all');
+    return sendLoginResponse(res, result, 'all');
+  } catch (err) {
+    return handleLoginError(res, err);
+  }
+});
+
+// POST /api/auth/select-organization
+router.post('/select-organization', async (req, res) => {
+  const { selection_token, account_key } = req.body;
+  if (!selection_token || !account_key) {
+    return res.status(400).json({ success: false, message: 'Organisation selection required' });
+  }
+
+  try {
+    const result = await selectOrganization(selection_token, account_key);
+    return res.json({ success: true, token: result.token, user: result.user });
+  } catch (err) {
+    return handleLoginError(res, err);
+  }
+});
+
+router.post('/forgot-password', async (req, res) => {
+  const { login_id, channel = 'email' } = req.body;
+  if (!login_id) return res.status(400).json({ success: false, message: 'Login ID, email or mobile required' });
+
+  try {
+    const candidates = await findResetCandidates(login_id);
+    const selected = candidates.filter(c => channel === 'mobile' ? c.mobile_no : c.email_id);
+    if (channel === 'mobile') {
+      return res.json({ success: true, message: 'Mobile OTP will be sent by Firebase.' });
+    }
+    if (!selected.length) {
+      return res.json({ success: true, message: 'If account exists, password reset OTP has been sent.' });
+    }
+    const emailErrors = [];
+    for (const account of selected) {
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+      const codeHash = await hashForStorage(code);
+      try {
+        await sendResetEmail(account.email_id, code, account);
+        await db.runWithTenant({ bypassTenant: true }, () => db.query(
+          `INSERT INTO password_reset_tokens
+            (organization_id, user_type, user_ref_id, login_id, channel, destination, code_hash, expires_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,NOW()+INTERVAL '10 minutes')`,
+          [account.organization_id, account.user_type, account.id, account.login_id, 'email', account.email_id, codeHash]
+        ));
+      } catch (err) {
+        console.error('[forgot-password email]', err.message);
+        emailErrors.push(err.message);
+      }
+    }
+    if (emailErrors.length && emailErrors.length === selected.length) {
+      return res.status(502).json({ success: false, message: emailErrors[0] || 'Email OTP send failed' });
+    }
+    res.json({ success: true, message: 'If account exists, password reset OTP has been sent.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Password reset request failed' });
+  }
+});
+
+router.get('/firebase-config', (req, res) => {
+  if (!process.env.FIREBASE_WEB_API_KEY || !process.env.FIREBASE_PROJECT_ID) {
+    return res.status(404).json({ success: false, message: 'Firebase OTP is not configured' });
+  }
+  res.json({
+    success: true,
+    config: {
+      apiKey: process.env.FIREBASE_WEB_API_KEY,
+      authDomain: `${process.env.FIREBASE_PROJECT_ID}.firebaseapp.com`,
+      projectId: process.env.FIREBASE_PROJECT_ID,
+    }
+  });
+});
+
+router.post('/reset-password', async (req, res) => {
+  const { login_id, code, new_password, channel = 'email', firebase_id_token } = req.body;
+  if (!login_id || !new_password || (channel === 'email' && !code) || (channel === 'mobile' && !firebase_id_token)) {
+    return res.status(400).json({ success: false, message: 'Login ID, verification and new password required' });
+  }
+  try {
+    if (channel === 'mobile') {
+      const firebaseUser = await verifyFirebaseIdToken(firebase_id_token);
+      const verifiedMobile = normalizeMobile(firebaseUser.phone_number);
+      const candidates = await findResetCandidates(login_id);
+      const matches = candidates.filter(account => normalizeMobile(account.mobile_no).endsWith(verifiedMobile.slice(-10)));
+      if (!matches.length) return res.status(400).json({ success: false, message: 'Verified mobile does not match this account' });
+      const passwordHash = await hashForStorage(new_password);
+      await db.runWithTenant({ bypassTenant: true }, async () => {
+        for (const account of matches) {
+          if (account.user_type === 'admin') {
+            await db.query(`UPDATE admins SET password=$1, updated_at=NOW() WHERE id=$2 AND organization_id=$3`, [passwordHash, account.id, account.organization_id]);
+          } else {
+            await db.query(`UPDATE emplist SET login_password=$1 WHERE id=$2 AND organization_id=$3`, [passwordHash, account.id, account.organization_id]);
+          }
+        }
       });
+      return res.json({ success: true, message: 'Password reset successful. Please login again.' });
     }
 
-    // 2. Try emplist table
-    const empRes = await db.query(
-      `SELECT emp_id, name, formal_name, designation, status, login_password FROM emplist WHERE LOWER(emp_id)=LOWER($1)`,
-      [username.trim()]
-    );
-    if (empRes.rows.length === 0)
-      return res.status(401).json({ success: false, message: 'Username not found' });
-
-    const emp = empRes.rows[0];
-    if (emp.status !== 'Active')
-      return res.status(403).json({ success: false, message: 'Account is inactive. Contact admin.' });
-    if (emp.login_password !== password)
-      return res.status(401).json({ success: false, message: 'Incorrect password' });
-
-    const token = jwt.sign(
-      { emp_id: emp.emp_id, name: emp.name, formal_name: emp.formal_name, designation: emp.designation, user_type: 'employee' },
-      process.env.JWT_SECRET,
-      { expiresIn: '12h' }
-    );
-    return res.json({
-      success: true, token,
-      user: { emp_id: emp.emp_id, name: emp.formal_name || emp.name, role: emp.designation, user_type: 'employee' }
+    const rows = await db.runWithTenant({ bypassTenant: true }, () => db.query(
+      `SELECT * FROM password_reset_tokens
+       WHERE (lower(trim(login_id))=lower(trim($1)) OR lower(trim(destination))=lower(trim($1)))
+         AND channel=$2 AND used_at IS NULL AND expires_at > NOW()
+       ORDER BY created_at DESC LIMIT 10`,
+      [String(login_id).trim(), channel]
+    ));
+    let tokenRow = null;
+    for (const row of rows.rows) {
+      if (await verifyPassword(code, row.code_hash)) { tokenRow = row; break; }
+    }
+    if (!tokenRow) return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
+    const passwordHash = await hashForStorage(new_password);
+    await db.runWithTenant({ bypassTenant: true }, async () => {
+      if (tokenRow.user_type === 'admin') {
+        await db.query(`UPDATE admins SET password=$1, updated_at=NOW() WHERE id=$2 AND organization_id=$3`, [passwordHash, tokenRow.user_ref_id, tokenRow.organization_id]);
+      } else {
+        await db.query(`UPDATE emplist SET login_password=$1 WHERE id=$2 AND organization_id=$3`, [passwordHash, tokenRow.user_ref_id, tokenRow.organization_id]);
+      }
+      await db.query(`UPDATE password_reset_tokens SET used_at=NOW() WHERE id=$1`, [tokenRow.id]);
     });
+    res.json({ success: true, message: 'Password reset successful. Please login again.' });
   } catch (err) {
-    console.error('Office login error:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Password reset failed' });
   }
 });
 
 // POST /api/auth/logout
 router.post('/logout', async (req, res) => {
-  const authHeader = req.headers['authorization'];
+  const authHeader = req.headers.authorization;
   const token = authHeader && authHeader.split(' ')[1];
   if (token) {
-    await db.query(
-      `UPDATE attendance_sessions SET status='Inactive' WHERE session_token=$1`,
-      [token.slice(-24)]
-    ).catch(() => {});
+    let decoded = {};
+    try { decoded = jwt.verify(token, process.env.JWT_SECRET); } catch {}
+    const runner = decoded.organization_id
+      ? db.runWithTenant({ organizationId: decoded.organization_id }, () => db.query(
+          `UPDATE attendance_sessions SET status='Inactive' WHERE session_token=$1`,
+          [token.slice(-24)]
+        ))
+      : Promise.resolve();
+    await runner.catch(() => {});
   }
   res.json({ success: true, message: 'Logged out' });
 });

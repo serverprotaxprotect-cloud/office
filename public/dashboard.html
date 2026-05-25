@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PTP Attendance</title>
+  <title>Gee Bharat Attendance</title>
 
   <!-- PWA -->
   <link rel="manifest" href="/manifest.json" />
@@ -11,7 +11,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="PTP Attend" />
+  <meta name="apple-mobile-web-app-title" content="Gee Bharat" />
   <link rel="apple-touch-icon" href="/icons/icon-192.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
 
@@ -154,7 +154,7 @@
 
 <!-- Navbar -->
 <nav class="navbar">
-  <div class="navbar-brand">PTP <span>Attendance</span></div>
+  <div class="navbar-brand"><span id="attBrandName">Office</span> <span>Attendance</span></div>
   <div class="nav-actions">
     <span class="nav-emp-name" id="navEmpName"></span>
     <button class="btn-logout" onclick="logout()">Logout</button>
@@ -376,7 +376,7 @@
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
         <img src="/icons/icon-192.png" style="width:52px;height:52px;border-radius:12px;flex-shrink:0;" />
         <div>
-          <div style="font-weight:700;font-size:14px;color:#1e293b;">PTP Attendance</div>
+          <div style="font-weight:700;font-size:14px;color:#1e293b;">Gee Bharat Attendance</div>
           <div style="font-size:12px;color:#64748b;margin-top:2px;">Home screen pe add karein — bilkul native app jaisa</div>
         </div>
       </div>
@@ -493,6 +493,7 @@
 const token = localStorage.getItem('att_token');
 const emp   = JSON.parse(localStorage.getItem('att_emp') || '{}');
 if (!token) { window.location.href = '/'; }
+document.getElementById('attBrandName').textContent = emp.organization_name || 'Office';
 
 // ── Helpers ─────────────────────────────────────────────
 const api = async (path, opts = {}) => {
@@ -522,8 +523,31 @@ function fmt(timeStr) {
 }
 
 function fmtDate(d) {
-  const dt = new Date(d);
+  const dt = dateFromKey(dateKey(d));
   return dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+}
+
+function dateKey(value = new Date()) {
+  if (typeof value === 'string') return value.split('T')[0];
+  const y = value.getFullYear();
+  const m = String(value.getMonth() + 1).padStart(2, '0');
+  const d = String(value.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function dateFromKey(key) {
+  const [y, m, d] = String(key).split('-').map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
+}
+
+function dayOfWeekKey(key) {
+  return dateFromKey(key).getDay();
+}
+
+function esc(v) {
+  return String(v ?? '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
 }
 
 // ── Live Clock ───────────────────────────────────────────
@@ -588,7 +612,8 @@ async function loadToday() {
           <span class="tl-badge ${p.action}">${p.action}</span>
           <div>
             <div class="tl-time">${fmt(p.time)}</div>
-            ${p.address ? `<div class="tl-addr">${p.address}</div>` : ''}
+            ${p.address ? `<div class="tl-addr" title="${esc(p.address)}">${esc(p.address)}</div>` : ''}
+            ${(p.latitude && p.longitude) ? `<div class="tl-addr" title="Lat/Lng">Lat ${Number(p.latitude).toFixed(6)}, Lng ${Number(p.longitude).toFixed(6)}${p.accuracy_meters ? ` • Accuracy ${Math.round(Number(p.accuracy_meters))}m` : ''}${p.distance_from_office_meters !== null && p.distance_from_office_meters !== undefined ? ` • Office ${p.distance_from_office_meters}m` : ''}</div>` : ''}
           </div>
         </li>
       `).join('');
@@ -606,7 +631,7 @@ async function markAttendance(action) {
 
   showToast('Getting location...', '');
 
-  let latitude = null, longitude = null, address = null;
+  let latitude = null, longitude = null, address = null, accuracy_meters = null;
 
   if (!navigator.geolocation) {
     showToast('Aapka browser GPS support nahi karta. Kisi aur device se try karein.', 'error');
@@ -620,12 +645,8 @@ async function markAttendance(action) {
     );
     latitude  = pos.coords.latitude;
     longitude = pos.coords.longitude;
+    accuracy_meters = Number.isFinite(pos.coords.accuracy) ? Math.round(pos.coords.accuracy) : null;
 
-    // Reverse geocode via HERE Maps (backend proxy)
-    try {
-      const geo = await api(`/attendance/geocode?lat=${latitude}&lng=${longitude}`);
-      address = geo.address || null;
-    } catch { /* ignore */ }
   } catch (geoErr) {
     const msg = geoErr.code === 1
       ? 'Location permission denied hai. Settings mein GPS allow karein, tab attendance mark karein.'
@@ -640,7 +661,7 @@ async function markAttendance(action) {
   try {
     const data = await api('/attendance/mark', {
       method: 'POST',
-      body: JSON.stringify({ action, latitude, longitude, address, device_info })
+      body: JSON.stringify({ action, latitude, longitude, accuracy_meters, address, device_info })
     });
 
     if (data.success) {
@@ -675,18 +696,18 @@ async function loadHistory() {
     const records  = histData.success ? histData.records : [];
 
     const recMap = {};
-    records.forEach(r => { recMap[r.date.split('T')[0]] = r; });
+    records.forEach(r => { recMap[dateKey(r.date)] = r; });
 
     const holMap = {};
-    holidays.forEach(h => { holMap[h.holiday_date.split('T')[0]] = h.holiday_name; });
+    holidays.forEach(h => { holMap[dateKey(h.holiday_date)] = h.holiday_name; });
 
     const reqMap = {};
     requests.forEach(r => {
-      const d = String(r.request_date).split('T')[0];
+      const d = dateKey(r.request_date);
       reqMap[d] = r.status;
     });
 
-    const today      = new Date().toISOString().split('T')[0];
+    const today      = dateKey();
     const totalDays  = new Date(year, month, 0).getDate();
 
     const pastDays = Array.from({length: totalDays}, (_, i) => {
@@ -696,9 +717,9 @@ async function loadHistory() {
 
     const present     = records.filter(r => r.final_status === 'Present').length;
     const late        = records.filter(r => r.late_minutes > 0).length;
-    const holidayCount = pastDays.filter(d => new Date(d).getDay() === 0 || holMap[d]).length;
+    const holidayCount = pastDays.filter(d => dayOfWeekKey(d) === 0 || holMap[d]).length;
     const absentDays  = pastDays.filter(d => {
-      if (new Date(d).getDay() === 0 || holMap[d]) return false;
+      if (dayOfWeekKey(d) === 0 || holMap[d]) return false;
       return !recMap[d];
     }).length;
 
@@ -725,7 +746,7 @@ function renderCalendar(month, year, recMap, holMap, reqMap, today, totalDays) {
 
   for (let day = 1; day <= totalDays; day++) {
     const dateStr  = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-    const dow      = new Date(dateStr).getDay();
+    const dow      = dayOfWeekKey(dateStr);
     const isSun    = dow === 0;
     const isHol    = !!holMap[dateStr];
     const isFuture = dateStr > today;
@@ -775,7 +796,7 @@ let _reqModalDate = '';
 
 function openAttReqModal(dateStr) {
   _reqModalDate = dateStr;
-  const d = new Date(dateStr);
+  const d = dateFromKey(dateStr);
   document.getElementById('reqModalDate').textContent =
     d.toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
   document.getElementById('req_in_time').value  = '';

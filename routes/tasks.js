@@ -5,6 +5,8 @@ const authMiddleware = require('../middleware/auth');
 
 const router = express.Router();
 const { createNotif } = require('./notifications');
+const { syncGSTForTaskStatus } = require('../services/gstService');
+const { syncIncomeTaxForTaskStatus } = require('../services/incomeTaxService');
 
 // ── IST helper (Asia/Kolkata = UTC+5:30) ─────────────────────
 function nowIST()   { return new Date(Date.now() + (5.5 * 60 * 60 * 1000)); }
@@ -12,6 +14,7 @@ function todayIST() { return nowIST().toISOString().split('T')[0]; }
 
 // Helper: is this user an admin with full-view rights?
 const isAdminView = u => u.user_type === 'admin' && ['Director', 'Office Manager', 'HR'].includes(u.role);
+const orgTaskPrefix = u => String(u.organization_code || 'ORG').replace(/[^a-z0-9]/gi, '').toUpperCase().slice(0, 8) || 'ORG';
 
 // ── GET /api/tasks/meta ───────────────────────────────────────
 router.get('/meta', authMiddleware, async (req, res) => {
@@ -96,7 +99,6 @@ router.get('/', authMiddleware, async (req, res) => {
 
   if (view === 'my') {
     params.push(emp_id); conds.push(`t.assigned_to_id = $${params.length}`);
-    conds.push(`t.self_assigned = false`);
     conds.push(`t.status NOT IN ('Completed','Cancelled')`);
   } else if (view === 'assigned_by_me') {
     params.push(emp_id); conds.push(`t.created_by_id = $${params.length}`);
@@ -256,12 +258,13 @@ router.post('/', authMiddleware, async (req, res) => {
     internal_remark, professional_fees, challan_amount, other_expense, fees_applicable,
   } = req.body;
   if (!work_name) return res.status(400).json({ success: false, message: 'Work name required' });
+  if (!due_date) return res.status(400).json({ success: false, message: 'Due date required' });
   const now = nowIST();
   const dateKey = now.toISOString().split('T')[0].replace(/-/g, '');
   try {
     const cnt = await db.query(`SELECT COUNT(*) FROM tasks WHERE created_at::date = CURRENT_DATE`);
     const seq = String(parseInt(cnt.rows[0].count) + 1).padStart(3, '0');
-    const taskId = `TSKPTP-${dateKey}-${seq}`;
+    const taskId = `TSK${orgTaskPrefix(req.user)}-${dateKey}-${seq}`;
     const isSelf = !assigned_to_id || assigned_to_id === emp_id;
     const toId = assigned_to_id || emp_id;
     const toName = assigned_to_name || formal_name || name;
@@ -297,21 +300,58 @@ router.put('/:id', authMiddleware, async (req, res) => {
   const { emp_id, name, formal_name } = req.user;
   const taskId = req.params.id;
   const { status, priority, due_date, assigned_to_id, assigned_to_name, internal_remark, client_pending_remark, completion_remark, next_followup_date, drive_link, professional_fees, challan_amount, other_expense, fees_applicable } = req.body;
+  let old;
   try {
-    const existing = await db.query('SELECT * FROM tasks WHERE task_id=$1', [taskId]);
-    if (!existing.rows.length) return res.status(404).json({ success: false, message: 'Task not found' });
-    const old = existing.rows[0];
-    const total = (parseFloat(professional_fees) ?? old.professional_fees ?? 0) + (parseFloat(challan_amount) ?? old.challan_amount ?? 0) + (parseFloat(other_expense) ?? old.other_expense ?? 0);
-    const completionDate = status && ['Completed','Cancelled'].includes(status) && !old.completion_date ? todayIST() : old.completion_date;
-    await db.query(
-      `UPDATE tasks SET status=COALESCE($1,status), priority=COALESCE($2,priority), due_date=COALESCE($3::date,due_date), assigned_to_id=COALESCE($4,assigned_to_id), assigned_to_name=COALESCE($5,assigned_to_name), internal_remark=COALESCE($6,internal_remark), client_pending_remark=COALESCE($7,client_pending_remark), completion_remark=COALESCE($8,completion_remark), next_followup_date=COALESCE($9::date,next_followup_date), drive_link=COALESCE($10,drive_link), professional_fees=COALESCE($11,professional_fees), challan_amount=COALESCE($12,challan_amount), other_expense=COALESCE($13,other_expense), total_amount=$14, fees_applicable=COALESCE($15,fees_applicable), completion_date=$16, last_updated_at=NOW(), last_updated_by_id=$17, last_updated_by_name=$18 WHERE task_id=$19`,
-      [status||null, priority||null, due_date||null, assigned_to_id||null, assigned_to_name||null, internal_remark||null, client_pending_remark||null, completion_remark||null, next_followup_date||null, drive_link||null, parseFloat(professional_fees)||null, parseFloat(challan_amount)||null, parseFloat(other_expense)||null, total||null, fees_applicable||null, completionDate||null, emp_id, formal_name||name, taskId]
-    );
-    await db.query(
-      `INSERT INTO task_history (log_id,task_id,action,old_status,new_status,old_assigned_to,new_assigned_to,old_due_date,new_due_date,updated_by_id,updated_by_name,updated_at,remark)
-       VALUES ($1,$2,'Updated',$3,$4,$5,$6,$7,$8,$9,$10,NOW(),$11)`,
-      ['LOG_' + uuidv4().replace(/-/g,'').slice(0,10), taskId, old.status, status||old.status, old.assigned_to_name, assigned_to_name||old.assigned_to_name, old.due_date, due_date||old.due_date, emp_id, formal_name||name, internal_remark||completion_remark||null]
-    );
+    const conn = await db.pool.connect();
+    try {
+      await conn.query('BEGIN');
+      const existing = await conn.query('SELECT * FROM tasks WHERE task_id=$1 FOR UPDATE', [taskId]);
+      if (!existing.rows.length) {
+        const err = new Error('Task not found');
+        err.statusCode = 404;
+        throw err;
+      }
+      old = existing.rows[0];
+      if (assigned_to_id && assigned_to_id !== old.assigned_to_id && !due_date && !old.due_date) {
+        const err = new Error('Due date required before reassigning task');
+        err.statusCode = 400;
+        throw err;
+      }
+      const total = (parseFloat(professional_fees) ?? old.professional_fees ?? 0) + (parseFloat(challan_amount) ?? old.challan_amount ?? 0) + (parseFloat(other_expense) ?? old.other_expense ?? 0);
+      const completionDate = status && ['Completed','Cancelled'].includes(status) && !old.completion_date ? todayIST() : old.completion_date;
+      await conn.query(
+        `UPDATE tasks SET status=COALESCE($1,status), priority=COALESCE($2,priority), due_date=COALESCE($3::date,due_date), assigned_to_id=COALESCE($4,assigned_to_id), assigned_to_name=COALESCE($5,assigned_to_name), internal_remark=COALESCE($6,internal_remark), client_pending_remark=COALESCE($7,client_pending_remark), completion_remark=COALESCE($8,completion_remark), next_followup_date=COALESCE($9::date,next_followup_date), drive_link=COALESCE($10,drive_link), professional_fees=COALESCE($11,professional_fees), challan_amount=COALESCE($12,challan_amount), other_expense=COALESCE($13,other_expense), total_amount=$14, fees_applicable=COALESCE($15,fees_applicable), completion_date=$16, last_updated_at=NOW(), last_updated_by_id=$17, last_updated_by_name=$18 WHERE task_id=$19`,
+        [status||null, priority||null, due_date||null, assigned_to_id||null, assigned_to_name||null, internal_remark||null, client_pending_remark||null, completion_remark||null, next_followup_date||null, drive_link||null, parseFloat(professional_fees)||null, parseFloat(challan_amount)||null, parseFloat(other_expense)||null, total||null, fees_applicable||null, completionDate||null, emp_id, formal_name||name, taskId]
+      );
+      await conn.query(
+        `INSERT INTO task_history (log_id,task_id,action,old_status,new_status,old_assigned_to,new_assigned_to,old_due_date,new_due_date,updated_by_id,updated_by_name,updated_at,remark)
+         VALUES ($1,$2,'Updated',$3,$4,$5,$6,$7,$8,$9,$10,NOW(),$11)`,
+        ['LOG_' + uuidv4().replace(/-/g,'').slice(0,10), taskId, old.status, status||old.status, old.assigned_to_name, assigned_to_name||old.assigned_to_name, old.due_date, due_date||old.due_date, emp_id, formal_name||name, internal_remark||completion_remark||null]
+      );
+      if (status && status !== old.status) {
+        const syncRemark = completion_remark || client_pending_remark || internal_remark || null;
+        await syncGSTForTaskStatus(
+          conn,
+          { ...old, assigned_to_id: assigned_to_id || old.assigned_to_id, status: old.status },
+          status,
+          req.user,
+          syncRemark
+        );
+        await syncIncomeTaxForTaskStatus(
+          conn,
+          { ...old, assigned_to_id: assigned_to_id || old.assigned_to_id, status: old.status },
+          status,
+          req.user,
+          syncRemark
+        );
+      }
+      await conn.query('COMMIT');
+    } catch (err) {
+      await conn.query('ROLLBACK');
+      throw err;
+    } finally {
+      conn.release();
+    }
     const newAssignee = assigned_to_id || old.assigned_to_id;
     const newAssigneeName = assigned_to_name || old.assigned_to_name;
     const taskLabel = `"${old.work_name || old.task_id}"`;
@@ -351,7 +391,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
     res.json({ success: true, message: 'Task updated!' });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(err.statusCode || 500).json({ success: false, message: err.statusCode ? err.message : 'Server error' });
   }
 });
 

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Office Management - PTP</title>
+  <title>Office Management - Gee Bharat</title>
   <link rel="stylesheet" href="/assets/style.css"/>
   <style>
     :root{--primary:#2155f3;--primary2:#5b82ff;--sidebar:#13203a;--sidebar2:#1d2f57}
@@ -75,6 +75,32 @@
     .btn-edit{background:#dbeafe;color:#1d4ed8}
     .btn-green{background:#dcfce7;color:#15803d}
     .btn-red{background:#fee2e2;color:#b91c1c}
+    .btn-dark{background:#334155;color:#fff}
+
+    .seg-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+    .seg-tabs .btn-sm.active{background:#2155f3;color:#fff}
+    .secret-cell{display:flex;align-items:center;gap:6px;min-width:130px}
+    .secret-text{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;color:#334155;max-width:160px;overflow:hidden;text-overflow:ellipsis}
+    .metric-strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:12px}
+    .metric{background:#fff;border-radius:8px;border:1px solid #e2e8f0;padding:10px 12px}
+    .metric strong{display:block;font-size:20px;color:#1e293b;line-height:1}
+    .metric span{font-size:11px;color:#64748b}
+    #panel-gstclients .tbl-wrap,#panel-incometax .tbl-wrap{max-height:calc(100vh - 355px);overflow:auto}
+    #panel-gstclients .tbl-wrap th,#panel-incometax .tbl-wrap th{position:sticky;top:0;z-index:5}
+    #panel-gstclients .gst-name{font-weight:800;color:#0f172a;max-width:420px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    #panel-gstclients .gst-client-id{font-size:11px;color:#64748b;margin-top:2px}
+    #panel-incometax .itr-name{font-weight:800;color:#0f172a;max-width:420px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    #panel-incometax .itr-client-id{font-size:11px;color:#64748b;margin-top:2px}
+    .import-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:14px}
+    .import-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px;box-shadow:0 2px 8px rgba(15,23,42,.06)}
+    .import-card h3{margin:0 0 6px;font-size:16px;color:#0f172a}
+    .import-card p{margin:0 0 12px;font-size:12px;color:#64748b;line-height:1.45}
+    .import-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .import-actions select,.import-actions input[type=file]{font-size:12px;padding:7px;border:1.5px solid #e2e8f0;border-radius:8px;background:#f8fafc}
+    .import-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin:12px 0}
+    .import-stat{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:9px}
+    .import-stat strong{display:block;font-size:18px;color:#0f172a}
+    .import-stat span{font-size:11px;color:#64748b}
 
     .pri{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700}
     .pri::before{content:'';width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.7}
@@ -91,6 +117,10 @@
     .form-group input,.form-group select,.form-group textarea{width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;background:#f8fafc}
     .form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:#2155f3;background:#fff}
     .form-group input.required-field{border-color:#fca5a5}
+    #panel-incometax .filter-row select{min-width:165px}
+    #panel-incometax .filter-row input{min-width:230px}
+    #itrClientModal select,#itrAssignModal select,#itrStatusModal select,#itrGenerateModal select,#itrImportModal select{min-width:100%;height:40px}
+    #itrClientModal .autocomplete-list,#itrAssignModal .autocomplete-list{max-height:310px;z-index:1200}
     .modal-actions{display:flex;gap:8px;margin-top:18px;justify-content:flex-end}
     .btn-cancel{padding:9px 18px;background:#f1f5f9;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-weight:700}
 
@@ -176,6 +206,12 @@
     #adminPortalModal .apm-btn:hover { filter:brightness(1.1); }
     #adminPortalModal .apm-btn:disabled { opacity:.6;cursor:not-allowed; }
     #adminPortalModal .apm-err { background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);color:#fca5a5;border-radius:8px;padding:9px 12px;font-size:13px;margin-top:10px; }
+    #adminPortalModal .apm-choices,
+    #officeLoginOverlay .ol-choices { display:none;background:rgba(59,130,246,.12);border:1px solid rgba(147,197,253,.35);color:#bfdbfe;border-radius:8px;padding:10px 12px;font-size:13px;margin-top:10px; }
+    #adminPortalModal .org-choice-btn,
+    #officeLoginOverlay .org-choice-btn { width:100%;text-align:left;padding:9px 10px;border:1px solid rgba(147,197,253,.45);border-radius:8px;background:rgba(255,255,255,.08);color:#fff;cursor:pointer;margin-top:8px; }
+    #adminPortalModal .org-choice-btn small,
+    #officeLoginOverlay .org-choice-btn small { color:rgba(255,255,255,.55); }
     #adminPortalModal .apm-cancel { display:block;text-align:center;margin-top:16px;color:rgba(255,255,255,.35);font-size:13px;cursor:pointer; }
     #adminPortalModal .apm-cancel:hover { color:rgba(255,255,255,.6); }
 
@@ -236,16 +272,17 @@
   <div class="apm-card">
     <div class="apm-logo">ADM</div>
     <h3>Attendance Admin</h3>
-    <p class="apm-sub">PTP Attendance System</p>
+    <p class="apm-sub">Gee Bharat Attendance System</p>
     <div class="apm-field">
-      <label>Admin Username</label>
-      <input type="text" id="apmUser" placeholder="e.g. CSAK2017" autocomplete="off" />
+      <label>Login ID / Email / Mobile</label>
+      <input type="text" id="apmUser" placeholder="Admin username, email or mobile" autocomplete="off" />
     </div>
     <div class="apm-field">
       <label>Password</label>
       <input type="password" id="apmPass" placeholder="Enter admin password" autocomplete="off" />
     </div>
     <div class="apm-err hidden" id="apmErr"></div>
+    <div class="apm-choices" id="apmChoices"></div>
     <button class="apm-btn" id="apmBtn" onclick="submitAdminLogin()">Login &amp; Open Admin Panel</button>
     <span class="apm-cancel" onclick="document.getElementById('adminPortalModal').classList.add('hidden')">Cancel</span>
   </div>
@@ -256,12 +293,12 @@
   <div class="ol-brand">
     <div class="ol-logo">&#128188;</div>
     <h2>Office Management</h2>
-    <p class="ol-sub">Pro Tax Protect</p>
+    <p class="ol-sub">Gee Bharat</p>
   </div>
   <div class="ol-card">
     <div class="ol-field">
-      <label>Employee ID</label>
-      <input type="text" id="olEmpId" placeholder="Admin username or Employee ID" autocomplete="username" />
+      <label>Login ID / Email / Mobile</label>
+      <input type="text" id="olEmpId" placeholder="Employee ID, admin username, email or mobile" autocomplete="username" />
     </div>
     <div class="ol-field">
       <label>Password</label>
@@ -271,7 +308,9 @@
       </div>
     </div>
     <div class="ol-err hidden" id="olErr"></div>
+    <div class="ol-choices" id="olChoices"></div>
     <button class="ol-btn" id="olBtn" onclick="doOfficeLogin()">Login to Office Management</button>
+    <div class="ol-back"><a href="/forgot-password.html?from=office">Forgot password?</a></div>
     <div class="ol-back"><a href="/">&#8592; Back to Portal Selection</a></div>
   </div>
 </div>
@@ -280,12 +319,13 @@
 
 <!-- Navbar -->
 <nav class="topnav">
-  <div class="brand">PTP Office <small>Management System</small></div>
+  <div class="brand"><span id="officeBrandName">Office</span> <small>Office</small></div>
   <span class="user-chip" id="userChip"></span>
   <button class="notif-btn" id="notifBtn" onclick="showPanel('notifications')" title="Notifications">
     &#128276;<span class="notif-dot hidden" id="notifDot"></span>
   </button>
   <button class="btn-back" onclick="window.location.href='/dashboard.html'" style="background:rgba(255,255,255,.12)">&#9200; Attendance</button>
+  <button id="orgProfileBtn" class="btn-back" onclick="window.location.href='/organization-profile.html'" style="background:rgba(255,255,255,.12)">Office Profile</button>
   <button id="attendanceAdminBtn" class="btn-back" onclick="openAdminPortal()" style="background:rgba(233,69,96,.25);color:#fca5a5">&#128202; Attendance Admin</button>
   <button class="btn-back" onclick="logout()" style="background:#e94560">Logout</button>
 </nav>
@@ -301,12 +341,15 @@
     <div class="sb-item" id="sb-completed" onclick="showPanel('completed')"><span class="ic">&#9745;</span>Completed</div>
     <div class="sb-item" id="sb-notifications" onclick="showPanel('notifications')"><span class="ic">&#128276;</span>Notifications<span class="sb-badge hidden" id="notifBadge">0</span></div>
     <div class="sb-section" id="sec-clients">Clients</div>
-    <div class="sb-item" id="sb-clients" onclick="showPanel('clients')"><span class="ic">&#128100;</span>Client Search</div>
+    <div class="sb-item" id="sb-clients" onclick="showPanel('clients')"><span class="ic">&#128100;</span>Client/Agent Search</div>
     <div class="sb-section" id="sec-compliance">Compliance</div>
     <div class="sb-item" id="sb-companies" onclick="showPanel('companies')"><span class="ic">&#127970;</span>Companies</div>
     <div class="sb-item" id="sb-directors" onclick="showPanel('directors')"><span class="ic">&#128104;</span>Directors / KYC</div>
     <div class="sb-item" id="sb-comptracking" onclick="showPanel('comptracking')"><span class="ic">&#9989;</span>Compliance Tracking</div>
+    <div class="sb-item" id="sb-gstclients" onclick="showPanel('gstclients')"><span class="ic">&#128179;</span>GST Clients</div>
+    <div class="sb-item" id="sb-incometax" onclick="showPanel('incometax')"><span class="ic">&#128188;</span>Income Tax Clients</div>
     <div class="sb-section" id="sec-management">Management</div>
+    <div class="sb-item" id="sb-dataimport" onclick="showPanel('dataimport')"><span class="ic">&#128229;</span>Data Import</div>
     <div class="sb-item" id="sb-empmanagement" onclick="openAdminPortal()"><span class="ic">&#128101;</span>Employee Management</div>
   </aside>
 
@@ -435,18 +478,49 @@
       <div id="notifContent"><div class="empty-msg">Loading...</div></div>
     </div>
 
+    <!-- ════ DATA IMPORT ════ -->
+    <div class="panel" id="panel-dataimport">
+      <div class="page-title">Setup / Data Import</div>
+      <div class="card" style="padding:14px 16px;margin-bottom:14px">
+        <div style="font-size:13px;color:#475569;line-height:1.55">
+          Import order: <strong>Agents</strong> &rarr; <strong>Clients</strong> &rarr; <strong>Employees</strong> &rarr; <strong>GST Clients</strong>.
+          Preview validation must be clean before final import.
+        </div>
+      </div>
+      <div class="import-grid" id="importCards"></div>
+      <div class="card" style="margin-top:16px">
+        <div class="card-head">
+          <h3 id="importPreviewTitle">Import Preview</h3>
+          <button id="importCredentialBtn" class="btn-sm btn-green hidden" onclick="downloadImportCredentials()">Download Credentials Result</button>
+        </div>
+        <div class="card-body">
+          <div id="importSummary" class="import-summary"></div>
+          <div id="importMessage" class="alert-err hidden"></div>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>Row</th><th>Key</th><th>Status</th><th>Errors</th><th>Warnings</th></tr></thead>
+              <tbody id="importPreviewTable"><tr><td colspan="5" class="empty-msg">Download a template, fill data, then upload for preview.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ════ CLIENTS ════ -->
     <div class="panel" id="panel-clients">
       <div class="page-title">
-        <span>Client Search</span>
-        <button class="btn btn-primary" onclick="openAddClient()">+ Add Client</button>
+        <span>Client/Agent Search</span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-sm" style="background:#16a34a;color:#fff;padding:8px 14px;font-size:13px" onclick="openAddAgent()">+ Add Agent</button>
+          <button class="btn btn-primary" onclick="openAddClient()">+ Add Client</button>
+        </div>
       </div>
       <div class="filter-row">
-        <input type="text" id="clientSearch" placeholder="Search by name, ID, mobile, agent..." oninput="searchClients()" style="max-width:400px;flex:1"/>
+        <input type="text" id="clientSearch" placeholder="Search client/agent by name, ID, mobile, email..." oninput="searchClients()" style="max-width:400px;flex:1"/>
         <button class="btn-sm btn-view" onclick="searchClients(true)">&#128269; Search</button>
       </div>
       <div class="card"><div class="tbl-wrap"><table>
-        <thead><tr><th>Client ID</th><th>Legal Name</th><th>Business Name</th><th>Agent</th><th>Mobile</th><th>Status</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Type</th><th>ID</th><th>Name</th><th>Business / Email</th><th>Agent / Mobile</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody id="clientTable"></tbody>
       </table></div></div>
     </div>
@@ -599,6 +673,177 @@
       </div>
     </div>
 
+    <!-- GST CLIENTS -->
+    <div class="panel" id="panel-gstclients">
+      <div class="page-title">
+        <span>GST Clients</span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-sm btn-view" onclick="reloadGSTPanel()" style="padding:8px 14px">&#8635; Refresh</button>
+          <button class="btn-sm btn-green gst-admin-only" onclick="openGSTGenerateModal()" style="padding:8px 14px">&#9889; Generate Tasks</button>
+          <button class="btn btn-primary" onclick="openGSTClientModal()">+ Add GST Client</button>
+        </div>
+      </div>
+
+      <div class="seg-tabs">
+        <button class="btn-sm active" id="gst-tab-clients" onclick="switchGSTTab('clients')">Active GST Clients</button>
+        <button class="btn-sm" id="gst-tab-tracker" onclick="switchGSTTab('tracker')">Monthly Filing Tracker</button>
+        <button class="btn-sm" id="gst-tab-report" onclick="switchGSTTab('report')">Reports</button>
+        <button class="btn-sm" id="gst-tab-inactive" onclick="switchGSTTab('inactive')">Inactive GST Clients</button>
+        <button class="btn-sm" id="gst-tab-unassigned" onclick="switchGSTTab('unassigned')">Unassigned Clients</button>
+      </div>
+
+      <div id="gst-panel-clients">
+        <div class="filter-row">
+          <input type="text" id="gstClientSearch" placeholder="Search client, firm, GSTIN, assignee..." oninput="debounceGST('clients')" style="max-width:360px;flex:1"/>
+          <select id="gstFreqFilter" onchange="loadGSTClients()"><option value="">All Frequency</option><option>Monthly</option><option>QRMP</option></select>
+          <select id="gstAssigneeFilter" onchange="loadGSTClients()"><option value="">All Assignees</option></select>
+        </div>
+        <div class="card"><div class="tbl-wrap"><table>
+          <thead><tr><th>Client</th><th>Firm</th><th>GSTIN</th><th>Login</th><th>Password</th><th>Frequency</th><th>Default Assignee</th><th>Actions</th></tr></thead>
+          <tbody id="gstClientsTable"></tbody>
+        </table></div></div>
+      </div>
+
+      <div id="gst-panel-tracker" class="hidden">
+        <div class="filter-row">
+          <select id="gstTrackMonth" onchange="loadGSTFilings()"></select>
+          <select id="gstTrackYear" onchange="loadGSTFilings()"></select>
+          <select id="gstTrackReturn" onchange="loadGSTFilings()"><option value="">All Returns</option><option>GSTR-1</option><option>GSTR-3B</option></select>
+          <select id="gstTrackStatus" onchange="loadGSTFilings()"><option value="">All Status</option></select>
+          <select id="gstTrackEmployee" onchange="loadGSTFilings()"><option value="">All Employees</option></select>
+          <input type="text" id="gstTrackSearch" placeholder="Search firm, GSTIN, client..." oninput="debounceGST('filings')" style="max-width:260px"/>
+        </div>
+        <div id="gstTrackerSummary" class="metric-strip"></div>
+        <div class="card"><div class="tbl-wrap"><table>
+          <thead><tr><th>Period</th><th>Client / Firm</th><th>Return</th><th>Due Date</th><th>Assigned To</th><th>Status</th><th>GSTIN</th><th>Actions</th></tr></thead>
+          <tbody id="gstFilingsTable"></tbody>
+        </table></div></div>
+      </div>
+
+      <div id="gst-panel-report" class="hidden">
+        <div class="filter-row">
+          <select id="gstReportFY" onchange="loadGSTReport()"></select>
+          <select id="gstReportReturn" onchange="loadGSTReport()"><option value="">All Returns</option><option>GSTR-1</option><option>GSTR-3B</option></select>
+          <select id="gstReportStatus" onchange="loadGSTReport()"><option value="">All Status</option></select>
+          <select id="gstReportEmployee" onchange="loadGSTReport()"><option value="">All Employees</option></select>
+          <input type="text" id="gstReportSearch" placeholder="Client ID, firm, GSTIN..." oninput="debounceGST('report')" style="max-width:300px"/>
+          <button class="btn-sm" style="background:#0891b2;color:#fff;padding:7px 12px" onclick="exportTable('gstReportTable','GST_Report')">&#128229; Export</button>
+        </div>
+        <div id="gstReportSummary" class="metric-strip"></div>
+        <div class="card"><div class="tbl-wrap"><table>
+          <thead><tr><th>Period</th><th>Client / Firm</th><th>Return</th><th>Due Date</th><th>Assigned</th><th>Status</th><th>Task</th></tr></thead>
+          <tbody id="gstReportTable"></tbody>
+        </table></div></div>
+      </div>
+
+      <div id="gst-panel-inactive" class="hidden">
+        <div class="filter-row">
+          <input type="text" id="gstInactiveSearch" placeholder="Search inactive GST clients..." oninput="debounceGST('inactive')" style="max-width:360px;flex:1"/>
+        </div>
+        <div class="card"><div class="tbl-wrap"><table>
+          <thead><tr><th>Client</th><th>Firm</th><th>GSTIN</th><th>Inactive From</th><th>Reason</th><th>Default Assignee</th><th>Actions</th></tr></thead>
+          <tbody id="gstInactiveTable"></tbody>
+        </table></div></div>
+      </div>
+
+      <div id="gst-panel-unassigned" class="hidden">
+        <div class="filter-row">
+          <select id="gstUnassignedMonth" onchange="loadGSTUnassigned()"></select>
+          <select id="gstUnassignedYear" onchange="loadGSTUnassigned()"></select>
+          <input type="text" id="gstUnassignedSearch" placeholder="Search unassigned GST clients..." oninput="debounceGST('unassigned')" style="max-width:360px;flex:1"/>
+        </div>
+        <div id="gstUnassignedSummary" class="metric-strip"></div>
+        <div class="card"><div class="tbl-wrap"><table>
+          <thead><tr><th>Period</th><th>Client / Firm</th><th>Missing Filing Task</th><th>Due Dates</th><th>GSTIN</th><th>Actions</th></tr></thead>
+          <tbody id="gstUnassignedTable"></tbody>
+        </table></div></div>
+      </div>
+    </div>
+
+    <!-- INCOME TAX CLIENTS -->
+    <div class="panel" id="panel-incometax">
+      <div class="page-title">
+        <span>Income Tax Clients</span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-sm btn-view" onclick="reloadIncomeTaxPanel()" style="padding:8px 14px">&#8635; Refresh</button>
+          <button class="btn-sm btn-green itr-admin-only" onclick="openITRGenerateModal()" style="padding:8px 14px">&#9889; Generate Yearly Tasks</button>
+          <button class="btn-sm itr-admin-only" onclick="openITRImportModal()" style="background:#0891b2;color:#fff;padding:8px 14px">&#128229; Bulk Import</button>
+          <button class="btn btn-primary" onclick="openITRClientModal()">+ Add Income Tax Client</button>
+        </div>
+      </div>
+
+      <div class="seg-tabs">
+        <button class="btn-sm active" id="itr-tab-clients" onclick="switchITRTab('clients')">Active Income Tax Clients</button>
+        <button class="btn-sm" id="itr-tab-tracker" onclick="switchITRTab('tracker')">Yearly Tracker</button>
+        <button class="btn-sm" id="itr-tab-report" onclick="switchITRTab('report')">Report</button>
+        <button class="btn-sm" id="itr-tab-inactive" onclick="switchITRTab('inactive')">Inactive Clients</button>
+        <button class="btn-sm" id="itr-tab-unassigned" onclick="switchITRTab('unassigned')">Unassigned Clients</button>
+      </div>
+
+      <div id="itr-panel-clients">
+        <div class="filter-row">
+          <input type="text" id="itrClientSearch" placeholder="Search taxpayer, PAN, client ID, assignee..." oninput="debounceITR('clients')" style="max-width:380px;flex:1"/>
+          <select id="itrAssigneeFilter" onchange="loadITRClients()"><option value="">All Assignees</option></select>
+        </div>
+        <div class="card"><div class="tbl-wrap"><table>
+          <thead><tr><th>Taxpayer</th><th>PAN</th><th>Contact</th><th>Reference</th><th>Agent</th><th>Password</th><th>Default Assignee</th><th>Actions</th></tr></thead>
+          <tbody id="itrClientsTable"></tbody>
+        </table></div></div>
+      </div>
+
+      <div id="itr-panel-tracker" class="hidden">
+        <div class="filter-row">
+          <select id="itrTrackAY" onchange="loadITRFilings()"></select>
+          <select id="itrTrackType" onchange="loadITRFilings()"><option value="">All ITR Types</option></select>
+          <select id="itrTrackStatus" onchange="loadITRFilings()"><option value="">All Status</option></select>
+          <select id="itrTrackEmployee" onchange="loadITRFilings()"><option value="">All Employees</option></select>
+          <input type="text" id="itrTrackSearch" placeholder="Search taxpayer, PAN, client..." oninput="debounceITR('filings')" style="max-width:280px"/>
+        </div>
+        <div id="itrTrackerSummary" class="metric-strip"></div>
+        <div class="card"><div class="tbl-wrap"><table>
+          <thead><tr><th>Year</th><th>Taxpayer / Client</th><th>ITR Type</th><th>Due Date</th><th>Assigned To</th><th>Status</th><th>PAN</th><th>Actions</th></tr></thead>
+          <tbody id="itrFilingsTable"></tbody>
+        </table></div></div>
+      </div>
+
+      <div id="itr-panel-report" class="hidden">
+        <div class="filter-row">
+          <select id="itrReportAY" onchange="loadITRReport()"></select>
+          <select id="itrReportType" onchange="loadITRReport()"><option value="">All ITR Types</option></select>
+          <select id="itrReportStatus" onchange="loadITRReport()"><option value="">All Status</option></select>
+          <select id="itrReportEmployee" onchange="loadITRReport()"><option value="">All Employees</option></select>
+          <input type="text" id="itrReportSearch" placeholder="Client ID, taxpayer, PAN..." oninput="debounceITR('report')" style="max-width:300px"/>
+          <button class="btn-sm" style="background:#0891b2;color:#fff;padding:7px 12px" onclick="exportTable('itrReportTable','Income_Tax_Report')">&#128229; Export</button>
+        </div>
+        <div id="itrReportSummary" class="metric-strip"></div>
+        <div class="card"><div class="tbl-wrap"><table>
+          <thead><tr><th>Year</th><th>Taxpayer / Client</th><th>ITR Type</th><th>Due Date</th><th>Assigned</th><th>Status</th><th>Task</th></tr></thead>
+          <tbody id="itrReportTable"></tbody>
+        </table></div></div>
+      </div>
+
+      <div id="itr-panel-inactive" class="hidden">
+        <div class="filter-row">
+          <input type="text" id="itrInactiveSearch" placeholder="Search inactive Income Tax clients..." oninput="debounceITR('inactive')" style="max-width:380px;flex:1"/>
+        </div>
+        <div class="card"><div class="tbl-wrap"><table>
+          <thead><tr><th>Taxpayer</th><th>PAN</th><th>Inactive From</th><th>Reason</th><th>Default Assignee</th><th>Actions</th></tr></thead>
+          <tbody id="itrInactiveTable"></tbody>
+        </table></div></div>
+      </div>
+
+      <div id="itr-panel-unassigned" class="hidden">
+        <div class="filter-row">
+          <select id="itrUnassignedAY" onchange="loadITRUnassigned()"></select>
+          <input type="text" id="itrUnassignedSearch" placeholder="Search unassigned Income Tax clients..." oninput="debounceITR('unassigned')" style="max-width:380px;flex:1"/>
+        </div>
+        <div class="card"><div class="tbl-wrap"><table>
+          <thead><tr><th>Taxpayer</th><th>PAN</th><th>Contact</th><th>Agent</th><th>Actions</th></tr></thead>
+          <tbody id="itrUnassignedTable"></tbody>
+        </table></div></div>
+      </div>
+    </div>
+
   </main>
 </div>
 
@@ -659,7 +904,7 @@
       <div class="form-group"><label>Priority</label>
         <select id="tm_priority"><option value="Low">Low</option><option value="Medium" selected>Medium</option><option value="High">High</option><option value="Urgent">Urgent</option></select>
       </div>
-      <div class="form-group"><label>Due Date</label><input type="date" id="tm_due_date"/></div>
+      <div class="form-group"><label>Due Date *</label><input type="date" id="tm_due_date" required/></div>
       <div class="form-group"><label>Assign To</label>
         <select id="tm_assign_to"><option value="">Self</option></select>
       </div>
@@ -746,6 +991,8 @@
       <div class="form-group"><label>City</label><input id="ac_city"/></div>
       <div class="form-group"><label>State</label><input id="ac_state"/></div>
       <div class="form-group full"><label>Address</label><textarea id="ac_address" rows="2"></textarea></div>
+      <div class="form-group"><label>Client Portal Access</label><select id="ac_portal_enabled"><option value="">Disabled</option><option value="1">Enabled</option></select></div>
+      <div class="form-group"><label>Portal Password</label><input id="ac_portal_password" type="password" placeholder="Set/reset portal password"/></div>
     </div>
     <div id="addClientErr" class="alert-err hidden"></div>
     <div class="modal-actions">
@@ -758,16 +1005,20 @@
 <!-- Add New Agent Modal -->
 <div class="modal-backdrop hidden" id="addAgentModal" onclick="if(event.target===this)closeModal('addAgentModal')">
   <div class="modal">
-    <div class="modal-title">Add New Agent</div>
+    <div class="modal-title" id="addAgentTitle">Add New Agent</div>
+    <input type="hidden" id="nag_mode"/>
+    <input type="hidden" id="nag_id"/>
     <div class="form-grid">
       <div class="form-group full"><label>Agent Name *</label><input id="nag_name" placeholder="e.g. Rudra Foundation"/></div>
       <div class="form-group"><label>Mobile</label><input id="nag_mobile" type="tel"/></div>
       <div class="form-group"><label>Email</label><input type="email" id="nag_email"/></div>
+      <div class="form-group"><label>Agent Portal Access</label><select id="nag_portal_enabled"><option value="">Disabled</option><option value="1">Enabled</option></select></div>
+      <div class="form-group"><label>Portal Password</label><input type="password" id="nag_portal_password" placeholder="Set portal password"/></div>
     </div>
     <div id="addAgentErr" class="alert-err hidden"></div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeModal('addAgentModal')">Cancel</button>
-      <button class="btn btn-primary" onclick="submitNewAgent()">Add Agent</button>
+      <button class="btn btn-primary" id="saveAgentBtn" onclick="submitNewAgent()">Add Agent</button>
     </div>
   </div>
 </div>
@@ -962,6 +1213,244 @@
   </div>
 </div>
 
+<!-- GST Client Modal -->
+<div class="modal-backdrop hidden" id="gstClientModal" onclick="if(event.target===this)closeModal('gstClientModal')">
+  <div class="modal modal-lg">
+    <div class="modal-title" id="gstClientModalTitle">Add GST Client</div>
+    <input type="hidden" id="gst_client_id"/>
+    <div id="gstClientSelectBlock" style="margin-bottom:12px">
+      <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;display:block">Client ID *</label>
+      <div class="autocomplete-wrap">
+        <input type="text" id="gst_client_search_input" placeholder="Search existing client ID, name, mobile..." autocomplete="off" oninput="gstClientSearch(this.value)" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;background:#f8fafc"/>
+        <div class="autocomplete-list hidden" id="gst_client_search_list"></div>
+      </div>
+      <input type="hidden" id="gst_base_client_id"/>
+      <div id="gst_client_chip" class="hidden" style="margin-top:8px"></div>
+    </div>
+    <div class="form-grid">
+      <div class="form-group full"><label>Firm Name *</label><input id="gst_firm_name"/></div>
+      <div class="form-group"><label>GST Number *</label><input id="gst_no" maxlength="30"/></div>
+      <div class="form-group"><label>Login ID</label><input id="gst_login_id"/></div>
+      <div class="form-group"><label>Password</label><input id="gst_password" autocomplete="new-password"/></div>
+      <div class="form-group"><label>Frequency</label><select id="gst_frequency" onchange="toggleGSTRateFields()"><option>Monthly</option><option>QRMP</option></select></div>
+      <div class="form-group"><label>QRMP 3B Due Day</label><select id="gst_qrmp_due_day"><option value="22">22</option><option value="24">24</option></select></div>
+      <div class="form-group full"><label>Default Assignee</label><select id="gst_default_assignee"></select></div>
+    </div>
+    <div id="gstClientErr" class="alert-err hidden"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('gstClientModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitGSTClient()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- GST Filing Status Modal -->
+<div class="modal-backdrop hidden" id="gstStatusModal" onclick="if(event.target===this)closeModal('gstStatusModal')">
+  <div class="modal">
+    <div class="modal-title">Update GST Filing</div>
+    <input type="hidden" id="gst_status_filing_id"/>
+    <div id="gst_status_info" style="font-size:13px;font-weight:700;color:#1e293b;margin-bottom:12px"></div>
+    <div class="form-grid">
+      <div class="form-group"><label>Status</label><select id="gst_status_select"></select></div>
+      <div class="form-group full"><label>Remark</label><textarea id="gst_status_remark" rows="3"></textarea></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('gstStatusModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitGSTStatus()">Update</button>
+    </div>
+  </div>
+</div>
+
+<!-- GST Assign Modal -->
+<div class="modal-backdrop hidden" id="gstAssignModal" onclick="if(event.target===this)closeModal('gstAssignModal')">
+  <div class="modal">
+    <div class="modal-title" id="gstAssignTitle">Assign GST Work</div>
+    <input type="hidden" id="gst_assign_kind"/>
+    <input type="hidden" id="gst_assign_id"/>
+    <div class="form-grid">
+      <div class="form-group full"><label>Employee</label><select id="gst_assign_employee"></select></div>
+      <div class="form-group full"><label>Remark</label><textarea id="gst_assign_remark" rows="2"></textarea></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('gstAssignModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitGSTAssign()">Assign</button>
+    </div>
+  </div>
+</div>
+
+<!-- GST Deactivate Modal -->
+<div class="modal-backdrop hidden" id="gstDeactivateModal" onclick="if(event.target===this)closeModal('gstDeactivateModal')">
+  <div class="modal">
+    <div class="modal-title" id="gstDeactivateTitle">Deactivate GST Client</div>
+    <input type="hidden" id="gst_deactivate_id"/>
+    <input type="hidden" id="gst_deactivate_status"/>
+    <div class="form-grid">
+      <div class="form-group"><label>From Date</label><input type="date" id="gst_inactive_from"/></div>
+      <div class="form-group full"><label>Reason</label><textarea id="gst_inactive_reason" rows="3"></textarea></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('gstDeactivateModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitGSTClientStatus()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- GST Generate Modal -->
+<div class="modal-backdrop hidden" id="gstGenerateModal" onclick="if(event.target===this)closeModal('gstGenerateModal')">
+  <div class="modal">
+    <div class="modal-title">Generate GST Tasks</div>
+    <div class="form-grid">
+      <div class="form-group"><label>Month</label><select id="gst_generate_month"></select></div>
+      <div class="form-group"><label>Year</label><select id="gst_generate_year"></select></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('gstGenerateModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitGSTGenerate()">Generate</button>
+    </div>
+  </div>
+</div>
+
+<!-- Income Tax Client Modal -->
+<div class="modal-backdrop hidden" id="itrClientModal" onclick="if(event.target===this)closeModal('itrClientModal')">
+  <div class="modal modal-lg">
+    <div class="modal-title" id="itrClientModalTitle">Add Income Tax Client</div>
+    <input type="hidden" id="itr_client_row_id"/>
+    <div id="itrClientSelectBlock" style="margin-bottom:12px">
+      <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;display:block">Client ID *</label>
+      <div class="autocomplete-wrap">
+        <input type="text" id="itr_client_search_input" placeholder="Search existing client ID, name, mobile..." autocomplete="off" oninput="itrClientSearch(this.value)" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;background:#f8fafc"/>
+        <div class="autocomplete-list hidden" id="itr_client_search_list"></div>
+      </div>
+      <input type="hidden" id="itr_base_client_id"/>
+      <div id="itr_client_chip" class="hidden" style="margin-top:8px"></div>
+    </div>
+    <div class="form-grid">
+      <div class="form-group full"><label>Name of Taxpayer *</label><input id="itr_taxpayer_name"/></div>
+      <div class="form-group"><label>Contact Number</label><input id="itr_contact_number"/></div>
+      <div class="form-group"><label>PAN Number *</label><input id="itr_pan_number" maxlength="10"/></div>
+      <div class="form-group"><label>Password</label><input id="itr_password" autocomplete="new-password"/></div>
+      <div class="form-group full"><label>Reference Client / Agent</label>
+        <div class="autocomplete-wrap">
+          <input id="itr_reference_client_name" list="itr_reference_datalist" placeholder="Search client, client ID, agent name..." autocomplete="off" oninput="itrReferenceSearch(this.value)"/>
+          <datalist id="itr_reference_datalist"></datalist>
+          <div class="autocomplete-list hidden" id="itr_reference_search_list"></div>
+        </div>
+      </div>
+      <div class="form-group full"><label>Default Assignee</label>
+        <div class="autocomplete-wrap">
+          <input id="itr_default_assignee_search" list="itr_assignee_datalist" placeholder="Type employee/admin name or ID..." autocomplete="off" onfocus="showITRAssigneeList('default')" oninput="syncITRAssigneeInput('default')"/>
+          <div class="autocomplete-list hidden" id="itr_default_assignee_list"></div>
+        </div>
+        <input type="hidden" id="itr_default_assignee"/>
+        <datalist id="itr_assignee_datalist"></datalist>
+      </div>
+    </div>
+    <div id="itrClientErr" class="alert-err hidden"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('itrClientModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitITRClient()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Income Tax Filing Status Modal -->
+<div class="modal-backdrop hidden" id="itrStatusModal" onclick="if(event.target===this)closeModal('itrStatusModal')">
+  <div class="modal">
+    <div class="modal-title">Update Income Tax Filing</div>
+    <input type="hidden" id="itr_status_filing_id"/>
+    <div id="itr_status_info" style="font-size:13px;font-weight:700;color:#1e293b;margin-bottom:12px"></div>
+    <div class="form-grid">
+      <div class="form-group"><label>Status</label><select id="itr_status_select"></select></div>
+      <div class="form-group"><label>Type of ITR</label><select id="itr_status_type"></select></div>
+      <div class="form-group"><label>Due Date</label><input type="date" id="itr_status_due_date"/></div>
+      <div class="form-group full"><label>Remark</label><textarea id="itr_status_remark" rows="3"></textarea></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('itrStatusModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitITRStatus()">Update</button>
+    </div>
+  </div>
+</div>
+
+<!-- Income Tax Assign Modal -->
+<div class="modal-backdrop hidden" id="itrAssignModal" onclick="if(event.target===this)closeModal('itrAssignModal')">
+  <div class="modal">
+    <div class="modal-title" id="itrAssignTitle">Assign Income Tax Work</div>
+    <input type="hidden" id="itr_assign_kind"/>
+    <input type="hidden" id="itr_assign_id"/>
+    <div class="form-grid">
+      <div class="form-group full"><label>Employee</label>
+        <div class="autocomplete-wrap">
+          <input id="itr_assign_employee_search" list="itr_assignee_datalist" placeholder="Type employee/admin name or ID..." autocomplete="off" onfocus="showITRAssigneeList('assign')" oninput="syncITRAssigneeInput('assign')"/>
+          <div class="autocomplete-list hidden" id="itr_assign_employee_list"></div>
+        </div>
+        <input type="hidden" id="itr_assign_employee"/>
+      </div>
+      <div class="form-group full"><label>Remark</label><textarea id="itr_assign_remark" rows="2"></textarea></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('itrAssignModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitITRAssign()">Assign</button>
+    </div>
+  </div>
+</div>
+
+<!-- Income Tax Deactivate Modal -->
+<div class="modal-backdrop hidden" id="itrDeactivateModal" onclick="if(event.target===this)closeModal('itrDeactivateModal')">
+  <div class="modal">
+    <div class="modal-title" id="itrDeactivateTitle">Deactivate Income Tax Client</div>
+    <input type="hidden" id="itr_deactivate_id"/>
+    <input type="hidden" id="itr_deactivate_status"/>
+    <div class="form-grid">
+      <div class="form-group"><label>From Date</label><input type="date" id="itr_inactive_from"/></div>
+      <div class="form-group full"><label>Reason</label><textarea id="itr_inactive_reason" rows="3"></textarea></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('itrDeactivateModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitITRClientStatus()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Income Tax Generate Modal -->
+<div class="modal-backdrop hidden" id="itrGenerateModal" onclick="if(event.target===this)closeModal('itrGenerateModal')">
+  <div class="modal">
+    <div class="modal-title">Generate Income Tax Tasks</div>
+    <div class="form-grid">
+      <div class="form-group"><label>Assessment Year</label><select id="itr_generate_ay"></select></div>
+      <div class="form-group"><label>Due Date</label><input type="date" id="itr_generate_due_date"/></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('itrGenerateModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitITRGenerate()">Generate</button>
+    </div>
+  </div>
+</div>
+
+<!-- Income Tax Import Modal -->
+<div class="modal-backdrop hidden" id="itrImportModal" onclick="if(event.target===this)closeModal('itrImportModal')">
+  <div class="modal modal-lg">
+    <div class="modal-title">Bulk Import Income Tax Clients</div>
+    <div class="filter-row">
+      <button class="btn-sm btn-view" onclick="downloadITRTemplate()" style="padding:8px 12px">&#128229; Download Template</button>
+      <select id="itr_import_policy">
+        <option value="update_existing">Update Existing</option>
+        <option value="skip_duplicates">Skip Duplicates</option>
+        <option value="create_only">Create Only</option>
+      </select>
+    </div>
+    <input type="file" id="itr_import_file" accept=".xlsx,.xls" style="margin:8px 0 12px"/>
+    <div id="itrImportPreview" class="alert-info hidden"></div>
+    <div id="itrImportErr" class="alert-err hidden"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('itrImportModal')">Cancel</button>
+      <button class="btn-sm btn-view" onclick="previewITRImport()" style="padding:9px 14px">Preview</button>
+      <button class="btn btn-primary" id="itrImportCommitBtn" onclick="submitITRImport()" disabled>Final Import</button>
+    </div>
+  </div>
+</div>
+
+<script src="/assets/address-autocomplete.js"></script>
 <script>
 // ── Auth & RBAC ───────────────────────────────────────────────
 let token = localStorage.getItem('office_token');
@@ -975,7 +1464,15 @@ if (!token) {
     try {
       const attEmp = JSON.parse(attEmpRaw);
       token = attToken;
-      user  = { emp_id: attEmp.emp_id, name: attEmp.formal_name || attEmp.name, role: attEmp.designation || 'Employee', user_type: 'employee' };
+      user  = {
+        emp_id: attEmp.emp_id,
+        name: attEmp.formal_name || attEmp.name,
+        role: attEmp.designation || 'Employee',
+        user_type: 'employee',
+        organization_code: attEmp.organization_code,
+        organization_name: attEmp.organization_name,
+        read_only: attEmp.read_only
+      };
       localStorage.setItem('office_token', token);
       localStorage.setItem('office_user', JSON.stringify(user));
     } catch(e) {}
@@ -989,8 +1486,8 @@ const ROLE_PERMS = {
   'Director':       { panels: 'all', attendance_admin: true },
   'Office Manager': { panels: 'all', attendance_admin: true },
   'HR':             { panels: 'all', attendance_admin: true },
-  'Accountant':     { panels: ['dashboard','mytasks','assignedby','completed','notifications','clients','companies','directors','comptracking'], attendance_admin: false },
-  'employee':       { panels: ['dashboard','mytasks','assignedby','completed','notifications','clients','companies','directors','comptracking'], attendance_admin: false },
+  'Accountant':     { panels: ['dashboard','mytasks','assignedby','completed','notifications','clients','companies','directors','comptracking','gstclients','incometax'], attendance_admin: false },
+  'employee':       { panels: ['dashboard','mytasks','assignedby','completed','notifications','clients','companies','directors','comptracking','gstclients','incometax'], attendance_admin: false },
 };
 
 function getRolePerms() {
@@ -1017,6 +1514,9 @@ function applyPermissions() {
     'sb-companies':   'companies',
     'sb-directors':   'directors',
     'sb-comptracking':'comptracking',
+    'sb-gstclients':  'gstclients',
+    'sb-incometax':   'incometax',
+    'sb-dataimport':  'dataimport',
   };
 
   Object.entries(panelMap).forEach(([id, panel]) => {
@@ -1027,7 +1527,7 @@ function applyPermissions() {
 
   // Section headers: hide if all items below are hidden
   const clientItems = ['sb-clients'];
-  const compItems   = ['sb-companies','sb-directors','sb-comptracking'];
+  const compItems   = ['sb-companies','sb-directors','sb-comptracking','sb-gstclients','sb-incometax'];
   const clientVisible = clientItems.some(id => document.getElementById(id)?.style.display !== 'none');
   const compVisible   = compItems.some(id => document.getElementById(id)?.style.display !== 'none');
   const secClients = document.getElementById('sec-clients');
@@ -1038,8 +1538,12 @@ function applyPermissions() {
   // Attendance Admin navbar button + Employee Management sidebar item
   const adminBtn = document.getElementById('attendanceAdminBtn');
   if (adminBtn) adminBtn.style.display = perms.attendance_admin ? '' : 'none';
+  const orgProfileBtn = document.getElementById('orgProfileBtn');
+  if (orgProfileBtn) orgProfileBtn.style.display = perms.attendance_admin ? '' : 'none';
+  const dataImport = document.getElementById('sb-dataimport');
   const empMgmt    = document.getElementById('sb-empmanagement');
   const secMgmt    = document.getElementById('sec-management');
+  if (dataImport) dataImport.style.display = perms.attendance_admin ? '' : 'none';
   if (empMgmt) empMgmt.style.display = perms.attendance_admin ? '' : 'none';
   if (secMgmt) secMgmt.style.display = perms.attendance_admin ? '' : 'none';
 
@@ -1050,8 +1554,36 @@ function applyPermissions() {
 
 function showOfficeApp() {
   document.getElementById('officeLoginOverlay').style.display = 'none';
-  document.getElementById('userChip').textContent = user.name || user.formal_name || '';
+  const org = user.organization_code ? ` (${user.organization_code})` : '';
+  document.getElementById('userChip').textContent = (user.name || user.formal_name || '') + org;
+  const brand = document.getElementById('officeBrandName');
+  if (brand) brand.textContent = user.organization_name || 'Office';
   applyPermissions();
+}
+
+function escapeHTML(value) {
+  return String(value || '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[ch]));
+}
+
+function renderOrgChoices(targetId, selectionToken, choices, mode) {
+  const box = document.getElementById(targetId);
+  if (!box) return;
+  box.innerHTML = `<strong>Select organisation</strong><div style="margin-top:6px">` + (choices || []).map(c => `
+    <button type="button" class="org-choice-btn" onclick="${mode}('${selectionToken}','${c.account_key}')">
+      <strong>${escapeHTML(c.organization_name)}</strong><br>
+      <small>${escapeHTML(c.organization_code)} - ${escapeHTML(c.display_name)}</small>
+    </button>`).join('') + `</div>`;
+  box.style.display = 'block';
+}
+
+function hideOrgChoices(targetId) {
+  const box = document.getElementById(targetId);
+  if (box) {
+    box.style.display = 'none';
+    box.innerHTML = '';
+  }
 }
 
 async function doOfficeLogin() {
@@ -1060,15 +1592,18 @@ async function doOfficeLogin() {
   const btn      = document.getElementById('olBtn');
   const err      = document.getElementById('olErr');
   if (!username || !pass) { err.textContent = 'Please enter Username and Password.'; err.classList.remove('hidden'); return; }
-  btn.disabled = true; btn.textContent = 'Logging in...'; err.classList.add('hidden');
+  btn.disabled = true; btn.textContent = 'Logging in...'; err.classList.add('hidden'); hideOrgChoices('olChoices');
   try {
     const res = await fetch('/api/auth/office-login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password: pass })
+      body: JSON.stringify({ login_id: username, password: pass })
     });
     const data = await res.json();
-    if (data.success) {
+    if (data.success && data.requires_selection) {
+      renderOrgChoices('olChoices', data.selection_token, data.choices || [], 'selectOfficeOrg');
+      btn.disabled = false; btn.textContent = 'Login to Office Management';
+    } else if (data.success) {
       localStorage.setItem('office_token', data.token);
       localStorage.setItem('office_user', JSON.stringify(data.user));
       token = data.token;
@@ -1082,6 +1617,31 @@ async function doOfficeLogin() {
     }
   } catch {
     err.textContent = 'Network error. Please try again.';
+    err.classList.remove('hidden');
+    btn.disabled = false; btn.textContent = 'Login to Office Management';
+  }
+}
+
+async function selectOfficeOrg(selectionToken, accountKey) {
+  const err = document.getElementById('olErr');
+  const btn = document.getElementById('olBtn');
+  btn.disabled = true; btn.textContent = 'Opening...'; err.classList.add('hidden');
+  try {
+    const res = await fetch('/api/auth/select-organization', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ selection_token: selectionToken, account_key: accountKey })
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message || 'Selection failed');
+    localStorage.setItem('office_token', data.token);
+    localStorage.setItem('office_user', JSON.stringify(data.user));
+    token = data.token;
+    user = data.user;
+    showOfficeApp();
+    initOfficeApp();
+  } catch (e) {
+    err.textContent = e.message || 'Selection failed';
     err.classList.remove('hidden');
     btn.disabled = false; btn.textContent = 'Login to Office Management';
   }
@@ -1114,6 +1674,7 @@ function openAdminPortal() {
   document.getElementById('apmUser').value = '';
   document.getElementById('apmPass').value = '';
   document.getElementById('apmErr').classList.add('hidden');
+  hideOrgChoices('apmChoices');
   document.getElementById('apmBtn').disabled = false;
   document.getElementById('apmBtn').textContent = 'Login & Open Admin Panel';
   document.getElementById('adminPortalModal').classList.remove('hidden');
@@ -1126,15 +1687,19 @@ async function submitAdminLogin() {
   const btn = document.getElementById('apmBtn');
   const err = document.getElementById('apmErr');
   if (!username || !password) { err.textContent = 'Please enter username and password.'; err.classList.remove('hidden'); return; }
-  btn.disabled = true; btn.textContent = 'Logging in...'; err.classList.add('hidden');
+  btn.disabled = true; btn.textContent = 'Logging in...'; err.classList.add('hidden'); hideOrgChoices('apmChoices');
   try {
     const res = await fetch('/api/admin/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
+      body: JSON.stringify({ login_id: username, password })
     });
     const data = await res.json();
-    if (data.success) {
+    if (data.success && data.requires_selection) {
+      renderOrgChoices('apmChoices', data.selection_token, data.choices || [], 'selectAdminOrg');
+      btn.disabled = false;
+      btn.textContent = 'Login & Open Admin Panel';
+    } else if (data.success) {
       localStorage.setItem('admin_token', data.token);
       localStorage.setItem('admin_info', JSON.stringify(data.admin));
       document.getElementById('adminPortalModal').classList.add('hidden');
@@ -1148,6 +1713,30 @@ async function submitAdminLogin() {
     err.textContent = 'Network error. Please try again.';
     err.classList.remove('hidden');
     btn.disabled = false; btn.textContent = 'Login & Open Admin Panel';
+  }
+}
+
+async function selectAdminOrg(selectionToken, accountKey) {
+  const btn = document.getElementById('apmBtn');
+  const err = document.getElementById('apmErr');
+  btn.disabled = true; btn.textContent = 'Opening...'; err.classList.add('hidden');
+  try {
+    const res = await fetch('/api/auth/select-organization', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ selection_token: selectionToken, account_key: accountKey })
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message || 'Selection failed');
+    localStorage.setItem('admin_token', data.token);
+    localStorage.setItem('admin_info', JSON.stringify(data.user));
+    document.getElementById('adminPortalModal').classList.add('hidden');
+    window.open('/admin.html', '_blank');
+  } catch (e) {
+    err.textContent = e.message || 'Selection failed';
+    err.classList.remove('hidden');
+    btn.disabled = false;
+    btn.textContent = 'Login & Open Admin Panel';
   }
 }
 
@@ -1177,7 +1766,8 @@ function statusBadge(s) {
     'Pending':'b-pending','In Progress':'b-progress','Waiting for Client':'b-waiting',
     'Waiting for Government':'b-waiting','Under Review':'b-review','On Hold':'b-hold',
     'Reassigned':'b-progress','Completed':'b-complete','Cancelled':'b-cancel',
-    'Done':'b-done','Under Process':'b-progress'
+    'Done':'b-done','Under Process':'b-progress','Filed':'b-complete',
+    'Pending by Client':'b-waiting','Not Applicable':'b-inactive','Not Started':'b-pending'
   }[s] || 'b-pending';
   return `<span class="badge ${cls}">${s}</span>`;
 }
@@ -1241,6 +1831,7 @@ async function loadMeta() {
 
 // ── Panel switching ──────────────────────────────────────────
 const panelLoaded = {};
+const alwaysReloadPanels = new Set(['dashboard','mytasks','assignedby','alltasks','completed','notifications','gstclients','incometax']);
 function showPanel(name) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.sb-item').forEach(s => s.classList.remove('active'));
@@ -1249,7 +1840,7 @@ function showPanel(name) {
   document.getElementById('sb-' + name)?.classList.add('active');
   document.getElementById('m-' + name)?.classList.add('active');
 
-  if (!panelLoaded[name]) {
+  if (!panelLoaded[name] || alwaysReloadPanels.has(name)) {
     panelLoaded[name] = true;
     const loaders = {
       dashboard: loadDashboard,
@@ -1263,9 +1854,202 @@ function showPanel(name) {
       directors: loadDirectors,
       comprecords: loadCompRecords,
       comptracking: () => { switchCTab('company'); },
+      dataimport: initDataImportPanel,
+      gstclients: initGSTPanel,
+      incometax: () => window.initIncomeTaxPanel?.(),
     };
     loaders[name]?.();
   }
+}
+
+// ── ONBOARDING DATA IMPORT ───────────────────────────────────
+const IMPORT_TYPES = [
+  { type:'agents', title:'1. Agent Import', help:'Required: agent_id, agent_name. Import agents before clients.' },
+  { type:'clients', title:'2. Client Import', help:'Required: client_id, mobile_number, and legal_name or business_name. Agent ID must already exist if provided.' },
+  { type:'employees', title:'3. Employee Import', help:'Required: emp_id, name, designation. Blank login_password will be auto-generated.' },
+  { type:'gst-clients', title:'4. GST Client Import', help:'Required: client_id, firm_name, gst_no, default_assignee_id. Client and employee must already exist.' },
+];
+const importState = { activeType:null, previews:{}, credentials:[] };
+
+function initDataImportPanel() {
+  const box = document.getElementById('importCards');
+  if (!box || box.dataset.ready) return;
+  box.innerHTML = IMPORT_TYPES.map(cfg => `
+    <div class="import-card">
+      <h3>${escapeHTML(cfg.title)}</h3>
+      <p>${escapeHTML(cfg.help)}</p>
+      <div class="import-actions">
+        <button class="btn-sm btn-view" onclick="downloadImportTemplate('${cfg.type}')">Template</button>
+        <select id="imp_policy_${cfg.type}">
+          <option value="create_only">Create only</option>
+          <option value="update_existing">Update existing</option>
+          <option value="skip_duplicates">Skip duplicates</option>
+        </select>
+        <input id="imp_file_${cfg.type}" type="file" accept=".xlsx,.xls" onchange="resetImportPreview('${cfg.type}')"/>
+        <button class="btn-sm btn-edit" onclick="previewOnboardingImport('${cfg.type}')">Preview</button>
+        <button class="btn-sm btn-green" id="imp_commit_${cfg.type}" onclick="commitOnboardingImport('${cfg.type}')" disabled>Final Import</button>
+      </div>
+    </div>
+  `).join('');
+  box.dataset.ready = '1';
+}
+
+function resetImportPreview(type) {
+  const btn = document.getElementById(`imp_commit_${type}`);
+  if (btn) btn.disabled = true;
+}
+
+async function downloadImportTemplate(type) {
+  const res = await fetch(`/api/onboarding-import/template/${type}`, {
+    headers: { 'Authorization': 'Bearer ' + token }
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    showToast(data.message || 'Template download failed', 'error');
+    return;
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${type}_template.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importFormData(type) {
+  const file = document.getElementById(`imp_file_${type}`)?.files?.[0];
+  if (!file) {
+    showToast('Please select Excel file first', 'error');
+    return null;
+  }
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('duplicate_policy', document.getElementById(`imp_policy_${type}`)?.value || 'create_only');
+  return fd;
+}
+
+async function importFetch(path, formData) {
+  const res = await fetch('/api/onboarding-import' + path, {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + token },
+    body: formData
+  });
+  return res.json();
+}
+
+async function previewOnboardingImport(type) {
+  const fd = importFormData(type);
+  if (!fd) return;
+  importState.activeType = type;
+  importState.credentials = [];
+  document.getElementById('importCredentialBtn').classList.add('hidden');
+  const data = await importFetch(`/preview/${type}`, fd);
+  if (!data.success) {
+    showImportMessage(data.message || 'Preview failed', false);
+    renderImportPreview(data.preview || null, type);
+    return;
+  }
+  importState.previews[type] = data.preview;
+  renderImportPreview(data.preview, type);
+  const commitBtn = document.getElementById(`imp_commit_${type}`);
+  if (commitBtn) commitBtn.disabled = data.preview.error_rows > 0;
+  showImportMessage(data.preview.error_rows ? 'Fix validation errors before final import.' : 'Preview clean. Final import is enabled.', data.preview.error_rows === 0);
+}
+
+async function commitOnboardingImport(type) {
+  const fd = importFormData(type);
+  if (!fd) return;
+  const btn = document.getElementById(`imp_commit_${type}`);
+  if (btn) { btn.disabled = true; btn.textContent = 'Importing...'; }
+  const data = await importFetch(`/commit/${type}`, fd);
+  if (btn) { btn.textContent = 'Final Import'; }
+  if (!data.success) {
+    renderImportPreview(data.preview || null, type);
+    showImportMessage(data.message || 'Import failed', false);
+    if (btn) btn.disabled = false;
+    return;
+  }
+  const result = data.result || {};
+  importState.credentials = result.credentials || [];
+  renderImportResult(result, type);
+  showImportMessage(`Import completed. Inserted: ${result.inserted || 0}, Updated: ${result.updated || 0}, Skipped: ${result.skipped || 0}`, true);
+  if (importState.credentials.length) document.getElementById('importCredentialBtn').classList.remove('hidden');
+  ['clients','gstclients','dashboard','mytasks','alltasks'].forEach(p => panelLoaded[p] = false);
+}
+
+function showImportMessage(text, ok) {
+  const msg = document.getElementById('importMessage');
+  msg.textContent = text;
+  msg.className = ok ? 'alert-ok' : 'alert-err';
+  msg.classList.remove('hidden');
+}
+
+function importStatsHtml(preview) {
+  if (!preview) return '';
+  return `
+    <div class="import-stat"><strong>${preview.total_rows || 0}</strong><span>Total Rows</span></div>
+    <div class="import-stat"><strong>${preview.valid_rows || 0}</strong><span>Valid Rows</span></div>
+    <div class="import-stat"><strong>${preview.error_rows || 0}</strong><span>Error Rows</span></div>
+    <div class="import-stat"><strong>${preview.duplicate_rows || 0}</strong><span>Duplicates</span></div>
+    <div class="import-stat"><strong>${preview.missing_references || 0}</strong><span>Missing Refs</span></div>
+    <div class="import-stat"><strong>${preview.generated_passwords || 0}</strong><span>Generated Passwords</span></div>
+  `;
+}
+
+function renderImportPreview(preview, type) {
+  document.getElementById('importPreviewTitle').textContent = `Import Preview - ${type || ''}`;
+  document.getElementById('importSummary').innerHTML = importStatsHtml(preview);
+  const tb = document.getElementById('importPreviewTable');
+  if (!preview) {
+    tb.innerHTML = '<tr><td colspan="5" class="empty-msg">No preview available.</td></tr>';
+    return;
+  }
+  tb.innerHTML = (preview.rows || []).slice(0, 200).map(r => `
+    <tr>
+      <td>${r.row}</td>
+      <td>${escapeHTML(r.key || '--')}</td>
+      <td><span class="badge ${r.status === 'error' ? 'b-overdue' : r.status === 'warning' ? 'b-pending' : 'b-active'}">${escapeHTML(r.status)}</span></td>
+      <td><small>${escapeHTML((r.errors || []).join('; ') || '--')}</small></td>
+      <td><small>${escapeHTML((r.warnings || []).join('; ') || '--')}</small></td>
+    </tr>
+  `).join('') || '<tr><td colspan="5" class="empty-msg">No rows found.</td></tr>';
+}
+
+function renderImportResult(result, type) {
+  const preview = result.preview || {};
+  document.getElementById('importPreviewTitle').textContent = `Import Result - ${type || ''}`;
+  document.getElementById('importSummary').innerHTML = `
+    <div class="import-stat"><strong>${result.inserted || 0}</strong><span>Inserted</span></div>
+    <div class="import-stat"><strong>${result.updated || 0}</strong><span>Updated</span></div>
+    <div class="import-stat"><strong>${result.skipped || 0}</strong><span>Skipped</span></div>
+    <div class="import-stat"><strong>${result.failed || 0}</strong><span>Failed</span></div>
+    <div class="import-stat"><strong>${(result.credentials || []).length}</strong><span>Generated Passwords</span></div>
+  `;
+  const tb = document.getElementById('importPreviewTable');
+  tb.innerHTML = (result.rows || []).map(r => `
+    <tr>
+      <td>${r.row}</td>
+      <td>${escapeHTML(r.key || '--')}</td>
+      <td><span class="badge ${r.status === 'inserted' ? 'b-active' : r.status === 'updated' ? 'b-progress' : 'b-pending'}">${escapeHTML(r.status)}</span></td>
+      <td>--</td><td>--</td>
+    </tr>
+  `).join('') || '<tr><td colspan="5" class="empty-msg">No result rows.</td></tr>';
+}
+
+function downloadImportCredentials() {
+  if (!importState.credentials.length) return;
+  const cols = ['emp_id','name','email_id','mobile_no','password'];
+  const csv = [cols.join(',')].concat(importState.credentials.map(row =>
+    cols.map(col => `"${String(row[col] || '').replace(/"/g, '""')}"`).join(',')
+  )).join('\n');
+  const blob = new Blob([csv], { type:'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'employee_import_credentials.csv';
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ── NOTICES ──────────────────────────────────────────────────
@@ -1697,11 +2481,28 @@ function workAutocomplete(q) {
   if (!q) { list.classList.add('hidden'); return; }
   const filtered = META.work_names.filter(w => w.toLowerCase().includes(q.toLowerCase())).slice(0, 12);
   if (!filtered.length) { list.classList.add('hidden'); return; }
-  list.innerHTML = filtered.map(w =>
-    `<div class="ac-item" onclick="document.getElementById('tm_work_name').value=${JSON.stringify(w)};document.getElementById('wn_ac_list').classList.add('hidden')">
-      <div class="ac-name">${w}</div>
-    </div>`).join('');
+  list.innerHTML = '';
+  filtered.forEach(w => {
+    const item = document.createElement('div');
+    item.className = 'ac-item';
+    item.addEventListener('mousedown', e => {
+      e.preventDefault();
+      selectWorkName(w);
+    });
+
+    const name = document.createElement('div');
+    name.className = 'ac-name';
+    name.textContent = w;
+    item.appendChild(name);
+    list.appendChild(item);
+  });
   list.classList.remove('hidden');
+}
+
+function selectWorkName(name) {
+  document.getElementById('tm_work_name').value = name;
+  document.getElementById('wn_ac_list').classList.add('hidden');
+  document.getElementById('taskModalErr').classList.add('hidden');
 }
 
 async function submitTask() {
@@ -1714,6 +2515,8 @@ async function submitTask() {
   }
   const workName = document.getElementById('tm_work_name').value.trim();
   if (!workName) { err.textContent = 'Work name is required'; err.classList.remove('hidden'); return; }
+  const dueDate = document.getElementById('tm_due_date').value;
+  if (!dueDate) { err.textContent = 'Due date is required'; err.classList.remove('hidden'); return; }
 
   const assignSel = document.getElementById('tm_assign_to');
   const assignOpt = assignSel.options[assignSel.selectedIndex];
@@ -1732,7 +2535,7 @@ async function submitTask() {
       work_name: workName,
       work_description: document.getElementById('tm_work_desc').value || null,
       priority: document.getElementById('tm_priority').value,
-      due_date: document.getElementById('tm_due_date').value || null,
+      due_date: dueDate,
       assigned_to_id, assigned_to_name,
       internal_remark: document.getElementById('tm_remark').value || null,
       professional_fees: document.getElementById('tm_prof_fees').value || null,
@@ -1843,33 +2646,107 @@ async function loadNotifications() {
 
 // ── CLIENTS ──────────────────────────────────────────────────
 let _clientDbt;
+let clientSearchRows = { client: {}, agent: {} };
+
 function searchClients(immediate) {
   clearTimeout(_clientDbt);
   const fn = async () => {
     const q = document.getElementById('clientSearch')?.value || '';
-    const data = await api('/clients/search?q=' + encodeURIComponent(q));
-    if (!data.success) return;
+    const [data, agentData] = await Promise.all([
+      api('/clients/search?q=' + encodeURIComponent(q)),
+      api('/clients/agents?q=' + encodeURIComponent(q))
+    ]);
+    if (!data.success && !agentData.success) return;
+    const clients = data.success ? data.clients : [];
+    const agents = agentData.success ? agentData.agents : [];
+    clientSearchRows = {
+      client: Object.fromEntries(clients.map(c => [c.client_id, c])),
+      agent: Object.fromEntries(agents.map(a => [a.agent_id, a])),
+    };
     const tb = document.getElementById('clientTable');
-    tb.innerHTML = data.clients.length ? data.clients.map(c => `
+    const agentRows = agents.map(a => `
       <tr>
-        <td><strong>${c.client_id}</strong></td>
-        <td>${c.legal_name||'--'}</td>
-        <td>${c.business_name||'--'}</td>
-        <td>${c.agent_name||'--'}</td>
-        <td>${c.mobile_number||'--'}</td>
-        <td><span class="badge ${c.status==='Active'||!c.status?'b-active':'b-inactive'}">${c.status||'Active'}</span></td>
+        <td><span class="badge b-progress">Agent</span></td>
+        <td><strong>${h(a.agent_id)}</strong></td>
+        <td>${h(a.name||'--')}</td>
+        <td>${h(a.email_id||'--')}</td>
+        <td>${h(a.mobile_number||'--')}</td>
+        <td><span class="badge ${a.portal_enabled&&a.portal_has_password?'b-active':'b-inactive'}">${a.portal_enabled ? (a.portal_has_password ? 'Portal On' : 'Password Missing') : 'Portal Off'}</span></td>
         <td style="white-space:nowrap">
-          <button class="btn-sm btn-view" onclick='viewClient(${JSON.stringify(c)})'>View</button>
-          <button class="btn-sm btn-edit" onclick='editClient(${JSON.stringify(c)})'>Edit</button>
+          <button class="btn-sm btn-view" onclick="viewSearchRow('agent','${h(a.agent_id)}')">View</button>
+          <button class="btn-sm btn-edit" onclick="editAgentById('${h(a.agent_id)}')">Edit</button>
+          <button class="btn-sm btn-green" onclick="openPortalAccessById('agent','${h(a.agent_id)}')">Portal</button>
         </td>
-      </tr>`).join('') : '<tr><td colspan="7" class="empty-msg">No clients found. Try a different search.</td></tr>';
+      </tr>`);
+    const clientRows = clients.map(c => `
+      <tr>
+        <td><span class="badge b-active">Client</span></td>
+        <td><strong>${h(c.client_id)}</strong></td>
+        <td>${h(c.legal_name||'--')}</td>
+        <td>${h(c.business_name||'--')}</td>
+        <td><div>${h(c.agent_name||'--')}</div><div style="color:#64748b;font-size:12px">${h(c.mobile_number||'--')}</div></td>
+        <td><span class="badge ${c.status==='Active'||!c.status?'b-active':'b-inactive'}">${h(c.status||'Active')}</span></td>
+        <td style="white-space:nowrap">
+          <button class="btn-sm btn-view" onclick="viewSearchRow('client','${h(c.client_id)}')">View</button>
+          <button class="btn-sm btn-edit" onclick="editClientById('${h(c.client_id)}')">Edit</button>
+          <button class="btn-sm btn-green" onclick="openPortalAccessById('client','${h(c.client_id)}')">Portal</button>
+        </td>
+      </tr>`);
+    const rows = [...agentRows, ...clientRows];
+    tb.innerHTML = rows.length ? rows.join('') : '<tr><td colspan="7" class="empty-msg">No clients or agents found. Try a different search.</td></tr>';
   };
   if (immediate) fn(); else _clientDbt = setTimeout(fn, 350);
+}
+
+function viewSearchRow(type, id) {
+  const row = clientSearchRows[type]?.[id];
+  if (!row) return;
+  if (type === 'agent') return viewAgent(row);
+  return viewClient(row);
 }
 
 function viewClient(c) {
   const name = c.legal_name || c.business_name || c.client_id;
   showToast(`${name} | Agent: ${c.agent_name||'--'} | Mobile: ${c.mobile_number||'--'}`, 'success');
+}
+
+function viewAgent(a) {
+  showToast(`${a.name||a.agent_id} | Agent ID: ${a.agent_id} | Mobile: ${a.mobile_number||'--'} | Email: ${a.email_id||'--'}`, 'success');
+}
+
+function editClientById(id) {
+  const row = clientSearchRows.client?.[id];
+  if (row) editClient(row);
+}
+
+function editAgentById(id) {
+  const row = clientSearchRows.agent?.[id];
+  if (row) editAgent(row);
+}
+
+function openPortalAccessById(type, id) {
+  const row = clientSearchRows[type]?.[id];
+  if (row) openPortalAccess(type, row);
+}
+
+async function openPortalAccess(type, row) {
+  const current = !!row.portal_enabled;
+  const enable = confirm(`${current ? 'Disable' : 'Enable'} ${type} portal access for ${row.client_id || row.agent_id}?`);
+  if (!enable && !current) return;
+  const password = prompt('Portal password (blank = keep existing password):') || '';
+  if (!current && !password && !row.portal_has_password) {
+    alert('Portal enable karne ke liye password set karna zaroori hai.');
+    return;
+  }
+  const endpoint = type === 'agent'
+    ? `/clients/agents/${encodeURIComponent(row.agent_id)}/portal`
+    : `/clients/${encodeURIComponent(row.client_id)}/portal`;
+  const data = await api(endpoint, {
+    method: 'PUT',
+    body: JSON.stringify({ portal_enabled: !current, password: password || null })
+  });
+  showToast(data.message || (data.success ? 'Portal access updated' : 'Portal update failed'), data.success ? 'success' : 'error');
+  if (data.success) searchClients(true);
 }
 
 async function autoFillClientId() {
@@ -1883,6 +2760,9 @@ function openAddClient() {
   ['ac_id','ac_legal','ac_biz','ac_mobile','ac_email','ac_gst','ac_pan','ac_city','ac_state','ac_address'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
+  document.getElementById('ac_portal_enabled').value = '';
+  document.getElementById('ac_portal_password').value = '';
+  document.getElementById('ac_portal_password').dataset.hasPassword = '0';
   document.getElementById('ac_agent_search').value = '';
   document.getElementById('ac_agent_id').value = '';
   document.getElementById('ac_agent_name_val').value = '';
@@ -1909,6 +2789,9 @@ function editClient(c) {
   document.getElementById('ac_city').value = c.city || '';
   document.getElementById('ac_state').value = c.state || '';
   document.getElementById('ac_address').value = c.address || '';
+  document.getElementById('ac_portal_enabled').value = c.portal_enabled ? '1' : '';
+  document.getElementById('ac_portal_password').value = '';
+  document.getElementById('ac_portal_password').dataset.hasPassword = c.portal_has_password ? '1' : '0';
   document.getElementById('addClientErr').classList.add('hidden');
   openModal('addClientModal');
 }
@@ -1922,6 +2805,13 @@ async function submitClient() {
 
   if (!clientId) { err.textContent = 'Client ID required'; err.classList.remove('hidden'); return; }
   if (!mobile) { err.textContent = 'Mobile number is required'; err.classList.remove('hidden'); return; }
+  if (document.getElementById('ac_portal_enabled').value === '1' &&
+      !document.getElementById('ac_portal_password').value &&
+      document.getElementById('ac_portal_password').dataset.hasPassword !== '1') {
+    err.textContent = 'Portal enable karne ke liye password set karein';
+    err.classList.remove('hidden');
+    return;
+  }
 
   const body = {
     agent_id: document.getElementById('ac_agent_id').value || null,
@@ -1935,6 +2825,8 @@ async function submitClient() {
     city: document.getElementById('ac_city').value || null,
     state: document.getElementById('ac_state').value || null,
     address: document.getElementById('ac_address').value || null,
+    portal_enabled: document.getElementById('ac_portal_enabled').value === '1',
+    portal_password: document.getElementById('ac_portal_password').value || null,
   };
 
   let data;
@@ -1982,22 +2874,58 @@ function selectAgent(a) {
 }
 
 function openAddAgent() {
+  document.getElementById('nag_mode').value = 'add';
+  document.getElementById('nag_id').value = '';
+  document.getElementById('addAgentTitle').textContent = 'Add New Agent';
+  document.getElementById('saveAgentBtn').textContent = 'Add Agent';
   document.getElementById('addAgentModal').classList.remove('hidden');
-  ['nag_name','nag_mobile','nag_email'].forEach(id => document.getElementById(id).value = '');
+  ['nag_name','nag_mobile','nag_email','nag_portal_enabled','nag_portal_password'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('nag_portal_password').dataset.hasPassword = '0';
   document.getElementById('addAgentErr').classList.add('hidden');
 }
 
+function editAgent(a) {
+  document.getElementById('nag_mode').value = 'edit';
+  document.getElementById('nag_id').value = a.agent_id;
+  document.getElementById('addAgentTitle').textContent = `Edit Agent - ${a.agent_id}`;
+  document.getElementById('saveAgentBtn').textContent = 'Save Agent';
+  document.getElementById('nag_name').value = a.name || '';
+  document.getElementById('nag_mobile').value = a.mobile_number || '';
+  document.getElementById('nag_email').value = a.email_id || '';
+  document.getElementById('nag_portal_enabled').value = a.portal_enabled ? '1' : '';
+  document.getElementById('nag_portal_password').value = '';
+  document.getElementById('nag_portal_password').dataset.hasPassword = a.portal_has_password ? '1' : '0';
+  document.getElementById('addAgentErr').classList.add('hidden');
+  document.getElementById('addAgentModal').classList.remove('hidden');
+}
+
 async function submitNewAgent() {
+  const mode = document.getElementById('nag_mode').value || 'add';
+  const agentId = document.getElementById('nag_id').value;
   const name = document.getElementById('nag_name').value.trim();
   if (!name) { document.getElementById('addAgentErr').textContent='Name required'; document.getElementById('addAgentErr').classList.remove('hidden'); return; }
-  const data = await api('/clients/agents', {
-    method: 'POST',
-    body: JSON.stringify({ name, mobile_number: document.getElementById('nag_mobile').value||null, email_id: document.getElementById('nag_email').value||null })
-  });
+  if (document.getElementById('nag_portal_enabled').value === '1' &&
+      !document.getElementById('nag_portal_password').value &&
+      document.getElementById('nag_portal_password').dataset.hasPassword !== '1') {
+    document.getElementById('addAgentErr').textContent = 'Portal enable karne ke liye password set karein';
+    document.getElementById('addAgentErr').classList.remove('hidden');
+    return;
+  }
+  const body = {
+    name,
+    mobile_number: document.getElementById('nag_mobile').value||null,
+    email_id: document.getElementById('nag_email').value||null,
+    portal_enabled: document.getElementById('nag_portal_enabled').value === '1',
+    portal_password: document.getElementById('nag_portal_password').value || null
+  };
+  const data = mode === 'edit'
+    ? await api('/clients/agents/' + encodeURIComponent(agentId), { method: 'PUT', body: JSON.stringify(body) })
+    : await api('/clients/agents', { method: 'POST', body: JSON.stringify(body) });
   if (data.success) {
     closeModal('addAgentModal');
-    showToast(`Agent ${data.agent_id} added!`, 'success');
-    selectAgent({ agent_id: data.agent_id, name: data.name });
+    showToast(data.message || `Agent ${data.agent_id || agentId} saved!`, 'success');
+    if (mode === 'add') selectAgent({ agent_id: data.agent_id, name: data.name });
+    searchClients(true);
   } else {
     document.getElementById('addAgentErr').textContent = data.message;
     document.getElementById('addAgentErr').classList.remove('hidden');
@@ -2574,6 +3502,518 @@ async function submitKYCUpdate() {
 }
 
 // ── EXCEL IMPORT ─────────────────────────────────────────────
+// GST CLIENT TRACKING
+const GST_MONTHS = [
+  [1,'Jan'],[2,'Feb'],[3,'Mar'],[4,'Apr'],[5,'May'],[6,'Jun'],
+  [7,'Jul'],[8,'Aug'],[9,'Sep'],[10,'Oct'],[11,'Nov'],[12,'Dec']
+];
+let GST_META = { is_admin:false, employees:[], status_options:[], fy_options:[] };
+let GST_META_READY = false;
+let GST_ACTIVE_TAB = 'clients';
+let GST_STATE = { clientMap:{}, filingMap:{}, reportRows:[] };
+const _gstTimers = {};
+
+function h(v) {
+  return String(v ?? '').replace(/[&<>"']/g, ch => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[ch]));
+}
+
+function gstAdmin() { return !!GST_META.is_admin; }
+
+async function loadGSTMeta() {
+  const data = await api('/gst/meta');
+  if (!data.success) { showToast(data.message || 'GST setup pending', 'error'); return false; }
+  GST_META = data;
+  GST_META_READY = true;
+  document.querySelectorAll('.gst-admin-only').forEach(el => el.style.display = gstAdmin() ? '' : 'none');
+  populateGSTControls();
+  return true;
+}
+
+function populateGSTControls() {
+  const empOptions = '<option value="">All Employees</option>' + GST_META.employees.map(e =>
+    `<option value="${h(e.emp_id)}">${h(e.formal_name || e.name)} (${h(e.emp_id)})</option>`
+  ).join('');
+  ['gstAssigneeFilter','gstTrackEmployee','gstReportEmployee'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = empOptions;
+  });
+  const assignOptions = GST_META.employees.map(e =>
+    `<option value="${h(e.emp_id)}">${h(e.formal_name || e.name)} (${h(e.emp_id)})</option>`
+  ).join('');
+  const defaultAssignee = document.getElementById('gst_default_assignee');
+  if (defaultAssignee) defaultAssignee.innerHTML = '<option value="">Unassigned</option>' + assignOptions;
+  const assignEmployee = document.getElementById('gst_assign_employee');
+  if (assignEmployee) assignEmployee.innerHTML = assignOptions;
+  const statusOptions = '<option value="">All Status</option>' + GST_META.status_options.map(s => `<option value="${h(s)}">${h(s)}</option>`).join('');
+  ['gstTrackStatus','gstReportStatus'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = statusOptions;
+  });
+  const statusEdit = document.getElementById('gst_status_select');
+  if (statusEdit) statusEdit.innerHTML = GST_META.status_options.map(s => `<option value="${h(s)}">${h(s)}</option>`).join('');
+
+  const now = new Date();
+  const curMonth = GST_META.latest_period?.tax_month || (now.getMonth() + 1);
+  const curYear = GST_META.latest_period?.tax_year || now.getFullYear();
+  const monthOptions = GST_MONTHS.map(([m,n]) => `<option value="${m}" ${m===curMonth?'selected':''}>${n}</option>`).join('');
+  ['gstTrackMonth','gst_generate_month','gstUnassignedMonth'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = monthOptions;
+  });
+  const yearOptions = [];
+  for (let y = curYear - 1; y <= curYear + 2; y++) yearOptions.push(`<option value="${y}" ${y===curYear?'selected':''}>${y}</option>`);
+  ['gstTrackYear','gst_generate_year','gstUnassignedYear'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = yearOptions.join('');
+  });
+  const selectedFY = GST_META.latest_period?.financial_year || getCurrentFY();
+  const fyOptions = (GST_META.fy_options || []).map(fy => `<option value="${h(fy)}" ${fy===selectedFY?'selected':''}>${h(fy)}</option>`).join('');
+  const fy = document.getElementById('gstReportFY');
+  if (fy) fy.innerHTML = fyOptions;
+}
+
+async function initGSTPanel() {
+  if (!GST_META_READY) {
+    const ok = await loadGSTMeta();
+    if (!ok) return;
+  }
+  switchGSTTab(GST_ACTIVE_TAB || 'clients');
+}
+
+function reloadGSTPanel() {
+  if (GST_ACTIVE_TAB === 'clients') loadGSTClients();
+  else if (GST_ACTIVE_TAB === 'inactive') loadGSTInactive();
+  else if (GST_ACTIVE_TAB === 'report') loadGSTReport();
+  else if (GST_ACTIVE_TAB === 'unassigned') loadGSTUnassigned();
+  else loadGSTFilings();
+}
+
+function switchGSTTab(tab) {
+  GST_ACTIVE_TAB = tab;
+  ['clients','tracker','report','inactive','unassigned'].forEach(t => {
+    document.getElementById('gst-panel-'+t)?.classList.toggle('hidden', t !== tab);
+    document.getElementById('gst-tab-'+t)?.classList.toggle('active', t === tab);
+  });
+  if (tab === 'clients') loadGSTClients();
+  if (tab === 'tracker') loadGSTFilings();
+  if (tab === 'report') loadGSTReport();
+  if (tab === 'inactive') loadGSTInactive();
+  if (tab === 'unassigned') loadGSTUnassigned();
+}
+
+function debounceGST(kind) {
+  clearTimeout(_gstTimers[kind]);
+  _gstTimers[kind] = setTimeout(() => {
+    if (kind === 'clients') loadGSTClients();
+    if (kind === 'inactive') loadGSTInactive();
+    if (kind === 'report') loadGSTReport();
+    if (kind === 'filings') loadGSTFilings();
+    if (kind === 'unassigned') loadGSTUnassigned();
+  }, 350);
+}
+
+function gstSecret(value, key) {
+  if (!value) return '--';
+  return `<div class="secret-cell">
+    <span class="secret-text" id="gst-secret-${key}" data-secret="${h(value)}" data-open="0">••••••</span>
+    <button class="btn-sm btn-view" onclick="toggleGSTSecret('${key}')">Show</button>
+  </div>`;
+}
+
+function toggleGSTSecret(key) {
+  const el = document.getElementById('gst-secret-' + key);
+  if (!el) return;
+  const open = el.dataset.open === '1';
+  el.textContent = open ? '••••••' : el.dataset.secret;
+  el.dataset.open = open ? '0' : '1';
+}
+
+function renderGSTMetrics(elId, rows, total) {
+  const counts = {};
+  rows.forEach(r => counts[r.status] = (counts[r.status] || 0) + 1);
+  const order = ['Filed','Pending','Pending by Client','Not Started','Not Applicable'];
+  document.getElementById(elId).innerHTML = `
+    <div class="metric"><strong>${total ?? rows.length}</strong><span>Total</span></div>
+    ${order.map(s => `<div class="metric"><strong>${counts[s] || 0}</strong><span>${s}</span></div>`).join('')}`;
+}
+
+async function loadGSTClients() {
+  const tb = document.getElementById('gstClientsTable');
+  if (!tb) return;
+  tb.innerHTML = '<tr><td colspan="8" class="empty-msg">Loading...</td></tr>';
+  const params = new URLSearchParams({ status:'Active', limit:300 });
+  const q = document.getElementById('gstClientSearch')?.value; if (q) params.set('search', q);
+  const f = document.getElementById('gstFreqFilter')?.value; if (f) params.set('frequency', f);
+  const a = document.getElementById('gstAssigneeFilter')?.value; if (a) params.set('assignee_id', a);
+  const data = await api('/gst/clients?' + params);
+  if (!data.success) { tb.innerHTML = `<tr><td colspan="8" class="empty-msg">${h(data.message || 'Error loading GST clients')}</td></tr>`; return; }
+  GST_STATE.clientMap = {};
+  data.clients.forEach(c => GST_STATE.clientMap[c.id] = c);
+  if (!data.clients.length) { tb.innerHTML = '<tr><td colspan="8" class="empty-msg">No active GST clients</td></tr>'; return; }
+  tb.innerHTML = data.clients.map(c => {
+    const actions = gstAdmin()
+      ? `<button class="btn-sm btn-edit" onclick="openGSTClientModal(${c.id})">Edit</button>
+         <button class="btn-sm btn-view" onclick="openGSTAssign('client',${c.id})">Assign</button>
+         <button class="btn-sm btn-red" onclick="openGSTClientStatus(${c.id},'Inactive')">Inactive</button>`
+      : (!c.default_assignee_id
+        ? `<button class="btn-sm btn-view" onclick="openGSTAssign('client',${c.id})">Assign</button>`
+        : '<small style="color:#94a3b8">View only</small>');
+    return `
+    <tr>
+      <td><strong>${h(c.client_id)}</strong><br><small style="color:#64748b">${h(c.agent_name || '--')}</small></td>
+      <td>${h(c.firm_name)}</td>
+      <td><small>${h(c.gst_no || '--')}</small></td>
+      <td><small>${h(c.gst_login_id || '--')}</small></td>
+      <td>${gstSecret(c.gst_password, 'c' + c.id)}</td>
+      <td><span class="badge ${c.filing_frequency === 'QRMP' ? 'b-review' : 'b-progress'}">${h(c.filing_frequency)}</span></td>
+      <td>${h(c.default_assignee_name || '--')}<br><small style="color:#64748b">${h(c.default_assignee_id || '')}</small></td>
+      <td style="white-space:nowrap">
+        ${actions}
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function loadGSTInactive() {
+  const tb = document.getElementById('gstInactiveTable');
+  if (!tb) return;
+  tb.innerHTML = '<tr><td colspan="7" class="empty-msg">Loading...</td></tr>';
+  const params = new URLSearchParams({ status:'Inactive', limit:300 });
+  const q = document.getElementById('gstInactiveSearch')?.value; if (q) params.set('search', q);
+  const data = await api('/gst/clients?' + params);
+  if (!data.success) { tb.innerHTML = `<tr><td colspan="7" class="empty-msg">${h(data.message || 'Error loading')}</td></tr>`; return; }
+  data.clients.forEach(c => GST_STATE.clientMap[c.id] = c);
+  if (!data.clients.length) { tb.innerHTML = '<tr><td colspan="7" class="empty-msg">No inactive GST clients</td></tr>'; return; }
+  tb.innerHTML = data.clients.map(c => `
+    <tr>
+      <td><strong>${h(c.client_id)}</strong></td>
+      <td>${h(c.firm_name)}</td>
+      <td><small>${h(c.gst_no || '--')}</small></td>
+      <td>${fmtDate(c.inactive_from)}</td>
+      <td><small>${h(c.inactive_reason || '--')}</small></td>
+      <td>${h(c.default_assignee_name || '--')}</td>
+      <td>${gstAdmin() ? `<button class="btn-sm btn-green" onclick="openGSTClientStatus(${c.id},'Active')">Activate</button>` : '--'}</td>
+    </tr>`).join('');
+}
+
+async function loadGSTUnassigned() {
+  const tb = document.getElementById('gstUnassignedTable');
+  if (!tb) return;
+  tb.innerHTML = '<tr><td colspan="6" class="empty-msg">Loading...</td></tr>';
+  const taxMonth = document.getElementById('gstUnassignedMonth')?.value;
+  const taxYear = document.getElementById('gstUnassignedYear')?.value;
+  const search = document.getElementById('gstUnassignedSearch')?.value?.trim();
+  const params = new URLSearchParams({ limit: 500 });
+  if (taxMonth) params.set('tax_month', taxMonth);
+  if (taxYear) params.set('tax_year', taxYear);
+  if (search) params.set('search', search);
+
+  const data = await api('/gst/unassigned?' + params);
+  if (!data.success) {
+    tb.innerHTML = `<tr><td colspan="6" class="empty-msg">${h(data.message || 'Error loading unassigned GST clients')}</td></tr>`;
+    return;
+  }
+
+  const clients = data.clients || [];
+  clients.forEach(c => GST_STATE.clientMap[c.id] = c);
+  const missingTasks = clients.reduce((sum, c) => sum + Number(c.missing_count || (c.missing_returns || []).length || 0), 0);
+
+  const summary = document.getElementById('gstUnassignedSummary');
+  if (summary) {
+    summary.innerHTML = `
+      <div class="metric"><strong>${clients.length}</strong><span>Clients Need Assignment</span></div>
+      <div class="metric"><strong>${missingTasks}</strong><span>Missing Filing Tasks</span></div>
+      <div class="metric"><strong>${h(GST_MONTHS.find(([m]) => String(m) === String(taxMonth))?.[1] || '')} ${h(taxYear || '')}</strong><span>Period</span></div>`;
+  }
+  if (!clients.length) {
+    tb.innerHTML = '<tr><td colspan="6" class="empty-msg">Selected month ke liye sab GST filing tasks assigned hain</td></tr>';
+    return;
+  }
+  tb.innerHTML = clients.map(c => {
+    const returns = c.missing_returns || [];
+    const returnBadges = returns.map(r => `<span class="badge b-review">${h(r)}</span>`).join(' ') || '--';
+    const dueDates = returns.map(r => `${h(r)}: ${fmtDate(c.due_dates?.[r])}`).join('<br>') || '--';
+    return `
+    <tr>
+      <td><strong>${h(c.period_label)}</strong><br><small style="color:#64748b">${h(c.financial_year)}</small></td>
+      <td><div class="gst-name" title="${h(c.firm_name)}">${h(c.firm_name)}</div><div class="gst-client-id">${h(c.client_id)} | ${h(c.agent_name || '--')}</div></td>
+      <td>${returnBadges}</td>
+      <td><small>${dueDates}</small></td>
+      <td><small>${h(c.gst_no || '--')}</small></td>
+      <td><button class="btn-sm btn-view" onclick="openGSTAssign('client',${c.id})">Assign</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function gstFilingParams(fromReport=false) {
+  const params = new URLSearchParams({ limit:500 });
+  if (fromReport) {
+    const fy = document.getElementById('gstReportFY')?.value; if (fy) params.set('financial_year', fy);
+    const rt = document.getElementById('gstReportReturn')?.value; if (rt) params.set('return_type', rt);
+    const st = document.getElementById('gstReportStatus')?.value; if (st) params.set('status', st);
+    const emp = document.getElementById('gstReportEmployee')?.value; if (emp) params.set('assigned_to_id', emp);
+    const q = document.getElementById('gstReportSearch')?.value; if (q) params.set('search', q);
+  } else {
+    const m = document.getElementById('gstTrackMonth')?.value; if (m) params.set('tax_month', m);
+    const y = document.getElementById('gstTrackYear')?.value; if (y) params.set('tax_year', y);
+    const rt = document.getElementById('gstTrackReturn')?.value; if (rt) params.set('return_type', rt);
+    const st = document.getElementById('gstTrackStatus')?.value; if (st) params.set('status', st);
+    const emp = document.getElementById('gstTrackEmployee')?.value; if (emp) params.set('assigned_to_id', emp);
+    const q = document.getElementById('gstTrackSearch')?.value; if (q) params.set('search', q);
+  }
+  return params;
+}
+
+async function loadGSTFilings() {
+  const tb = document.getElementById('gstFilingsTable');
+  if (!tb) return;
+  tb.innerHTML = '<tr><td colspan="8" class="empty-msg">Loading...</td></tr>';
+  const data = await api('/gst/filings?' + gstFilingParams(false));
+  if (!data.success) { tb.innerHTML = `<tr><td colspan="8" class="empty-msg">${h(data.message || 'Error loading')}</td></tr>`; return; }
+  GST_STATE.filingMap = {};
+  data.filings.forEach(f => GST_STATE.filingMap[f.id] = f);
+  renderGSTMetrics('gstTrackerSummary', data.filings);
+  if (!data.filings.length) { tb.innerHTML = '<tr><td colspan="8" class="empty-msg">No filing records found</td></tr>'; return; }
+  tb.innerHTML = data.filings.map(gstFilingRow).join('');
+}
+
+function gstFilingRow(r) {
+  const actions = [];
+  if (r.can_edit_status) actions.push(`<button class="btn-sm btn-edit" onclick="openGSTStatus(${r.id})">Status</button>`);
+  if (r.can_reassign) actions.push(`<button class="btn-sm btn-view" onclick="openGSTAssign('filing',${r.id})">Assign</button>`);
+  if (r.linked_task_id) actions.push(`<button class="btn-sm btn-green" onclick="viewTask('${h(r.linked_task_id)}')">Task</button>`);
+  return `<tr>
+    <td><strong>${h(r.period_label)}</strong><br><small style="color:#64748b">${h(r.financial_year)}</small></td>
+    <td><div class="gst-name" title="${h(r.firm_name)}">${h(r.firm_name)}</div><div class="gst-client-id">${h(r.client_id)}</div></td>
+    <td>${h(r.return_type)}</td>
+    <td>${fmtDate(r.due_date)}</td>
+    <td>${h(r.assigned_to_name || '--')}<br><small style="color:#64748b">${h(r.assigned_to_id || '')}</small></td>
+    <td>${compBadge(r.status)}</td>
+    <td><small>${h(r.gst_no || '--')}</small></td>
+    <td style="white-space:nowrap">${actions.join(' ') || '<small style="color:#94a3b8">View only</small>'}</td>
+  </tr>`;
+}
+
+async function loadGSTReport() {
+  const tb = document.getElementById('gstReportTable');
+  if (!tb) return;
+  tb.innerHTML = '<tr><td colspan="7" class="empty-msg">Loading...</td></tr>';
+  const params = gstFilingParams(true);
+  const [data, summary] = await Promise.all([
+    api('/gst/filings?' + params),
+    api('/gst/reports/summary?' + params),
+  ]);
+  if (!data.success) { tb.innerHTML = `<tr><td colspan="7" class="empty-msg">${h(data.message || 'Error loading')}</td></tr>`; return; }
+  GST_STATE.reportRows = data.filings;
+  renderGSTMetrics('gstReportSummary', data.filings, summary.success ? summary.total : data.filings.length);
+  if (!data.filings.length) { tb.innerHTML = '<tr><td colspan="7" class="empty-msg">No report records found</td></tr>'; return; }
+  tb.innerHTML = data.filings.map(r => `
+    <tr>
+      <td><strong>${h(r.period_label)}</strong><br><small>${h(r.financial_year)}</small></td>
+      <td><div class="gst-name" title="${h(r.firm_name)}">${h(r.firm_name)}</div><div class="gst-client-id">${h(r.client_id)}</div></td>
+      <td>${h(r.return_type)}</td>
+      <td>${fmtDate(r.due_date)}</td>
+      <td>${h(r.assigned_to_name || '--')}</td>
+      <td>${compBadge(r.status)}</td>
+      <td>${r.linked_task_id ? `<button class="btn-sm btn-view" onclick="viewTask('${h(r.linked_task_id)}')">${h(r.linked_task_id)}</button>` : '--'}</td>
+    </tr>`).join('');
+}
+
+function openGSTClientModal(id) {
+  const c = id ? GST_STATE.clientMap[id] : null;
+  document.getElementById('gst_client_id').value = c?.id || '';
+  document.getElementById('gstClientModalTitle').textContent = c ? 'Edit GST Client' : 'Add GST Client';
+  document.getElementById('gstClientSelectBlock').style.display = c ? 'none' : '';
+  document.getElementById('gst_base_client_id').value = c?.client_id || '';
+  document.getElementById('gst_client_search_input').value = '';
+  document.getElementById('gst_client_chip').classList.add('hidden');
+  document.getElementById('gst_firm_name').value = c?.firm_name || '';
+  document.getElementById('gst_no').value = c?.gst_no || '';
+  document.getElementById('gst_login_id').value = c?.gst_login_id || '';
+  document.getElementById('gst_password').value = '';
+  document.getElementById('gst_frequency').value = c?.filing_frequency || 'Monthly';
+  document.getElementById('gst_qrmp_due_day').value = c?.qrmp_gstr3b_due_day || '22';
+  document.getElementById('gst_default_assignee').value = c?.default_assignee_id || '';
+  document.getElementById('gstClientErr').classList.add('hidden');
+  toggleGSTRateFields();
+  openModal('gstClientModal');
+}
+
+function toggleGSTRateFields() {
+  const isQrmp = document.getElementById('gst_frequency').value === 'QRMP';
+  document.getElementById('gst_qrmp_due_day').disabled = !isQrmp;
+}
+
+let _gstClientSearchTimer;
+async function gstClientSearch(q) {
+  const list = document.getElementById('gst_client_search_list');
+  clearTimeout(_gstClientSearchTimer);
+  if (!q || q.length < 2) { list.classList.add('hidden'); return; }
+  _gstClientSearchTimer = setTimeout(async () => {
+    const data = await api('/clients/search?q=' + encodeURIComponent(q));
+    if (!data.success || !data.clients.length) {
+      list.innerHTML = '<div class="ac-item" style="color:#94a3b8">No clients found</div>';
+      list.classList.remove('hidden'); return;
+    }
+    window._gstBaseClients = data.clients;
+    list.innerHTML = data.clients.map((c, idx) => `
+      <div class="ac-item" onmousedown="selectGSTBaseClient(${idx})">
+        <div class="ac-name">${h(c.legal_name || c.business_name || c.client_id)}</div>
+        <div class="ac-meta">${h(c.client_id)} | ${h(c.agent_name || '--')} | ${h(c.mobile_number || '')}</div>
+      </div>`).join('');
+    list.classList.remove('hidden');
+  }, 300);
+}
+
+function selectGSTBaseClient(idx) {
+  const c = (window._gstBaseClients || [])[idx];
+  if (!c) return;
+  document.getElementById('gst_base_client_id').value = c.client_id;
+  document.getElementById('gst_firm_name').value = c.business_name || c.legal_name || '';
+  document.getElementById('gst_client_search_list').classList.add('hidden');
+  const chip = document.getElementById('gst_client_chip');
+  chip.innerHTML = `<div class="client-selected-chip"><div><div class="cs-name">${h(c.legal_name || c.business_name || c.client_id)}</div><div class="cs-meta">${h(c.client_id)} | Agent: ${h(c.agent_name || '--')}</div></div></div>`;
+  chip.classList.remove('hidden');
+}
+
+async function submitGSTClient() {
+  const err = document.getElementById('gstClientErr');
+  err.classList.add('hidden');
+  const id = document.getElementById('gst_client_id').value;
+  const body = {
+    client_id: document.getElementById('gst_base_client_id').value,
+    firm_name: document.getElementById('gst_firm_name').value.trim(),
+    gst_no: document.getElementById('gst_no').value.trim(),
+    gst_login_id: document.getElementById('gst_login_id').value.trim(),
+    filing_frequency: document.getElementById('gst_frequency').value,
+    qrmp_gstr3b_due_day: document.getElementById('gst_qrmp_due_day').value,
+    default_assignee_id: document.getElementById('gst_default_assignee').value,
+  };
+  const password = document.getElementById('gst_password').value;
+  if (password || !id) body.gst_password = password;
+  if (!id && !body.client_id) { err.textContent = 'Select client ID'; err.classList.remove('hidden'); return; }
+  if (!body.firm_name) { err.textContent = 'Firm name required'; err.classList.remove('hidden'); return; }
+  if (!body.gst_no) { err.textContent = 'GST number required'; err.classList.remove('hidden'); return; }
+  const data = await api(id ? '/gst/clients/' + id : '/gst/clients', {
+    method: id ? 'PUT' : 'POST',
+    body: JSON.stringify(body)
+  });
+  if (!data.success) { err.textContent = data.message || 'Unable to save'; err.classList.remove('hidden'); return; }
+  closeModal('gstClientModal');
+  showToast(data.message, 'success');
+  loadGSTClients();
+}
+
+function openGSTAssign(kind, id) {
+  const row = kind === 'client' ? GST_STATE.clientMap[id] : GST_STATE.filingMap[id];
+  document.getElementById('gst_assign_kind').value = kind;
+  document.getElementById('gst_assign_id').value = id;
+  document.getElementById('gstAssignTitle').textContent = kind === 'client' ? 'Default GST Assignee' : 'Assign Filing Task';
+  document.getElementById('gst_assign_employee').value = kind === 'client' ? (row?.default_assignee_id || '') : (row?.assigned_to_id || '');
+  document.getElementById('gst_assign_remark').value = '';
+  openModal('gstAssignModal');
+}
+
+async function submitGSTAssign() {
+  const kind = document.getElementById('gst_assign_kind').value;
+  const id = document.getElementById('gst_assign_id').value;
+  const emp = document.getElementById('gst_assign_employee').value;
+  const remark = document.getElementById('gst_assign_remark').value;
+  if (!emp) { showToast('Select employee', 'error'); return; }
+  const path = kind === 'client' ? `/gst/clients/${id}/assign` : `/gst/filings/${id}/assign`;
+  const body = kind === 'client' ? { default_assignee_id: emp, remark } : { assigned_to_id: emp, remark };
+  if (kind === 'client' && GST_ACTIVE_TAB === 'unassigned') {
+    body.tax_month = document.getElementById('gstUnassignedMonth')?.value || null;
+    body.tax_year = document.getElementById('gstUnassignedYear')?.value || null;
+  }
+  const data = await api(path, { method:'PUT', body:JSON.stringify(body) });
+  closeModal('gstAssignModal');
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) {
+    ['mytasks','assignedby','alltasks','dashboard'].forEach(p => panelLoaded[p] = false);
+    reloadGSTPanel();
+  }
+}
+
+function openGSTStatus(id) {
+  const r = GST_STATE.filingMap[id];
+  if (!r) return;
+  document.getElementById('gst_status_filing_id').value = id;
+  document.getElementById('gst_status_select').value = r.status || 'Pending';
+  document.getElementById('gst_status_remark').value = '';
+  document.getElementById('gst_status_info').textContent = `${r.client_id} | ${r.firm_name} | ${r.return_type} | ${r.period_label}`;
+  openModal('gstStatusModal');
+}
+
+async function submitGSTStatus() {
+  const id = document.getElementById('gst_status_filing_id').value;
+  const data = await api('/gst/filings/' + id + '/status', {
+    method:'PUT',
+    body:JSON.stringify({
+      status: document.getElementById('gst_status_select').value,
+      remark: document.getElementById('gst_status_remark').value || null,
+    })
+  });
+  closeModal('gstStatusModal');
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) {
+    ['mytasks','assignedby','alltasks','completed','dashboard'].forEach(p => panelLoaded[p] = false);
+    reloadGSTPanel();
+  }
+}
+
+function openGSTClientStatus(id, nextStatus) {
+  if (nextStatus === 'Active') {
+    if (!confirm('Activate this GST client?')) return;
+    api('/gst/clients/' + id + '/status', { method:'PUT', body:JSON.stringify({ status:'Active' }) })
+      .then(data => { showToast(data.message, data.success ? 'success' : 'error'); if (data.success) loadGSTInactive(); });
+    return;
+  }
+  const c = GST_STATE.clientMap[id];
+  document.getElementById('gst_deactivate_id').value = id;
+  document.getElementById('gst_deactivate_status').value = nextStatus;
+  document.getElementById('gstDeactivateTitle').textContent = `${nextStatus} GST Client`;
+  document.getElementById('gst_inactive_from').value = new Date().toISOString().slice(0,10);
+  document.getElementById('gst_inactive_reason').value = '';
+  if (c) document.getElementById('gstDeactivateTitle').textContent = `Deactivate ${c.firm_name}`;
+  openModal('gstDeactivateModal');
+}
+
+async function submitGSTClientStatus() {
+  const id = document.getElementById('gst_deactivate_id').value;
+  const status = document.getElementById('gst_deactivate_status').value;
+  const data = await api('/gst/clients/' + id + '/status', {
+    method:'PUT',
+    body:JSON.stringify({
+      status,
+      inactive_from: document.getElementById('gst_inactive_from').value,
+      inactive_reason: document.getElementById('gst_inactive_reason').value,
+    })
+  });
+  closeModal('gstDeactivateModal');
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) loadGSTClients();
+}
+
+function openGSTGenerateModal() {
+  populateGSTControls();
+  openModal('gstGenerateModal');
+}
+
+async function submitGSTGenerate() {
+  const tax_month = document.getElementById('gst_generate_month').value;
+  const tax_year = document.getElementById('gst_generate_year').value;
+  const data = await api('/gst/generate', { method:'POST', body:JSON.stringify({ tax_month, tax_year }) });
+  closeModal('gstGenerateModal');
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) {
+    ['mytasks','assignedby','alltasks','dashboard','notifications'].forEach(p => panelLoaded[p] = false);
+    switchGSTTab('tracker');
+  }
+}
+
 function openExcelImport() {
   document.getElementById('imp_client_search').value = '';
   document.getElementById('imp_client_id').value = '';
@@ -2908,5 +4348,6 @@ async function initOfficeApp() {
 
 if (token) { initOfficeApp(); }
 </script>
+<script src="/assets/income-tax.js?v=20260514-5"></script>
 </body>
 </html>

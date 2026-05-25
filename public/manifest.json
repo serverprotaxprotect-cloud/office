@@ -1,7 +1,7 @@
 {
-  "name": "PTP Attendance",
-  "short_name": "PTP Attend",
-  "description": "Protax Protect Services – Employee Attendance Portal",
+  "name": "Gee Bharat Attendance",
+  "short_name": "Gee Bharat",
+  "description": "Gee Bharat Employee Attendance Portal",
   "start_url": "/dashboard.html",
   "scope": "/",
   "display": "standalone",

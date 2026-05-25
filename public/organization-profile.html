@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Organisation Profile</title>
+  <link rel="stylesheet" href="/assets/style.css" />
+  <style>
+    body { background:#f1f5f9;min-height:100vh; }
+    .page { max-width:900px;margin:0 auto;padding:28px 18px 60px; }
+    .top { display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;gap:12px; }
+    .top h1 { color:#0f172a;font-size:24px; }
+    .cardx { background:#fff;border-radius:14px;box-shadow:0 8px 32px rgba(15,23,42,.08);padding:24px; }
+    .grid { display:grid;grid-template-columns:1fr 1fr;gap:16px; }
+    .full { grid-column:1 / -1; }
+    textarea { width:100%;min-height:82px;padding:12px 16px;border:1.5px solid #e2e8f0;border-radius:10px;font:inherit;background:#f8fafc;resize:vertical; }
+    textarea:focus { outline:none;border-color:#2563eb;background:#fff; }
+    .read { display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px; }
+    .stat { background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px; }
+    .stat small { color:#64748b;display:block;margin-bottom:4px; }
+    .stat strong { color:#0f172a; }
+    .actions { display:flex;gap:10px;margin-top:18px;align-items:center; }
+    #msg { margin-top:14px;display:none; }
+    @media(max-width:760px){ .grid,.read{grid-template-columns:1fr;} .top{align-items:flex-start;flex-direction:column;} }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="top">
+      <div>
+        <h1>Organisation Profile</h1>
+        <p style="color:#64748b;font-size:14px;margin-top:4px">Office details and attendance geofence for this organisation.</p>
+      </div>
+      <a class="btn-primary" style="max-width:190px;text-decoration:none" href="/office.html">Back to Office</a>
+    </div>
+
+    <section class="cardx">
+      <div class="read">
+        <div class="stat"><small>Code</small><strong id="orgCode">--</strong></div>
+        <div class="stat"><small>Status</small><strong id="orgStatus">--</strong></div>
+        <div class="stat"><small>Valid Until</small><strong id="validUntil">--</strong></div>
+        <div class="stat"><small>Read Only</small><strong id="readOnly">--</strong></div>
+      </div>
+
+      <form id="profileForm">
+        <div class="grid">
+          <div class="form-group full">
+            <label>Office Name</label>
+            <input id="office_name" />
+          </div>
+          <div class="form-group">
+            <label>Contact Person</label>
+            <input id="contact_person" />
+          </div>
+          <div class="form-group">
+            <label>Contact Mobile</label>
+            <input id="contact_mobile" />
+          </div>
+          <div class="form-group">
+            <label>Contact Email</label>
+            <input id="contact_email" type="email" />
+          </div>
+          <div class="form-group">
+            <label>City</label>
+            <input id="city" />
+          </div>
+          <div class="form-group">
+            <label>State</label>
+            <input id="state" />
+          </div>
+          <div class="form-group full">
+            <label>Address</label>
+            <textarea id="address"></textarea>
+          </div>
+          <div class="form-group">
+            <label>Latitude</label>
+            <input id="latitude" type="number" step="any" placeholder="25.5941" />
+          </div>
+          <div class="form-group">
+            <label>Longitude</label>
+            <input id="longitude" type="number" step="any" placeholder="85.1376" />
+          </div>
+          <div class="form-group">
+            <label>Attendance Radius (meters)</label>
+            <input id="attendance_radius_meters" type="number" min="25" step="1" />
+          </div>
+          <div class="form-group">
+            <label>Logo Data URL</label>
+            <input id="logo_data_url" placeholder="data:image/png;base64,..." />
+          </div>
+          <div class="form-group">
+            <label>Employee ID Prefix</label>
+            <input id="employee_id_prefix" placeholder="EMP-" />
+          </div>
+          <div class="form-group">
+            <label>Employee ID Start No</label>
+            <input id="employee_id_next" type="number" min="1" />
+          </div>
+          <div class="form-group">
+            <label>Client ID Prefix</label>
+            <input id="client_id_prefix" placeholder="CL-" />
+          </div>
+          <div class="form-group">
+            <label>Client ID Start No</label>
+            <input id="client_id_next" type="number" min="1" />
+          </div>
+          <div class="form-group">
+            <label>Agent ID Prefix</label>
+            <input id="agent_id_prefix" placeholder="AG-" />
+          </div>
+          <div class="form-group">
+            <label>Agent ID Start No</label>
+            <input id="agent_id_next" type="number" min="1" />
+          </div>
+          <div class="full" style="font-size:12px;color:#64748b">ID series ek baar save hone ke baad lock ho jayegi.</div>
+        </div>
+        <div class="actions">
+          <button class="btn-primary" id="saveBtn" type="submit">Save Profile</button>
+        </div>
+        <div id="msg" class="alert"></div>
+      </form>
+    </section>
+  </main>
+
+  <script src="/assets/address-autocomplete.js"></script>
+  <script>
+    const token = localStorage.getItem('office_token');
+    if (!token) window.location.href = '/office.html';
+
+    function val(id) { return document.getElementById(id).value.trim(); }
+    function setVal(id, value) { document.getElementById(id).value = value == null ? '' : value; }
+    function showMsg(text, ok) {
+      const msg = document.getElementById('msg');
+      msg.textContent = text;
+      msg.className = 'alert ' + (ok ? 'alert-success' : 'alert-error');
+      msg.style.display = 'block';
+    }
+    async function api(path, opts = {}) {
+      const res = await fetch('/api' + path, {
+        ...opts,
+        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', ...(opts.headers || {}) }
+      });
+      return res.json();
+    }
+    async function loadProfile() {
+      const data = await api('/organizations/profile');
+      if (!data.success) {
+        showMsg(data.message || 'Profile load failed', false);
+        return;
+      }
+      const o = data.organization || {};
+      document.getElementById('orgCode').textContent = o.org_code || '--';
+      document.getElementById('orgStatus').textContent = o.status || '--';
+      document.getElementById('validUntil').textContent = o.valid_until ? new Date(o.valid_until).toLocaleDateString('en-IN') : 'No expiry';
+      document.getElementById('readOnly').textContent = o.force_read_only ? 'Yes' : 'No';
+      ['office_name','contact_person','contact_email','contact_mobile','logo_data_url','address','city','state','latitude','longitude','attendance_radius_meters','employee_id_prefix','employee_id_next','client_id_prefix','client_id_next','agent_id_prefix','agent_id_next'].forEach(id => setVal(id, o[id]));
+      ['employee','client','agent'].forEach(kind => {
+        const locked = o[`${kind}_id_series_locked`];
+        [`${kind}_id_prefix`, `${kind}_id_next`].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.disabled = !!locked;
+        });
+      });
+    }
+    document.getElementById('profileForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('saveBtn');
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+      try {
+        const payload = {};
+        ['office_name','contact_person','contact_email','contact_mobile','logo_data_url','address','city','state','latitude','longitude','attendance_radius_meters','employee_id_prefix','employee_id_next','client_id_prefix','client_id_next','agent_id_prefix','agent_id_next'].forEach(id => payload[id] = val(id));
+        const data = await api('/organizations/profile', { method:'PUT', body: JSON.stringify(payload) });
+        showMsg(data.message || (data.success ? 'Saved' : 'Save failed'), !!data.success);
+        if (data.success) loadProfile();
+      } catch {
+        showMsg('Network error. Please try again.', false);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Save Profile';
+      }
+    });
+    loadProfile();
+  </script>
+</body>
+</html>

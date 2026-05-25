@@ -66,7 +66,7 @@ router.post('/companies', authMiddleware, async (req, res) => {
         incorporation_date,registered_office,city,state,pin_code,email,mobile,
         authorized_capital,paid_up_capital,pan_no,tan_no,last_agm_date,last_balance_sheet_date,notes,company_status)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,'Active')
-       ON CONFLICT (cin) DO UPDATE SET
+       ON CONFLICT (organization_id, upper(cin)) DO UPDATE SET
          company_name=EXCLUDED.company_name, client_id=EXCLUDED.client_id, agent_name=EXCLUDED.agent_name,
          company_type=EXCLUDED.company_type, city=EXCLUDED.city, state=EXCLUDED.state,
          email=EXCLUDED.email, mobile=EXCLUDED.mobile, pan_no=EXCLUDED.pan_no, tan_no=EXCLUDED.tan_no,

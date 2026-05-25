@@ -1,25 +1,27 @@
 const express = require('express');
 const db = require('../db');
 const authMiddleware = require('../middleware/auth');
+const { ensureOrgSetupComplete, requireOrgSetup } = require('../services/organizationSetupGuard');
+const { hashPassword } = require('../utils/passwords');
 
 const router = express.Router();
 
 // ── GET /api/clients/next-id ─────────────────────────────────
 router.get('/next-id', authMiddleware, async (req, res) => {
   try {
-    const r = await db.query(
-      `SELECT client_id FROM clients WHERE client_id ~ '^PTPCL[0-9]+$' ORDER BY LENGTH(client_id) DESC, client_id DESC LIMIT 1`
+    const org = await db.query(
+      `SELECT latitude, longitude, attendance_radius_meters,
+              employee_id_prefix, client_id_prefix, agent_id_prefix, client_id_next
+       FROM organizations WHERE id=$1`,
+      [req.user.organization_id]
     );
-    let next = 'PTPCL0001';
-    if (r.rows.length) {
-      const last = r.rows[0].client_id;
-      const num = parseInt(last.replace('PTPCL', ''), 10);
-      next = 'PTPCL' + String(num + 1).padStart(4, '0');
-    }
+    const o = org.rows[0] || {};
+    ensureOrgSetupComplete(o);
+    const next = `${o.client_id_prefix}${String(Number(o.client_id_next || 1)).padStart(4, '0')}`;
     res.json({ success: true, next_id: next });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(err.statusCode || 500).json({ success: false, message: err.message || 'Server error' });
   }
 });
 
@@ -30,14 +32,18 @@ router.get('/agents', authMiddleware, async (req, res) => {
     let result;
     if (q) {
       result = await db.query(
-        `SELECT agent_id, name, mobile_number, email_id FROM agents
-         WHERE agent_id ILIKE $1 OR name ILIKE $1 OR mobile_number ILIKE $1
+        `SELECT agent_id, name, mobile_number, email_id, portal_enabled, portal_last_login_at,
+                (portal_password_hash IS NOT NULL AND portal_password_hash <> '') AS portal_has_password
+         FROM agents
+         WHERE agent_id ILIKE $1 OR name ILIKE $1 OR mobile_number ILIKE $1 OR email_id ILIKE $1
          ORDER BY name LIMIT 20`,
         [`%${q}%`]
       );
     } else {
       result = await db.query(
-        `SELECT agent_id, name, mobile_number, email_id FROM agents ORDER BY name`
+        `SELECT agent_id, name, mobile_number, email_id, portal_enabled, portal_last_login_at,
+                (portal_password_hash IS NOT NULL AND portal_password_hash <> '') AS portal_has_password
+         FROM agents ORDER BY name`
       );
     }
     res.json({ success: true, agents: result.rows });
@@ -47,29 +53,113 @@ router.get('/agents', authMiddleware, async (req, res) => {
   }
 });
 
+// ── PUT /api/clients/agents/:id/portal ───────────────────────
+router.put('/agents/:id/portal', authMiddleware, async (req, res) => {
+  const { portal_enabled, password } = req.body;
+  const sets = [];
+  const params = [];
+  if (Object.prototype.hasOwnProperty.call(req.body, 'portal_enabled')) {
+    params.push(!!portal_enabled);
+    sets.push(`portal_enabled=$${params.length}`);
+  }
+  if (password) {
+    params.push(await hashPassword(password));
+    sets.push(`portal_password_hash=$${params.length}`, `portal_password_changed_at=NOW()`);
+  }
+  if (!sets.length) return res.status(400).json({ success: false, message: 'No portal change supplied' });
+  params.push(req.params.id);
+  try {
+    const result = await db.query(
+      `UPDATE agents SET ${sets.join(', ')} WHERE agent_id=$${params.length}
+       RETURNING agent_id, name, portal_enabled, portal_last_login_at,
+                 (portal_password_hash IS NOT NULL AND portal_password_hash <> '') AS portal_has_password`,
+      params
+    );
+    if (!result.rows.length) return res.status(404).json({ success: false, message: 'Agent not found' });
+    res.json({ success: true, message: 'Agent portal access updated', agent: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Portal access update failed' });
+  }
+});
+
 // ── POST /api/clients/agents  (add new agent) ────────────────
 router.post('/agents', authMiddleware, async (req, res) => {
-  const { name, mobile_number, email_id } = req.body;
+  const { name, mobile_number, email_id, portal_enabled, portal_password } = req.body;
   if (!name) return res.status(400).json({ success: false, message: 'Agent name required' });
+  const conn = await db.pool.connect();
   try {
-    // Auto-generate agent_id
-    const r = await db.query(
-      `SELECT agent_id FROM agents WHERE agent_id ~ '^PTPA[0-9]+$' ORDER BY LENGTH(agent_id) DESC, agent_id DESC LIMIT 1`
+    await conn.query('BEGIN');
+    await requireOrgSetup(conn, req.user.organization_id);
+    const org = await conn.query(`SELECT agent_id_prefix, agent_id_next FROM organizations WHERE id=$1 FOR UPDATE`, [req.user.organization_id]);
+    const o = org.rows[0] || {};
+    const nextNo = Number(o.agent_id_next || 1);
+    const next = `${o.agent_id_prefix}${String(nextNo).padStart(4, '0')}`;
+    await conn.query(`UPDATE organizations SET agent_id_next=$1, updated_at=NOW() WHERE id=$2`, [nextNo + 1, req.user.organization_id]);
+    const portalHash = portal_password ? await hashPassword(portal_password) : null;
+    await conn.query(
+      `INSERT INTO agents (agent_id, name, mobile_number, email_id, portal_enabled, portal_password_hash, portal_password_changed_at)
+       VALUES ($1,$2,$3,$4,$5,$6,CASE WHEN $6 IS NULL THEN NULL ELSE NOW() END)`,
+      [next, name, mobile_number || null, email_id || null, !!portal_enabled, portalHash]
     );
-    let next = 'PTPA0001';
-    if (r.rows.length) {
-      const num = parseInt(r.rows[0].agent_id.replace('PTPA', ''), 10);
-      next = 'PTPA' + String(num + 1).padStart(4, '0');
-    }
-    await db.query(
-      `INSERT INTO agents (agent_id, name, mobile_number, email_id) VALUES ($1,$2,$3,$4)`,
-      [next, name, mobile_number || null, email_id || null]
-    );
+    await conn.query('COMMIT');
     res.json({ success: true, message: 'Agent added!', agent_id: next, name });
   } catch (err) {
+    await conn.query('ROLLBACK').catch(() => {});
     if (err.code === '23505') return res.status(400).json({ success: false, message: 'Agent already exists' });
     console.error(err);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(err.statusCode || 500).json({ success: false, message: err.message || 'Server error' });
+  } finally {
+    conn.release();
+  }
+});
+
+// ── PUT /api/clients/agents/:id  (update agent details) ─────────
+router.put('/agents/:id', authMiddleware, async (req, res) => {
+  const { name, mobile_number, email_id, portal_enabled, portal_password } = req.body;
+  if (name === '') return res.status(400).json({ success: false, message: 'Agent name required' });
+
+  const sets = [];
+  const params = [];
+
+  if (Object.prototype.hasOwnProperty.call(req.body, 'name')) {
+    params.push(name || null);
+    sets.push(`name=COALESCE($${params.length}, name)`);
+  }
+  if (Object.prototype.hasOwnProperty.call(req.body, 'mobile_number')) {
+    params.push(mobile_number || null);
+    sets.push(`mobile_number=$${params.length}`);
+  }
+  if (Object.prototype.hasOwnProperty.call(req.body, 'email_id')) {
+    params.push(email_id || null);
+    sets.push(`email_id=$${params.length}`);
+  }
+  if (Object.prototype.hasOwnProperty.call(req.body, 'portal_enabled')) {
+    params.push(!!portal_enabled);
+    sets.push(`portal_enabled=$${params.length}`);
+  }
+  if (portal_password) {
+    params.push(await hashPassword(portal_password));
+    sets.push(`portal_password_hash=$${params.length}`, `portal_password_changed_at=NOW()`);
+  }
+
+  if (!sets.length) return res.status(400).json({ success: false, message: 'No agent change supplied' });
+  params.push(req.params.id);
+
+  try {
+    const result = await db.query(
+      `UPDATE agents
+       SET ${sets.join(', ')}
+       WHERE agent_id=$${params.length}
+       RETURNING agent_id, name, mobile_number, email_id, portal_enabled, portal_last_login_at,
+                 (portal_password_hash IS NOT NULL AND portal_password_hash <> '') AS portal_has_password`,
+      params
+    );
+    if (!result.rows.length) return res.status(404).json({ success: false, message: 'Agent not found' });
+    res.json({ success: true, message: 'Agent updated!', agent: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Agent update failed' });
   }
 });
 
@@ -80,12 +170,16 @@ router.get('/search', authMiddleware, async (req, res) => {
     let result;
     if (!q) {
       result = await db.query(
-        `SELECT client_id, agent_id, agent_name, legal_name, business_name, mobile_number, email_id, status, city, state, gst_no, pan_no, address
+        `SELECT client_id, agent_id, agent_name, legal_name, business_name, mobile_number, email_id, status, city, state, gst_no, pan_no, address,
+                portal_enabled, portal_last_login_at,
+                (portal_password_hash IS NOT NULL AND portal_password_hash <> '') AS portal_has_password
          FROM clients ORDER BY legal_name NULLS LAST LIMIT 80`
       );
     } else {
       result = await db.query(
-        `SELECT client_id, agent_id, agent_name, legal_name, business_name, mobile_number, email_id, status, city, state, gst_no, pan_no, address
+        `SELECT client_id, agent_id, agent_name, legal_name, business_name, mobile_number, email_id, status, city, state, gst_no, pan_no, address,
+                portal_enabled, portal_last_login_at,
+                (portal_password_hash IS NOT NULL AND portal_password_hash <> '') AS portal_has_password
          FROM clients
          WHERE client_id ILIKE $1
             OR legal_name ILIKE $1
@@ -107,6 +201,36 @@ router.get('/search', authMiddleware, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ── PUT /api/clients/:id/portal ──────────────────────────────
+router.put('/:id/portal', authMiddleware, async (req, res) => {
+  const { portal_enabled, password } = req.body;
+  const sets = [];
+  const params = [];
+  if (Object.prototype.hasOwnProperty.call(req.body, 'portal_enabled')) {
+    params.push(!!portal_enabled);
+    sets.push(`portal_enabled=$${params.length}`);
+  }
+  if (password) {
+    params.push(await hashPassword(password));
+    sets.push(`portal_password_hash=$${params.length}`, `portal_password_changed_at=NOW()`);
+  }
+  if (!sets.length) return res.status(400).json({ success: false, message: 'No portal change supplied' });
+  params.push(req.params.id);
+  try {
+    const result = await db.query(
+      `UPDATE clients SET ${sets.join(', ')} WHERE client_id=$${params.length}
+       RETURNING client_id, portal_enabled, portal_last_login_at,
+                 (portal_password_hash IS NOT NULL AND portal_password_hash <> '') AS portal_has_password`,
+      params
+    );
+    if (!result.rows.length) return res.status(404).json({ success: false, message: 'Client not found' });
+    res.json({ success: true, message: 'Client portal access updated', client: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Portal access update failed' });
   }
 });
 
@@ -135,26 +259,43 @@ router.get('/:id', authMiddleware, async (req, res) => {
 
 // ── POST /api/clients  (add new) ─────────────────────────────
 router.post('/', authMiddleware, async (req, res) => {
-  const {
+  let {
     client_id, agent_id, agent_name, legal_name, business_name,
     mobile_number, email_id, address, city, state, gst_no, pan_no,
+    portal_enabled, portal_password,
   } = req.body;
 
-  if (!client_id) return res.status(400).json({ success: false, message: 'Client ID required' });
   if (!mobile_number) return res.status(400).json({ success: false, message: 'Mobile number required' });
 
+  const conn = await db.pool.connect();
   try {
-    await db.query(
-      `INSERT INTO clients (client_id, agent_id, agent_name, legal_name, business_name, mobile_number, email_id, address, city, state, gst_no, pan_no)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+    await conn.query('BEGIN');
+    await requireOrgSetup(conn, req.user.organization_id);
+    if (!client_id) {
+      const org = await conn.query(`SELECT client_id_prefix, client_id_next FROM organizations WHERE id=$1 FOR UPDATE`, [req.user.organization_id]);
+      const o = org.rows[0] || {};
+      const nextNo = Number(o.client_id_next || 1);
+      client_id = `${o.client_id_prefix}${String(nextNo).padStart(4, '0')}`;
+      await conn.query(`UPDATE organizations SET client_id_next=$1, updated_at=NOW() WHERE id=$2`, [nextNo + 1, req.user.organization_id]);
+    }
+    const portalHash = portal_password ? await hashPassword(portal_password) : null;
+    await conn.query(
+      `INSERT INTO clients (client_id, agent_id, agent_name, legal_name, business_name, mobile_number, email_id, address, city, state, gst_no, pan_no,
+                            portal_enabled, portal_password_hash, portal_password_changed_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,CASE WHEN $14 IS NULL THEN NULL ELSE NOW() END)`,
       [client_id, agent_id || null, agent_name || null, legal_name || null, business_name || null,
-       mobile_number, email_id || null, address || null, city || null, state || null, gst_no || null, pan_no || null]
+       mobile_number, email_id || null, address || null, city || null, state || null, gst_no || null, pan_no || null,
+       !!portal_enabled, portalHash]
     );
+    await conn.query('COMMIT');
     res.json({ success: true, message: `Client ${client_id} added successfully!` });
   } catch (err) {
+    await conn.query('ROLLBACK').catch(() => {});
     if (err.code === '23505') return res.status(400).json({ success: false, message: 'Client ID already exists' });
     console.error(err);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(err.statusCode || 500).json({ success: false, message: err.message || 'Server error' });
+  } finally {
+    conn.release();
   }
 });
 
@@ -163,11 +304,13 @@ router.put('/:id', authMiddleware, async (req, res) => {
   const {
     agent_id, agent_name, legal_name, business_name,
     mobile_number, email_id, address, city, state, gst_no, pan_no, status,
+    portal_enabled, portal_password,
   } = req.body;
 
   if (mobile_number === '') return res.status(400).json({ success: false, message: 'Mobile number required' });
 
   try {
+    const portalHash = portal_password ? await hashPassword(portal_password) : null;
     const result = await db.query(
       `UPDATE clients SET
         agent_id = COALESCE($1, agent_id),
@@ -181,13 +324,19 @@ router.put('/:id', authMiddleware, async (req, res) => {
         state = COALESCE($9, state),
         gst_no = COALESCE($10, gst_no),
         pan_no = COALESCE($11, pan_no),
-        status = COALESCE($12, status)
-       WHERE client_id = $13`,
+        status = COALESCE($12, status),
+        portal_enabled = COALESCE($13, portal_enabled),
+        portal_password_hash = COALESCE($14, portal_password_hash),
+        portal_password_changed_at = CASE WHEN $14 IS NULL THEN portal_password_changed_at ELSE NOW() END
+       WHERE client_id = $15`,
       [
         agent_id || null, agent_name || null, legal_name || null,
         business_name || null, mobile_number || null, email_id || null,
         address || null, city || null, state || null,
-        gst_no || null, pan_no || null, status || null, req.params.id,
+        gst_no || null, pan_no || null, status || null,
+        Object.prototype.hasOwnProperty.call(req.body, 'portal_enabled') ? !!portal_enabled : null,
+        portalHash,
+        req.params.id,
       ]
     );
     if (result.rowCount === 0) return res.status(404).json({ success: false, message: 'Client not found' });

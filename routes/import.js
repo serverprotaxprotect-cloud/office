@@ -114,7 +114,7 @@ router.post('/excel', authMiddleware, upload.single('file'), async (req, res) =>
              registered_office, email, authorized_capital, paid_up_capital,
              last_agm_date, last_balance_sheet_date, company_status, mca_filing_status)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-           ON CONFLICT (cin) DO UPDATE SET
+           ON CONFLICT (organization_id, upper(cin)) DO UPDATE SET
              company_name=EXCLUDED.company_name, client_id=EXCLUDED.client_id,
              agent_name=COALESCE(EXCLUDED.agent_name, companies.agent_name),
              company_type=EXCLUDED.company_type,

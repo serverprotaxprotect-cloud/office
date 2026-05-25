@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Client Portal - Gee Bharat</title>
+  <link rel="manifest" href="/client-manifest.json"/>
+  <meta name="theme-color" content="#102346"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="GB Client"/>
+  <link rel="apple-touch-icon" href="/icons/icon-192.png"/>
+  <style>
+    *{box-sizing:border-box}body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:#eef3f8;color:#0f172a;min-height:100vh}.hidden{display:none!important}
+    .login-page{min-height:100vh;display:grid;place-items:center;padding:18px;background:linear-gradient(135deg,#102346,#1e4f91)}
+    .login-card{width:100%;max-width:430px;background:rgba(255,255,255,.95);border-radius:22px;padding:26px;box-shadow:0 24px 70px rgba(0,0,0,.25)}
+    .brand{text-align:center;margin-bottom:20px}.logo{width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg,#2563eb,#16a34a);display:grid;place-items:center;color:#fff;font-weight:900;font-size:24px;margin:0 auto 10px}.brand h1{margin:0;font-size:24px}.brand p{margin:4px 0 0;color:#64748b;font-size:13px}
+    .switch{display:grid;grid-template-columns:1fr 1fr;background:#e2e8f0;border-radius:12px;padding:4px;margin-bottom:16px}.switch button{border:0;background:transparent;padding:10px;border-radius:9px;font-weight:800;color:#64748b;cursor:pointer}.switch button.active{background:#fff;color:#1d4ed8;box-shadow:0 2px 8px rgba(15,23,42,.12)}
+    label{display:block;font-size:11px;font-weight:800;text-transform:uppercase;color:#64748b;margin:12px 0 5px}input,select,textarea{width:100%;border:1.5px solid #dbe3ef;border-radius:11px;padding:12px 13px;font-size:14px;background:#f8fafc;outline:none}input:focus,select:focus,textarea:focus{border-color:#2563eb;background:#fff}.btn{border:0;border-radius:12px;padding:12px 16px;font-size:14px;font-weight:900;cursor:pointer}.btn-primary{background:linear-gradient(135deg,#2563eb,#4f7cff);color:#fff;box-shadow:0 8px 20px rgba(37,99,235,.25)}.btn-light{background:#e8f0ff;color:#1d4ed8}.btn-green{background:#dcfce7;color:#15803d}.btn-full{width:100%;margin-top:16px}.login-actions{display:flex;justify-content:space-between;gap:10px;margin-top:12px}.link-btn{border:0;background:transparent;color:#2563eb;font-weight:800;cursor:pointer;padding:8px 0}
+    .msg{margin-top:12px;padding:10px 12px;border-radius:10px;font-size:13px}.err{background:#fee2e2;color:#b91c1c}.ok{background:#dcfce7;color:#166534}.choices{display:grid;gap:8px;margin-top:12px}.choice{border:1px solid #bfdbfe;border-radius:12px;background:#eff6ff;text-align:left;padding:10px;cursor:pointer}.choice strong{display:block}.choice span{font-size:12px;color:#64748b}
+    .app{min-height:100vh;display:grid;grid-template-columns:250px 1fr}.sidebar{background:#102346;color:#fff;padding:18px;position:sticky;top:0;height:100vh}.side-brand{font-weight:900;font-size:18px;margin-bottom:3px}.side-sub{font-size:12px;color:#9fb3d3;margin-bottom:24px}.nav{display:grid;gap:6px}.nav button{border:0;background:transparent;color:#b7c8e3;text-align:left;padding:11px 12px;border-radius:10px;font-weight:800;cursor:pointer}.nav button.active,.nav button:hover{background:rgba(255,255,255,.1);color:#fff}.main{padding:20px 22px 88px}.top{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:18px}.top h2{margin:0;font-size:22px}.user-chip{background:#fff;border:1px solid #dbe3ef;border-radius:999px;padding:8px 12px;font-size:13px;font-weight:800}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}.metric{background:#fff;border:1px solid #dbe3ef;border-radius:14px;padding:15px;box-shadow:0 2px 8px rgba(15,23,42,.05)}.metric strong{font-size:28px;color:#1d4ed8;display:block}.metric span{font-size:12px;color:#64748b}
+    .card{background:#fff;border:1px solid #dbe3ef;border-radius:16px;box-shadow:0 2px 10px rgba(15,23,42,.05);overflow:hidden}.card-head{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:14px 16px;border-bottom:1px solid #e2e8f0}.card-head h3{margin:0;font-size:16px}.card-body{padding:14px 16px}.table-wrap{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:10px 12px;border-bottom:1px solid #eef2f7;text-align:left;vertical-align:top}th{color:#475569;font-size:11px;text-transform:uppercase;background:#f8fafc}.badge{display:inline-block;border-radius:999px;padding:3px 9px;font-size:11px;font-weight:900}.b-pending{background:#fef3c7;color:#92400e}.b-completed{background:#dcfce7;color:#15803d}.b-progress{background:#dbeafe;color:#1d4ed8}.b-client{background:#fce7f3;color:#9d174d}.b-cancel{background:#fee2e2;color:#b91c1c}.empty{text-align:center;color:#94a3b8;padding:28px}.panel{display:none}.panel.active{display:block}.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.filters input,.filters select{max-width:260px;padding:9px 11px}.request-form{display:grid;gap:10px;max-width:720px}
+    .bottom{display:none;position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #dbe3ef;z-index:20}.bottom button{flex:1;border:0;background:#fff;color:#64748b;padding:9px 2px;font-size:10px;font-weight:800}.bottom button.active{color:#2563eb}.bottom span{display:block;font-size:18px}
+    @media(max-width:800px){.app{display:block}.sidebar{display:none}.main{padding:14px 12px 78px}.top{align-items:flex-start}.top h2{font-size:18px}.bottom{display:flex}.grid{grid-template-columns:1fr 1fr}.card{border-radius:12px}table,.table-wrap{font-size:12px}.desktop-only{display:none}}
+  </style>
+</head>
+<body>
+  <section id="loginPage" class="login-page">
+    <div class="login-card">
+      <div class="brand"><div class="logo">GB</div><h1>Gee Bharat Portal</h1><p>Client and Agent work status access</p></div>
+      <div class="switch"><button id="clientMode" class="active" onclick="setMode('client')">Client</button><button id="agentMode" onclick="setMode('agent')">Agent</button></div>
+      <label id="loginLabel">Client ID / Email / Mobile</label>
+      <input id="loginId" autocomplete="username" placeholder="Enter client ID, email or mobile"/>
+      <label>Password</label>
+      <input id="password" type="password" autocomplete="current-password" placeholder="Enter password"/>
+      <button class="btn btn-primary btn-full" onclick="passwordLogin()">Login</button>
+      <div class="login-actions">
+        <button class="link-btn" onclick="showForgot()">Forgot password?</button>
+        <button class="link-btn" onclick="showOtp()">Login with OTP</button>
+      </div>
+      <div id="loginMsg" class="msg hidden"></div>
+      <div id="accountChoices" class="choices hidden"></div>
+    </div>
+  </section>
+
+  <section id="portalApp" class="app hidden">
+    <aside class="sidebar">
+      <div class="side-brand" id="orgName">Gee Bharat</div>
+      <div class="side-sub" id="accountName">Portal</div>
+      <nav class="nav" id="sideNav"></nav>
+    </aside>
+    <main class="main">
+      <div class="top"><div><h2 id="pageTitle">Home</h2><div id="pageSub" style="color:#64748b;font-size:13px"></div></div><div style="display:flex;gap:8px;align-items:center"><span class="user-chip" id="userChip"></span><button class="btn btn-light" onclick="logout()">Logout</button></div></div>
+      <section id="panel-home" class="panel active">
+        <div class="grid" id="dashboardGrid"></div>
+        <div class="card"><div class="card-head"><h3>Recent Work</h3><button class="btn btn-light" onclick="loadAll()">Refresh</button></div><div class="table-wrap"><table><thead><tr><th>Client</th><th>Work</th><th>Due</th><th>Status</th></tr></thead><tbody id="recentTasks"></tbody></table></div></div>
+      </section>
+      <section id="panel-clients" class="panel">
+        <div class="filters"><input id="clientSearch" placeholder="Search mapped clients..." oninput="loadClients()"/></div>
+        <div class="card"><div class="table-wrap"><table><thead><tr><th>Client</th><th>Mobile</th><th>PAN/GST</th><th>Status</th></tr></thead><tbody id="clientsTable"></tbody></table></div></div>
+      </section>
+      <section id="panel-tasks" class="panel">
+        <div class="filters"><select id="taskStatus" onchange="loadTasks()"><option value="">All Status</option><option>Pending</option><option>In Progress</option><option>Pending by Client</option><option>Completed</option><option>Cancelled</option></select></div>
+        <div class="card"><div class="table-wrap"><table><thead><tr><th>Client</th><th>Work</th><th>Due Date</th><th>Status</th><th>Remark</th></tr></thead><tbody id="tasksTable"></tbody></table></div></div>
+      </section>
+      <section id="panel-gst" class="panel">
+        <div class="card"><div class="table-wrap"><table><thead><tr><th>Period</th><th>Client/Firm</th><th>Return</th><th>Due</th><th>Status</th></tr></thead><tbody id="gstTable"></tbody></table></div></div>
+      </section>
+      <section id="panel-itr" class="panel">
+        <div class="card"><div class="table-wrap"><table><thead><tr><th>AY</th><th>Taxpayer</th><th>ITR</th><th>Due</th><th>Status</th></tr></thead><tbody id="itrTable"></tbody></table></div></div>
+      </section>
+      <section id="panel-requests" class="panel">
+        <div class="card"><div class="card-head"><h3>Raise Request</h3></div><div class="card-body">
+          <div class="request-form">
+            <select id="requestType"><option>General Query</option><option>Document Request</option><option>Correction / Update Request</option></select>
+            <input id="requestSubject" placeholder="Subject"/>
+            <textarea id="requestMessage" rows="4" placeholder="Write your request..."></textarea>
+            <button class="btn btn-primary" onclick="submitRequest()">Submit Request</button>
+            <div id="requestMsg" class="msg hidden"></div>
+          </div>
+        </div></div>
+        <div class="card" style="margin-top:14px"><div class="table-wrap"><table><thead><tr><th>Type</th><th>Subject</th><th>Status</th><th>Date</th></tr></thead><tbody id="requestsTable"></tbody></table></div></div>
+      </section>
+      <section id="panel-profile" class="panel">
+        <div class="card"><div class="card-head"><h3>Profile</h3></div><div class="card-body" id="profileBox"></div></div>
+      </section>
+    </main>
+    <nav class="bottom" id="bottomNav"></nav>
+  </section>
+
+  <div id="forgotModal" class="login-page hidden" style="position:fixed;inset:0;z-index:50;background:rgba(15,35,70,.88)">
+    <div class="login-card">
+      <div class="brand"><h1 id="forgotTitle">Password Reset</h1><p>Verify by email OTP or mobile OTP</p></div>
+      <label>Login ID / Email / Mobile</label><input id="forgotLogin"/>
+      <label>Channel</label><select id="forgotChannel" onchange="toggleForgotChannel()"><option value="email">Email OTP</option><option value="mobile">Mobile OTP</option></select>
+      <button class="btn btn-primary btn-full" onclick="sendResetOtp()">Send OTP</button>
+      <div id="mobileOtpBox" class="hidden"><label>Firebase Mobile OTP</label><div id="recaptcha-container"></div><button class="btn btn-light btn-full" onclick="startMobileOtp()">Send Mobile OTP</button><input id="mobileOtpCode" placeholder="Enter mobile OTP" style="margin-top:10px"/><button id="mobileVerifyBtn" class="btn btn-light btn-full" onclick="confirmMobileOtp()">Verify Mobile OTP</button></div>
+      <label id="emailOtpLabel">Email OTP</label><input id="resetCode" placeholder="6 digit OTP"/>
+      <label id="newPasswordLabel">New Password</label><input id="newPassword" type="password" placeholder="Set new password"/>
+      <button id="forgotSubmitBtn" class="btn btn-green btn-full" onclick="resetPassword()">Reset Password</button>
+      <button class="link-btn" onclick="hideForgot()">Back to login</button>
+      <div id="forgotMsg" class="msg hidden"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js';
+    import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
+    window.firebasePortal = { initializeApp, getAuth, RecaptchaVerifier, signInWithPhoneNumber, app:null, auth:null, confirmation:null };
+  </script>
+  <script>
+    let mode='client', token=localStorage.getItem('portalToken')||'', user=null, cache={tasks:[],gst:[],itr:[]}, otpLoginMode=false;
+    const API='/api/portal';
+    const navBase=[['home','Home','🏠'],['tasks','Tasks','✅'],['gst','GST','🧾'],['itr','Income Tax','📄'],['requests','Requests','💬'],['profile','Profile','👤']];
+    const navAgent=[['clients','Clients','👥']];
+    function setMode(m){mode=m;document.getElementById('clientMode').classList.toggle('active',m==='client');document.getElementById('agentMode').classList.toggle('active',m==='agent');document.getElementById('loginLabel').textContent=m==='agent'?'Agent ID / Email / Mobile':'Client ID / Email / Mobile';}
+    function msg(id,text,ok=false){const el=document.getElementById(id);el.textContent=text;el.className='msg '+(ok?'ok':'err');el.classList.remove('hidden');}
+    function clearMsg(id){document.getElementById(id).classList.add('hidden');}
+    async function api(path,opts={}){const headers={'Content-Type':'application/json'};if(token)headers.Authorization='Bearer '+token;const r=await fetch(API+path,{...opts,headers:{...headers,...opts.headers}});let d={success:false,message:'Network error'};try{d=await r.json()}catch{};if(r.status===401&&token)logout();return d}
+    function statusBadge(s){const b=String(s||'Pending').toLowerCase();let cls='b-pending';if(['completed','filed','done','not applicable'].some(x=>b.includes(x)))cls='b-completed';else if(b.includes('progress')||b.includes('process')||b.includes('review'))cls='b-progress';else if(b.includes('client'))cls='b-client';else if(b.includes('cancel'))cls='b-cancel';return `<span class="badge ${cls}">${s||'Pending'}</span>`}
+    function fmt(d){if(!d)return'--';return new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}
+    async function passwordLogin(){clearMsg('loginMsg');document.getElementById('accountChoices').classList.add('hidden');const login_id=document.getElementById('loginId').value.trim();const password=document.getElementById('password').value;if(!login_id||!password)return msg('loginMsg','Login ID and password required');const d=await api('/login',{method:'POST',body:JSON.stringify({account_type:mode,login_id,password})});handleLoginResult(d)}
+    function handleLoginResult(d){if(!d.success)return msg('loginMsg',d.message||'Login failed');if(d.requires_selection){const box=document.getElementById('accountChoices');box.innerHTML=d.choices.map(c=>`<button class="choice" onclick="selectAccount('${d.selection_token}','${c.account_key}')"><strong>${c.display_name}</strong><span>${c.organization_name} • ${c.login_id}</span></button>`).join('');box.classList.remove('hidden');return}token=d.token;user=d.user;localStorage.setItem('portalToken',token);bootApp()}
+    async function selectAccount(selection_token,account_key){const d=await api('/select-account',{method:'POST',body:JSON.stringify({selection_token,account_key})});handleLoginResult(d)}
+    function configureForgotModal(){document.getElementById('forgotTitle').textContent=otpLoginMode?'OTP Login':'Password Reset';document.getElementById('newPassword').placeholder=otpLoginMode?'Not required for OTP login':'Set new password';document.getElementById('newPasswordLabel').classList.toggle('hidden',otpLoginMode);document.getElementById('newPassword').classList.toggle('hidden',otpLoginMode);document.getElementById('forgotSubmitBtn').textContent=otpLoginMode?'Verify & Login':'Reset Password';document.getElementById('mobileVerifyBtn').textContent=otpLoginMode?'Verify & Login':'Verify Mobile OTP';toggleForgotChannel()}
+    function toggleForgotChannel(){const isMobile=document.getElementById('forgotChannel').value==='mobile';document.getElementById('mobileOtpBox').classList.toggle('hidden',!isMobile);document.getElementById('emailOtpLabel').classList.toggle('hidden',isMobile);document.getElementById('resetCode').classList.toggle('hidden',isMobile);if(!isMobile)window.portalFirebaseToken=''}
+    function showOtp(){showForgot(true)}
+    function showForgot(isOtpLogin=false){otpLoginMode=!!isOtpLogin;window.portalFirebaseToken='';document.getElementById('forgotChannel').value='email';document.getElementById('forgotLogin').value=document.getElementById('loginId').value;document.getElementById('resetCode').value='';document.getElementById('mobileOtpCode').value='';document.getElementById('newPassword').value='';configureForgotModal();document.getElementById('forgotModal').classList.remove('hidden')}
+    function hideForgot(){document.getElementById('forgotModal').classList.add('hidden');clearMsg('forgotMsg')}
+    async function sendResetOtp(){clearMsg('forgotMsg');const login_id=document.getElementById('forgotLogin').value.trim();const channel=document.getElementById('forgotChannel').value;if(!login_id)return msg('forgotMsg','Login ID, email or mobile required');if(channel==='mobile'){document.getElementById('mobileOtpBox').classList.remove('hidden');return msg('forgotMsg','Use Send Mobile OTP, then verify.',true)}const endpoint=otpLoginMode?'/otp/request':'/reset/request';const d=await api(endpoint,{method:'POST',body:JSON.stringify({account_type:mode,login_id,channel})});msg('forgotMsg',d.message||'OTP sent',!!d.success)}
+    async function resetPassword(){const login_id=document.getElementById('forgotLogin').value.trim();const channel=document.getElementById('forgotChannel').value;if(!login_id)return msg('forgotMsg','Login ID, email or mobile required');if(otpLoginMode){const body={account_type:mode,login_id,channel};if(channel==='email'){body.code=document.getElementById('resetCode').value.trim();if(!body.code)return msg('forgotMsg','Email OTP required')}else{body.firebase_id_token=window.portalFirebaseToken;if(!body.firebase_id_token)return msg('forgotMsg','Mobile OTP verify karein')}const d=await api('/otp/verify',{method:'POST',body:JSON.stringify(body)});if(d.success){hideForgot();return handleLoginResult(d)}return msg('forgotMsg',d.message||'OTP login failed')}const body={account_type:mode,login_id,channel,new_password:document.getElementById('newPassword').value};if(channel==='email'){body.code=document.getElementById('resetCode').value.trim();if(!body.code)return msg('forgotMsg','Email OTP required')}else{body.firebase_id_token=window.portalFirebaseToken;if(!body.firebase_id_token)return msg('forgotMsg','Mobile OTP verify karein')}if(!body.new_password)return msg('forgotMsg','New password required');const d=await api('/reset-password',{method:'POST',body:JSON.stringify(body)});msg('forgotMsg',d.message||'Done',!!d.success)}
+    async function startMobileOtp(){try{const cfg=await fetch('/api/auth/firebase-config').then(r=>r.json());if(!cfg.success)throw new Error(cfg.message);if(!window.firebasePortal.app){window.firebasePortal.app=window.firebasePortal.initializeApp(cfg.config);window.firebasePortal.auth=window.firebasePortal.getAuth(window.firebasePortal.app)}window.recaptchaVerifier=window.recaptchaVerifier||new window.firebasePortal.RecaptchaVerifier(window.firebasePortal.auth,'recaptcha-container',{size:'normal'});const login=document.getElementById('forgotLogin').value.trim();const digits=login.replace(/\D/g,'');if(!login.startsWith('+')&&digits.length<10)throw new Error('Mobile OTP ke liye registered mobile number daliye.');const phone=login.startsWith('+')?login:'+91'+digits.slice(-10);window.firebasePortal.confirmation=await window.firebasePortal.signInWithPhoneNumber(window.firebasePortal.auth,phone,window.recaptchaVerifier);msg('forgotMsg','Mobile OTP sent.',true)}catch(e){msg('forgotMsg',e.message||'Mobile OTP failed')}}
+    async function confirmMobileOtp(){try{if(!window.firebasePortal.confirmation)return msg('forgotMsg','Pehle Send Mobile OTP karein');const code=document.getElementById('mobileOtpCode').value.trim();if(!code)return msg('forgotMsg','Mobile OTP required');const res=await window.firebasePortal.confirmation.confirm(code);window.portalFirebaseToken=await res.user.getIdToken();if(otpLoginMode)return resetPassword();msg('forgotMsg','Mobile verified. Enter new password and reset.',true)}catch(e){msg('forgotMsg','Invalid mobile OTP')}}
+    function logout(){localStorage.removeItem('portalToken');token='';user=null;document.getElementById('portalApp').classList.add('hidden');document.getElementById('loginPage').classList.remove('hidden')}
+    function buildNav(){const items=user.account_type==='agent'?[...navBase.slice(0,1),...navAgent,...navBase.slice(1)]:navBase;const html=items.map(i=>`<button data-tab="${i[0]}" onclick="showPanel('${i[0]}')">${i[2]} ${i[1]}</button>`).join('');document.getElementById('sideNav').innerHTML=html;document.getElementById('bottomNav').innerHTML=items.map(i=>`<button data-tab="${i[0]}" onclick="showPanel('${i[0]}')"><span>${i[2]}</span>${i[1]}</button>`).join('')}
+    function showPanel(id){document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));document.getElementById('panel-'+id).classList.add('active');document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===id));document.getElementById('pageTitle').textContent={home:'Home',clients:'Mapped Clients',tasks:'Tasks',gst:'GST Filing',itr:'Income Tax Filing',requests:'Requests',profile:'Profile'}[id]||id;if(id==='clients')loadClients();if(id==='tasks')loadTasks();if(id==='gst')loadGst();if(id==='itr')loadItr();if(id==='requests')loadRequests();if(id==='profile')loadProfile()}
+    async function bootApp(){if(!user){const me=await api('/me');if(!me.success)return logout();user=me.user}document.getElementById('loginPage').classList.add('hidden');document.getElementById('portalApp').classList.remove('hidden');document.getElementById('orgName').textContent=user.organization_name||'Gee Bharat';document.getElementById('accountName').textContent=(user.account_type==='agent'?'Agent: ':'Client: ')+(user.display_name||user.login_id);document.getElementById('userChip').textContent=user.display_name||user.login_id;document.getElementById('pageSub').textContent=user.read_only?'Read-only organisation':'';buildNav();showPanel('home');await loadAll()}
+    async function loadAll(){await Promise.all([loadDashboard(),loadTasks(true),loadGst(true),loadItr(true)])}
+    async function loadDashboard(){const d=await api('/dashboard');if(!d.success)return;const s=d.summary;document.getElementById('dashboardGrid').innerHTML=[['Pending',s.pending],['Due Soon',s.due_soon],['Overdue',s.overdue],['Completed',s.completed],['GST Pending',s.gst_pending],['ITR Pending',s.itr_pending]].map(x=>`<div class="metric"><strong>${x[1]}</strong><span>${x[0]}</span></div>`).join('')}
+    async function loadTasks(cacheOnly=false){const st=document.getElementById('taskStatus')?.value||'';const d=await api('/tasks'+(st?'?status='+encodeURIComponent(st):''));if(!d.success)return;cache.tasks=d.tasks;const rows=d.tasks.map(t=>`<tr><td>${t.client_name||t.client_id||'--'}</td><td><strong>${t.work_name||'--'}</strong></td><td>${fmt(t.due_date)}</td><td>${statusBadge(t.status)}</td><td>${t.work_description||'--'}</td></tr>`).join('')||'<tr><td colspan="5" class="empty">No work found.</td></tr>';document.getElementById('tasksTable').innerHTML=rows;document.getElementById('recentTasks').innerHTML=(d.tasks.slice(0,8).map(t=>`<tr><td>${t.client_name||t.client_id||'--'}</td><td>${t.work_name||'--'}</td><td>${fmt(t.due_date)}</td><td>${statusBadge(t.status)}</td></tr>`).join('')||'<tr><td colspan="4" class="empty">No recent work.</td></tr>')}
+    async function loadClients(){if(user.account_type!=='agent')return;const q=document.getElementById('clientSearch')?.value||'';const d=await api('/clients?search='+encodeURIComponent(q));if(!d.success)return;document.getElementById('clientsTable').innerHTML=d.clients.map(c=>`<tr><td><strong>${c.legal_name||c.business_name||c.client_id}</strong><br><span style="color:#64748b">${c.client_id}</span></td><td>${c.mobile_number||'--'}</td><td>${c.pan_no||'--'}<br>${c.gst_no||'--'}</td><td>${statusBadge(c.status||'Active')}</td></tr>`).join('')||'<tr><td colspan="4" class="empty">No mapped clients.</td></tr>'}
+    async function loadGst(){const d=await api('/gst-filings');if(!d.success)return;document.getElementById('gstTable').innerHTML=d.filings.map(f=>`<tr><td><strong>${f.period_label||''}</strong><br>${f.financial_year||''}</td><td>${f.firm_name||f.client_id}<br><span style="color:#64748b">${f.client_id} • ${f.gst_no||'--'}</span></td><td>${f.return_type}</td><td>${fmt(f.due_date)}</td><td>${statusBadge(f.status)}</td></tr>`).join('')||'<tr><td colspan="5" class="empty">No GST filing records.</td></tr>'}
+    async function loadItr(){const d=await api('/income-tax-filings');if(!d.success)return;document.getElementById('itrTable').innerHTML=d.filings.map(f=>`<tr><td><strong>${f.assessment_year}</strong><br>${f.financial_year||''}</td><td>${f.taxpayer_name}<br><span style="color:#64748b">${f.client_id} • ${f.pan_number||'--'}</span></td><td>${f.itr_type||'--'}</td><td>${fmt(f.due_date)}</td><td>${statusBadge(f.status)}</td></tr>`).join('')||'<tr><td colspan="5" class="empty">No Income Tax records.</td></tr>'}
+    async function loadRequests(){const d=await api('/requests');if(!d.success)return;document.getElementById('requestsTable').innerHTML=d.requests.map(r=>`<tr><td>${r.request_type}</td><td><strong>${r.subject}</strong><br><span style="color:#64748b">${r.message||''}</span></td><td>${statusBadge(r.status)}</td><td>${fmt(r.created_at)}</td></tr>`).join('')||'<tr><td colspan="4" class="empty">No requests yet.</td></tr>'}
+    async function submitRequest(){clearMsg('requestMsg');const body={request_type:document.getElementById('requestType').value,subject:document.getElementById('requestSubject').value.trim(),message:document.getElementById('requestMessage').value.trim()};const d=await api('/requests',{method:'POST',body:JSON.stringify(body)});msg('requestMsg',d.message||'Done',!!d.success);if(d.success){document.getElementById('requestSubject').value='';document.getElementById('requestMessage').value='';loadRequests()}}
+    async function loadProfile(){const d=await api('/profile');if(!d.success)return;const p=d.profile||{};document.getElementById('profileBox').innerHTML=Object.entries(p).filter(([k])=>!k.includes('portal_password')).map(([k,v])=>`<p><strong>${k.replaceAll('_',' ')}:</strong> ${v||'--'}</p>`).join('')}
+    if(token)bootApp();
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>

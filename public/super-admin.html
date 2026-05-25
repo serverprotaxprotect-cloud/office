@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Super Admin</title>
+  <link rel="stylesheet" href="/assets/style.css" />
+  <style>
+    body { background:#f1f5f9;min-height:100vh;color:#0f172a; }
+    .sa-login { min-height:100vh;display:flex;align-items:center;justify-content:center;padding:22px;background:#0f172a; }
+    .login-card { max-width:420px; }
+    .nav { height:56px;background:#0f172a;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 22px;position:sticky;top:0;z-index:20; }
+    .nav strong { font-size:17px; }
+    .page { max-width:1200px;margin:0 auto;padding:22px 16px 60px; }
+    .stats { display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:18px; }
+    .stat { background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 4px 16px rgba(15,23,42,.05); }
+    .stat small { display:block;color:#64748b;margin-bottom:6px; }
+    .stat strong { font-size:28px; }
+    .panel { background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:18px;box-shadow:0 4px 16px rgba(15,23,42,.05); }
+    .panel-head { display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px; }
+    .panel h2 { font-size:18px; }
+    .table-wrap { overflow:auto; }
+    table { width:100%;border-collapse:collapse;font-size:13px;min-width:900px; }
+    th,td { padding:10px;border-bottom:1px solid #e2e8f0;text-align:left;vertical-align:top; }
+    th { background:#f8fafc;color:#334155;font-size:12px;text-transform:uppercase; }
+    .btn { border:none;border-radius:8px;padding:8px 12px;font-weight:700;cursor:pointer;font-size:12px; }
+    .btn-blue { background:#2563eb;color:#fff; }
+    .btn-red { background:#fee2e2;color:#991b1b; }
+    .btn-soft { background:#e0f2fe;color:#075985; }
+    .btn-dark { background:#334155;color:#fff; }
+    .btn-green { background:#16a34a;color:#fff; }
+    .status { display:inline-flex;border-radius:20px;padding:3px 8px;font-weight:700;font-size:11px;background:#e2e8f0;color:#334155; }
+    .status.Active,.status.Approved { background:#dcfce7;color:#166534; }
+    .status.Pending { background:#fef3c7;color:#92400e; }
+    .status.Inactive,.status.Rejected { background:#fee2e2;color:#991b1b; }
+    .status.Expiring,.status.Soon { background:#ffedd5;color:#9a3412; }
+    #msg { display:none;margin-bottom:14px; }
+    .modal { position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;padding:18px;z-index:50; }
+    .modal-card { background:#fff;border-radius:14px;padding:22px;width:100%;max-width:560px;max-height:90vh;overflow:auto; }
+    .grid { display:grid;grid-template-columns:1fr 1fr;gap:12px; }
+    .full { grid-column:1 / -1; }
+    @media(max-width:760px){ .stats,.grid{grid-template-columns:1fr;} .nav{padding:0 14px;} }
+  </style>
+</head>
+<body>
+  <section id="loginScreen" class="sa-login">
+    <main class="login-card">
+      <div class="login-logo">
+        <div class="logo-circle" style="background:#0f172a">SA</div>
+        <h2>Super Admin</h2>
+        <p>Organisation management</p>
+      </div>
+      <form id="loginForm">
+        <div class="form-group">
+          <label>Username</label>
+          <input id="username" autocomplete="username" required />
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input id="password" type="password" autocomplete="current-password" required />
+        </div>
+        <div id="loginErr" class="alert alert-error" style="display:none"></div>
+        <button id="loginBtn" class="btn-primary" type="submit">Login</button>
+      </form>
+      <p class="login-footer"><a href="/" style="color:#64748b;text-decoration:none">Back to portal</a></p>
+    </main>
+  </section>
+
+  <section id="appScreen" style="display:none">
+    <nav class="nav">
+      <strong>Super Admin Portal</strong>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-soft" onclick="loadAll()">Refresh</button>
+        <button class="btn btn-red" onclick="logout()">Logout</button>
+      </div>
+    </nav>
+    <main class="page">
+      <div id="msg" class="alert"></div>
+      <div class="stats">
+        <div class="stat"><small>Total Organisations</small><strong id="stOrgs">0</strong></div>
+        <div class="stat"><small>Active</small><strong id="stActive">0</strong></div>
+        <div class="stat"><small>Pending Requests</small><strong id="stPending">0</strong></div>
+        <div class="stat"><small>Expiring 7 Days</small><strong id="stExp7">0</strong></div>
+        <div class="stat"><small>Read Only / Expired</small><strong id="stReadonly">0</strong></div>
+      </div>
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Expiring Soon</h2>
+          <button class="btn btn-soft" onclick="loadExpiring()">Reload</button>
+        </div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Organisation</th><th>Contact</th><th>Valid Until</th><th>Days Left</th><th>Status</th><th>Action</th></tr></thead>
+          <tbody id="expiringBody"><tr><td colspan="6">Loading...</td></tr></tbody>
+        </table></div>
+      </section>
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Signup Requests</h2>
+          <button class="btn btn-soft" onclick="loadRequests()">Reload</button>
+        </div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>ID</th><th>Organisation</th><th>Contact</th><th>Location</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+          <tbody id="requestsBody"><tr><td colspan="7">Loading...</td></tr></tbody>
+        </table></div>
+      </section>
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Organisations</h2>
+          <button class="btn btn-soft" onclick="loadOrganizations()">Reload</button>
+        </div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Code</th><th>Name</th><th>Contact</th><th>Validity</th><th>Subscription</th><th>Status</th><th>Counts</th><th>Actions</th></tr></thead>
+          <tbody id="orgsBody"><tr><td colspan="7">Loading...</td></tr></tbody>
+        </table></div>
+      </section>
+    </main>
+  </section>
+
+  <div id="approveModal" class="modal">
+    <div class="modal-card">
+      <h2 style="margin-bottom:12px">Approve Organisation</h2>
+      <form id="approveForm">
+        <input type="hidden" id="approveId" />
+        <div class="grid">
+          <div class="form-group"><label>Organisation Code</label><input id="org_code" placeholder="Auto if blank" /></div>
+          <div class="form-group"><label>Valid Until</label><input id="valid_until" type="date" /></div>
+          <div class="form-group"><label>Admin Login ID *</label><input id="admin_username" required /></div>
+          <div class="form-group"><label>Admin Password *</label><input id="admin_password" required /></div>
+          <div class="form-group"><label>Admin Name *</label><input id="admin_name" required /></div>
+          <div class="form-group"><label>Admin Email</label><input id="admin_email" type="email" /></div>
+          <div class="form-group"><label>Admin Mobile</label><input id="admin_mobile" /></div>
+          <div class="form-group full"><label>Remark</label><input id="remark" /></div>
+        </div>
+        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px">
+          <button type="button" class="btn btn-soft" onclick="closeApprove()">Cancel</button>
+          <button class="btn btn-blue" id="approveBtn" type="submit">Approve</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    let token = localStorage.getItem('super_admin_token') || '';
+    function showApp() {
+      document.getElementById('loginScreen').style.display = token ? 'none' : 'flex';
+      document.getElementById('appScreen').style.display = token ? 'block' : 'none';
+      if (token) loadAll();
+    }
+    function showMsg(text, ok) {
+      const msg = document.getElementById('msg');
+      msg.textContent = text;
+      msg.className = 'alert ' + (ok ? 'alert-success' : 'alert-error');
+      msg.style.display = 'block';
+      setTimeout(() => msg.style.display = 'none', 4500);
+    }
+    function fmtDate(d) { return d ? new Date(d).toLocaleDateString('en-IN') : '--'; }
+    function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    async function api(path, opts = {}) {
+      const res = await fetch('/api/super-admin' + path, {
+        ...opts,
+        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', ...(opts.headers || {}) }
+      });
+      const data = await res.json();
+      if (!data.success && res.status === 401) logout();
+      return data;
+    }
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const err = document.getElementById('loginErr');
+      const btn = document.getElementById('loginBtn');
+      btn.disabled = true;
+      btn.textContent = 'Logging in...';
+      err.style.display = 'none';
+      try {
+        const res = await fetch('/api/super-admin/login', {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json' },
+          body: JSON.stringify({
+            username: document.getElementById('username').value.trim(),
+            password: document.getElementById('password').value
+          })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message || 'Login failed');
+        token = data.token;
+        localStorage.setItem('super_admin_token', token);
+        showApp();
+      } catch (e2) {
+        err.textContent = e2.message || 'Login failed';
+        err.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Login';
+      }
+    });
+    function logout() {
+      token = '';
+      localStorage.removeItem('super_admin_token');
+      showApp();
+    }
+    async function loadAll() {
+      await Promise.all([loadOverview(), loadRequests(), loadOrganizations(), loadExpiring()]);
+    }
+    async function loadOverview() {
+      const data = await api('/overview');
+      if (!data.success) return;
+      document.getElementById('stOrgs').textContent = data.stats.organizations || 0;
+      document.getElementById('stActive').textContent = data.stats.active_organizations || 0;
+      document.getElementById('stPending').textContent = data.stats.pending_requests || 0;
+      document.getElementById('stExp7').textContent = data.stats.expiring_7_days || 0;
+      document.getElementById('stReadonly').textContent = data.stats.read_only_organizations || 0;
+    }
+    async function loadRequests() {
+      const data = await api('/signup-requests');
+      const body = document.getElementById('requestsBody');
+      if (!data.success) { body.innerHTML = '<tr><td colspan="7">Load failed</td></tr>'; return; }
+      lastRequests = data.requests || [];
+      if (!lastRequests.length) { body.innerHTML = '<tr><td colspan="7">No signup requests</td></tr>'; return; }
+      body.innerHTML = lastRequests.map(r => `
+        <tr>
+          <td>${r.id}</td>
+          <td><strong>${esc(r.organization_name)}</strong><br><small>${esc(r.notes || '')}</small></td>
+          <td>${esc(r.contact_person)}<br><small>${esc(r.contact_email)} / ${esc(r.contact_mobile)}</small></td>
+          <td>${esc([r.city, r.state].filter(Boolean).join(', '))}<br><small>${esc(r.address || '')}</small></td>
+          <td><span class="status ${esc(r.status)}">${esc(r.status)}</span></td>
+          <td>${fmtDate(r.created_at)}</td>
+          <td>${r.status === 'Pending' ? `
+            <button class="btn btn-blue" onclick="openApprove(${r.id})">Approve & Send</button>
+            <button class="btn btn-red" onclick="rejectRequest(${r.id})">Reject</button>` : '--'}</td>
+        </tr>`).join('');
+    }
+    async function loadExpiring() {
+      const data = await api('/expiring-organizations?days=30');
+      const body = document.getElementById('expiringBody');
+      if (!data.success) { body.innerHTML = '<tr><td colspan="6">Load failed</td></tr>'; return; }
+      if (!data.organizations.length) { body.innerHTML = '<tr><td colspan="6">No organisation expiring in next 30 days</td></tr>'; return; }
+      body.innerHTML = data.organizations.map(o => `
+        <tr>
+          <td><strong>${esc(o.office_name)}</strong><br><small>${esc(o.org_code)}</small></td>
+          <td>${esc(o.contact_person || '')}<br><small>${esc(o.contact_email || '')}<br>${esc(o.contact_mobile || '')}</small></td>
+          <td>${fmtDate(o.valid_until)}</td>
+          <td><strong>${o.days_left}</strong> days</td>
+          <td><span class="status ${o.days_left <= 7 ? 'Expiring' : 'Pending'}">${o.days_left <= 7 ? 'Expiring Soon' : 'Upcoming'}</span></td>
+          <td><button class="btn btn-green" onclick="quickExtend(${o.id})">Extend</button></td>
+        </tr>`).join('');
+    }
+    let orgCache = [];
+    let lastRequests = [];
+    async function loadOrganizations() {
+      const data = await api('/organizations');
+      const body = document.getElementById('orgsBody');
+      if (!data.success) { body.innerHTML = '<tr><td colspan="7">Load failed</td></tr>'; return; }
+      orgCache = data.organizations || [];
+      if (!data.organizations.length) { body.innerHTML = '<tr><td colspan="7">No organisations</td></tr>'; return; }
+      body.innerHTML = data.organizations.map(o => `
+        <tr>
+          <td><strong>${esc(o.org_code)}</strong></td>
+          <td>${esc(o.office_name)}</td>
+          <td>${esc(o.contact_person || '')}<br><small>${esc(o.contact_email || '')} ${esc(o.contact_mobile || '')}</small></td>
+          <td>${fmtDate(o.valid_until)}<br><small>${o.days_left ?? '--'} days left</small></td>
+          <td><span class="status ${String(o.subscription_state || '').split(' ')[0]}">${esc(o.subscription_state || '--')}</span><br><small>${o.force_read_only ? 'Read only forced' : ''}</small></td>
+          <td><span class="status ${esc(o.status)}">${esc(o.status)}</span></td>
+          <td>${o.employees || 0} employees<br>${o.clients || 0} clients<br>${o.tasks || 0} tasks</td>
+          <td><button class="btn btn-dark" onclick="updateSubscription(${o.id})">Subscription</button></td>
+        </tr>`).join('');
+    }
+    function requestCodeFromName(name, id) {
+      const base = String(name || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6) || 'ORG';
+      return `${base}-${String(id).padStart(3, '0')}`;
+    }
+    function openApprove(id) {
+      document.getElementById('approveForm').reset();
+      document.getElementById('approveId').value = id;
+      const req = lastRequests.find(r => String(r.id) === String(id));
+      if (req) {
+        document.getElementById('org_code').value = requestCodeFromName(req.organization_name, req.id);
+        document.getElementById('admin_username').value = document.getElementById('org_code').value;
+        document.getElementById('admin_name').value = req.contact_person || req.organization_name || '';
+        document.getElementById('admin_email').value = req.contact_email || '';
+        document.getElementById('admin_mobile').value = req.contact_mobile || '';
+        document.getElementById('remark').value = `Approved for ${req.organization_name}`;
+      }
+      document.getElementById('approveModal').style.display = 'flex';
+    }
+    function closeApprove() { document.getElementById('approveModal').style.display = 'none'; }
+    document.getElementById('approveForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = document.getElementById('approveId').value;
+      const btn = document.getElementById('approveBtn');
+      btn.disabled = true;
+      btn.textContent = 'Approving...';
+      const payload = {};
+      ['org_code','valid_until','admin_username','admin_password','admin_name','admin_email','admin_mobile','remark'].forEach(k => payload[k] = document.getElementById(k).value.trim());
+      const data = await api('/signup-requests/' + id + '/approve', { method:'POST', body: JSON.stringify(payload) });
+      let msg = data.message || (data.success ? 'Approved' : 'Approval failed');
+      if (data.sms_message) msg += ' SMS manual message generated in response.';
+      showMsg(msg, !!data.success);
+      btn.disabled = false;
+      btn.textContent = 'Approve';
+      if (data.success) {
+        closeApprove();
+        loadAll();
+        if (data.sms_message) setTimeout(() => alert(data.sms_message), 100);
+      }
+    });
+    async function rejectRequest(id) {
+      const remark = prompt('Reject reason');
+      if (remark === null) return;
+      const data = await api('/signup-requests/' + id + '/reject', { method:'POST', body: JSON.stringify({ remark }) });
+      showMsg(data.message || (data.success ? 'Rejected' : 'Reject failed'), !!data.success);
+      if (data.success) loadAll();
+    }
+    async function quickExtend(id) {
+      const org = orgCache.find(o => String(o.id) === String(id)) || {};
+      const nextValid = prompt('Extend validity until (YYYY-MM-DD)', org.valid_until || '');
+      if (!nextValid) return;
+      const data = await api('/organizations/' + id + '/subscription', {
+        method:'PUT',
+        body: JSON.stringify({ valid_until: nextValid, force_read_only: false, status: 'Active', remarks: 'Validity extended' })
+      });
+      showMsg(data.message || (data.success ? 'Extended' : 'Extend failed'), !!data.success);
+      if (data.success) loadAll();
+    }
+    async function updateSubscription(id) {
+      const org = orgCache.find(o => String(o.id) === String(id)) || {};
+      const nextValid = prompt('Valid until date (YYYY-MM-DD). Leave blank to keep same.', org.valid_until || '');
+      if (nextValid === null) return;
+      const roAnswer = prompt('Force read-only? Type yes or no.', org.force_read_only ? 'yes' : 'no');
+      if (roAnswer === null) return;
+      const normalizedRo = roAnswer.trim().toLowerCase();
+      if (!['yes','y','no','n'].includes(normalizedRo)) {
+        showMsg('Force read-only me sirf yes ya no daliye.', false);
+        return;
+      }
+      const ro = normalizedRo === 'yes' || normalizedRo === 'y';
+      const nextStatus = prompt('Status: Active or Inactive', org.status || 'Active');
+      if (nextStatus === null) return;
+      const remarks = prompt('Remark', 'Subscription updated') || '';
+      const data = await api('/organizations/' + id + '/subscription', {
+        method:'PUT',
+        body: JSON.stringify({ valid_until: nextValid || null, force_read_only: ro, status: nextStatus, remarks })
+      });
+      showMsg(data.message || (data.success ? 'Updated' : 'Update failed'), !!data.success);
+      if (data.success) loadAll();
+    }
+    showApp();
+  </script>
+</body>
+</html>

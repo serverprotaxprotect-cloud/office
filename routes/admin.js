@@ -1,10 +1,11 @@
 const express = require('express');
-const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const multer = require('multer');
 const XLSX   = require('xlsx');
 const db = require('../db');
 const adminAuth = require('../middleware/adminAuth');
+const { buildLoginResponse, hashForStorage } = require('../services/authService');
+const { ensureOrgSetupComplete, requireOrgSetup } = require('../services/organizationSetupGuard');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -13,34 +14,55 @@ const router = express.Router();
 // ── IST helpers (Asia/Kolkata = UTC+5:30) ────────────────────
 function nowIST()    { return new Date(Date.now() + (5.5 * 60 * 60 * 1000)); }
 function todayIST()  { return nowIST().toISOString().split('T')[0]; }
+function canManageAdminUsers(admin) {
+  return ['Director', 'Office Manager', 'HR'].includes(admin?.role);
+}
+
+const EMPLOYEE_FIELDS = [
+  'sl_no', 'date_of_joining', 'name', 'formal_name', 'father_name', 'pan_no', 'aadhaar_no',
+  'education', 'designation', 'sex', 'marital_status', 'email_id', 'mobile_no',
+  'present_address', 'permanent_address', 'date_of_cessation', 'status', 'dob',
+  'blood_group', 'certificate', 'document_status', 'bank_name', 'ifsc_code', 'account_no',
+  'photo', 'documents', 'basic_pay', 'related_documents', 'paid_leave_per_year',
+  'leave_availed', 'leave_rest', 'salary_effective_from', 'new_basic_salary'
+];
+
+function cleanNullable(value) {
+  if (value === undefined || value === null || value === '') return null;
+  return value;
+}
+
+async function nextEmployeeId() {
+  const org = await db.query(
+    `SELECT latitude, longitude, attendance_radius_meters,
+            employee_id_prefix, employee_id_next, employee_id_series_locked,
+            client_id_prefix, agent_id_prefix
+     FROM organizations WHERE id=$1 FOR UPDATE`,
+    [db.getTenantContext().organizationId]
+  );
+  const o = org.rows[0] || {};
+  ensureOrgSetupComplete(o);
+  const prefix = o.employee_id_prefix;
+  const next = Number(o.employee_id_next || 1);
+  const empId = `${prefix}${String(next).padStart(4, '0')}`;
+  await db.query(`UPDATE organizations SET employee_id_next=$1, updated_at=NOW() WHERE id=$2`, [next + 1, db.getTenantContext().organizationId]);
+  return empId;
+}
 
 // ── POST /api/admin/login ────────────────────────────────────
 router.post('/login', async (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password)
-    return res.status(400).json({ success: false, message: 'Username and password required' });
+  const loginId = req.body.login_id || req.body.username;
+  const { password } = req.body;
+  if (!loginId || !password)
+    return res.status(400).json({ success: false, message: 'Login ID and password required' });
 
   try {
-    const r = await db.query(
-      `SELECT username, password, name, email_id, role FROM admins WHERE LOWER(username)=LOWER($1)`,
-      [username.trim()]
-    );
-    if (!r.rows.length)
-      return res.status(401).json({ success: false, message: 'Username not found' });
-
-    const admin = r.rows[0];
-    if (admin.password !== password)
-      return res.status(401).json({ success: false, message: 'Incorrect password' });
-
-    const token = jwt.sign(
-      { username: admin.username, name: admin.name, role: admin.role, is_admin: true },
-      process.env.JWT_SECRET,
-      { expiresIn: '12h' }
-    );
-    res.json({ success: true, token, admin: { username: admin.username, name: admin.name, role: admin.role } });
+    const result = await buildLoginResponse(loginId, password, 'admin');
+    if (result.requires_selection) return res.json({ success: true, ...result });
+    res.json({ success: true, token: result.token, admin: result.user, user: result.user });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(err.statusCode || 500).json({ success: false, message: err.statusCode ? err.message : 'Server error' });
   }
 });
 
@@ -77,18 +99,131 @@ router.get('/overview', adminAuth, async (req, res) => {
 });
 
 // ── GET /api/admin/attendance?month=&year= ───────────────────
+router.get('/admin-users', adminAuth, async (req, res) => {
+  if (!canManageAdminUsers(req.admin)) {
+    return res.status(403).json({ success: false, message: 'Admin user management access required' });
+  }
+  try {
+    const users = await db.query(
+      `SELECT id, username, name, email_id, mobile_no, role, COALESCE(status,'Active') AS status, created_at
+       FROM admins
+       ORDER BY name, username`
+    );
+    res.json({ success: true, admins: users.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+router.post('/admin-users', adminAuth, async (req, res) => {
+  if (!canManageAdminUsers(req.admin)) {
+    return res.status(403).json({ success: false, message: 'Admin user management access required' });
+  }
+  const { username, password, name, email_id, mobile_no, role } = req.body;
+  const allowedRoles = ['Director', 'Office Manager', 'HR', 'Accountant'];
+  if (!username || !password || !name || !allowedRoles.includes(role)) {
+    return res.status(400).json({ success: false, message: 'Username, name, password and valid role are required' });
+  }
+  try {
+    const inserted = await db.query(
+      `INSERT INTO admins (username, password, name, email_id, mobile_no, role, status)
+       VALUES ($1,$2,$3,$4,$5,$6,'Active')
+       RETURNING id, username, name, email_id, mobile_no, role, status, created_at`,
+      [
+        String(username).trim(),
+        await hashForStorage(password),
+        String(name).trim(),
+        email_id ? String(email_id).trim() : null,
+        mobile_no ? String(mobile_no).trim() : null,
+        role,
+      ]
+    );
+    res.json({ success: true, message: 'Admin user created', admin: inserted.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(err.code === '23505' ? 400 : 500).json({
+      success: false,
+      message: err.code === '23505' ? 'Admin login ID already exists in this organisation' : 'Server error',
+    });
+  }
+});
+
+router.put('/admin-users/:id', adminAuth, async (req, res) => {
+  if (!canManageAdminUsers(req.admin)) {
+    return res.status(403).json({ success: false, message: 'Admin user management access required' });
+  }
+  const { name, email_id, mobile_no, role, status, password } = req.body;
+  const allowedRoles = ['Director', 'Office Manager', 'HR', 'Accountant'];
+  const allowedStatuses = ['Active', 'Inactive'];
+  if (role && !allowedRoles.includes(role)) {
+    return res.status(400).json({ success: false, message: 'Invalid role' });
+  }
+  if (status && !allowedStatuses.includes(status)) {
+    return res.status(400).json({ success: false, message: 'Invalid status' });
+  }
+  try {
+    const updated = await db.query(
+      `UPDATE admins SET
+         name=COALESCE($1, name),
+         email_id=COALESCE($2, email_id),
+         mobile_no=COALESCE($3, mobile_no),
+         role=COALESCE($4, role),
+         status=COALESCE($5, status),
+         password=COALESCE($6, password),
+         updated_at=NOW()
+       WHERE id=$7
+       RETURNING id, username, name, email_id, mobile_no, role, status, created_at`,
+      [
+        name ? String(name).trim() : null,
+        email_id ? String(email_id).trim() : null,
+        mobile_no ? String(mobile_no).trim() : null,
+        role || null,
+        status || null,
+        password ? await hashForStorage(password) : null,
+        req.params.id,
+      ]
+    );
+    if (!updated.rows.length) return res.status(404).json({ success: false, message: 'Admin user not found' });
+    res.json({ success: true, message: 'Admin user updated', admin: updated.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 router.get('/attendance', adminAuth, async (req, res) => {
   const month = parseInt(req.query.month) || (nowIST().getUTCMonth() + 1);
   const year  = parseInt(req.query.year)  || nowIST().getUTCFullYear();
   try {
     const records = await db.query(
-      `SELECT a.*, e.designation
+      `SELECT a.*, to_char(a.date::date, 'YYYY-MM-DD') AS date, e.designation
        FROM daily_attendance a
        JOIN emplist e ON e.emp_id = a.emp_id
        WHERE a.month=$1 AND a.year=$2
        ORDER BY a.date DESC, a.employee_name`,
       [month, year]
     );
+    const punches = await db.query(
+      `SELECT emp_id, to_char(date::date, 'YYYY-MM-DD') AS punch_date, action, time, latitude, longitude,
+              accuracy_meters, address, formatted_address, place_id, location_type,
+              geocode_provider, distance_from_office_meters, geofence_radius_meters,
+              within_geofence, created_at
+       FROM attendance_log
+       WHERE EXTRACT(MONTH FROM date)=$1 AND EXTRACT(YEAR FROM date)=$2
+       ORDER BY created_at ASC`,
+      [month, year]
+    );
+    const punchMap = new Map();
+    punches.rows.forEach(p => {
+      const key = `${p.emp_id}|${p.punch_date}`;
+      if (!punchMap.has(key)) punchMap.set(key, []);
+      punchMap.get(key).push(p);
+    });
+    const attendanceRecords = records.rows.map(r => ({
+      ...r,
+      punches: punchMap.get(`${r.emp_id}|${r.date}`) || []
+    }));
     // Summary per employee
     const summary = await db.query(
       `SELECT emp_id, employee_name,
@@ -103,7 +238,7 @@ router.get('/attendance', adminAuth, async (req, res) => {
        ORDER BY employee_name`,
       [month, year]
     );
-    res.json({ success: true, month, year, records: records.rows, summary: summary.rows });
+    res.json({ success: true, month, year, records: attendanceRecords, summary: summary.rows });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Server error' });
@@ -132,8 +267,12 @@ router.post('/attendance/update', adminAuth, async (req, res) => {
 router.get('/employees', adminAuth, async (req, res) => {
   try {
     const r = await db.query(
-      `SELECT emp_id, name, formal_name, designation, email_id, mobile_no,
-              date_of_joining, status, blood_group, basic_pay, paid_leave_per_year
+      `SELECT id, sl_no, emp_id, date_of_joining, name, formal_name, father_name, pan_no, aadhaar_no,
+              education, designation, sex, marital_status, email_id, mobile_no, present_address,
+              permanent_address, date_of_cessation, status, dob, blood_group, certificate,
+              document_status, bank_name, ifsc_code, account_no, photo, documents, basic_pay,
+              related_documents, paid_leave_per_year, leave_availed, leave_rest,
+              salary_effective_from, new_basic_salary
        FROM emplist ORDER BY name`
     );
     res.json({ success: true, employees: r.rows });
@@ -144,59 +283,71 @@ router.get('/employees', adminAuth, async (req, res) => {
 
 // ── POST /api/admin/employees/add ───────────────────────────
 router.post('/employees/add', adminAuth, async (req, res) => {
-  const {
-    name, formal_name, designation, email_id, mobile_no,
-    date_of_joining, basic_pay, login_password, paid_leave_per_year,
-    education, sex, marital_status
-  } = req.body;
+  const { login_password } = req.body;
+  const name = req.body.name;
+  const designation = req.body.designation;
 
   if (!name || !designation || !login_password)
     return res.status(400).json({ success: false, message: 'Name, Designation and Password required' });
 
+  const conn = await db.pool.connect();
   try {
-    // Auto-generate emp_id
-    const last = await db.query(`SELECT emp_id FROM emplist ORDER BY emp_id DESC LIMIT 1`);
-    let newId = 'PTP-0001';
-    if (last.rows.length) {
-      const num = parseInt(last.rows[0].emp_id.replace('PTP-', '')) + 1;
-      newId = 'PTP-' + String(num).padStart(4, '0');
-    }
-
-    await db.query(
-      `INSERT INTO emplist
-         (emp_id, name, formal_name, designation, email_id, mobile_no,
-          date_of_joining, basic_pay, login_password, paid_leave_per_year,
-          education, sex, marital_status, status, leave_availed, leave_rest)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'Active',0,$10)`,
-      [newId, name, formal_name || name, designation, email_id || null,
-       mobile_no || null, date_of_joining || null, basic_pay || null,
-       login_password, paid_leave_per_year || 12,
-       education || null, sex || null, marital_status || null]
+    await conn.query('BEGIN');
+    await requireOrgSetup(conn, req.user.organization_id);
+    const org = await conn.query(
+      `SELECT employee_id_prefix, employee_id_next FROM organizations WHERE id=$1 FOR UPDATE`,
+      [req.user.organization_id]
     );
+    const o = org.rows[0] || {};
+    const prefix = o.employee_id_prefix;
+    const next = Number(o.employee_id_next || 1);
+    const newId = `${prefix}${String(next).padStart(4, '0')}`;
+    await conn.query(`UPDATE organizations SET employee_id_next=$1, updated_at=NOW() WHERE id=$2`, [next + 1, req.user.organization_id]);
+    const passwordHash = await hashForStorage(login_password);
+    const payload = { ...req.body, formal_name: req.body.formal_name || name, status: req.body.status || 'Active', leave_availed: req.body.leave_availed || 0, paid_leave_per_year: req.body.paid_leave_per_year || 12 };
+    payload.leave_rest = payload.leave_rest || payload.paid_leave_per_year;
+    const cols = ['emp_id', ...EMPLOYEE_FIELDS, 'login_password'];
+    const values = [newId, ...EMPLOYEE_FIELDS.map(f => cleanNullable(payload[f])), passwordHash];
+    const placeholders = values.map((_, i) => `$${i + 1}`).join(',');
+    await conn.query(`INSERT INTO emplist (${cols.join(',')}) VALUES (${placeholders})`, values);
+    await conn.query('COMMIT');
     res.json({ success: true, message: `Employee added with ID: ${newId}`, emp_id: newId });
   } catch (err) {
+    await conn.query('ROLLBACK').catch(() => {});
     console.error(err);
     res.status(500).json({ success: false, message: 'Server error: ' + err.message });
+  } finally {
+    conn.release();
   }
 });
 
 // ── PUT /api/admin/employees/:id ─────────────────────────────
 router.put('/employees/:id', adminAuth, async (req, res) => {
   const { id } = req.params;
-  const { designation, email_id, mobile_no, basic_pay, status, login_password, paid_leave_per_year } = req.body;
   try {
-    await db.query(
-      `UPDATE emplist SET designation=COALESCE($1,designation), email_id=COALESCE($2,email_id),
-       mobile_no=COALESCE($3,mobile_no), basic_pay=COALESCE($4,basic_pay),
-       status=COALESCE($5,status), login_password=COALESCE($6,login_password),
-       paid_leave_per_year=COALESCE($7,paid_leave_per_year)
-       WHERE emp_id=$8`,
-      [designation||null, email_id||null, mobile_no||null, basic_pay||null,
-       status||null, login_password||null, paid_leave_per_year||null, id]
+    const setParts = [];
+    const values = [];
+    for (const field of EMPLOYEE_FIELDS) {
+      if (Object.prototype.hasOwnProperty.call(req.body, field)) {
+        values.push(cleanNullable(req.body[field]));
+        setParts.push(`${field}=$${values.length}`);
+      }
+    }
+    if (req.body.login_password) {
+      values.push(await hashForStorage(req.body.login_password));
+      setParts.push(`login_password=$${values.length}`);
+    }
+    if (!setParts.length) return res.status(400).json({ success: false, message: 'No fields to update' });
+    values.push(id);
+    const updated = await db.query(
+      `UPDATE emplist SET ${setParts.join(', ')} WHERE emp_id=$${values.length} RETURNING emp_id`,
+      values
     );
+    if (!updated.rows.length) return res.status(404).json({ success: false, message: 'Employee not found' });
     res.json({ success: true, message: 'Employee updated' });
   } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error' });
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error: ' + err.message });
   }
 });
 
@@ -216,17 +367,20 @@ async function ensureHolidaysTable() {
   await db.query(`
     CREATE TABLE IF NOT EXISTS holidays (
       id SERIAL PRIMARY KEY,
-      holiday_date DATE NOT NULL UNIQUE,
+      organization_id INTEGER DEFAULT current_organization_id(),
+      holiday_date DATE NOT NULL,
       holiday_name VARCHAR(100) NOT NULL,
       created_by VARCHAR(100),
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
+  await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS holidays_org_date_unique ON holidays(organization_id, holiday_date)`);
 }
 async function ensureRequestsTable() {
   await db.query(`
     CREATE TABLE IF NOT EXISTS attendance_requests (
       id SERIAL PRIMARY KEY,
+      organization_id INTEGER DEFAULT current_organization_id(),
       emp_id VARCHAR(50) NOT NULL,
       employee_name VARCHAR(100),
       request_date DATE NOT NULL,
@@ -268,7 +422,7 @@ router.post('/holidays', adminAuth, async (req, res) => {
     await db.query(
       `INSERT INTO holidays (holiday_date, holiday_name, created_by)
        VALUES ($1,$2,$3)
-       ON CONFLICT (holiday_date) DO UPDATE SET holiday_name=$2, created_by=$3`,
+       ON CONFLICT (organization_id, holiday_date) DO UPDATE SET holiday_name=$2, created_by=$3`,
       [holiday_date, holiday_name.trim(), req.admin.name]
     );
     res.json({ success: true, message: 'Holiday saved!' });
@@ -796,7 +950,7 @@ router.post('/settings', adminAuth, async (req, res) => {
     for (const [key, value] of Object.entries(updates)) {
       await db.query(
         `INSERT INTO attendance_settings (key, value) VALUES ($1,$2)
-         ON CONFLICT (key) DO UPDATE SET value=$2`,
+         ON CONFLICT (organization_id, key) DO UPDATE SET value=$2`,
         [key, value]
       );
     }

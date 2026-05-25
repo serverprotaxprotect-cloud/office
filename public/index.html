@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PTP Attendance</title>
+  <title>Gee Bharat Office</title>
 
   <!-- PWA -->
   <link rel="manifest" href="/manifest.json" />
@@ -11,7 +11,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="PTP Attend" />
+  <meta name="apple-mobile-web-app-title" content="Gee Bharat" />
   <link rel="apple-touch-icon" href="/icons/icon-192.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
   <style>
@@ -98,6 +98,13 @@
       background: linear-gradient(135deg, rgba(5,150,105,0.2), rgba(16,185,129,0.1));
     }
 
+    .portal-card.signup::before {
+      background: linear-gradient(135deg, rgba(217,119,6,0.2), rgba(245,158,11,0.1));
+    }
+    .portal-card.client::before {
+      background: linear-gradient(135deg, rgba(124,58,237,0.2), rgba(99,102,241,0.1));
+    }
+
     .portal-card:hover {
       transform: translateY(-6px);
       border-color: rgba(255,255,255,0.25);
@@ -122,6 +129,15 @@
     .office .portal-icon {
       background: linear-gradient(135deg, #059669, #10b981);
       box-shadow: 0 8px 24px rgba(5,150,105,0.35);
+    }
+
+    .signup .portal-icon {
+      background: linear-gradient(135deg, #d97706, #f59e0b);
+      box-shadow: 0 8px 24px rgba(217,119,6,0.35);
+    }
+    .client .portal-icon {
+      background: linear-gradient(135deg, #7c3aed, #6366f1);
+      box-shadow: 0 8px 24px rgba(124,58,237,0.35);
     }
 
     .portal-card h2 {
@@ -158,6 +174,15 @@
     .office .portal-btn {
       background: linear-gradient(135deg, #059669, #10b981);
       box-shadow: 0 4px 16px rgba(5,150,105,0.4);
+    }
+
+    .signup .portal-btn {
+      background: linear-gradient(135deg, #d97706, #f59e0b);
+      box-shadow: 0 4px 16px rgba(217,119,6,0.4);
+    }
+    .client .portal-btn {
+      background: linear-gradient(135deg, #7c3aed, #6366f1);
+      box-shadow: 0 4px 16px rgba(124,58,237,0.4);
     }
 
     .portal-btn:hover { filter: brightness(1.1); transform: scale(1.02); }
@@ -211,7 +236,7 @@
     <div style="background:linear-gradient(135deg,#1e3a8a,#2563eb);border-radius:16px;padding:16px 20px;display:flex;align-items:center;gap:14px;">
       <img src="/icons/icon-192.png" style="width:48px;height:48px;border-radius:10px;flex-shrink:0;" />
       <div style="flex:1;">
-        <div style="color:#fff;font-weight:800;font-size:15px;">PTP Attendance App Install Karein</div>
+        <div style="color:#fff;font-weight:800;font-size:15px;">Gee Bharat App Install Karein</div>
         <div style="color:#93c5fd;font-size:12px;margin-top:2px;">Home screen pe add karein — bilkul app jaisa experience</div>
       </div>
       <button id="pwaInstallBtn" style="background:#fff;color:#1e3a8a;border:none;border-radius:10px;padding:10px 18px;font-size:13px;font-weight:800;cursor:pointer;flex-shrink:0;">
@@ -228,8 +253,8 @@
   </div>
 
   <div class="brand">
-    <div class="brand-logo">PTP</div>
-    <h1>Pro Tax Protect</h1>
+    <div class="brand-logo">GB</div>
+    <h1>Gee Bharat</h1>
     <p>Office Management System</p>
   </div>
 
@@ -257,13 +282,37 @@
         <span class="feature-tag">Compliance</span>
         <span class="feature-tag">Salary</span>
       </div>
-      <span class="portal-btn">Admin Login</span>
+      <span class="portal-btn">Admin / Employee Login</span>
+    </a>
+
+    <a href="/signup.html" class="portal-card signup">
+      <div class="portal-icon">&#127970;</div>
+      <h2>Office / Organisation Signup</h2>
+      <p>Request a new office account for attendance and office management.</p>
+      <div class="features">
+        <span class="feature-tag">New Office</span>
+        <span class="feature-tag">Approval Queue</span>
+        <span class="feature-tag">Subscription</span>
+      </div>
+      <span class="portal-btn">Signup Request</span>
+    </a>
+
+    <a href="/client.html" class="portal-card client">
+      <div class="portal-icon">&#128188;</div>
+      <h2>Client / Agent Portal</h2>
+      <p>View work status, GST filing, Income Tax filing, and raise requests from one portal.</p>
+      <div class="features">
+        <span class="feature-tag">Work Status</span>
+        <span class="feature-tag">GST / ITR</span>
+        <span class="feature-tag">Requests</span>
+      </div>
+      <span class="portal-btn">Client Login</span>
     </a>
 
   </div>
 
   <div class="footer">
-    &copy; 2025 Pro Tax Protect &nbsp;&middot;&nbsp; All rights reserved
+    &copy; 2025 Gee Bharat &nbsp;&middot;&nbsp; All rights reserved
   </div>
 
   <script>

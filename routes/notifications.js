@@ -11,6 +11,7 @@ async function ensureTable() {
   await db.query(`
     CREATE TABLE IF NOT EXISTS notifications (
       id          SERIAL PRIMARY KEY,
+      organization_id INTEGER DEFAULT current_organization_id(),
       emp_id      VARCHAR(50)  NOT NULL,
       type        VARCHAR(50)  NOT NULL,
       title       VARCHAR(200) NOT NULL,
@@ -22,7 +23,7 @@ async function ensureTable() {
   `);
   await db.query(`
     CREATE INDEX IF NOT EXISTS notif_emp_unread_idx
-      ON notifications(emp_id, is_read, created_at DESC)
+      ON notifications(organization_id, emp_id, is_read, created_at DESC)
   `);
 }
 

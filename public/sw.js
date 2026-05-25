@@ -1,5 +1,5 @@
-// ── PTP Attendance Service Worker ────────────────────────────
-const CACHE_NAME   = 'ptp-attendance-v1';
+// Gee Bharat Attendance Service Worker
+const CACHE_NAME   = 'gee-bharat-attendance-v7';
 const OFFLINE_URL  = '/offline.html';
 
 // Static assets to cache immediately on install
@@ -7,10 +7,12 @@ const PRECACHE = [
   '/',
   '/index.html',
   '/dashboard.html',
+  '/client.html',
   '/assets/style.css',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
   '/manifest.json',
+  '/client-manifest.json',
   '/offline.html'
 ];
 

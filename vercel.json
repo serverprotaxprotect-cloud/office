@@ -6,6 +6,12 @@
       "use": "@vercel/node"
     }
   ],
+  "crons": [
+    {
+      "path": "/api/gst/cron/generate",
+      "schedule": "30 12 * * *"
+    }
+  ],
   "routes": [
     {
       "src": "/(.*)",
