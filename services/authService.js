@@ -134,9 +134,9 @@ async function getCandidates(identifier, mode = 'all') {
            o.force_read_only
          FROM admins a
          JOIN organizations o ON o.id=a.organization_id
-         WHERE lower(a.username)=lower($1)
-            OR lower(coalesce(a.email_id,''))=lower($1)
-            OR regexp_replace(coalesce(a.mobile_no,''), '[^0-9]', '', 'g')=$2`,
+         WHERE lower(trim(a.username))=lower(trim($1))
+            OR lower(trim(coalesce(a.email_id,'')))=lower(trim($1))
+            OR ($2 <> '' AND regexp_replace(coalesce(a.mobile_no,''), '[^0-9]', '', 'g')=$2)`,
         params
       );
       candidates.push(...admins.rows);
@@ -165,9 +165,9 @@ async function getCandidates(identifier, mode = 'all') {
            o.force_read_only
          FROM emplist e
          JOIN organizations o ON o.id=e.organization_id
-         WHERE lower(e.emp_id)=lower($1)
-            OR lower(coalesce(e.email_id,''))=lower($1)
-            OR regexp_replace(coalesce(e.mobile_no,''), '[^0-9]', '', 'g')=$2`,
+         WHERE lower(trim(e.emp_id))=lower(trim($1))
+            OR lower(trim(coalesce(e.email_id,'')))=lower(trim($1))
+            OR ($2 <> '' AND regexp_replace(coalesce(e.mobile_no,''), '[^0-9]', '', 'g')=$2)`,
         params
       );
       candidates.push(...employees.rows);

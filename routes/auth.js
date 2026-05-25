@@ -111,8 +111,8 @@ async function findResetCandidates(identifier) {
               o.id AS organization_id, o.office_name, o.status
        FROM admins a JOIN organizations o ON o.id=a.organization_id
        WHERE COALESCE(a.status,'Active')='Active'
-         AND (lower(a.username)=lower($1) OR lower(coalesce(a.email_id,''))=lower($1)
-              OR regexp_replace(coalesce(a.mobile_no,''), '[^0-9]', '', 'g')=$2)`,
+         AND (lower(trim(a.username))=lower(trim($1)) OR lower(trim(coalesce(a.email_id,'')))=lower(trim($1))
+              OR ($2 <> '' AND regexp_replace(coalesce(a.mobile_no,''), '[^0-9]', '', 'g')=$2))`,
       [login, mobile]
     );
     const employees = await db.query(
@@ -120,8 +120,8 @@ async function findResetCandidates(identifier) {
               e.email_id, e.mobile_no, o.id AS organization_id, o.office_name, o.status
        FROM emplist e JOIN organizations o ON o.id=e.organization_id
        WHERE e.status='Active'
-         AND (lower(e.emp_id)=lower($1) OR lower(coalesce(e.email_id,''))=lower($1)
-              OR regexp_replace(coalesce(e.mobile_no,''), '[^0-9]', '', 'g')=$2)`,
+         AND (lower(trim(e.emp_id))=lower(trim($1)) OR lower(trim(coalesce(e.email_id,'')))=lower(trim($1))
+              OR ($2 <> '' AND regexp_replace(coalesce(e.mobile_no,''), '[^0-9]', '', 'g')=$2))`,
       [login, mobile]
     );
     return [...admins.rows, ...employees.rows].filter(r => r.status === 'Active');

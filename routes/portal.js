@@ -149,9 +149,9 @@ async function getPortalCandidates(identifier, accountType = 'client', options =
            o.force_read_only
          FROM agents a
          JOIN organizations o ON o.id=a.organization_id
-         WHERE lower(a.agent_id)=lower($1)
-            OR lower(coalesce(a.email_id,''))=lower($1)
-            OR regexp_replace(coalesce(a.mobile_number,''), '[^0-9]', '', 'g')=$2`,
+         WHERE lower(trim(a.agent_id))=lower(trim($1))
+            OR lower(trim(coalesce(a.email_id,'')))=lower(trim($1))
+            OR ($2 <> '' AND regexp_replace(coalesce(a.mobile_number,''), '[^0-9]', '', 'g')=$2)`,
         [login, mobile]
       );
       return result.rows.filter(r => r.org_status === 'Active' && (!requireEnabled || r.portal_enabled));
@@ -176,9 +176,9 @@ async function getPortalCandidates(identifier, accountType = 'client', options =
          o.force_read_only
        FROM clients c
        JOIN organizations o ON o.id=c.organization_id
-       WHERE lower(c.client_id)=lower($1)
-          OR lower(coalesce(c.email_id,''))=lower($1)
-          OR regexp_replace(coalesce(c.mobile_number,''), '[^0-9]', '', 'g')=$2`,
+       WHERE lower(trim(c.client_id))=lower(trim($1))
+          OR lower(trim(coalesce(c.email_id,'')))=lower(trim($1))
+          OR ($2 <> '' AND regexp_replace(coalesce(c.mobile_number,''), '[^0-9]', '', 'g')=$2)`,
       [login, mobile]
     );
     return result.rows.filter(r => r.org_status === 'Active' && (!requireEnabled || r.portal_enabled));
