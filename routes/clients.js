@@ -99,7 +99,7 @@ router.post('/agents', authMiddleware, async (req, res) => {
     const portalHash = portal_password ? await hashPassword(portal_password) : null;
     await conn.query(
       `INSERT INTO agents (agent_id, name, mobile_number, email_id, portal_enabled, portal_password_hash, portal_password_changed_at)
-       VALUES ($1,$2,$3,$4,$5,$6,CASE WHEN $6 IS NULL THEN NULL ELSE NOW() END)`,
+       VALUES ($1,$2,$3,$4,$5,$6,CASE WHEN $6::text IS NULL THEN NULL ELSE NOW() END)`,
       [next, name, mobile_number || null, email_id || null, !!portal_enabled, portalHash]
     );
     await conn.query('COMMIT');
@@ -282,7 +282,7 @@ router.post('/', authMiddleware, async (req, res) => {
     await conn.query(
       `INSERT INTO clients (client_id, agent_id, agent_name, legal_name, business_name, mobile_number, email_id, address, city, state, gst_no, pan_no,
                             portal_enabled, portal_password_hash, portal_password_changed_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,CASE WHEN $14 IS NULL THEN NULL ELSE NOW() END)`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,CASE WHEN $14::text IS NULL THEN NULL ELSE NOW() END)`,
       [client_id, agent_id || null, agent_name || null, legal_name || null, business_name || null,
        mobile_number, email_id || null, address || null, city || null, state || null, gst_no || null, pan_no || null,
        !!portal_enabled, portalHash]
