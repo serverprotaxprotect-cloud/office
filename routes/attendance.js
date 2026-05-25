@@ -25,6 +25,10 @@ function timeStrIST() {
   return nowIST().toISOString().split('T')[1].split('.')[0]; // HH:MM:SS
 }
 
+function dateKey(value) {
+  return String(value || '').split('T')[0];
+}
+
 // Helper: "HH:MM:SS" → total minutes
 function toMinutes(timeStr) {
   if (!timeStr) return 0;
@@ -436,8 +440,11 @@ router.get('/holidays', authMiddleware, async (req, res) => {
 // ── POST /api/attendance/request (backdated attendance) ───────
 router.post('/request', authMiddleware, async (req, res) => {
   const { emp_id, name, formal_name } = req.user;
-  const { request_date, check_in_time, check_out_time, reason } = req.body;
+  const { check_in_time, check_out_time, reason } = req.body;
+  const request_date = dateKey(req.body.request_date);
   if (!request_date) return res.status(400).json({ success: false, message: 'Date required' });
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(request_date))
+    return res.status(400).json({ success: false, message: 'Invalid date' });
   if (!reason) return res.status(400).json({ success: false, message: 'Reason required' });
   const today = todayIST();
   if (request_date > today)
@@ -468,7 +475,13 @@ router.get('/my-requests', authMiddleware, async (req, res) => {
   try {
     await ensureRequestsTable();
     const result = await db.query(
-      `SELECT * FROM attendance_requests WHERE emp_id=$1 ORDER BY created_at DESC LIMIT 30`,
+      `SELECT id, emp_id, employee_name, TO_CHAR(request_date, 'YYYY-MM-DD') AS request_date,
+              check_in_time, check_out_time, reason, status, admin_remark,
+              reviewed_by, reviewed_at, created_at
+       FROM attendance_requests
+       WHERE emp_id=$1
+       ORDER BY created_at DESC
+       LIMIT 30`,
       [emp_id]
     );
     res.json({ success: true, requests: result.rows });

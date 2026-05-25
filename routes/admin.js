@@ -14,6 +14,15 @@ const router = express.Router();
 // ── IST helpers (Asia/Kolkata = UTC+5:30) ────────────────────
 function nowIST()    { return new Date(Date.now() + (5.5 * 60 * 60 * 1000)); }
 function todayIST()  { return nowIST().toISOString().split('T')[0]; }
+function dateKey(value) {
+  if (value instanceof Date) {
+    const y = value.getFullYear();
+    const m = String(value.getMonth() + 1).padStart(2, '0');
+    const d = String(value.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  return String(value || '').split('T')[0];
+}
 function canManageAdminUsers(admin) {
   return ['Director', 'Office Manager', 'HR'].includes(admin?.role);
 }
@@ -526,7 +535,10 @@ router.get('/attendance-requests', adminAuth, async (req, res) => {
   try {
     await ensureRequestsTable();
     const result = await db.query(
-      `SELECT ar.*, e.designation FROM attendance_requests ar
+      `SELECT ar.id, ar.emp_id, ar.employee_name, TO_CHAR(ar.request_date, 'YYYY-MM-DD') AS request_date,
+              ar.check_in_time, ar.check_out_time, ar.reason, ar.status, ar.admin_remark,
+              ar.reviewed_by, ar.reviewed_at, ar.created_at, e.designation
+       FROM attendance_requests ar
        LEFT JOIN emplist e ON e.emp_id = ar.emp_id
        WHERE ar.status=$1 ORDER BY ar.created_at DESC`,
       [status]
@@ -544,7 +556,14 @@ router.put('/attendance-requests/:id', adminAuth, async (req, res) => {
   if (!['Approved', 'Rejected'].includes(action))
     return res.status(400).json({ success: false, message: 'Invalid action' });
   try {
-    const reqRow = await db.query(`SELECT * FROM attendance_requests WHERE id=$1`, [id]);
+    const reqRow = await db.query(
+      `SELECT id, emp_id, employee_name, TO_CHAR(request_date, 'YYYY-MM-DD') AS request_date,
+              check_in_time, check_out_time, reason, status, admin_remark,
+              reviewed_by, reviewed_at, created_at
+       FROM attendance_requests
+       WHERE id=$1`,
+      [id]
+    );
     if (!reqRow.rows.length) return res.status(404).json({ success: false, message: 'Request not found' });
     const r = reqRow.rows[0];
 
@@ -554,12 +573,10 @@ router.put('/attendance-requests/:id', adminAuth, async (req, res) => {
     );
 
     if (action === 'Approved') {
-      const dateStr = r.request_date instanceof Date
-        ? r.request_date.toISOString().split('T')[0]
-        : String(r.request_date).split('T')[0];
-      const dateObj = new Date(dateStr);
-      const month = dateObj.getMonth() + 1;
-      const year  = dateObj.getFullYear();
+      const dateStr = dateKey(r.request_date);
+      const [yearNum, monthNum] = dateStr.split('-').map(Number);
+      const month = monthNum;
+      const year  = yearNum;
 
       const empRow = await db.query(`SELECT name, formal_name FROM emplist WHERE emp_id=$1`, [r.emp_id]);
       const empName = empRow.rows[0]?.formal_name || empRow.rows[0]?.name || r.employee_name;

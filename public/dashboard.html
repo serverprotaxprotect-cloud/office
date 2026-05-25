@@ -558,6 +558,11 @@ function fmtDate(d) {
   return dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
 }
 
+function fmtDateLong(d) {
+  const dt = dateFromKey(dateKey(d));
+  return dt.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+}
+
 function dateKey(value = new Date()) {
   if (typeof value === 'string') return value.split('T')[0];
   const y = value.getFullYear();
@@ -986,8 +991,7 @@ async function loadMyRequests() {
       return;
     }
     list.innerHTML = data.requests.map(r => {
-      const d  = String(r.request_date).split('T')[0];
-      const dt = new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+      const dt = fmtDateLong(r.request_date);
       const bc = r.status === 'Approved' ? 'badge-present' : r.status === 'Rejected' ? 'badge-absent' : 'badge-pending';
       return `<div class="req-item">
         <div class="req-item-top">
