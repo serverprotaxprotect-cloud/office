@@ -554,8 +554,6 @@ router.put('/attendance-requests/:id', adminAuth, async (req, res) => {
     );
 
     if (action === 'Approved') {
-      const inTime  = check_in_time  || r.check_in_time;
-      const outTime = check_out_time || r.check_out_time;
       const dateStr = r.request_date instanceof Date
         ? r.request_date.toISOString().split('T')[0]
         : String(r.request_date).split('T')[0];
@@ -563,43 +561,55 @@ router.put('/attendance-requests/:id', adminAuth, async (req, res) => {
       const month = dateObj.getMonth() + 1;
       const year  = dateObj.getFullYear();
 
-      let workingHours = null;
-      let finalStatus  = 'Present';
-      if (inTime && outTime) {
-        const cfg = await getSettings();
-        const fullDayMins = parseInt(cfg.FULL_DAY_MINUTES || '480');
-        const halfDayMins = parseInt(cfg.HALF_DAY_MINUTES || '240');
-        const worked = Math.max(0, toMinutes(outTime) - toMinutes(inTime));
-        workingHours = `${Math.floor(worked/60)}h ${worked%60}m`;
-        finalStatus  = worked >= fullDayMins ? 'Present' : worked >= halfDayMins ? 'Half Day' : 'Short Day';
-      }
-
       const empRow = await db.query(`SELECT name, formal_name FROM emplist WHERE emp_id=$1`, [r.emp_id]);
       const empName = empRow.rows[0]?.formal_name || empRow.rows[0]?.name || r.employee_name;
 
       const existsRow = await db.query(
-        `SELECT emp_id FROM daily_attendance WHERE emp_id=$1 AND date::date=$2`,
+        `SELECT emp_id, first_in, last_out FROM daily_attendance WHERE emp_id=$1 AND date::date=$2`,
         [r.emp_id, dateStr]
       );
+      const existingAttendance = existsRow.rows[0] || {};
+      const inTime  = check_in_time  || r.check_in_time  || existingAttendance.first_in;
+      const outTime = check_out_time || r.check_out_time || existingAttendance.last_out;
+
+      if (!inTime && !outTime) {
+        return res.status(400).json({ success: false, message: 'Approve karne ke liye IN ya OUT time required hai' });
+      }
+
+      const cfg = await getSettings();
+      const fullDayMins = parseInt(cfg.FULL_DAY_MINUTES || '480');
+      const halfDayMins = parseInt(cfg.HALF_DAY_MINUTES || '240');
+      const officeStartMins = toMinutes(cfg.OFFICE_START_TIME || '10:00:00');
+      const lateThreshold = parseInt(cfg.LATE_THRESHOLD_MINUTES || '0');
+      const lateMinutes = inTime ? Math.max(0, toMinutes(inTime) - officeStartMins - lateThreshold) : 0;
+      let workingHours = null;
+      let finalStatus = 'Pending';
+      if (inTime && outTime) {
+        const worked = Math.max(0, toMinutes(outTime) - toMinutes(inTime));
+        workingHours = `${Math.floor(worked/60)}h ${worked%60}m`;
+        finalStatus = worked >= fullDayMins ? 'Present' : worked >= halfDayMins ? 'Half Day' : 'Short Day';
+      }
+
       if (existsRow.rows.length > 0) {
         await db.query(
           `UPDATE daily_attendance SET
              first_in=COALESCE($1, first_in), last_out=COALESCE($2, last_out),
              working_hours=COALESCE($3, working_hours), final_status=$4,
-             remark='Backdated - Approved', approved_by=$5, approved_at=NOW()
-           WHERE emp_id=$6 AND date::date=$7`,
+             late_minutes=$5,
+             remark='Backdated - Approved', approved_by=$6, approved_at=NOW()
+           WHERE emp_id=$7 AND date::date=$8`,
           [inTime || null, outTime || null, workingHours, finalStatus,
-           req.admin.name, r.emp_id, dateStr]
+           lateMinutes, req.admin.name, r.emp_id, dateStr]
         );
       } else {
         await db.query(
           `INSERT INTO daily_attendance
              (date, emp_id, employee_name, formal_name, first_in, last_out,
-              working_hours, final_status, month, year, remark, approved_by, approved_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'Backdated - Approved',$11,NOW())`,
+              working_hours, final_status, late_minutes, month, year, remark, approved_by, approved_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'Backdated - Approved',$12,NOW())`,
           [dateStr, r.emp_id, empName, empName,
            inTime || null, outTime || null, workingHours, finalStatus,
-           month, year, req.admin.name]
+           lateMinutes, month, year, req.admin.name]
         );
       }
 

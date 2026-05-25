@@ -440,8 +440,8 @@ router.post('/request', authMiddleware, async (req, res) => {
   if (!request_date) return res.status(400).json({ success: false, message: 'Date required' });
   if (!reason) return res.status(400).json({ success: false, message: 'Reason required' });
   const today = todayIST();
-  if (request_date >= today)
-    return res.status(400).json({ success: false, message: 'Sirf past dates ke liye request allowed hai' });
+  if (request_date > today)
+    return res.status(400).json({ success: false, message: 'Future date ke liye request allowed nahi hai' });
   try {
     await ensureRequestsTable();
     const existing = await db.query(

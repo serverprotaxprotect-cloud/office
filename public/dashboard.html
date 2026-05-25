@@ -287,7 +287,10 @@
 
     <!-- My Backdated Requests -->
     <div class="card">
-      <div class="card-title">My Attendance Requests</div>
+      <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <span>My Attendance Requests</span>
+        <button class="btn-sm" onclick="openAttReqModal(todayStr())" style="background:#2563eb;color:white;border:none;border-radius:8px;padding:7px 10px;">+ New Request</button>
+      </div>
       <div id="myRequestsList">
         <p style="color:#94a3b8;font-size:14px;text-align:center;padding:12px 0;">Loading...</p>
       </div>
@@ -469,11 +472,20 @@
       Date: <strong id="reqModalDate">--</strong>
     </div>
     <div class="req-input-group">
-      <label>Check-in Time (optional)</label>
+      <label>Request Type</label>
+      <select id="req_type" onchange="applyAttReqType()" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none;background:#fff;">
+        <option value="full">Forgot both IN and OUT</option>
+        <option value="missed_in">Forgot punch-in</option>
+        <option value="missed_out">Forgot punch-out</option>
+        <option value="late_correction">Late punch-in correction</option>
+      </select>
+    </div>
+    <div class="req-input-group">
+      <label id="req_in_label">Check-in Time (optional)</label>
       <input type="time" id="req_in_time" />
     </div>
     <div class="req-input-group">
-      <label>Check-out Time (optional)</label>
+      <label id="req_out_label">Check-out Time (optional)</label>
       <input type="time" id="req_out_time" />
     </div>
     <div class="req-input-group">
@@ -794,6 +806,12 @@ function renderCalendar(month, year, recMap, holMap, reqMap, today, totalDays) {
 // ── Backdated Attendance Request ──────────────────────────
 let _reqModalDate = '';
 
+function todayStr() {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 10);
+}
+
 function openAttReqModal(dateStr) {
   _reqModalDate = dateStr;
   const d = dateFromKey(dateStr);
@@ -802,6 +820,8 @@ function openAttReqModal(dateStr) {
   document.getElementById('req_in_time').value  = '';
   document.getElementById('req_out_time').value = '';
   document.getElementById('req_reason').value   = '';
+  document.getElementById('req_type').value      = 'full';
+  applyAttReqType();
   document.getElementById('reqModalMsg').style.display = 'none';
   document.getElementById('attReqModal').style.display = 'flex';
 }
@@ -810,11 +830,48 @@ function closeAttReqModal() {
   document.getElementById('attReqModal').style.display = 'none';
 }
 
+function applyAttReqType() {
+  const type = document.getElementById('req_type').value;
+  const inWrap = document.getElementById('req_in_time').closest('.req-input-group');
+  const outWrap = document.getElementById('req_out_time').closest('.req-input-group');
+  inWrap.style.display = '';
+  outWrap.style.display = '';
+  document.getElementById('req_in_label').textContent = 'Check-in Time';
+  document.getElementById('req_out_label').textContent = 'Check-out Time';
+
+  if (type === 'missed_in' || type === 'late_correction') {
+    outWrap.style.display = 'none';
+    document.getElementById('req_out_time').value = '';
+    document.getElementById('req_in_label').textContent = type === 'late_correction' ? 'Correct Check-in Time' : 'Missed Check-in Time';
+  } else if (type === 'missed_out') {
+    inWrap.style.display = 'none';
+    document.getElementById('req_in_time').value = '';
+    document.getElementById('req_out_label').textContent = 'Missed Check-out Time';
+  }
+}
+
 async function submitAttRequest() {
   const msg    = document.getElementById('reqModalMsg');
   const reason = document.getElementById('req_reason').value.trim();
+  const type   = document.getElementById('req_type').value;
+  const typeLabels = {
+    full: 'Forgot both IN and OUT',
+    missed_in: 'Forgot punch-in',
+    missed_out: 'Forgot punch-out',
+    late_correction: 'Late punch-in correction'
+  };
+  const inTime = document.getElementById('req_in_time').value || null;
+  const outTime = document.getElementById('req_out_time').value || null;
   if (!reason) {
     msg.className = 'alert alert-error'; msg.textContent = 'Reason likhna zaroori hai.';
+    msg.style.display = 'block'; return;
+  }
+  if ((type === 'full' || type === 'missed_in' || type === 'late_correction') && !inTime) {
+    msg.className = 'alert alert-error'; msg.textContent = 'Check-in time required hai.';
+    msg.style.display = 'block'; return;
+  }
+  if ((type === 'full' || type === 'missed_out') && !outTime) {
+    msg.className = 'alert alert-error'; msg.textContent = 'Check-out time required hai.';
     msg.style.display = 'block'; return;
   }
   msg.style.display = 'none';
@@ -823,9 +880,9 @@ async function submitAttRequest() {
       method: 'POST',
       body: JSON.stringify({
         request_date:   _reqModalDate,
-        check_in_time:  document.getElementById('req_in_time').value  || null,
-        check_out_time: document.getElementById('req_out_time').value || null,
-        reason
+        check_in_time:  inTime,
+        check_out_time: outTime,
+        reason: `[${typeLabels[type]}] ${reason}`
       })
     });
     if (data.success) {
