@@ -20,9 +20,37 @@ async function getSettings() {
   return s;
 }
 
+const SALARY_STRUCTURE_INCREMENT_COLUMNS = {
+  increment_effective_date: 'increment_effective_date DATE',
+  new_monthly_salary: 'new_monthly_salary NUMERIC(10,2)',
+};
+
 async function ensureIncrementColumns() {
-  await db.query(`ALTER TABLE salary_structure ADD COLUMN IF NOT EXISTS increment_effective_date DATE`);
-  await db.query(`ALTER TABLE salary_structure ADD COLUMN IF NOT EXISTS new_monthly_salary NUMERIC(10,2)`);
+  const columnNames = Object.keys(SALARY_STRUCTURE_INCREMENT_COLUMNS);
+  const existing = await db.query(
+    `SELECT column_name
+     FROM information_schema.columns
+     WHERE table_schema='public'
+       AND table_name='salary_structure'
+       AND column_name = ANY($1::text[])`,
+    [columnNames]
+  );
+  const existingNames = new Set(existing.rows.map(row => row.column_name));
+  const missing = columnNames.filter(column => !existingNames.has(column));
+  if (!missing.length) return;
+
+  try {
+    for (const column of missing) {
+      await db.query(`ALTER TABLE salary_structure ADD COLUMN IF NOT EXISTS ${SALARY_STRUCTURE_INCREMENT_COLUMNS[column]}`);
+    }
+  } catch (err) {
+    if (err.code === '42501') {
+      const e = new Error(`Salary structure migration pending. Missing columns: ${missing.join(', ')}`);
+      e.statusCode = 500;
+      throw e;
+    }
+    throw err;
+  }
 }
 
 // ── GET /api/salary/structure ────────────────────────────────
