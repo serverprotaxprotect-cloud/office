@@ -836,7 +836,6 @@ let PERMISSION_CATALOG = [];
 let ROLE_PERMISSION_ROWS = [];
 let PERM_MODE = 'role';
 let PERM_USER = null;
-let PERM_USER_EFFECTIVE = [];
 
 // ── Helpers ──────────────────────────────────────────────────
 const api = async (path, opts = {}) => {
@@ -1309,19 +1308,16 @@ function renderPermissionChecks({ effective = [], role = [], allow = [], deny = 
         ${items.map(p => {
           if (mode === 'user') {
             const current = effective.includes(p.key);
-            return `<div style="font-size:12px;background:${current ? '#ecfdf5' : '#f8fafc'};border:1px solid ${current ? '#86efac' : '#e2e8f0'};border-radius:7px;padding:7px;">
-              <label style="font-weight:800;display:block;margin-bottom:6px;color:#0f172a;">
-                <input type="checkbox" class="perm-effective" value="${p.key}" ${current?'checked':''}> ${p.action}
-              </label>
-              <label><input type="checkbox" class="perm-allow" value="${p.key}" ${allow.includes(p.key)?'checked':''}> Extra allow</label><br>
-              <label><input type="checkbox" class="perm-deny" value="${p.key}" ${deny.includes(p.key)?'checked':''}> Block for this user</label>
-              <div style="color:#64748b;margin-top:4px;">Role default: ${role.includes(p.key) ? 'Allowed' : 'Blocked'}</div>
-            </div>`;
-          }
-          const granted = role.includes(p.key);
-          return `<label style="font-size:12px;background:${granted ? '#ecfdf5' : '#f8fafc'};border:1px solid ${granted ? '#86efac' : '#e2e8f0'};border-radius:7px;padding:7px;">
-            <input type="checkbox" class="perm-role" value="${p.key}" ${granted?'checked':''}> ${p.action}
+            return `<label style="font-size:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:7px;">
+              <div style="font-weight:700;margin-bottom:5px;">${p.action}</div>
+              <label><input type="checkbox" class="perm-allow" value="${p.key}" ${allow.includes(p.key)?'checked':''}> Allow override</label><br>
+              <label><input type="checkbox" class="perm-deny" value="${p.key}" ${deny.includes(p.key)?'checked':''}> Deny override</label>
+              <div style="color:#64748b;margin-top:4px;">Current: ${current ? 'Allowed' : 'Blocked'}</div>
             </label>`;
+          }
+          return `<label style="font-size:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:7px;">
+            <input type="checkbox" class="perm-role" value="${p.key}" ${role.includes(p.key)?'checked':''}> ${p.action}
+          </label>`;
         }).join('')}
       </div>
     </div>`).join('');
@@ -1331,7 +1327,6 @@ function renderPermissionChecks({ effective = [], role = [], allow = [], deny = 
 
 async function openRolePermissions() {
   PERM_MODE = 'role'; PERM_USER = null;
-  PERM_USER_EFFECTIVE = [];
   await ensurePermissionCatalog();
   document.getElementById('permModalTitle').textContent = 'Role Permissions';
   document.getElementById('permTargetWrap').style.display = 'grid';
@@ -1355,7 +1350,6 @@ async function openUserPermissions(subjectType, id, name, roleName) {
   const data = await api(`/admin/permissions/users/${subjectType}/${encodeURIComponent(id)}`);
   if (!data.success) { showToast(data.message || 'Permission load failed', 'error'); return; }
   PERM_USER = { subjectType, id };
-  PERM_USER_EFFECTIVE = data.role_permissions || [];
   document.getElementById('permModalTitle').textContent = 'User Permission Overrides';
   document.getElementById('permTargetWrap').style.display = 'none';
   document.getElementById('permUserInfo').style.display = 'block';
@@ -1381,14 +1375,8 @@ async function savePermissions() {
     data = await api(`/admin/permissions/roles/${subjectType}/${encodeURIComponent(roleName)}`, { method:'PUT', body:JSON.stringify({ permissions }) });
     if (data.success) ROLE_PERMISSION_ROWS = (await api('/admin/permissions/roles')).roles || [];
   } else {
-    const manualAllow = [...document.querySelectorAll('.perm-allow:checked')].map(cb => cb.value);
-    const manualDeny = [...document.querySelectorAll('.perm-deny:checked')].map(cb => cb.value);
-    const desired = [...document.querySelectorAll('.perm-effective:checked')].map(cb => cb.value);
-    const roleAllowed = new Set(PERM_USER_EFFECTIVE);
-    manualAllow.forEach(p => roleAllowed.add(p));
-    manualDeny.forEach(p => roleAllowed.delete(p));
-    const overrides_allow = Array.from(new Set([...manualAllow, ...desired.filter(p => !roleAllowed.has(p))]));
-    const overrides_deny = Array.from(new Set([...manualDeny, ...PERM_USER_EFFECTIVE.filter(p => !desired.includes(p))]));
+    const overrides_allow = [...document.querySelectorAll('.perm-allow:checked')].map(cb => cb.value);
+    const overrides_deny = [...document.querySelectorAll('.perm-deny:checked')].map(cb => cb.value);
     data = await api(`/admin/permissions/users/${PERM_USER.subjectType}/${encodeURIComponent(PERM_USER.id)}`, { method:'PUT', body:JSON.stringify({ overrides_allow, overrides_deny }) });
   }
   msg.className = data.success ? 'alert alert-success' : 'alert alert-error';
