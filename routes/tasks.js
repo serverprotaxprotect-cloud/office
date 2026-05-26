@@ -131,7 +131,7 @@ router.get('/', authMiddleware, async (req, res) => {
     if (emp_filter) { params.push(emp_filter); conds.push(`(t.assigned_to_id = $${params.length} OR t.created_by_id = $${params.length})`); }
   } else if (view === 'all') {
     // Admin: all active tasks
-    conds.push(`t.status NOT IN ('Completed','Cancelled')`);
+    if (!status) conds.push(`t.status NOT IN ('Completed','Cancelled')`);
     if (emp_filter) { params.push(emp_filter); conds.push(`(t.assigned_to_id = $${params.length} OR t.created_by_id = $${params.length})`); }
   }
 

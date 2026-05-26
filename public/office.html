@@ -2220,7 +2220,7 @@ async function loadDashboard() {
     const sb = document.getElementById('statusBreakdown');
     const total = data.all_active || 1;
     sb.innerHTML = (data.status_breakdown || []).map(s => `
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <div onclick="openTasksByStatus('${jsArg(s.status)}', true)" title="Open ${h(s.status)} tasks" style="display:flex;align-items:center;gap:10px;margin-bottom:8px;cursor:pointer">
         ${statusBadge(s.status)}
         <div style="flex:1;background:#f1f5f9;border-radius:4px;height:8px;overflow:hidden">
           <div style="background:#2155f3;height:100%;width:${Math.min(100,s.cnt/total*100)}%;border-radius:4px"></div>
@@ -2253,7 +2253,7 @@ async function loadDashboard() {
     const sb = document.getElementById('statusBreakdown');
     const total = data.my_active || 1;
     sb.innerHTML = (data.status_breakdown || []).map(s => `
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <div onclick="openTasksByStatus('${jsArg(s.status)}', false)" title="Open ${h(s.status)} tasks" style="display:flex;align-items:center;gap:10px;margin-bottom:8px;cursor:pointer">
         ${statusBadge(s.status)}
         <div style="flex:1;background:#f1f5f9;border-radius:4px;height:8px;overflow:hidden">
           <div style="background:#2155f3;height:100%;width:${Math.min(100,s.cnt/total*100)}%;border-radius:4px"></div>
@@ -2264,6 +2264,29 @@ async function loadDashboard() {
 }
 
 // ── TASKS ────────────────────────────────────────────────────
+async function openTasksByStatus(status, allEmployees = false) {
+  if (allEmployees) {
+    showPanel('alltasks');
+    await loadMeta();
+    ['allSearch','allEmpFilter','allPriorityFilter','allWorkFilter'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    const statusFilter = document.getElementById('allStatusFilter');
+    if (statusFilter) statusFilter.value = status || '';
+    panelLoaded['alltasks'] = true;
+    loadTasks('all');
+    return;
+  }
+  showPanel('mytasks');
+  const search = document.getElementById('mySearch');
+  if (search) search.value = '';
+  const statusFilter = document.getElementById('myStatusFilter');
+  if (statusFilter) statusFilter.value = status || '';
+  panelLoaded['mytasks'] = true;
+  loadTasks('my');
+}
+
 async function openEmployeeActiveTasks(empId, empName = '') {
   if (!empId) return;
   showPanel('alltasks');
