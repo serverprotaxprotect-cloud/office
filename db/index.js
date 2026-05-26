@@ -28,6 +28,10 @@ async function applyTenantContext(rawQuery) {
 function wrapClient(client) {
   const rawQuery = client.query.bind(client);
   client.query = async (text, params) => {
+    const sql = typeof text === 'string' ? text.trim().toUpperCase() : '';
+    if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK' || sql.startsWith('ROLLBACK ')) {
+      return rawQuery(text, params);
+    }
     await applyTenantContext(rawQuery);
     return rawQuery(text, params);
   };

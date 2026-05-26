@@ -293,6 +293,7 @@ async function syncCompanyIncorporationDates(conn = db) {
 }
 
 async function ensureKycAssignmentSchema(conn = db) {
+  await conn.query(`ALTER TABLE director_kyc_tracking ALTER COLUMN active_flag TYPE VARCHAR(20)`);
   await conn.query(`ALTER TABLE director_kyc_tracking ADD COLUMN IF NOT EXISTS assigned_to_id VARCHAR(80)`);
   await conn.query(`ALTER TABLE director_kyc_tracking ADD COLUMN IF NOT EXISTS assigned_to_name VARCHAR(150)`);
   await conn.query(`ALTER TABLE director_kyc_tracking ADD COLUMN IF NOT EXISTS linked_task_id VARCHAR(100)`);
@@ -832,7 +833,7 @@ async function assignRecord(id, assigneeId, actor, remark) {
   const conn = await db.pool.connect();
   try {
     await conn.query('BEGIN');
-    const oldRes = await conn.query(`SELECT r.*, t.default_priority FROM company_compliance_records r LEFT JOIN compliance_templates t ON t.id=r.template_id WHERE r.id=$1 FOR UPDATE`, [id]);
+    const oldRes = await conn.query(`SELECT r.*, t.default_priority FROM company_compliance_records r LEFT JOIN compliance_templates t ON t.id=r.template_id WHERE r.id=$1 FOR UPDATE OF r`, [id]);
     if (!oldRes.rows.length) {
       const err = new Error('Compliance record not found');
       err.statusCode = 404;
@@ -938,7 +939,7 @@ async function createTaskForRecordId(id, actor) {
   const conn = await db.pool.connect();
   try {
     await conn.query('BEGIN');
-    const recRes = await conn.query(`SELECT r.*, t.default_priority FROM company_compliance_records r LEFT JOIN compliance_templates t ON t.id=r.template_id WHERE r.id=$1 FOR UPDATE`, [id]);
+    const recRes = await conn.query(`SELECT r.*, t.default_priority FROM company_compliance_records r LEFT JOIN compliance_templates t ON t.id=r.template_id WHERE r.id=$1 FOR UPDATE OF r`, [id]);
     if (!recRes.rows.length) {
       const err = new Error('Compliance record not found');
       err.statusCode = 404;

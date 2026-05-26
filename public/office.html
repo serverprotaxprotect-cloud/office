@@ -345,7 +345,6 @@
     <div class="sb-item" id="sb-clients" onclick="showPanel('clients')"><span class="ic">&#128100;</span>Client/Agent Search</div>
     <div class="sb-section" id="sec-compliance">Compliance</div>
     <div class="sb-item" id="sb-companies" onclick="showPanel('companies')"><span class="ic">&#127970;</span>Companies</div>
-    <div class="sb-item" id="sb-directors" onclick="showPanel('directors')"><span class="ic">&#128104;</span>Directors / KYC</div>
     <div class="sb-item" id="sb-comptracking" onclick="showPanel('comptracking')"><span class="ic">&#9989;</span>Compliance Tracking</div>
     <div class="sb-item" id="sb-gstclients" onclick="showPanel('gstclients')"><span class="ic">&#128179;</span>GST Clients</div>
     <div class="sb-item" id="sb-incometax" onclick="showPanel('incometax')"><span class="ic">&#128188;</span>Income Tax Clients</div>
@@ -581,7 +580,6 @@
         <button class="btn-sm" id="ctab-company" onclick="switchCTab('company')" style="background:#f1f5f9;color:#475569">Company FY Workspace</button>
         <button class="btn-sm" id="ctab-report" onclick="switchCTab('report')" style="background:#f1f5f9;color:#475569">FY Report</button>
         <button class="btn-sm" id="ctab-templates" onclick="switchCTab('templates')" style="background:#f1f5f9;color:#475569">Templates</button>
-        <button class="btn-sm" id="ctab-kyc" onclick="switchCTab('kyc')" style="background:#f1f5f9;color:#475569">Director KYC All</button>
       </div>
 
       <div id="ctab-panel-dashboard">
@@ -1549,7 +1547,6 @@ function applyPermissions() {
     'sb-notifications':'notifications',
     'sb-clients':     'clients',
     'sb-companies':   'companies',
-    'sb-directors':   'directors',
     'sb-comptracking':'comptracking',
     'sb-gstclients':  'gstclients',
     'sb-incometax':   'incometax',
@@ -1564,7 +1561,7 @@ function applyPermissions() {
 
   // Section headers: hide if all items below are hidden
   const clientItems = ['sb-clients'];
-  const compItems   = ['sb-companies','sb-directors','sb-comptracking','sb-gstclients','sb-incometax'];
+  const compItems   = ['sb-companies','sb-comptracking','sb-gstclients','sb-incometax'];
   const clientVisible = clientItems.some(id => document.getElementById(id)?.style.display !== 'none');
   const compVisible   = compItems.some(id => document.getElementById(id)?.style.display !== 'none');
   const secClients = document.getElementById('sec-clients');
@@ -3317,7 +3314,7 @@ function populateComplianceAssignees() {
 }
 
 function switchCTab(tab) {
-  ['dashboard','company','report','templates','kyc'].forEach(t => {
+  ['dashboard','company','report','templates'].forEach(t => {
     const panel = document.getElementById('ctab-panel-'+t);
     const btn = document.getElementById('ctab-'+t);
     if (!panel || !btn) return;
