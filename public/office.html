@@ -1734,19 +1734,6 @@ const api = async (path, opts = {}) => {
   return request;
 };
 
-document.addEventListener('click', (event) => {
-  const button = event.target.closest('button');
-  if (!button || button.disabled || button.dataset.noClickGuard === '1') return;
-  const now = Date.now();
-  const busyUntil = Number(button.dataset.busyUntil || 0);
-  if (busyUntil > now) {
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    return;
-  }
-  button.dataset.busyUntil = String(now + 700);
-}, true);
-
 function logout() {
   localStorage.removeItem('office_token'); localStorage.removeItem('office_user');
   window.location.href = '/';
