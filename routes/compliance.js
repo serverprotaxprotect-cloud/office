@@ -6,6 +6,23 @@ const complianceService = require('../services/complianceService');
 const router = express.Router();
 
 const STATUS_OPTIONS = complianceService.COMPLIANCE_STATUSES;
+const templatesCache = new Map();
+const TEMPLATES_CACHE_TTL_MS = 60 * 1000;
+
+function orgCacheKey(req, suffix) {
+  return `${req.user?.organization_id || req.user?.organizationId || 'default'}:${suffix}`;
+}
+
+function clearTemplatesCache(req) {
+  if (!req) {
+    templatesCache.clear();
+    return;
+  }
+  const prefix = `${req.user?.organization_id || req.user?.organizationId || 'default'}:`;
+  for (const key of templatesCache.keys()) {
+    if (key.startsWith(prefix)) templatesCache.delete(key);
+  }
+}
 
 const FY_OPTIONS = () => {
   const now = new Date(Date.now() + (5.5 * 60 * 60 * 1000)); // IST
@@ -153,8 +170,15 @@ function routeError(res, err, label) {
 // Normalized company compliance engine
 router.get('/templates', authMiddleware, async (req, res) => {
   try {
+    const key = orgCacheKey(req, 'templates');
+    const cached = templatesCache.get(key);
+    if (cached && cached.expiresAt > Date.now()) {
+      return res.json(cached.payload);
+    }
     const data = await complianceService.listTemplates();
-    res.json({ success:true, templates:data.templates, employees:data.employees, status_options:STATUS_OPTIONS, fy_options:FY_OPTIONS(), template_types:complianceService.TEMPLATE_TYPES });
+    const payload = { success:true, templates:data.templates, employees:data.employees, status_options:STATUS_OPTIONS, fy_options:FY_OPTIONS(), template_types:complianceService.TEMPLATE_TYPES };
+    templatesCache.set(key, { payload, expiresAt: Date.now() + TEMPLATES_CACHE_TTL_MS });
+    res.json(payload);
   } catch (err) { routeError(res, err, '[compliance templates]'); }
 });
 
@@ -173,6 +197,7 @@ router.post('/templates', authMiddleware, async (req, res) => {
          enabled=EXCLUDED.enabled, sort_order=EXCLUDED.sort_order, updated_at=NOW()`,
       [code, name, template_type, event_type || null, due_rule || null, default_priority || 'Medium', typeof enabled === 'boolean' ? enabled : true, sort_order ? parseInt(sort_order,10) : 100]
     );
+    clearTemplatesCache(req);
     res.json({ success:true, message:'Compliance template saved' });
   } catch (err) { routeError(res, err, '[compliance template create]'); }
 });
@@ -180,6 +205,7 @@ router.post('/templates', authMiddleware, async (req, res) => {
 router.put('/templates/:id', authMiddleware, async (req, res) => {
   try {
     const template = await complianceService.updateTemplate(parseInt(req.params.id, 10), req.body, req.user);
+    clearTemplatesCache(req);
     res.json({ success:true, message:'Compliance template updated', template });
   } catch (err) { routeError(res, err, '[compliance template update]'); }
 });

@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const compression = require('compression');
 const path = require('path');
 
 const authRoutes       = require('./routes/auth');
@@ -22,13 +23,45 @@ const { router: notifRoutes } = require('./routes/notifications');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const slowRequests = [];
 
 app.use(cors());
+app.use(compression({ threshold: 1024 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+app.use((req, res, next) => {
+  const started = process.hrtime.bigint();
+  res.on('finish', () => {
+    if (!req.originalUrl.startsWith('/api/')) return;
+    const durationMs = Number(process.hrtime.bigint() - started) / 1e6;
+    if (durationMs < 500) return;
+    const entry = {
+      method: req.method,
+      path: req.originalUrl,
+      status: res.statusCode,
+      duration_ms: Math.round(durationMs),
+      at: new Date().toISOString()
+    };
+    slowRequests.push(entry);
+    if (slowRequests.length > 100) slowRequests.shift();
+    console.warn(`[slow-api] ${entry.method} ${entry.path} ${entry.status} ${entry.duration_ms}ms`);
+  });
+  next();
+});
+
 // Static files
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  etag: true,
+  maxAge: '7d',
+  setHeaders(res, filePath) {
+    if (filePath.endsWith('.html') || filePath.endsWith('sw.js')) {
+      res.setHeader('Cache-Control', 'no-cache');
+      return;
+    }
+    res.setHeader('Cache-Control', 'public, max-age=604800');
+  }
+}));
 
 // API Routes
 app.use('/api/auth',       authRoutes);
@@ -53,6 +86,15 @@ app.get('/api/maps/config', (req, res) => {
     return res.status(404).json({ success: false, message: 'Google Maps API key is not configured' });
   }
   res.json({ success: true, apiKey: process.env.GOOGLE_MAPS_API_KEY });
+});
+
+app.get('/api/health/performance', (req, res) => {
+  res.json({
+    success: true,
+    uptime_seconds: Math.round(process.uptime()),
+    memory: process.memoryUsage(),
+    slow_requests: slowRequests.slice(-50)
+  });
 });
 
 // Catch-all: serve index (login page)

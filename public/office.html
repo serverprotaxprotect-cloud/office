@@ -535,7 +535,7 @@
         </div>
       </div>
       <div class="filter-row">
-        <input type="text" id="compSearch" placeholder="Search CIN, name, client, agent..." oninput="loadCompanies()" style="max-width:340px;flex:1"/>
+        <input type="text" id="compSearch" placeholder="Search CIN, name, client, agent..." oninput="debounceCompanies()" style="max-width:340px;flex:1"/>
         <select id="compStatusFilter" onchange="loadCompanies()"><option value="">All Status</option><option>Active</option><option>Inactive</option></select>
         <button class="btn-sm btn-view" onclick="setCompanyStatusTab('Active')">Active Companies</button>
         <button class="btn-sm btn-view" onclick="setCompanyStatusTab('Inactive')">Inactive Companies</button>
@@ -556,7 +556,7 @@
         </div>
       </div>
       <div class="filter-row">
-        <input type="text" id="dirSearch" placeholder="Search DIN, name, company, PAN..." oninput="loadDirectors()" style="max-width:340px;flex:1"/>
+        <input type="text" id="dirSearch" placeholder="Search DIN, name, company, PAN..." oninput="debounceDirectors()" style="max-width:340px;flex:1"/>
         <select id="dirKYCFilter" onchange="loadDirectors()">
           <option value="">All KYC Status</option>
           <option>Pending</option><option>Pending by Client</option><option>Filed</option>
@@ -1688,13 +1688,64 @@ document.addEventListener('keydown', e => {
 
 if (token) { showOfficeApp(); }
 
+const API_CACHE = new Map();
+const API_INFLIGHT = new Map();
+const API_DEFAULT_TTL = 12000;
+const API_META_TTL = 60000;
+
+function clearApiCache(prefix = '') {
+  for (const key of API_CACHE.keys()) {
+    if (!prefix || key.includes(prefix)) API_CACHE.delete(key);
+  }
+}
+
 const api = async (path, opts = {}) => {
-  const r = await fetch('/api' + path, {
-    ...opts,
-    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', ...(opts.headers||{}) }
+  const method = (opts.method || 'GET').toUpperCase();
+  const cacheKey = method + ':' + path;
+  const useCache = method === 'GET' && opts.cache !== false;
+  const ttl = opts.cacheTtl ?? ((path.includes('/meta') || path.includes('/templates')) ? API_META_TTL : API_DEFAULT_TTL);
+
+  if (useCache && !opts.force) {
+    const cached = API_CACHE.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) return cached.data;
+    if (API_INFLIGHT.has(cacheKey)) return API_INFLIGHT.get(cacheKey);
+  }
+
+  const fetchOpts = { ...opts };
+  delete fetchOpts.cache;
+  delete fetchOpts.cacheTtl;
+  delete fetchOpts.force;
+
+  const request = fetch('/api' + path, {
+    ...fetchOpts,
+    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', ...(fetchOpts.headers||{}) }
+  }).then(async (r) => {
+    const data = await r.json().catch(() => ({ success: false, message: 'Invalid server response' }));
+    if (useCache && r.ok && data.success !== false) {
+      API_CACHE.set(cacheKey, { data, expiresAt: Date.now() + ttl });
+    }
+    if (method !== 'GET') clearApiCache();
+    return data;
+  }).finally(() => {
+    API_INFLIGHT.delete(cacheKey);
   });
-  return r.json();
+
+  if (useCache) API_INFLIGHT.set(cacheKey, request);
+  return request;
 };
+
+document.addEventListener('click', (event) => {
+  const button = event.target.closest('button');
+  if (!button || button.disabled || button.dataset.noClickGuard === '1') return;
+  const now = Date.now();
+  const busyUntil = Number(button.dataset.busyUntil || 0);
+  if (busyUntil > now) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    return;
+  }
+  button.dataset.busyUntil = String(now + 700);
+}, true);
 
 function logout() {
   localStorage.removeItem('office_token'); localStorage.removeItem('office_user');
@@ -1879,7 +1930,7 @@ async function loadMeta() {
 
 // ── Panel switching ──────────────────────────────────────────
 const panelLoaded = {};
-const alwaysReloadPanels = new Set(['dashboard','mytasks','assignedby','alltasks','completed','notifications','gstclients','incometax']);
+const alwaysReloadPanels = new Set(['notifications']);
 function showPanel(name) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.sb-item').forEach(s => s.classList.remove('active'));
@@ -3023,6 +3074,12 @@ async function submitNewAgent() {
 }
 
 // ── COMPANIES ────────────────────────────────────────────────
+let _companySearchTimer;
+function debounceCompanies() {
+  clearTimeout(_companySearchTimer);
+  _companySearchTimer = setTimeout(loadCompanies, 300);
+}
+
 async function loadCompanies() {
   const q = document.getElementById('compSearch')?.value || '';
   const st = document.getElementById('compStatusFilter')?.value || '';
@@ -3096,6 +3153,12 @@ async function submitAddCompany() {
 }
 
 // ── DIRECTORS ────────────────────────────────────────────────
+let _directorSearchTimer;
+function debounceDirectors() {
+  clearTimeout(_directorSearchTimer);
+  _directorSearchTimer = setTimeout(loadDirectors, 300);
+}
+
 async function loadDirectors() {
   const q = document.getElementById('dirSearch')?.value||'';
   const ks = document.getElementById('dirKYCFilter')?.value||'';
