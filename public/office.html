@@ -1220,6 +1220,7 @@
       <div class="form-group full"><label>Financial Statement</label><select id="cu_finst"></select></div>
       <div class="form-group full"><label>Remarks</label><textarea id="cu_remarks" rows="2" placeholder="Optional remarks..."></textarea></div>
     </div>
+    </div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeModal('compUpdateModal')">Cancel</button>
       <button class="btn btn-primary" onclick="submitCompUpdate()">Save</button>
@@ -4966,6 +4967,18 @@ function installTaxModuleClickFallbacks() {
         openGSTAssign(match[1], Number(match[2]));
       }
 
+      match = handler.match(/^openGSTClientStatus\((\d+),\s*'([^']+)'\)$/);
+      if (match) {
+        handled = true;
+        openGSTClientStatus(Number(match[1]), match[2]);
+      }
+
+      match = handler.match(/^openGSTStatus\((\d+)\)$/);
+      if (match) {
+        handled = true;
+        openGSTStatus(Number(match[1]));
+      }
+
       match = handler.match(/^openITRClientModal\((\d+)?\)$/);
       if (match || text.includes('Add Income Tax Client')) {
         if (typeof window.openITRClientModal === 'function') {
@@ -4988,6 +5001,18 @@ function installTaxModuleClickFallbacks() {
           window.openITRImportModal();
         }
       }
+
+      match = handler.match(/^openITRClientStatus\((\d+),\s*'([^']+)'\)$/);
+      if (match && typeof window.openITRClientStatus === 'function') {
+        handled = true;
+        window.openITRClientStatus(Number(match[1]), match[2]);
+      }
+
+      match = handler.match(/^openITRStatus\((\d+)\)$/);
+      if (match && typeof window.openITRStatus === 'function') {
+        handled = true;
+        window.openITRStatus(Number(match[1]));
+      }
     } catch (err) {
       console.error('[tax click fallback]', err);
       showToast(err.message || 'Unable to open', 'error');
@@ -5008,6 +5033,9 @@ Object.assign(window, {
   openGSTStatus,
   openGSTClientStatus,
   openGSTGenerateModal,
+  submitGSTClient,
+  submitGSTAssign,
+  submitGSTClientStatus,
 });
 
 installTaxModuleClickFallbacks();
