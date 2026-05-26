@@ -4945,6 +4945,73 @@ async function pollOfficeNotifs(silent) {
 }
 
 // ── INIT ─────────────────────────────────────────────────────
+function installTaxModuleClickFallbacks() {
+  document.addEventListener('click', (event) => {
+    const button = event.target.closest('button');
+    if (!button) return;
+    const handler = button.getAttribute('onclick') || '';
+    const text = (button.textContent || '').trim();
+    let handled = false;
+
+    try {
+      let match = handler.match(/^openGSTClientModal\((\d+)?\)$/);
+      if (match || text.includes('Add GST Client')) {
+        handled = true;
+        openGSTClientModal(match && match[1] ? Number(match[1]) : undefined);
+      }
+
+      match = handler.match(/^openGSTAssign\('([^']+)',\s*(\d+)\)$/);
+      if (match) {
+        handled = true;
+        openGSTAssign(match[1], Number(match[2]));
+      }
+
+      match = handler.match(/^openITRClientModal\((\d+)?\)$/);
+      if (match || text.includes('Add Income Tax Client')) {
+        if (typeof window.openITRClientModal === 'function') {
+          handled = true;
+          window.openITRClientModal(match && match[1] ? Number(match[1]) : undefined);
+        }
+      }
+
+      match = handler.match(/^openITRAssign\('([^']+)',\s*(\d+)\)$/);
+      if (match) {
+        if (typeof window.openITRAssign === 'function') {
+          handled = true;
+          window.openITRAssign(match[1], Number(match[2]));
+        }
+      }
+
+      if (handler === 'openITRImportModal()' || text.includes('Bulk Import')) {
+        if (typeof window.openITRImportModal === 'function') {
+          handled = true;
+          window.openITRImportModal();
+        }
+      }
+    } catch (err) {
+      console.error('[tax click fallback]', err);
+      showToast(err.message || 'Unable to open', 'error');
+    }
+
+    if (handled) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+  }, true);
+}
+
+Object.assign(window, {
+  openModal,
+  closeModal,
+  openGSTClientModal,
+  openGSTAssign,
+  openGSTStatus,
+  openGSTClientStatus,
+  openGSTGenerateModal,
+});
+
+installTaxModuleClickFallbacks();
+
 async function initOfficeApp() {
   await loadMeta();
   await loadDashboard();
