@@ -580,6 +580,7 @@
         <button class="btn-sm" id="ctab-company" onclick="switchCTab('company')" style="background:#f1f5f9;color:#475569">Company FY Workspace</button>
         <button class="btn-sm" id="ctab-report" onclick="switchCTab('report')" style="background:#f1f5f9;color:#475569">FY Report</button>
         <button class="btn-sm" id="ctab-templates" onclick="switchCTab('templates')" style="background:#f1f5f9;color:#475569">Templates</button>
+        <button class="btn-sm" id="ctab-kyc" onclick="switchCTab('kyc')" style="background:#f1f5f9;color:#475569">Director KYC All</button>
       </div>
 
       <div id="ctab-panel-dashboard">
@@ -3314,7 +3315,7 @@ function populateComplianceAssignees() {
 }
 
 function switchCTab(tab) {
-  ['dashboard','company','report','templates'].forEach(t => {
+  ['dashboard','company','report','templates','kyc'].forEach(t => {
     const panel = document.getElementById('ctab-panel-'+t);
     const btn = document.getElementById('ctab-'+t);
     if (!panel || !btn) return;
