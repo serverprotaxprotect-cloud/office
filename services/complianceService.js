@@ -985,7 +985,7 @@ async function createTaskForRecordId(id, actor) {
   }
 }
 
-async function syncComplianceForTaskStatus(conn, task, status, actor, remark) {
+async function syncComplianceForTaskStatus(conn, task, status, actor, remark, srnUdin) {
   await ensureSchema(conn);
   const complianceStatus = complianceStatusForTask(status);
   const kycStatus = kycStatusForTask(status);
@@ -1004,18 +1004,19 @@ async function syncComplianceForTaskStatus(conn, task, status, actor, remark) {
     return { kyc_id: kyc.id, status: kycStatus, changed: true };
   }
   const rec = recRes.rows[0];
-  if (rec.status === complianceStatus) return { record_id: rec.id, status: complianceStatus, changed: false };
+  const srnValue = String(srnUdin || '').trim() || null;
+  if (rec.status === complianceStatus && !remark && !srnValue) return { record_id: rec.id, status: complianceStatus, changed: false };
   const filingDate = complianceStatus === 'Filed' ? todayIST() : rec.filing_date;
   await conn.query(
-    `UPDATE company_compliance_records SET status=$1, filing_date=$2, remarks=COALESCE($3,remarks),
-       updated_by_id=$4, updated_by_name=$5, updated_at=NOW() WHERE id=$6`,
-    [complianceStatus, filingDate, remark || null, actorId(actor), actorName(actor), rec.id]
+    `UPDATE company_compliance_records SET status=$1, filing_date=$2, srn=COALESCE($3,srn), remarks=COALESCE($4,remarks),
+       updated_by_id=$5, updated_by_name=$6, updated_at=NOW() WHERE id=$7`,
+    [complianceStatus, filingDate, srnValue, remark || null, actorId(actor), actorName(actor), rec.id]
   );
   await logHistory(conn, {
     record_id: rec.id,
     action: 'TaskStatusSync',
-    old_value: { status: rec.status, task_status: task.status },
-    new_value: { status: complianceStatus, task_status: status },
+    old_value: { status: rec.status, task_status: task.status, srn: rec.srn || null },
+    new_value: { status: complianceStatus, task_status: status, srn: srnValue || rec.srn || null },
     remarks: remark,
     actor,
   });

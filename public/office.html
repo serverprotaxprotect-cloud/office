@@ -29,7 +29,7 @@
     .sb-item .ic{font-size:16px;width:20px;text-align:center}
     .sb-badge{margin-left:auto;background:#e94560;color:#fff;font-size:10px;padding:1px 6px;border-radius:20px}
 
-    .content{flex:1;padding:20px;overflow-x:hidden}
+    .content{flex:1;padding:20px;overflow-x:auto}
     .panel{display:none}.panel.active{display:block}
 
     .card{background:#fff;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:16px}
@@ -47,11 +47,17 @@
     .filter-row select,.filter-row input{padding:7px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;background:#f8fafc;outline:none}
     .filter-row select:focus,.filter-row input:focus{border-color:#2155f3}
 
-    .tbl-wrap{overflow-x:auto}
-    .tbl-wrap table{width:100%;border-collapse:collapse;font-size:13px}
+    .tbl-wrap{overflow:auto;max-width:100%;max-height:calc(100vh - 330px)}
+    .tbl-wrap table{width:100%;min-width:980px;border-collapse:collapse;font-size:13px}
     .tbl-wrap th{background:#f8fafc;padding:9px 12px;font-weight:700;color:#475569;text-align:left;white-space:nowrap;border-bottom:2px solid #e2e8f0}
-    .tbl-wrap td{padding:8px 12px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+    .tbl-wrap td{padding:8px 12px;border-bottom:1px solid #f1f5f9;vertical-align:middle;white-space:nowrap}
     .tbl-wrap tr:hover td{background:#f8fafc}
+    .tbl-wrap th{position:sticky;top:0;z-index:5}
+    .tbl-wrap td:nth-child(2),.tbl-wrap td:nth-child(3){white-space:normal;min-width:180px}
+    #panel-mytasks .tbl-wrap,#panel-assignedby .tbl-wrap,#panel-alltasks .tbl-wrap,#panel-completed .tbl-wrap,
+    #panel-clients .tbl-wrap,#panel-companies .tbl-wrap,#panel-directors .tbl-wrap,#panel-comptracking .tbl-wrap,
+    #panel-notifications .tbl-wrap{max-height:calc(100vh - 260px)}
+    #notifContent{overflow:auto;max-height:calc(100vh - 160px);padding-bottom:12px}
     .overdue-row td{background:#fff5f5!important}
 
     .badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap}
@@ -87,7 +93,6 @@
     .metric strong{display:block;font-size:20px;color:#1e293b;line-height:1}
     .metric span{font-size:11px;color:#64748b}
     #panel-gstclients .tbl-wrap,#panel-incometax .tbl-wrap{max-height:calc(100vh - 355px);overflow:auto}
-    #panel-gstclients .tbl-wrap th,#panel-incometax .tbl-wrap th{position:sticky;top:0;z-index:5}
     #panel-gstclients .gst-name{font-weight:800;color:#0f172a;max-width:420px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     #panel-gstclients .gst-client-id{font-size:11px;color:#64748b;margin-top:2px}
     #panel-incometax .itr-name{font-weight:800;color:#0f172a;max-width:420px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -966,10 +971,35 @@
       <div class="form-group full"><label>Internal Remark</label><textarea id="upd_internal_remark" rows="2"></textarea></div>
       <div class="form-group full"><label>Client Pending Remark</label><textarea id="upd_client_remark" rows="2"></textarea></div>
       <div class="form-group full"><label>Completion Remark</label><textarea id="upd_completion_remark" rows="2"></textarea></div>
+      <div class="form-group full"><label>SRN / UDIN / Ack No. <small style="color:#64748b">(company compliance complete ke liye required)</small></label><input id="upd_srn_udin" placeholder="SRN / UDIN / acknowledgement number"/></div>
     </div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeModal('updateTaskModal')">Cancel</button>
       <button class="btn btn-primary" onclick="submitUpdateTask()">Update</button>
+    </div>
+  </div>
+</div>
+
+<!-- Complete Task Modal -->
+<div class="modal-backdrop hidden" id="completeTaskModal" onclick="if(event.target===this)closeModal('completeTaskModal')">
+  <div class="modal">
+    <div class="modal-title">Mark as Complete <small id="ct_task_id_lbl" style="font-size:13px;font-weight:600;color:#64748b"></small></div>
+    <input type="hidden" id="ct_task_id"/>
+    <div id="ct_compliance_hint" class="alert-info hidden" style="margin-bottom:12px">Company compliance task hai. Complete karne ke liye SRN / UDIN / Ack No. required hai.</div>
+    <div class="form-grid">
+      <div class="form-group full">
+        <label>Completion Remarks <span style="color:#dc2626">*</span></label>
+        <textarea id="ct_completion_remark" rows="3" placeholder="Completion remarks likhiye..." required></textarea>
+      </div>
+      <div class="form-group full" id="ct_srn_wrap">
+        <label>SRN / UDIN / Ack No. <span id="ct_srn_required" style="color:#dc2626">*</span></label>
+        <input id="ct_srn_udin" placeholder="SRN / UDIN / acknowledgement number"/>
+      </div>
+    </div>
+    <div id="ct_complete_err" class="alert-err hidden"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeCompleteTaskModal()">Cancel</button>
+      <button class="btn btn-primary" id="ct_submit_btn" onclick="submitCompleteTask()">Mark as Complete</button>
     </div>
   </div>
 </div>
@@ -2304,7 +2334,7 @@ async function loadTasks(view) {
           <div class="task-actions">
             <button class="btn-sm btn-view" onclick="viewTask('${taskId}')">View</button>
             <button class="btn-sm btn-edit" onclick="quickUpdate('${taskId}','${jsArg(t.status)}','${jsArg(t.priority)}','${jsArg(t.due_date||'')}')">Update</button>
-            ${canComplete ? `<button class="btn-sm btn-green" title="Mark task complete" onclick="markTaskComplete('${taskId}', this)">&#10003; Complete</button>` : ''}
+            ${canComplete ? `<button class="btn-sm btn-green" title="Mark task complete" onclick="markTaskComplete('${taskId}', this)">Mark as Complete</button>` : ''}
           </div>
         </td>
       </tr>`;
@@ -2329,25 +2359,99 @@ function refreshTaskPanels(activeView = activeTaskView()) {
   else if (activeView) loadTasks(activeView);
 }
 
+let _completeTaskBtn = null;
+let _completeTaskBtnText = '';
+let _completeTaskCompliance = null;
+
+function resetCompleteTaskButton() {
+  if (_completeTaskBtn) {
+    _completeTaskBtn.disabled = false;
+    _completeTaskBtn.innerHTML = _completeTaskBtnText || 'Mark as Complete';
+  }
+  _completeTaskBtn = null;
+  _completeTaskBtnText = '';
+}
+
+function closeCompleteTaskModal() {
+  closeModal('completeTaskModal');
+  resetCompleteTaskButton();
+}
+
+function showCompleteTaskError(message) {
+  const err = document.getElementById('ct_complete_err');
+  err.textContent = message;
+  err.classList.remove('hidden');
+}
+
 async function markTaskComplete(taskId, btn) {
-  const oldText = btn?.innerHTML;
-  if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+  _completeTaskBtn = btn || null;
+  _completeTaskBtnText = btn?.innerHTML || 'Mark as Complete';
+  if (btn) { btn.disabled = true; btn.textContent = 'Loading...'; }
+
+  let data;
+  try {
+    data = await api(`/tasks/${encodeURIComponent(taskId)}`);
+  } catch {
+    data = { success: false, message: 'Network error. Please try again.' };
+  }
+  if (!data.success) {
+    showToast(data.message || 'Task not found', 'error');
+    resetCompleteTaskButton();
+    return;
+  }
+
+  _completeTaskCompliance = data.company_compliance || null;
+  document.getElementById('ct_task_id').value = taskId;
+  document.getElementById('ct_task_id_lbl').textContent = taskId;
+  document.getElementById('ct_completion_remark').value = '';
+  document.getElementById('ct_srn_udin').value = _completeTaskCompliance?.srn || '';
+  document.getElementById('ct_complete_err').classList.add('hidden');
+  document.getElementById('ct_complete_err').textContent = '';
+  document.getElementById('ct_srn_wrap').classList.toggle('hidden', !_completeTaskCompliance);
+  document.getElementById('ct_compliance_hint').classList.toggle('hidden', !_completeTaskCompliance);
+  if (btn) { btn.disabled = false; btn.innerHTML = _completeTaskBtnText; }
+  openModal('completeTaskModal');
+}
+
+async function submitCompleteTask() {
+  const taskId = document.getElementById('ct_task_id').value;
+  const remark = document.getElementById('ct_completion_remark').value.trim();
+  const srn = document.getElementById('ct_srn_udin').value.trim();
+  const submitBtn = document.getElementById('ct_submit_btn');
+
+  if (!remark) {
+    showCompleteTaskError('Completion remarks required.');
+    document.getElementById('ct_completion_remark').focus();
+    return;
+  }
+  if (_completeTaskCompliance && !srn) {
+    showCompleteTaskError('Company compliance task complete karne ke liye SRN / UDIN / Ack No. required hai.');
+    document.getElementById('ct_srn_udin').focus();
+    return;
+  }
+
+  const oldText = submitBtn.innerHTML;
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Saving...';
   let data;
   try {
     data = await api(`/tasks/${encodeURIComponent(taskId)}`, {
       method: 'PUT',
-      body: JSON.stringify({ status: 'Completed' })
+      body: JSON.stringify({ status: 'Completed', completion_remark: remark, srn_udin: srn || undefined })
     });
   } catch {
     data = { success: false, message: 'Network error. Please try again.' };
   }
-  showToast(data.message || (data.success ? 'Task completed' : 'Task update failed'), data.success ? 'success' : 'error');
-  if (data.success) {
-    refreshTaskPanels();
-  } else if (btn) {
-    btn.disabled = false;
-    btn.innerHTML = oldText;
+  submitBtn.disabled = false;
+  submitBtn.innerHTML = oldText;
+  if (!data.success) {
+    showCompleteTaskError(data.message || 'Task update failed');
+    return;
   }
+  closeModal('completeTaskModal');
+  resetCompleteTaskButton();
+  showToast(data.message || 'Task completed', 'success');
+  refreshTaskPanels();
 }
 
 async function loadCompletedTasks() {
@@ -2493,6 +2597,7 @@ function quickUpdate(taskId, status, priority, dueDate) {
   document.getElementById('upd_internal_remark').value = '';
   document.getElementById('upd_client_remark').value = '';
   document.getElementById('upd_completion_remark').value = '';
+  document.getElementById('upd_srn_udin').value = '';
   document.getElementById('upd_assign_to').value = '';
   openModal('updateTaskModal');
 }
@@ -2513,6 +2618,7 @@ async function submitUpdateTask() {
       internal_remark: document.getElementById('upd_internal_remark').value || undefined,
       client_pending_remark: document.getElementById('upd_client_remark').value || undefined,
       completion_remark: document.getElementById('upd_completion_remark').value || undefined,
+      srn_udin: document.getElementById('upd_srn_udin').value || undefined,
     })
   });
   closeModal('updateTaskModal');
@@ -3813,8 +3919,9 @@ function renderComplianceInlineRows(rows, storeKey) {
   window[storeKey] = rows || [];
   if (!rows || !rows.length) return '<div class="empty-msg" style="padding:12px">No records found for this section.</div>';
   return `<div class="tbl-wrap"><table>
-    <thead><tr><th>Form Name</th><th>Due Date</th><th>Status</th><th>SRN/UDIN/Ack No.</th><th>Assignee</th><th>Task</th><th>Remarks</th><th>Save</th></tr></thead>
+    <thead><tr><th><input type="checkbox" title="Select all" onchange="toggleComplianceSectionSelection('${storeKey}', this.checked)"></th><th>Form Name</th><th>Due Date</th><th>Status</th><th>SRN/UDIN/Ack No.</th><th>Assignee</th><th>Task</th><th>Remarks</th><th>Save</th></tr></thead>
     <tbody>${rows.map(r => `<tr>
+      <td><input type="checkbox" class="cr-select-${storeKey}" value="${r.id}" title="Select row"></td>
       <td><strong>${h(r.compliance_code)}</strong><br><small>${h(r.compliance_name || '')}${r.event_type ? ' | '+h(r.event_type.replaceAll('_',' ')) : ''}</small></td>
       <td><input type="date" id="cr_due_${r.id}" value="${(r.due_date || '').slice(0,10)}" style="min-width:130px;padding:7px;border:1px solid #dbe3ef;border-radius:7px"></td>
       <td><select id="cr_status_${r.id}" style="min-width:145px;padding:7px;border:1px solid #dbe3ef;border-radius:7px">${ctStatusOptions(r.status || 'Pending')}</select></td>
@@ -3827,28 +3934,54 @@ function renderComplianceInlineRows(rows, storeKey) {
   </table></div>`;
 }
 
-async function saveComplianceInline(id) {
-  const body = {
+function getComplianceInlineBody(id) {
+  return {
     due_date: document.getElementById('cr_due_'+id)?.value || null,
     status: document.getElementById('cr_status_'+id)?.value || null,
     srn: document.getElementById('cr_srn_'+id)?.value || null,
     assigned_to_id: document.getElementById('cr_assign_'+id)?.value || null,
     remarks: document.getElementById('cr_rem_'+id)?.value || null,
   };
+}
+
+function toggleComplianceSectionSelection(storeKey, checked) {
+  document.querySelectorAll('.cr-select-' + storeKey).forEach(cb => cb.checked = checked);
+}
+
+async function saveComplianceInline(id, opts = {}) {
+  const body = getComplianceInlineBody(id);
   let data = await api('/compliance/compliance-records/' + id, { method:'PUT', body:JSON.stringify(body) });
   if (data.success && body.assigned_to_id) {
     data = await api('/compliance/compliance-records/' + id + '/assign', { method:'PUT', body:JSON.stringify({ assigned_to_id: body.assigned_to_id, remarks: body.remarks }) });
   }
-  showToast(data.message, data.success ? 'success' : 'error');
-  if (data.success) loadCompanyTracking();
+  if (!opts.silent) showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success && opts.reload !== false) loadCompanyTracking();
+  return data;
+}
+
+async function saveSelectedCompliance(storeKey, btn) {
+  const selected = [...document.querySelectorAll('.cr-select-' + storeKey + ':checked')].map(cb => cb.value);
+  if (!selected.length) { showToast('Please select rows to save', 'error'); return; }
+  const oldText = btn?.innerHTML;
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+  let saved = 0;
+  let failed = 0;
+  for (const id of selected) {
+    const data = await saveComplianceInline(id, { silent:true, reload:false });
+    if (data.success) saved++; else failed++;
+  }
+  if (btn) { btn.disabled = false; btn.innerHTML = oldText; }
+  showToast(failed ? `${saved} saved, ${failed} failed` : `${saved} rows saved`, failed ? 'error' : 'success');
+  loadCompanyTracking();
 }
 
 function renderKycInlineRows(rows) {
   window._workspaceKycRows = rows || [];
   if (!rows || !rows.length) return '<div class="empty-msg" style="padding:12px">No Director KYC records. Use Generate KYC.</div>';
   return `<div class="tbl-wrap"><table>
-    <thead><tr><th>Director Name</th><th>DIN</th><th>Designation</th><th>KYC Status</th><th>SRN</th><th>Assignee</th><th>Task</th><th>Remarks</th><th>Save</th></tr></thead>
+    <thead><tr><th><input type="checkbox" title="Select all" onchange="toggleKycSelection(this.checked)"></th><th>Director Name</th><th>DIN</th><th>Designation</th><th>KYC Status</th><th>SRN</th><th>Assignee</th><th>Task</th><th>Remarks</th><th>Save</th></tr></thead>
     <tbody>${rows.map(r => `<tr>
+      <td><input type="checkbox" class="wk-select" value="${r.id}" title="Select row"></td>
       <td><strong>${h(r.director_name || '--')}</strong></td>
       <td><small>${h(r.din || '--')}</small></td>
       <td>${h(r.designation || '--')}</td>
@@ -3862,7 +3995,19 @@ function renderKycInlineRows(rows) {
   </table></div>`;
 }
 
-async function saveWorkspaceKyc(id) {
+function getWorkspaceKycBody(id) {
+  return {
+    kyc_status: document.getElementById('wk_status_'+id)?.value || null,
+    srn: document.getElementById('wk_srn_'+id)?.value || null,
+    remarks: document.getElementById('wk_rem_'+id)?.value || null,
+  };
+}
+
+function toggleKycSelection(checked) {
+  document.querySelectorAll('.wk-select').forEach(cb => cb.checked = checked);
+}
+
+async function saveWorkspaceKyc(id, opts = {}) {
   const body = {
     kyc_status: document.getElementById('wk_status_'+id)?.value || null,
     srn: document.getElementById('wk_srn_'+id)?.value || null,
@@ -3873,8 +4018,25 @@ async function saveWorkspaceKyc(id) {
   if (data.success && assignee) {
     data = await api('/compliance/kyc/' + id + '/assign', { method:'PUT', body:JSON.stringify({ assigned_to_id: assignee, remarks: body.remarks }) });
   }
-  showToast(data.message, data.success ? 'success' : 'error');
-  if (data.success) loadCompanyTracking();
+  if (!opts.silent) showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success && opts.reload !== false) loadCompanyTracking();
+  return data;
+}
+
+async function saveSelectedWorkspaceKyc(btn) {
+  const selected = [...document.querySelectorAll('.wk-select:checked')].map(cb => cb.value);
+  if (!selected.length) { showToast('Please select KYC rows to save', 'error'); return; }
+  const oldText = btn?.innerHTML;
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+  let saved = 0;
+  let failed = 0;
+  for (const id of selected) {
+    const data = await saveWorkspaceKyc(id, { silent:true, reload:false });
+    if (data.success) saved++; else failed++;
+  }
+  if (btn) { btn.disabled = false; btn.innerHTML = oldText; }
+  showToast(failed ? `${saved} saved, ${failed} failed` : `${saved} KYC rows saved`, failed ? 'error' : 'success');
+  loadCompanyTracking();
 }
 
 async function loadCompanyTracking() {
@@ -3903,7 +4065,10 @@ async function loadCompanyTracking() {
     <div class="card" style="margin-bottom:12px"><div class="card-body">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
         <h3 style="margin:0;font-size:16px">Annual / First-Year Forms (${h(data.financial_year)})</h3>
-        <button class="btn-sm btn-green" onclick="generateCompliance()" style="padding:7px 12px">Generate Missing Forms</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-sm btn-primary" onclick="saveSelectedCompliance('_ctRows', this)" style="padding:7px 12px">Save Selected</button>
+          <button class="btn-sm btn-green" onclick="generateCompliance()" style="padding:7px 12px">Generate Missing Forms</button>
+        </div>
       </div>
       ${renderComplianceInlineRows(annual, '_ctRows')}
     </div></div>
@@ -3915,13 +4080,17 @@ async function loadCompanyTracking() {
         <input type="date" id="ws_event_due" title="Due date optional" style="padding:8px;border:1px solid #dbe3ef;border-radius:7px">
         <select id="ws_event_assign" style="min-width:180px;padding:8px;border:1px solid #dbe3ef;border-radius:7px">${ctEmployeeOptions('')}</select>
         <button class="btn-sm btn-primary" onclick="createComplianceEvent()" style="padding:8px 14px">Add Event</button>
+        <button class="btn-sm btn-edit" onclick="saveSelectedCompliance('_ctEventRows', this)" style="padding:8px 14px">Save Selected</button>
       </div>
       ${renderComplianceInlineRows(events, '_ctEventRows')}
     </div></div>
     <div class="card" style="margin-bottom:12px"><div class="card-body">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
         <h3 style="margin:0;font-size:16px">Directors / KYC (${(data.directors||[]).length} directors)</h3>
-        <button class="btn-sm btn-green" onclick="generateWorkspaceKyc()" style="padding:7px 12px">Generate KYC</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-sm btn-primary" onclick="saveSelectedWorkspaceKyc(this)" style="padding:7px 12px">Save Selected</button>
+          <button class="btn-sm btn-green" onclick="generateWorkspaceKyc()" style="padding:7px 12px">Generate KYC</button>
+        </div>
       </div>
       ${renderKycInlineRows(data.kyc_records || [])}
     </div></div>

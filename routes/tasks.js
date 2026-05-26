@@ -246,7 +246,14 @@ router.get('/:id', authMiddleware, async (req, res) => {
     const r = await db.query('SELECT * FROM tasks WHERE task_id=$1', [req.params.id]);
     if (!r.rows.length) return res.status(404).json({ success: false, message: 'Task not found' });
     const hist = await db.query('SELECT * FROM task_history WHERE task_id=$1 ORDER BY updated_at DESC', [req.params.id]);
-    res.json({ success: true, task: r.rows[0], history: hist.rows });
+    const compliance = await db.query(
+      `SELECT id, compliance_code, compliance_name, financial_year, srn
+         FROM company_compliance_records
+        WHERE linked_task_id=$1
+        LIMIT 1`,
+      [req.params.id]
+    );
+    res.json({ success: true, task: r.rows[0], history: hist.rows, company_compliance: compliance.rows[0] || null });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Server error' });
@@ -305,7 +312,7 @@ router.post('/', authMiddleware, async (req, res) => {
 router.put('/:id', authMiddleware, async (req, res) => {
   const { emp_id, name, formal_name } = req.user;
   const taskId = req.params.id;
-  const { status, priority, due_date, assigned_to_id, assigned_to_name, internal_remark, client_pending_remark, completion_remark, next_followup_date, drive_link, professional_fees, challan_amount, other_expense, fees_applicable } = req.body;
+  const { status, priority, due_date, assigned_to_id, assigned_to_name, internal_remark, client_pending_remark, completion_remark, next_followup_date, drive_link, professional_fees, challan_amount, other_expense, fees_applicable, srn_udin } = req.body;
   let old;
   try {
     const conn = await db.pool.connect();
@@ -322,6 +329,28 @@ router.put('/:id', authMiddleware, async (req, res) => {
         const err = new Error('Due date required before reassigning task');
         err.statusCode = 400;
         throw err;
+      }
+      let linkedCompliance = null;
+      if (status === 'Completed') {
+        const completionText = String(completion_remark || '').trim();
+        if (!completionText) {
+          const err = new Error('Completion remarks required before completing task');
+          err.statusCode = 400;
+          throw err;
+        }
+        const compRes = await conn.query(
+          `SELECT id, compliance_code, compliance_name, srn
+             FROM company_compliance_records
+            WHERE linked_task_id=$1
+            FOR UPDATE`,
+          [taskId]
+        );
+        linkedCompliance = compRes.rows[0] || null;
+        if (linkedCompliance && !String(srn_udin || linkedCompliance.srn || '').trim()) {
+          const err = new Error('SRN/UDIN required before completing company compliance task');
+          err.statusCode = 400;
+          throw err;
+        }
       }
       const professionalFees = optionalAmount(professional_fees);
       const challanAmount = optionalAmount(challan_amount);
@@ -358,7 +387,8 @@ router.put('/:id', authMiddleware, async (req, res) => {
           { ...old, assigned_to_id: assigned_to_id || old.assigned_to_id, status: old.status },
           status,
           req.user,
-          syncRemark
+          syncRemark,
+          srn_udin
         );
       }
       await conn.query('COMMIT');
