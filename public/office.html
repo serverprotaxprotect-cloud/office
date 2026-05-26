@@ -538,6 +538,8 @@
       <div class="filter-row">
         <input type="text" id="compSearch" placeholder="Search CIN, name, client, agent..." oninput="loadCompanies()" style="max-width:340px;flex:1"/>
         <select id="compStatusFilter" onchange="loadCompanies()"><option value="">All Status</option><option>Active</option><option>Inactive</option></select>
+        <button class="btn-sm btn-view" onclick="setCompanyStatusTab('Active')">Active Companies</button>
+        <button class="btn-sm btn-view" onclick="setCompanyStatusTab('Inactive')">Inactive Companies</button>
       </div>
       <div class="card"><div class="tbl-wrap"><table>
         <thead><tr><th>CIN</th><th>Company Name</th><th>Client ID</th><th>Agent</th><th>Incorp. Date</th><th>Last AGM</th><th>Status</th><th>Actions</th></tr></thead>
@@ -575,13 +577,28 @@
 
       <!-- Sub-tab buttons -->
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">
-        <button class="btn-sm" id="ctab-company" onclick="switchCTab('company')" style="background:#2155f3;color:#fff">Company Wise</button>
-        <button class="btn-sm" id="ctab-all" onclick="switchCTab('all')" style="background:#f1f5f9;color:#475569">All Companies Status</button>
-        <button class="btn-sm" id="ctab-kyc" onclick="switchCTab('kyc')" style="background:#f1f5f9;color:#475569">Director KYC</button>
+        <button class="btn-sm" id="ctab-dashboard" onclick="switchCTab('dashboard')" style="background:#2155f3;color:#fff">Dashboard</button>
+        <button class="btn-sm" id="ctab-company" onclick="switchCTab('company')" style="background:#f1f5f9;color:#475569">Company FY Workspace</button>
+        <button class="btn-sm" id="ctab-report" onclick="switchCTab('report')" style="background:#f1f5f9;color:#475569">FY Report</button>
+        <button class="btn-sm" id="ctab-templates" onclick="switchCTab('templates')" style="background:#f1f5f9;color:#475569">Templates</button>
+        <button class="btn-sm" id="ctab-kyc" onclick="switchCTab('kyc')" style="background:#f1f5f9;color:#475569">Director KYC All</button>
+      </div>
+
+      <div id="ctab-panel-dashboard">
+        <div class="card" style="margin-bottom:12px">
+          <div class="card-body" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+            <div style="min-width:150px">
+              <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px;text-transform:uppercase">Financial Year</div>
+              <select id="dash_fy" onchange="loadComplianceDashboard()" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px"></select>
+            </div>
+            <button class="btn-sm btn-view" onclick="loadComplianceDashboard()" style="padding:9px 14px">Load Dashboard</button>
+          </div>
+        </div>
+        <div id="ct_dashboard"></div>
       </div>
 
       <!-- Sub-tab: Company Wise -->
-      <div id="ctab-panel-company">
+      <div id="ctab-panel-company" class="hidden">
         <div class="card" style="margin-bottom:12px">
           <div class="card-body" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
             <div style="flex:2;min-width:200px">
@@ -595,50 +612,59 @@
             </div>
             <div style="min-width:140px">
               <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px;text-transform:uppercase">Financial Year *</div>
-              <select id="ct_fy" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px"></select>
+              <select id="ct_fy" onchange="clearWorkspaceCompany();loadCompanyTracking()" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px"></select>
             </div>
-            <button class="btn btn-primary" onclick="generateCompliance()" style="margin-bottom:0;white-space:nowrap">&#128196; Generate</button>
+            <button class="btn btn-primary" onclick="generateCompliance()" style="margin-bottom:0;white-space:nowrap">&#128196; Generate Selected</button>
+            <button class="btn-sm btn-green" onclick="bulkGenerateCompliance()" style="padding:9px 14px;white-space:nowrap">&#9889; Bulk Generate FY</button>
             <button class="btn-sm btn-view" onclick="loadCompanyTracking()" style="padding:9px 14px;white-space:nowrap">&#128269; Load</button>
+            <button class="btn-sm" onclick="clearWorkspaceCompany();loadCompanyTracking()" style="padding:9px 14px;white-space:nowrap;background:#f1f5f9;color:#475569">All Companies</button>
           </div>
         </div>
         <div id="ct_company_info" style="margin-bottom:10px"></div>
         <div id="ct_company_table"></div>
       </div>
 
-      <!-- Sub-tab: All Companies Status -->
-      <div id="ctab-panel-all" class="hidden">
+      <div id="ctab-panel-report" class="hidden">
         <div class="card" style="margin-bottom:12px">
           <div class="card-body" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
             <div style="min-width:140px">
               <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px;text-transform:uppercase">Financial Year</div>
-              <select id="all_fy" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px"></select>
+              <select id="report_fy" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px"></select>
             </div>
             <div style="flex:1;min-width:160px">
               <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px;text-transform:uppercase">Company / CIN</div>
-              <input type="text" id="all_co_text" placeholder="Company / CIN" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px"/>
+              <input type="text" id="report_company" placeholder="Company / CIN" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px"/>
             </div>
             <div style="flex:1;min-width:140px">
-              <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px;text-transform:uppercase">Agent</div>
-              <input type="text" id="all_agent" placeholder="Agent Name" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px"/>
+              <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px;text-transform:uppercase">Form Name</div>
+              <input type="text" id="report_form" placeholder="AOC-4, DIR-12..." style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px"/>
             </div>
             <div style="min-width:160px">
-              <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px;text-transform:uppercase">Compliance Status</div>
-              <select id="all_status" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px">
+              <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px;text-transform:uppercase">Status</div>
+              <select id="report_status" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px">
                 <option value="">All</option>
               </select>
             </div>
+            <div style="min-width:190px">
+              <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px;text-transform:uppercase">Assignee</div>
+              <select id="report_assignee" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px"></select>
+            </div>
             <div style="min-width:140px">
               <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px;text-transform:uppercase">Company Status</div>
-              <select id="all_co_status" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px">
+              <select id="report_co_status" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px">
                 <option value="">All</option><option>Active</option><option>Inactive</option>
               </select>
             </div>
-            <button class="btn-sm btn-view" onclick="loadAllCompliance()" style="padding:9px 14px">&#128269; Load</button>
-            <button class="btn-sm btn-green" onclick="bulkGenerateCompliance()" style="padding:9px 14px">&#9889; Bulk Generate</button>
+            <button class="btn-sm btn-view" onclick="loadFYReport()" style="padding:9px 14px">Load Report</button>
+            <button class="btn-sm btn-green" onclick="downloadFYReportCsv()" style="padding:9px 14px">CSV</button>
           </div>
         </div>
-        <div id="all_summary" style="margin-bottom:10px"></div>
-        <div id="all_co_table"></div>
+        <div id="report_summary" style="margin-bottom:10px"></div>
+        <div id="report_table"></div>
+      </div>
+
+      <div id="ctab-panel-templates" class="hidden">
+        <div id="template_table"></div>
       </div>
 
       <!-- Sub-tab: Director KYC -->
@@ -1171,6 +1197,16 @@
     <div class="modal-title">Update Compliance Status</div>
     <input type="hidden" id="cu_id"/>
     <div style="background:#eff6ff;border:1.5px solid #2155f3;border-radius:8px;padding:8px 12px;margin-bottom:14px;font-size:13px;font-weight:700;color:#1d4ed8" id="cu_company_info"></div>
+    <div class="form-grid">
+      <div class="form-group"><label>Status</label><select id="cu_status"></select></div>
+      <div class="form-group"><label>Due Date</label><input type="date" id="cu_due_date"/></div>
+      <div class="form-group"><label>SRN / Ack No.</label><input id="cu_srn" placeholder="SRN / acknowledgement"/></div>
+      <div class="form-group"><label>Assign To</label><select id="cu_assign_to"></select></div>
+      <div class="form-group full"><label>Remarks</label><textarea id="cu_remarks_new" rows="2" placeholder="Optional remarks..."></textarea></div>
+    </div>
+    <div id="cu_legacy_section" class="hidden">
+    <div style="height:1px;background:#e2e8f0;margin:12px 0"></div>
+    <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:8px;text-transform:uppercase">Legacy fixed-column update</div>
     <div class="form-grid">
       <div class="form-group"><label>INC-20A</label><select id="cu_inc20a"></select></div>
       <div class="form-group"><label>SRN (INC-20A)</label><input id="cu_srn_inc20a" placeholder="SRN number"/></div>
@@ -1761,6 +1797,12 @@ function getCurrentFY() {
   return `${sy}-${String(sy+1).slice(-2)}`;
 }
 
+function getComplianceDefaultFY() {
+  const cur = getCurrentFY();
+  const start = parseInt(cur.slice(0, 4), 10) - 1;
+  return `${start}-${String(start + 1).slice(-2)}`;
+}
+
 function statusBadge(s) {
   if (!s) return '<span class="badge b-pending">Pending</span>';
   const cls = {
@@ -1819,8 +1861,11 @@ async function loadMeta() {
   populateEmpFilters(META.employees);
 
   // FY + compliance status dropdowns
-  const fyRes = await api('/compliance/records?limit=1');
+  const fyRes = await api('/compliance/templates');
   if (fyRes.fy_options) {
+    CT_META.templates = fyRes.templates || [];
+    CT_META.employees = fyRes.employees || [];
+    CT_META.status_options = fyRes.status_options || [];
     const cur = getCurrentFY();
     // Legacy record FY selects
     ['recFY','rec_fy_modal'].forEach(id => {
@@ -1830,6 +1875,7 @@ async function loadMeta() {
     });
     // Compliance tracking FY selects
     populateFYDropdowns(fyRes.fy_options, fyRes.status_options || _statusOptions);
+    populateComplianceAssignees();
   }
 }
 
@@ -1857,7 +1903,7 @@ function showPanel(name) {
       companies: loadCompanies,
       directors: loadDirectors,
       comprecords: loadCompRecords,
-      comptracking: () => { switchCTab('company'); },
+      comptracking: () => { switchCTab('dashboard'); },
       dataimport: initDataImportPanel,
       gstclients: initGSTPanel,
       incometax: () => window.initIncomeTaxPanel?.(),
@@ -3215,7 +3261,8 @@ async function submitRecord() {
 
 // ── COMPLIANCE TRACKING ─────────────────────────────────────
 let _fyOptions = [];
-let _statusOptions = ['Pending','Pending by Client','Filed','Under Process','Not Applicable','Received','Prepared'];
+let _statusOptions = ['Draft','Pending','Assigned','In Progress','Pending by Client','Prepared','Filed','Not Applicable','Closed'];
+const CT_META = { templates: [], employees: [], status_options: [] };
 
 function compBadge(s) {
   if (!s) return '<span class="badge b-pending">Pending</span>';
@@ -3230,21 +3277,21 @@ function compBadge(s) {
 function populateFYDropdowns(fyOptions, statusOptions) {
   _fyOptions = fyOptions || _fyOptions;
   if (statusOptions) _statusOptions = statusOptions;
-  const curFY = getCurrentFY();
-  ['ct_fy','all_fy','kyc_fy'].forEach(id => {
+  const curFY = getComplianceDefaultFY();
+  ['dash_fy','ct_fy','report_fy','kyc_fy'].forEach(id => {
     const sel = document.getElementById(id);
     if (!sel) return;
     sel.innerHTML = '';
     _fyOptions.forEach(fy => sel.innerHTML += `<option value="${fy}" ${fy===curFY?'selected':''}>${fy}</option>`);
   });
-  ['all_status','kyc_status_filter'].forEach(id => {
+  ['report_status','kyc_status_filter'].forEach(id => {
     const sel = document.getElementById(id);
     if (!sel) return;
     sel.innerHTML = '<option value="">All Status</option>';
     _statusOptions.forEach(s => sel.innerHTML += `<option value="${s}">${s}</option>`);
   });
   // Populate compliance update modal selects
-  ['cu_inc20a','cu_adt1','cu_aoc4','cu_mgt7a','cu_itr','cu_docs','cu_finst','ku_kyc_status'].forEach(id => {
+  ['cu_status','cu_inc20a','cu_adt1','cu_aoc4','cu_mgt7a','cu_itr','cu_docs','cu_finst','ku_kyc_status'].forEach(id => {
     const sel = document.getElementById(id);
     if (!sel) return;
     sel.innerHTML = '';
@@ -3252,8 +3299,25 @@ function populateFYDropdowns(fyOptions, statusOptions) {
   });
 }
 
+function setCompanyStatusTab(status) {
+  const sel = document.getElementById('compStatusFilter');
+  if (sel) sel.value = status;
+  loadCompanies();
+}
+
+function populateComplianceAssignees() {
+  ['report_assignee','cu_assign_to'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    sel.innerHTML = id === 'report_assignee' ? '<option value="">All assignees</option>' : '<option value="">Keep / Unassigned</option>';
+    CT_META.employees.forEach(e => {
+      sel.innerHTML += `<option value="${h(e.emp_id)}">${h(e.name || e.formal_name || e.emp_id)} (${h(e.emp_id)})</option>`;
+    });
+  });
+}
+
 function switchCTab(tab) {
-  ['company','all','kyc'].forEach(t => {
+  ['dashboard','company','report','templates','kyc'].forEach(t => {
     const panel = document.getElementById('ctab-panel-'+t);
     const btn = document.getElementById('ctab-'+t);
     if (!panel || !btn) return;
@@ -3261,6 +3325,10 @@ function switchCTab(tab) {
     btn.style.background = t === tab ? '#2155f3' : '#f1f5f9';
     btn.style.color = t === tab ? '#fff' : '#475569';
   });
+  if (tab === 'dashboard') loadComplianceDashboard();
+  if (tab === 'company') loadCompanyTracking();
+  if (tab === 'report') loadFYReport();
+  if (tab === 'templates') loadComplianceTemplates();
 }
 
 let _compAcTimer;
@@ -3286,9 +3354,19 @@ async function companyAutocomplete(q, listId, selId) {
 }
 
 function _selectCompany(c, listId, selId) {
-  document.getElementById('ct_co_search').value = c.name;
+  const inputId = listId === 'ev_co_list' ? 'ev_co_search' : 'ct_co_search';
+  document.getElementById(inputId).value = c.name;
   document.getElementById(selId).value = c.cin;
   document.getElementById(listId).classList.add('hidden');
+  if (selId === 'ct_co_sel') loadCompanyTracking();
+}
+
+function clearWorkspaceCompany() {
+  const search = document.getElementById('ct_co_search');
+  const selected = document.getElementById('ct_co_sel');
+  if (search) search.value = '';
+  if (selected) selected.value = '';
+  document.getElementById('ct_company_info').innerHTML = '';
 }
 
 async function generateCompliance() {
@@ -3296,7 +3374,7 @@ async function generateCompliance() {
   const fy = document.getElementById('ct_fy').value;
   if (!cin) { showToast('Select a company first', 'error'); return; }
   if (!fy) { showToast('Select financial year', 'error'); return; }
-  const data = await api('/compliance/tracking/generate', {
+  const data = await api('/compliance/companies/' + encodeURIComponent(cin) + '/compliances/generate', {
     method: 'POST', body: JSON.stringify({ cin, financial_year: fy })
   });
   showToast(data.message, data.success ? 'success' : 'error');
@@ -3325,7 +3403,7 @@ async function loadCompanyTracking() {
   el.innerHTML = '<div class="empty-msg">Loading...</div>';
   const params = new URLSearchParams({ cin });
   if (fy) params.set('financial_year', fy);
-  const data = await api('/compliance/tracking?' + params);
+  const data = await api('/compliance/companies/' + encodeURIComponent(cin) + '/compliances?' + params);
   if (!data.success) { el.innerHTML = '<div class="empty-msg">Error loading</div>'; return; }
 
   if (!data.rows.length) {
@@ -3334,23 +3412,23 @@ async function loadCompanyTracking() {
   }
   window._ctRows = data.rows;
   el.innerHTML = `<div class="card"><div class="tbl-wrap"><table>
-    <thead><tr><th>FY</th><th>INC-20A</th><th>ADT-1</th><th>AOC-4</th><th>MGT-7A</th><th>ITR</th><th>Docs</th><th>Fin. Stmt</th><th>Remarks</th><th>Updated By</th><th>Actions</th></tr></thead>
+    <thead><tr><th>Compliance</th><th>Type</th><th>FY/Event</th><th>Due Date</th><th>Assignee</th><th>Task</th><th>Status</th><th>SRN</th><th>ITR Link</th><th>Actions</th></tr></thead>
     <tbody>${data.rows.map(r => `
       <tr>
-        <td><strong>${r.financial_year}</strong></td>
-        <td>${compBadge(r.inc20a)}${r.srn_inc20a ? `<br><small style="color:#64748b">${r.srn_inc20a}</small>` : ''}</td>
-        <td>${compBadge(r.adt1)}${r.srn_adt1 ? `<br><small style="color:#64748b">${r.srn_adt1}</small>` : ''}</td>
-        <td>${compBadge(r.aoc4)}${r.srn_aoc4 ? `<br><small style="color:#64748b">${r.srn_aoc4}</small>` : ''}</td>
-        <td>${compBadge(r.mgt7a)}${r.srn_mgt7a ? `<br><small style="color:#64748b">${r.srn_mgt7a}</small>` : ''}</td>
-        <td>${compBadge(r.itr)}</td>
-        <td>${compBadge(r.documents_status)}</td>
-        <td>${compBadge(r.financial_statement)}</td>
-        <td style="max-width:120px"><small>${r.remarks || '--'}</small></td>
-        <td><small style="color:#64748b">${r.updated_by_name || '--'}<br>${fmtDate(r.updated_at)}</small></td>
-        <td><button class="btn-sm btn-edit" data-rid="${r.id}" onclick="openCompUpdate(${r.id}, '_ctRows')">Update</button></td>
+        <td><strong>${h(r.compliance_code)}</strong><br><small>${h(r.compliance_name||'')}</small></td>
+        <td>${h((r.compliance_type||'').replace('_',' '))}</td>
+        <td>${r.financial_year || fmtDate(r.event_date) || '--'}${r.event_type ? `<br><small>${h(r.event_type.replaceAll('_',' '))}</small>` : ''}</td>
+        <td>${fmtDate(r.due_date)}</td>
+        <td>${r.assigned_to_name ? h(r.assigned_to_name) : '<span class="badge b-inactive">Unassigned</span>'}</td>
+        <td>${r.linked_task_id ? `<small>${h(r.linked_task_id)}</small>` : '--'}</td>
+        <td>${compBadge(r.status)}</td>
+        <td><small>${h(r.srn || '--')}</small></td>
+        <td>${r.itr_status ? compBadge(r.itr_status) : '--'}</td>
+        <td style="white-space:nowrap"><button class="btn-sm btn-edit" data-rid="${r.id}" onclick="openCompUpdate(${r.id}, '_ctRows')">Update</button> <button class="btn-sm btn-view" onclick="quickAssignCompliance(${r.id}, '_ctRows')">Assign</button></td>
       </tr>`).join('')}
     </tbody>
   </table></div></div>`;
+  loadCompanyEvents(true);
 }
 
 async function loadAllCompliance() {
@@ -3369,7 +3447,7 @@ async function loadAllCompliance() {
   if (status) params.set('status', status);
   if (coStatus) params.set('company_status', coStatus);
 
-  const data = await api('/compliance/tracking?' + params);
+  const data = await api('/compliance/compliance-records?' + params);
   if (!data.success) { el.innerHTML = '<div class="empty-msg">Error loading</div>'; return; }
 
   document.getElementById('all_summary').innerHTML = data.rows.length
@@ -3381,21 +3459,18 @@ async function loadAllCompliance() {
   }
   window._allRows = data.rows;
   el.innerHTML = `<div class="card"><div class="tbl-wrap"><table>
-    <thead><tr><th>Company</th><th>CIN</th><th>FY</th><th>INC-20A</th><th>ADT-1</th><th>AOC-4</th><th>MGT-7A</th><th>ITR</th><th>Docs</th><th>Fin. Stmt</th><th>Agent</th><th>Actions</th></tr></thead>
+    <thead><tr><th>Company</th><th>Compliance</th><th>FY/Event</th><th>Due</th><th>Assignee</th><th>Task</th><th>Status</th><th>Agent</th><th>Actions</th></tr></thead>
     <tbody>${data.rows.map(r => `
       <tr>
         <td><strong>${(r.company_name || '--').substring(0, 28)}</strong></td>
-        <td><small>${r.cin}</small></td>
-        <td>${r.financial_year}</td>
-        <td>${compBadge(r.inc20a)}</td>
-        <td>${compBadge(r.adt1)}</td>
-        <td>${compBadge(r.aoc4)}</td>
-        <td>${compBadge(r.mgt7a)}</td>
-        <td>${compBadge(r.itr)}</td>
-        <td>${compBadge(r.documents_status)}</td>
-        <td>${compBadge(r.financial_statement)}</td>
+        <td><strong>${h(r.compliance_code)}</strong><br><small>${h(r.compliance_name||'')}</small></td>
+        <td>${r.financial_year || fmtDate(r.event_date) || '--'}</td>
+        <td>${fmtDate(r.due_date)}</td>
+        <td>${r.assigned_to_name ? h(r.assigned_to_name) : '<span class="badge b-inactive">Unassigned</span>'}</td>
+        <td><small>${h(r.linked_task_id || '--')}</small></td>
+        <td>${compBadge(r.status)}</td>
         <td><small>${r.agent_name || '--'}</small></td>
-        <td><button class="btn-sm btn-edit" onclick="openCompUpdate(${r.id}, '_allRows')">Update</button></td>
+        <td style="white-space:nowrap"><button class="btn-sm btn-edit" onclick="openCompUpdate(${r.id}, '_allRows')">Update</button> <button class="btn-sm btn-view" onclick="quickAssignCompliance(${r.id}, '_allRows')">Assign</button></td>
       </tr>`).join('')}
     </tbody>
   </table></div></div>`;
@@ -3404,8 +3479,10 @@ async function loadAllCompliance() {
 async function bulkGenerateCompliance() {
   const fy = document.getElementById('all_fy').value;
   if (!fy) { showToast('Select financial year first', 'error'); return; }
-  if (!confirm(`Generate compliance for ALL active companies for ${fy}?\n(Only creates new rows — won't overwrite existing)`)) return;
-  const data = await api('/compliance/tracking/bulk-generate', {
+  const cin = document.getElementById('ct_co_sel')?.value;
+  if (!cin) { showToast('Company Wise tab me pehle company select karein, phir Generate use karein.', 'error'); return; }
+  if (!confirm(`Generate applicable compliance for selected company for ${fy}?`)) return;
+  const data = await api('/compliance/companies/' + encodeURIComponent(cin) + '/compliances/generate', {
     method: 'POST', body: JSON.stringify({ financial_year: fy })
   });
   showToast(data.message, data.success ? 'success' : 'error');
@@ -3473,7 +3550,14 @@ function openCompUpdate(id, storeKey) {
   const r = rows.find(x => x.id === id);
   if (!r) { showToast('Record not found — reload the table first', 'error'); return; }
   document.getElementById('cu_id').value = r.id;
-  document.getElementById('cu_company_info').textContent = `${r.company_name} | ${r.financial_year}`;
+  document.getElementById('cu_company_info').textContent = r.compliance_code
+    ? `${r.company_name} | ${r.compliance_code} | ${r.financial_year || fmtDate(r.event_date) || ''}`
+    : `${r.company_name} | ${r.financial_year}`;
+  if (document.getElementById('cu_status')) document.getElementById('cu_status').value = r.status || 'Draft';
+  if (document.getElementById('cu_due_date')) document.getElementById('cu_due_date').value = (r.due_date || '').slice(0,10);
+  if (document.getElementById('cu_srn')) document.getElementById('cu_srn').value = r.srn || '';
+  if (document.getElementById('cu_assign_to')) document.getElementById('cu_assign_to').value = r.assigned_to_id || '';
+  if (document.getElementById('cu_remarks_new')) document.getElementById('cu_remarks_new').value = r.remarks || '';
   const fields = [
     ['cu_inc20a','inc20a'],['cu_adt1','adt1'],['cu_aoc4','aoc4'],['cu_mgt7a','mgt7a'],
     ['cu_itr','itr'],['cu_docs','documents_status'],['cu_finst','financial_statement']
@@ -3495,6 +3579,30 @@ function openCompUpdate(id, storeKey) {
 
 async function submitCompUpdate() {
   const id = document.getElementById('cu_id').value;
+  const rows = [...(window._ctRows || []), ...(window._allRows || []), ...(window._assignedRows || [])];
+  const current = rows.find(x => String(x.id) === String(id));
+  if (current && current.compliance_code) {
+    const body = {
+      status: document.getElementById('cu_status').value || null,
+      due_date: document.getElementById('cu_due_date').value || null,
+      srn: document.getElementById('cu_srn').value || null,
+      remarks: document.getElementById('cu_remarks_new').value || null,
+    };
+    let data = await api('/compliance/compliance-records/' + id, { method:'PUT', body:JSON.stringify(body) });
+    const assignee = document.getElementById('cu_assign_to').value;
+    if (data.success && assignee && assignee !== current.assigned_to_id) {
+      data = await api('/compliance/compliance-records/' + id + '/assign', { method:'PUT', body:JSON.stringify({ assigned_to_id: assignee, remarks: body.remarks }) });
+    }
+    closeModal('compUpdateModal');
+    showToast(data.message, data.success ? 'success' : 'error');
+    if (data.success) {
+      const storeKey = document.getElementById('compUpdateModal')._storeKey;
+      if (storeKey === '_ctRows') loadCompanyTracking();
+      else if (storeKey === '_assignedRows') loadAssignedCompliance();
+      else loadAllCompliance();
+    }
+    return;
+  }
   const v = id => document.getElementById(id).value || null;
   const data = await api('/compliance/tracking/' + id, {
     method: 'PUT',
@@ -3514,6 +3622,414 @@ async function submitCompUpdate() {
     if (storeKey === '_ctRows') loadCompanyTracking();
     else loadAllCompliance();
   }
+}
+
+async function loadComplianceDashboard() {
+  const el = document.getElementById('ct_dashboard');
+  if (!el) return;
+  el.innerHTML = '<div class="empty-msg">Loading...</div>';
+  const data = await api('/compliance/summary');
+  if (!data.success) { el.innerHTML = '<div class="empty-msg">Error loading dashboard</div>'; return; }
+  const s = data.summary || {};
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:14px">
+      ${[['Total',s.total,'#2563eb'],['Open',s.open,'#f59e0b'],['Draft',s.draft,'#64748b'],['Due Today',s.due_today,'#7c3aed'],['Overdue',s.overdue,'#dc2626'],['Filed',s.filed,'#16a34a']].map(x=>`
+        <div class="card"><div class="card-body"><div style="font-size:12px;color:#64748b;font-weight:700">${x[0]}</div><div style="font-size:26px;font-weight:900;color:${x[2]}">${x[1]||0}</div></div></div>`).join('')}
+    </div>
+    </div>
+    <div class="card"><div class="card-body">
+      <div style="font-weight:800;margin-bottom:8px">Open work by assignee</div>
+      ${(s.by_assignee||[]).map(a=>`<div style="display:flex;justify-content:space-between;border-bottom:1px solid #e2e8f0;padding:8px 0"><span>${h(a.assigned_to_name)}</span><strong>${a.count}</strong></div>`).join('') || '<div class="empty-msg">No open compliance work</div>'}
+    </div></div>`;
+}
+
+function complianceRowsTable(rows, storeKey) {
+  window[storeKey] = rows;
+  return `<div class="card"><div class="tbl-wrap"><table>
+    <thead><tr><th>Company</th><th>Compliance</th><th>FY/Event</th><th>Due</th><th>Assignee</th><th>Task</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody>${rows.map(r=>`<tr>
+      <td><strong>${h(r.company_name||'--')}</strong><br><small>${h(r.cin||'')}</small></td>
+      <td><strong>${h(r.compliance_code)}</strong><br><small>${h(r.compliance_name||'')}</small></td>
+      <td>${r.financial_year || fmtDate(r.event_date) || '--'}</td>
+      <td>${fmtDate(r.due_date)}</td>
+      <td>${r.assigned_to_name ? h(r.assigned_to_name) : '<span class="badge b-inactive">Unassigned</span>'}</td>
+      <td><small>${h(r.linked_task_id || '--')}</small></td>
+      <td>${compBadge(r.status)}</td>
+      <td style="white-space:nowrap"><button class="btn-sm btn-edit" onclick="openCompUpdate(${r.id}, '${storeKey}')">Update</button> <button class="btn-sm btn-view" onclick="quickAssignCompliance(${r.id}, '${storeKey}')">Assign</button></td>
+    </tr>`).join('') || '<tr><td colspan="8" class="empty-msg">No records found</td></tr>'}
+    </tbody></table></div></div>`;
+}
+
+async function loadAssignedCompliance() {
+  const el = document.getElementById('assigned_table');
+  if (!el) return;
+  const params = new URLSearchParams();
+  const emp = document.getElementById('assigned_emp')?.value;
+  const st = document.getElementById('assigned_status')?.value;
+  if (emp) params.set('assigned_to_id', emp);
+  if (st) params.set('status', st);
+  el.innerHTML = '<div class="empty-msg">Loading...</div>';
+  const data = await api('/compliance/compliance-records?' + params);
+  el.innerHTML = data.success ? complianceRowsTable(data.rows, '_assignedRows') : '<div class="empty-msg">Error loading assigned work</div>';
+}
+
+async function quickAssignCompliance(id, storeKey) {
+  const rows = window[storeKey] || [];
+  const r = rows.find(x => x.id === id);
+  if (!r) return showToast('Record not found', 'error');
+  const assignee = prompt('Employee ID assign karein (example: EMP001):', r.assigned_to_id || '');
+  if (!assignee) return;
+  const data = await api('/compliance/compliance-records/' + id + '/assign', { method:'PUT', body:JSON.stringify({ assigned_to_id: assignee }) });
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) {
+    if (storeKey === '_ctRows') loadCompanyTracking();
+    else if (storeKey === '_assignedRows') loadAssignedCompliance();
+    else loadAllCompliance();
+  }
+}
+
+async function loadCompanyEvents(silent=false) {
+  const cin = document.getElementById('ev_co_sel')?.value || document.getElementById('ct_co_sel')?.value;
+  const el = document.getElementById('event_table') || document.getElementById('ct_company_events');
+  const companyEl = document.getElementById('ct_company_events');
+  if (!cin) { if (!silent) showToast('Select company first', 'error'); return; }
+  const data = await api('/compliance/companies/' + encodeURIComponent(cin) + '/events');
+  const target = document.getElementById('event_table') && !document.getElementById('ctab-panel-events').classList.contains('hidden') ? document.getElementById('event_table') : companyEl;
+  if (!target) return;
+  target.innerHTML = data.success ? `<div class="card"><div class="tbl-wrap"><table>
+    <thead><tr><th>Event</th><th>Type</th><th>Date</th><th>Remarks</th><th>Created By</th></tr></thead>
+    <tbody>${(data.events||[]).map(e=>`<tr><td><strong>${h(e.event_title)}</strong></td><td>${h((e.event_type||'').replaceAll('_',' '))}</td><td>${fmtDate(e.event_date)}</td><td>${h(e.remarks||'--')}</td><td>${h(e.created_by_name||'--')}</td></tr>`).join('') || '<tr><td colspan="5" class="empty-msg">No events found</td></tr>'}</tbody>
+  </table></div></div>` : '<div class="empty-msg">Error loading events</div>';
+}
+
+async function createComplianceEvent() {
+  const cin = document.getElementById('ev_co_sel').value;
+  if (!cin) return showToast('Select company first', 'error');
+  const event_type = document.getElementById('ev_type').value;
+  const event_date = document.getElementById('ev_date').value || new Date().toISOString().slice(0,10);
+  const data = await api('/compliance/companies/' + encodeURIComponent(cin) + '/events', {
+    method:'POST',
+    body:JSON.stringify({ event_type, event_title: event_type.replaceAll('_',' '), event_date })
+  });
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) loadCompanyEvents();
+}
+
+async function loadComplianceTemplates() {
+  const el = document.getElementById('template_table');
+  if (!el) return;
+  const data = await api('/compliance/templates');
+  if (!data.success) { el.innerHTML = '<div class="empty-msg">Error loading templates</div>'; return; }
+  CT_META.templates = data.templates || [];
+  CT_META.employees = data.employees || [];
+  populateComplianceAssignees();
+  el.innerHTML = `<div class="card"><div class="tbl-wrap"><table>
+    <thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Due Rule</th><th>Priority</th><th>Default Assignee</th><th>Enabled</th><th>Actions</th></tr></thead>
+    <tbody>${CT_META.templates.map(t=>`<tr>
+      <td><strong>${h(t.code)}</strong></td>
+      <td>${h(t.name)}</td>
+      <td>${h(t.template_type)}</td>
+      <td><small>${h(t.due_rule||'--')}</small></td>
+      <td>${h(t.default_priority||'Medium')}</td>
+      <td>${h(t.default_assignee_name||'--')}</td>
+      <td>${t.enabled ? '<span class="badge b-active">Enabled</span>' : '<span class="badge b-inactive">Disabled</span>'}</td>
+      <td><button class="btn-sm btn-edit" onclick="toggleComplianceTemplate(${t.id}, ${!t.enabled})">${t.enabled?'Disable':'Enable'}</button></td>
+    </tr>`).join('')}</tbody>
+  </table></div></div>`;
+}
+
+async function toggleComplianceTemplate(id, enabled) {
+  const data = await api('/compliance/templates/' + id, { method:'PUT', body:JSON.stringify({ enabled }) });
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) loadComplianceTemplates();
+}
+
+function ctEmployeeOptions(selected) {
+  return `<option value="">Unassigned</option>${CT_META.employees.map(e => `<option value="${h(e.emp_id)}" ${e.emp_id===selected?'selected':''}>${h(e.name || e.emp_id)} (${h(e.emp_id)})</option>`).join('')}`;
+}
+
+function ctStatusOptions(selected) {
+  return _statusOptions.map(s => `<option value="${h(s)}" ${s===selected?'selected':''}>${h(s)}</option>`).join('');
+}
+
+function ctEventOptions() {
+  return [
+    ['director_change','Director Change'],['share_allotment','Share Allotment'],['resolution','Resolution'],
+    ['registered_office_change','Registered Office Change'],['capital_change','Capital Change'],
+    ['charge_creation','Charge Creation'],['charge_satisfaction','Charge Satisfaction'],['auditor_change','Auditor Change']
+  ].map(x => `<option value="${x[0]}">${x[1]}</option>`).join('');
+}
+
+function renderComplianceInlineRows(rows, storeKey) {
+  window[storeKey] = rows || [];
+  if (!rows || !rows.length) return '<div class="empty-msg" style="padding:12px">No records found for this section.</div>';
+  return `<div class="tbl-wrap"><table>
+    <thead><tr><th>Form Name</th><th>Due Date</th><th>Status</th><th>SRN/UDIN/Ack No.</th><th>Assignee</th><th>Task</th><th>Remarks</th><th>Save</th></tr></thead>
+    <tbody>${rows.map(r => `<tr>
+      <td><strong>${h(r.compliance_code)}</strong><br><small>${h(r.compliance_name || '')}${r.event_type ? ' | '+h(r.event_type.replaceAll('_',' ')) : ''}</small></td>
+      <td><input type="date" id="cr_due_${r.id}" value="${(r.due_date || '').slice(0,10)}" style="min-width:130px;padding:7px;border:1px solid #dbe3ef;border-radius:7px"></td>
+      <td><select id="cr_status_${r.id}" style="min-width:145px;padding:7px;border:1px solid #dbe3ef;border-radius:7px">${ctStatusOptions(r.status || 'Pending')}</select></td>
+      <td><input id="cr_srn_${r.id}" value="${h(r.srn || '')}" placeholder="SRN/UDIN" style="min-width:130px;padding:7px;border:1px solid #dbe3ef;border-radius:7px"></td>
+      <td><select id="cr_assign_${r.id}" style="min-width:170px;padding:7px;border:1px solid #dbe3ef;border-radius:7px">${ctEmployeeOptions(r.assigned_to_id || '')}</select></td>
+      <td><small>${h(r.linked_task_id || '--')}</small></td>
+      <td><input id="cr_rem_${r.id}" value="${h(r.remarks || '')}" placeholder="Remarks" style="min-width:160px;padding:7px;border:1px solid #dbe3ef;border-radius:7px"></td>
+      <td><button class="btn-sm btn-primary" onclick="saveComplianceInline(${r.id})">Save</button></td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+async function saveComplianceInline(id) {
+  const body = {
+    due_date: document.getElementById('cr_due_'+id)?.value || null,
+    status: document.getElementById('cr_status_'+id)?.value || null,
+    srn: document.getElementById('cr_srn_'+id)?.value || null,
+    assigned_to_id: document.getElementById('cr_assign_'+id)?.value || null,
+    remarks: document.getElementById('cr_rem_'+id)?.value || null,
+  };
+  let data = await api('/compliance/compliance-records/' + id, { method:'PUT', body:JSON.stringify(body) });
+  if (data.success && body.assigned_to_id) {
+    data = await api('/compliance/compliance-records/' + id + '/assign', { method:'PUT', body:JSON.stringify({ assigned_to_id: body.assigned_to_id, remarks: body.remarks }) });
+  }
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) loadCompanyTracking();
+}
+
+function renderKycInlineRows(rows) {
+  window._workspaceKycRows = rows || [];
+  if (!rows || !rows.length) return '<div class="empty-msg" style="padding:12px">No Director KYC records. Use Generate KYC.</div>';
+  return `<div class="tbl-wrap"><table>
+    <thead><tr><th>Director Name</th><th>DIN</th><th>Designation</th><th>KYC Status</th><th>SRN</th><th>Assignee</th><th>Task</th><th>Remarks</th><th>Save</th></tr></thead>
+    <tbody>${rows.map(r => `<tr>
+      <td><strong>${h(r.director_name || '--')}</strong></td>
+      <td><small>${h(r.din || '--')}</small></td>
+      <td>${h(r.designation || '--')}</td>
+      <td><select id="wk_status_${r.id}" style="min-width:145px;padding:7px;border:1px solid #dbe3ef;border-radius:7px">${ctStatusOptions(r.kyc_status || 'Pending')}</select></td>
+      <td><input id="wk_srn_${r.id}" value="${h(r.srn || '')}" placeholder="SRN" style="min-width:120px;padding:7px;border:1px solid #dbe3ef;border-radius:7px"></td>
+      <td><select id="wk_assign_${r.id}" style="min-width:170px;padding:7px;border:1px solid #dbe3ef;border-radius:7px">${ctEmployeeOptions(r.assigned_to_id || '')}</select></td>
+      <td><small>${h(r.linked_task_id || '--')}</small></td>
+      <td><input id="wk_rem_${r.id}" value="${h(r.remarks || '')}" placeholder="Remarks" style="min-width:160px;padding:7px;border:1px solid #dbe3ef;border-radius:7px"></td>
+      <td><button class="btn-sm btn-primary" onclick="saveWorkspaceKyc(${r.id})">Save</button></td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+async function saveWorkspaceKyc(id) {
+  const body = {
+    kyc_status: document.getElementById('wk_status_'+id)?.value || null,
+    srn: document.getElementById('wk_srn_'+id)?.value || null,
+    remarks: document.getElementById('wk_rem_'+id)?.value || null,
+  };
+  let data = await api('/compliance/kyc/' + id, { method:'PUT', body:JSON.stringify(body) });
+  const assignee = document.getElementById('wk_assign_'+id)?.value;
+  if (data.success && assignee) {
+    data = await api('/compliance/kyc/' + id + '/assign', { method:'PUT', body:JSON.stringify({ assigned_to_id: assignee, remarks: body.remarks }) });
+  }
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) loadCompanyTracking();
+}
+
+async function loadCompanyTracking() {
+  const cin = document.getElementById('ct_co_sel').value;
+  const fy = document.getElementById('ct_fy').value;
+  const el = document.getElementById('ct_company_table');
+  if (!cin) { await loadWorkspaceCompanyList(); return; }
+  el.innerHTML = '<div class="empty-msg">Loading company workspace...</div>';
+  const data = await api('/compliance/companies/' + encodeURIComponent(cin) + '/workspace?financial_year=' + encodeURIComponent(fy));
+  if (!data.success) { el.innerHTML = '<div class="empty-msg">Error loading workspace</div>'; return; }
+  const c = data.company;
+  document.getElementById('ct_company_info').innerHTML = `
+    <div style="background:#eff6ff;border:1.5px solid #2155f3;border-radius:10px;padding:10px 14px;display:flex;gap:16px;flex-wrap:wrap;align-items:center">
+      <strong>${h(c.company_name)}</strong>
+      <span class="badge ${c.company_status==='Active'?'b-active':'b-inactive'}">${h(c.company_status || 'Active')}</span>
+      <span style="color:#64748b;font-size:12px">CIN: ${h(c.cin)}</span>
+      <span style="color:#64748b;font-size:12px">Client: ${h(c.client_id || '--')}</span>
+      <span style="color:#64748b;font-size:12px">Agent: ${h(c.agent_name || '--')}</span>
+      <span style="color:#64748b;font-size:12px">PAN: ${h(c.pan_no || '--')}</span>
+      <span style="color:#64748b;font-size:12px">Incorp: ${fmtDate(c.incorporation_date)}</span>
+    </div>`;
+  CT_META.employees = data.employees || CT_META.employees;
+  const annual = data.annual_records || [];
+  const events = data.event_records || [];
+  el.innerHTML = `
+    <div class="card" style="margin-bottom:12px"><div class="card-body">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+        <h3 style="margin:0;font-size:16px">Annual / First-Year Forms (${h(data.financial_year)})</h3>
+        <button class="btn-sm btn-green" onclick="generateCompliance()" style="padding:7px 12px">Generate Missing Forms</button>
+      </div>
+      ${renderComplianceInlineRows(annual, '_ctRows')}
+    </div></div>
+    <div class="card" style="margin-bottom:12px"><div class="card-body">
+      <h3 style="margin:0 0 10px 0;font-size:16px">+ Event Compliance</h3>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px">
+        <select id="ws_event_type" style="min-width:190px;padding:8px;border:1px solid #dbe3ef;border-radius:7px">${ctEventOptions()}</select>
+        <input type="date" id="ws_event_date" style="padding:8px;border:1px solid #dbe3ef;border-radius:7px">
+        <input type="date" id="ws_event_due" title="Due date optional" style="padding:8px;border:1px solid #dbe3ef;border-radius:7px">
+        <select id="ws_event_assign" style="min-width:180px;padding:8px;border:1px solid #dbe3ef;border-radius:7px">${ctEmployeeOptions('')}</select>
+        <button class="btn-sm btn-primary" onclick="createComplianceEvent()" style="padding:8px 14px">Add Event</button>
+      </div>
+      ${renderComplianceInlineRows(events, '_ctEventRows')}
+    </div></div>
+    <div class="card" style="margin-bottom:12px"><div class="card-body">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+        <h3 style="margin:0;font-size:16px">Directors / KYC (${(data.directors||[]).length} directors)</h3>
+        <button class="btn-sm btn-green" onclick="generateWorkspaceKyc()" style="padding:7px 12px">Generate KYC</button>
+      </div>
+      ${renderKycInlineRows(data.kyc_records || [])}
+    </div></div>
+    <div class="card"><div class="card-body">
+      <h3 style="margin:0 0 10px 0;font-size:16px">ITR Status</h3>
+      ${data.itr_status ? `<div>${compBadge(data.itr_status.status)} <strong>AY ${h(data.itr_status.assessment_year || '--')}</strong> | Assignee: ${h(data.itr_status.assigned_to_name || '--')}</div>` : '<div class="empty-msg">Income Tax module me linked ITR record nahi mila.</div>'}
+    </div></div>`;
+}
+
+async function loadWorkspaceCompanyList() {
+  const fy = document.getElementById('ct_fy')?.value || getComplianceDefaultFY();
+  const el = document.getElementById('ct_company_table');
+  if (!el) return;
+  document.getElementById('ct_company_info').innerHTML = `
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 14px;color:#475569;font-size:13px">
+      Selected FY <strong>${h(fy)}</strong> ke active companies niche dikh rahe hain. Kisi company par click karne se uska full compliance workspace open hoga.
+    </div>`;
+  el.innerHTML = '<div class="empty-msg">Loading companies...</div>';
+  const data = await api('/compliance/companies/workspace-list?financial_year=' + encodeURIComponent(fy));
+  if (!data.success) { el.innerHTML = '<div class="empty-msg">Error loading companies</div>'; return; }
+  const rows = data.companies || [];
+  const applicable = rows.filter(c => c.applicable);
+  const notApplicable = rows.length - applicable.length;
+  el.innerHTML = `<div class="card"><div class="card-body">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+      <div>
+        <h3 style="margin:0;font-size:16px">Active Companies (${applicable.length})</h3>
+        <div style="font-size:12px;color:#64748b">${notApplicable ? `${notApplicable} future incorporation companies selected FY me applicable nahi hain.` : 'Inactive companies hidden hain.'}</div>
+      </div>
+      <button class="btn-sm btn-green" onclick="bulkGenerateCompliance()" style="padding:8px 14px">Bulk Generate ${h(fy)}</button>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Company</th><th>CIN</th><th>Client / Agent</th><th>Incorp.</th><th>Generated</th><th>Assigned</th><th>Unassigned</th><th>Filed</th><th>Action</th></tr></thead>
+      <tbody>${applicable.map(c => `<tr style="cursor:pointer" onclick="openWorkspaceCompany('${jsArg(c.cin)}','${jsArg(c.company_name)}')">
+        <td><strong>${h(c.company_name || '--')}</strong></td>
+        <td><small>${h(c.cin || '--')}</small></td>
+        <td><small>${h(c.client_id || '--')}<br>${h(c.agent_name || '--')}</small></td>
+        <td>${fmtDate(c.incorporation_date)}</td>
+        <td>${c.generated ? `<span class="badge b-active">${c.compliance_count}</span>` : '<span class="badge b-pending">Not Generated</span>'}</td>
+        <td>${c.assigned_count || 0}</td>
+        <td>${c.unassigned_count || 0}</td>
+        <td>${c.filed_count || 0}</td>
+        <td><button class="btn-sm btn-view" onclick="event.stopPropagation();openWorkspaceCompany('${jsArg(c.cin)}','${jsArg(c.company_name)}')">Open</button></td>
+      </tr>`).join('') || '<tr><td colspan="9" class="empty-msg">No active applicable companies found</td></tr>'}</tbody>
+    </table></div>
+  </div></div>`;
+}
+
+function openWorkspaceCompany(cin, name) {
+  document.getElementById('ct_co_sel').value = cin;
+  document.getElementById('ct_co_search').value = name || cin;
+  loadCompanyTracking();
+}
+
+async function bulkGenerateCompliance() {
+  const fy = document.getElementById('ct_fy')?.value || getComplianceDefaultFY();
+  if (!fy) return showToast('Select financial year first', 'error');
+  if (!confirm(`Selected FY ${fy} ke liye saare active companies ka missing compliance generate karein? Duplicate records create nahi honge.`)) return;
+  const data = await api('/compliance/companies/bulk-generate', {
+    method:'POST',
+    body: JSON.stringify({ financial_year: fy })
+  });
+  const details = data.success ? ` Created: ${data.created || 0}, Processed: ${data.processed || 0}, Skipped: ${data.skipped || 0}` : '';
+  showToast((data.message || 'Bulk generate complete') + details, data.success ? 'success' : 'error');
+  if (data.success) {
+    if (document.getElementById('ct_co_sel')?.value) loadCompanyTracking();
+    else loadWorkspaceCompanyList();
+    loadComplianceDashboard();
+  }
+}
+
+async function createComplianceEvent() {
+  const cin = document.getElementById('ct_co_sel').value;
+  if (!cin) return showToast('Select company first', 'error');
+  const event_type = document.getElementById('ws_event_type').value;
+  const event_date = document.getElementById('ws_event_date').value || new Date().toISOString().slice(0,10);
+  const due_date = document.getElementById('ws_event_due').value || null;
+  const assigned_to_id = document.getElementById('ws_event_assign').value || null;
+  const emp = CT_META.employees.find(e => e.emp_id === assigned_to_id);
+  const data = await api('/compliance/companies/' + encodeURIComponent(cin) + '/events', {
+    method:'POST',
+    body:JSON.stringify({ event_type, event_title:event_type.replaceAll('_',' '), event_date, financial_year: document.getElementById('ct_fy').value, due_date, assigned_to_id, assigned_to_name: emp?.name || null })
+  });
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) loadCompanyTracking();
+}
+
+async function generateWorkspaceKyc() {
+  const cin = document.getElementById('ct_co_sel').value;
+  const fy = document.getElementById('ct_fy').value;
+  if (!cin || !fy) return showToast('Select company and FY first', 'error');
+  const data = await api('/compliance/kyc/bulk-generate', { method:'POST', body:JSON.stringify({ cin, financial_year: fy }) });
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) loadCompanyTracking();
+}
+
+async function loadComplianceDashboard() {
+  const fy = document.getElementById('dash_fy')?.value || getCurrentFY();
+  const el = document.getElementById('ct_dashboard');
+  if (!el) return;
+  el.innerHTML = '<div class="empty-msg">Loading...</div>';
+  const data = await api('/compliance/dashboard?financial_year=' + encodeURIComponent(fy));
+  if (!data.success) { el.innerHTML = '<div class="empty-msg">Error loading dashboard</div>'; return; }
+  const d = data.dashboard || {};
+  const metric = (label, value, color) => `<div class="card"><div class="card-body"><div style="font-size:12px;color:#64748b;font-weight:700">${label}</div><div style="font-size:24px;font-weight:900;color:${color}">${value || 0}</div></div></div>`;
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:14px">
+      ${metric('Active Companies', d.active_companies, '#2563eb')}
+      ${metric('Inactive Companies', d.inactive_companies, '#64748b')}
+      ${metric('Active Not Assigned', d.active_companies_not_assigned, '#dc2626')}
+      ${metric('Compliance Records', d.total_records, '#7c3aed')}
+      ${metric('Assigned', d.assigned_records, '#16a34a')}
+      ${metric('Unassigned', d.unassigned_records, '#f59e0b')}
+      ${metric('Overdue', d.overdue_records, '#dc2626')}
+      ${metric('Due Today', d.due_today_records, '#0f766e')}
+      ${metric('Filed', d.filed_records, '#15803d')}
+    </div>
+    <div class="card"><div class="tbl-wrap"><table>
+      <thead><tr><th>Form</th><th>Total</th><th>Pending</th><th>In Progress</th><th>Pending by Client</th><th>Prepared</th><th>Filed</th><th>Not Applicable</th><th>Unassigned</th></tr></thead>
+      <tbody>${(d.form_status||[]).map(r => `<tr><td><strong>${h(r.form_code)}</strong><br><small>${h(r.form_name)}</small></td><td>${r.total}</td><td>${r.pending}</td><td>${r.in_progress}</td><td>${r.pending_by_client}</td><td>${r.prepared}</td><td>${r.filed}</td><td>${r.not_applicable}</td><td>${r.unassigned}</td></tr>`).join('') || '<tr><td colspan="9" class="empty-msg">No records for selected FY</td></tr>'}</tbody>
+    </table></div></div>`;
+}
+
+async function loadFYReport() {
+  const params = new URLSearchParams();
+  const set = (k, id) => { const v = document.getElementById(id)?.value; if (v) params.set(k, v); };
+  set('financial_year','report_fy'); set('company_text','report_company'); set('form_name','report_form');
+  set('status','report_status'); set('assigned_to_id','report_assignee'); set('company_status','report_co_status');
+  const el = document.getElementById('report_table');
+  if (!el) return;
+  el.innerHTML = '<div class="empty-msg">Loading report...</div>';
+  const data = await api('/compliance/reports/fy?' + params);
+  window._fyReportRows = data.rows || [];
+  document.getElementById('report_summary').innerHTML = data.success ? `<div style="color:#64748b;font-size:12px">${window._fyReportRows.length} rows found</div>` : '';
+  if (!data.success) { el.innerHTML = '<div class="empty-msg">Error loading report</div>'; return; }
+  el.innerHTML = `<div class="card"><div class="tbl-wrap"><table>
+    <thead><tr><th>Company</th><th>Form Name</th><th>Status</th><th>SRN/UDIN</th><th>Assignee</th><th>Due Date</th><th>Event Compliance</th><th>Event Date</th><th>Event SRN</th><th>Event Assignee</th><th>Director</th><th>DIN</th><th>KYC Status</th><th>KYC Assignee</th></tr></thead>
+    <tbody>${window._fyReportRows.map(r => `<tr>
+      <td><strong>${h(r.company_name||'--')}</strong><br><small>${h(r.cin||'')}</small></td>
+      <td>${h(r.form_name||'--')}</td><td>${compBadge(r.form_status)}</td><td>${h(r.srn_udin||'--')}</td><td>${h(r.assignee_name||'--')}</td><td>${fmtDate(r.due_date)}</td>
+      <td>${h(r.event_compliance_name||'--')}</td><td>${fmtDate(r.event_date)}</td><td>${h(r.event_srn_udin||'--')}</td><td>${h(r.event_assignee_name||'--')}</td>
+      <td>${h(r.director_name||'--')}</td><td>${h(r.din||'--')}</td><td>${r.kyc_status ? compBadge(r.kyc_status) : '--'}</td><td>${h(r.kyc_assignee_name||'--')}</td>
+    </tr>`).join('') || '<tr><td colspan="14" class="empty-msg">No report rows found</td></tr>'}</tbody>
+  </table></div></div>`;
+}
+
+function downloadFYReportCsv() {
+  const rows = window._fyReportRows || [];
+  if (!rows.length) return showToast('Report load karein pehle', 'error');
+  const cols = ['company_name','cin','form_name','form_status','srn_udin','assignee_name','due_date','event_compliance_name','event_date','event_srn_udin','event_assignee_name','director_name','din','kyc_status','kyc_assignee_name'];
+  const csv = [cols.join(',')].concat(rows.map(r => cols.map(c => `"${String(r[c] ?? '').replace(/"/g,'""')}"`).join(','))).join('\n');
+  const blob = new Blob([csv], { type:'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `compliance-fy-report-${document.getElementById('report_fy')?.value || 'fy'}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 function openKYCUpdate(id) {
@@ -4253,7 +4769,20 @@ async function viewCompanyFull(cin) {
 
   // Section 4: Compliance Tracking
   let ctHtml = '';
-  if (data.compliance_tracking.length) {
+  const normalizedCompliance = data.compliance_records || [];
+  if (normalizedCompliance.length) {
+    ctHtml = `<div class="tbl-wrap"><table>
+      <thead><tr><th>Compliance</th><th>FY/Event</th><th>Due</th><th>Assignee</th><th>Status</th><th>Task</th></tr></thead>
+      <tbody>${normalizedCompliance.slice(0,80).map(r => `<tr>
+        <td><strong>${h(r.compliance_code||'--')}</strong><br><small>${h(r.compliance_name||'')}</small></td>
+        <td>${r.financial_year || fmtDate(r.event_date) || '--'}</td>
+        <td>${fmtDate(r.due_date)}</td>
+        <td>${h(r.assigned_to_name||'Unassigned')}</td>
+        <td>${compBadge(r.status)}</td>
+        <td><small>${h(r.linked_task_id||'--')}</small></td>
+      </tr>`).join('')}
+      </tbody></table></div>`;
+  } else if (data.compliance_tracking.length) {
     ctHtml = `<div class="tbl-wrap"><table>
       <thead><tr><th>FY</th><th>INC-20A</th><th>ADT-1</th><th>AOC-4</th><th>MGT-7A</th><th>ITR</th><th>Docs</th><th>Fin. Stmt</th></tr></thead>
       <tbody>${data.compliance_tracking.map(r => `<tr>
@@ -4270,7 +4799,7 @@ async function viewCompanyFull(cin) {
     sec('Company Information', '&#127970;', masterHtml) +
     sec(`Director / Signatory Details (${data.directors.length})`, '&#128104;', dirHtml) +
     sec(`Index of Charges (${data.charges.length})`, '&#128196;', chargesHtml) +
-    sec(`Compliance Tracking (${data.compliance_tracking.length} FY)`, '&#9989;', ctHtml);
+    sec(`Compliance Tracking (${normalizedCompliance.length || data.compliance_tracking.length})`, '&#9989;', ctHtml);
 }
 
 // ── DIRECTOR SEARCH ───────────────────────────────────────────

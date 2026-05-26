@@ -1,10 +1,11 @@
 const express = require('express');
 const db = require('../db');
 const authMiddleware = require('../middleware/auth');
+const complianceService = require('../services/complianceService');
 
 const router = express.Router();
 
-const STATUS_OPTIONS = ['Pending','Pending by Client','Filed','Under Process','Not Applicable','Received','Prepared'];
+const STATUS_OPTIONS = complianceService.COMPLIANCE_STATUSES;
 
 const FY_OPTIONS = () => {
   const now = new Date(Date.now() + (5.5 * 60 * 60 * 1000)); // IST
@@ -46,12 +47,32 @@ router.get('/companies', authMiddleware, async (req, res) => {
   } catch(err) { console.error(err); res.status(500).json({ success:false, message:'Server error' }); }
 });
 
+router.get('/companies/workspace-list', authMiddleware, async (req, res) => {
+  try {
+    const data = await complianceService.workspaceCompanyList(req.query.financial_year);
+    res.json({ success:true, ...data, fy_options:FY_OPTIONS() });
+  } catch (err) { routeError(res, err, '[compliance workspace company list]'); }
+});
+
+router.post('/companies/bulk-generate', authMiddleware, async (req, res) => {
+  try {
+    if (!req.body.financial_year) return res.status(400).json({ success:false, message:'Financial Year required' });
+    const result = await complianceService.bulkGenerateCompanyCompliances(req.body.financial_year, req.user);
+    res.json({ success:true, message:`Bulk generate complete: ${result.created} records created`, ...result });
+  } catch (err) { routeError(res, err, '[compliance bulk generate]'); }
+});
+
 router.get('/companies/:cin', authMiddleware, async (req, res) => {
   try {
+    await complianceService.ensureSchema();
     const c = await db.query('SELECT * FROM companies WHERE UPPER(cin)=UPPER($1)', [req.params.cin]);
     if (!c.rows.length) return res.status(404).json({ success:false, message:'Company not found' });
-    const dirs = await db.query('SELECT * FROM directors WHERE UPPER(cin)=UPPER($1) ORDER BY director_name', [req.params.cin]);
-    res.json({ success:true, company:c.rows[0], directors:dirs.rows });
+    const [dirs, records, events] = await Promise.all([
+      db.query('SELECT * FROM directors WHERE UPPER(cin)=UPPER($1) ORDER BY director_name', [req.params.cin]),
+      complianceService.listRecords({ cin: req.params.cin }),
+      complianceService.listEvents(req.params.cin),
+    ]);
+    res.json({ success:true, company:c.rows[0], directors:dirs.rows, compliance_records:records, events });
   } catch(err) { console.error(err); res.status(500).json({ success:false, message:'Server error' }); }
 });
 
@@ -76,7 +97,14 @@ router.post('/companies', authMiddleware, async (req, res) => {
        incorporation_date||null,registered_office||null,city||null,state||null,pin_code||null,
        email||null,mobile||null,parseFloat(authorized_capital)||null,parseFloat(paid_up_capital)||null,
        pan_no||null,tan_no||null,last_agm_date||null,last_balance_sheet_date||null,notes||null]);
-    res.json({ success:true, message:'Company saved!' });
+    let compliance_created = 0;
+    try {
+      const generated = await complianceService.autoGenerateForCompany(cin, req.user);
+      compliance_created = generated.created || 0;
+    } catch (genErr) {
+      console.error('[company compliance auto-generate]', genErr.message);
+    }
+    res.json({ success:true, message:'Company saved!', compliance_created });
   } catch(err) { console.error(err); res.status(500).json({ success:false, message:'Server error' }); }
 });
 
@@ -116,6 +144,150 @@ router.put('/companies/:cin/status', authMiddleware, async (req, res) => {
 });
 
 // ── DIRECTORS ─────────────────────────────────────────────────
+
+function routeError(res, err, label) {
+  console.error(label, err);
+  res.status(err.statusCode || 500).json({ success:false, message:err.message || 'Server error' });
+}
+
+// Normalized company compliance engine
+router.get('/templates', authMiddleware, async (req, res) => {
+  try {
+    const data = await complianceService.listTemplates();
+    res.json({ success:true, templates:data.templates, employees:data.employees, status_options:STATUS_OPTIONS, fy_options:FY_OPTIONS(), template_types:complianceService.TEMPLATE_TYPES });
+  } catch (err) { routeError(res, err, '[compliance templates]'); }
+});
+
+router.post('/templates', authMiddleware, async (req, res) => {
+  try {
+    await complianceService.ensureSchema();
+    const { code, name, template_type, event_type, due_rule, default_priority, enabled, sort_order } = req.body;
+    if (!code || !name || !template_type) return res.status(400).json({ success:false, message:'Code, name and type required' });
+    await db.query(
+      `INSERT INTO compliance_templates
+        (code,name,template_type,event_type,due_rule,default_priority,enabled,sort_order)
+       VALUES (UPPER($1),$2,$3,$4,$5,$6,COALESCE($7,true),COALESCE($8,100))
+       ON CONFLICT (organization_id, code) DO UPDATE SET
+         name=EXCLUDED.name, template_type=EXCLUDED.template_type, event_type=EXCLUDED.event_type,
+         due_rule=EXCLUDED.due_rule, default_priority=EXCLUDED.default_priority,
+         enabled=EXCLUDED.enabled, sort_order=EXCLUDED.sort_order, updated_at=NOW()`,
+      [code, name, template_type, event_type || null, due_rule || null, default_priority || 'Medium', typeof enabled === 'boolean' ? enabled : true, sort_order ? parseInt(sort_order,10) : 100]
+    );
+    res.json({ success:true, message:'Compliance template saved' });
+  } catch (err) { routeError(res, err, '[compliance template create]'); }
+});
+
+router.put('/templates/:id', authMiddleware, async (req, res) => {
+  try {
+    const template = await complianceService.updateTemplate(parseInt(req.params.id, 10), req.body, req.user);
+    res.json({ success:true, message:'Compliance template updated', template });
+  } catch (err) { routeError(res, err, '[compliance template update]'); }
+});
+
+router.get('/summary', authMiddleware, async (req, res) => {
+  try {
+    const data = await complianceService.summary(req.query);
+    res.json({ success:true, summary:data });
+  } catch (err) { routeError(res, err, '[compliance summary]'); }
+});
+
+router.get('/dashboard', authMiddleware, async (req, res) => {
+  try {
+    const data = await complianceService.dashboard(req.query.financial_year);
+    res.json({ success:true, dashboard:data, fy_options:FY_OPTIONS(), status_options:STATUS_OPTIONS });
+  } catch (err) { routeError(res, err, '[compliance dashboard]'); }
+});
+
+router.get('/reports/fy', authMiddleware, async (req, res) => {
+  try {
+    const data = await complianceService.fyReport(req.query);
+    res.json({ success:true, ...data, fy_options:FY_OPTIONS(), status_options:STATUS_OPTIONS });
+  } catch (err) { routeError(res, err, '[compliance fy report]'); }
+});
+
+router.get('/companies/:cin/workspace', authMiddleware, async (req, res) => {
+  try {
+    const data = await complianceService.workspace(req.params.cin, req.query.financial_year);
+    res.json({ success:true, ...data, fy_options:FY_OPTIONS() });
+  } catch (err) { routeError(res, err, '[company compliance workspace]'); }
+});
+
+router.get('/companies/:cin/compliances', authMiddleware, async (req, res) => {
+  try {
+    const rows = await complianceService.listRecords({ ...req.query, cin:req.params.cin });
+    res.json({ success:true, rows, status_options:STATUS_OPTIONS, fy_options:FY_OPTIONS() });
+  } catch (err) { routeError(res, err, '[company compliances]'); }
+});
+
+router.post('/companies/:cin/compliances/generate', authMiddleware, async (req, res) => {
+  try {
+    const { financial_year } = req.body;
+    if (!financial_year) return res.status(400).json({ success:false, message:'Financial Year required' });
+    const result = await complianceService.generateCompanyCompliances(req.params.cin, financial_year, req.user);
+    res.json({ success:true, message:`${result.created} compliance records generated`, ...result });
+  } catch (err) { routeError(res, err, '[company compliance generate]'); }
+});
+
+router.get('/companies/:cin/events', authMiddleware, async (req, res) => {
+  try {
+    const events = await complianceService.listEvents(req.params.cin);
+    res.json({ success:true, events });
+  } catch (err) { routeError(res, err, '[company events]'); }
+});
+
+router.post('/companies/:cin/events', authMiddleware, async (req, res) => {
+  try {
+    if (!req.body.event_type) return res.status(400).json({ success:false, message:'Event type required' });
+    const result = await complianceService.createEvent(req.params.cin, req.body, req.user);
+    res.json({ success:true, message:`Event saved. ${result.created} compliance records created.`, ...result });
+  } catch (err) { routeError(res, err, '[company event create]'); }
+});
+
+router.get('/compliance-records', authMiddleware, async (req, res) => {
+  try {
+    const rows = await complianceService.listRecords(req.query);
+    res.json({ success:true, rows, status_options:STATUS_OPTIONS, fy_options:FY_OPTIONS() });
+  } catch (err) { routeError(res, err, '[compliance records]'); }
+});
+
+router.put('/compliance-records/:id', authMiddleware, async (req, res) => {
+  try {
+    const record = await complianceService.updateRecord(parseInt(req.params.id, 10), req.body, req.user);
+    res.json({ success:true, message:'Compliance record updated', record });
+  } catch (err) { routeError(res, err, '[compliance record update]'); }
+});
+
+router.put('/compliance-records/:id/inline', authMiddleware, async (req, res) => {
+  try {
+    let record = await complianceService.updateRecord(parseInt(req.params.id, 10), req.body, req.user);
+    if (req.body.assigned_to_id && req.body.assigned_to_id !== record.assigned_to_id) {
+      record = await complianceService.assignRecord(parseInt(req.params.id, 10), req.body.assigned_to_id, req.user, req.body.remarks || null);
+    }
+    res.json({ success:true, message:'Compliance row saved', record });
+  } catch (err) { routeError(res, err, '[compliance inline update]'); }
+});
+
+router.put('/compliance-records/:id/status', authMiddleware, async (req, res) => {
+  try {
+    const record = await complianceService.updateRecord(parseInt(req.params.id, 10), req.body, req.user);
+    res.json({ success:true, message:'Compliance status updated', record });
+  } catch (err) { routeError(res, err, '[compliance status update]'); }
+});
+
+router.put('/compliance-records/:id/assign', authMiddleware, async (req, res) => {
+  try {
+    if (!req.body.assigned_to_id) return res.status(400).json({ success:false, message:'Assignee required' });
+    const record = await complianceService.assignRecord(parseInt(req.params.id, 10), req.body.assigned_to_id, req.user, req.body.remarks || null);
+    res.json({ success:true, message:'Compliance assigned and task linked', record });
+  } catch (err) { routeError(res, err, '[compliance assign]'); }
+});
+
+router.post('/compliance-records/:id/create-task', authMiddleware, async (req, res) => {
+  try {
+    const result = await complianceService.createTaskForRecordId(parseInt(req.params.id, 10), req.user);
+    res.json({ success:true, message:result.existed ? 'Task already linked' : 'Task created', ...result });
+  } catch (err) { routeError(res, err, '[compliance task create]'); }
+});
 
 router.get('/directors', authMiddleware, async (req, res) => {
   const { search, kyc_status, cin } = req.query;
@@ -383,17 +555,26 @@ router.put('/kyc/:id', authMiddleware, async (req, res) => {
   } catch(err) { console.error(err); res.status(500).json({ success:false, message:'Server error' }); }
 });
 
+router.put('/kyc/:id/assign', authMiddleware, async (req, res) => {
+  try {
+    if (!req.body.assigned_to_id) return res.status(400).json({ success:false, message:'Assignee required' });
+    const record = await complianceService.assignKycRecord(parseInt(req.params.id, 10), req.body.assigned_to_id, req.user, req.body.remarks || null);
+    res.json({ success:true, message:'Director KYC assigned and task linked', record });
+  } catch (err) { routeError(res, err, '[kyc assign]'); }
+});
+
 // ── COMPANY FULL VIEW (MCA style) ────────────────────────────
 router.get('/company-full/:cin', authMiddleware, async (req, res) => {
   const cin = req.params.cin;
   try {
-    const [master, dirs, charges, meetings, shareholders, tracking] = await Promise.all([
+    const [master, dirs, charges, meetings, shareholders, tracking, normalized] = await Promise.all([
       db.query('SELECT * FROM master_data WHERE UPPER(cin)=UPPER($1) ORDER BY id DESC LIMIT 1', [cin]),
       db.query('SELECT * FROM director_details WHERE UPPER(cin)=UPPER($1) ORDER BY sr_no', [cin]),
       db.query('SELECT * FROM index_of_charges WHERE UPPER(cin)=UPPER($1) ORDER BY sr_no', [cin]),
       db.query('SELECT * FROM board_meetings WHERE UPPER(cin)=UPPER($1) ORDER BY date DESC LIMIT 20').catch(()=>({rows:[]})),
       db.query('SELECT * FROM shareholders WHERE UPPER(cin)=UPPER($1) ORDER BY sr_no LIMIT 100').catch(()=>({rows:[]})),
       db.query('SELECT * FROM compliance_tracking WHERE UPPER(cin)=UPPER($1) ORDER BY financial_year DESC', [cin]),
+      complianceService.listRecords({ cin }),
     ]);
     if (!master.rows.length) return res.status(404).json({ success:false, message:'Company not found' });
     res.json({
@@ -404,6 +585,7 @@ router.get('/company-full/:cin', authMiddleware, async (req, res) => {
       board_meetings: meetings.rows,
       shareholders: shareholders.rows,
       compliance_tracking: tracking.rows,
+      compliance_records: normalized,
     });
   } catch(err) { console.error(err); res.status(500).json({ success:false, message:'Server error' }); }
 });
@@ -444,7 +626,10 @@ router.get('/director-search', authMiddleware, async (req, res) => {
 
 // ── MISC ──────────────────────────────────────────────────────
 router.get('/records', authMiddleware, async (req, res) => {
-  res.json({ success:true, records:[], fy_options:FY_OPTIONS(), status_options:STATUS_OPTIONS });
+  try {
+    const rows = await complianceService.listRecords(req.query);
+    res.json({ success:true, records:rows, rows, fy_options:FY_OPTIONS(), status_options:STATUS_OPTIONS });
+  } catch (err) { routeError(res, err, '[compliance records legacy]'); }
 });
 
 router.get('/activity-log', authMiddleware, async (req, res) => {

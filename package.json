@@ -12,6 +12,8 @@
     "multi-office:migrate:apply": "node scripts/multi_office_migrate.js --apply",
     "portal:migrate": "node scripts/portal_migrate.js",
     "portal:migrate:apply": "node scripts/portal_migrate.js --apply",
+    "compliance:migrate": "node scripts/compliance_migrate.js",
+    "compliance:migrate:apply": "node scripts/compliance_migrate.js --apply",
     "gst:import:preview": "node scripts/gst_import.js C:/Users/HP/Downloads/GST_CLIENTS.xlsx",
     "gst:import": "node scripts/gst_import.js C:/Users/HP/Downloads/GST_CLIENTS.xlsx --apply"
   },
