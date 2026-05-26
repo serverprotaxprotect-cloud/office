@@ -21,6 +21,7 @@ const statements = [
     status VARCHAR(20) NOT NULL DEFAULT 'Active',
     inactive_reason TEXT,
     inactive_from DATE,
+    source VARCHAR(40) NOT NULL DEFAULT 'manual',
     source_sheet VARCHAR(100),
     source_row INTEGER,
     created_by_id VARCHAR(50),
@@ -34,6 +35,9 @@ const statements = [
   `CREATE UNIQUE INDEX IF NOT EXISTS ux_income_tax_clients_org_pan
     ON income_tax_clients (organization_id, UPPER(pan_number))
     WHERE NULLIF(pan_number,'') IS NOT NULL`,
+  `ALTER TABLE income_tax_clients ADD COLUMN IF NOT EXISTS source VARCHAR(40) NOT NULL DEFAULT 'manual'`,
+  `ALTER TABLE income_tax_clients ADD COLUMN IF NOT EXISTS source_sheet VARCHAR(100)`,
+  `ALTER TABLE income_tax_clients ADD COLUMN IF NOT EXISTS source_row INTEGER`,
   `CREATE INDEX IF NOT EXISTS idx_income_tax_clients_org_client ON income_tax_clients (organization_id, client_id)`,
   `CREATE INDEX IF NOT EXISTS idx_income_tax_clients_org_status ON income_tax_clients (organization_id, status)`,
   `CREATE INDEX IF NOT EXISTS idx_income_tax_clients_org_assignee ON income_tax_clients (organization_id, default_assignee_id)`,
