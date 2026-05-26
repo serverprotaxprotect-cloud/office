@@ -388,7 +388,7 @@
         <div class="card-head"><h3>Tasks by Employee</h3></div>
         <div class="card-body">
           <div class="tbl-wrap"><table>
-            <thead><tr><th>#</th><th>Employee</th><th>Active Tasks</th></tr></thead>
+            <thead><tr><th>#</th><th>Employee</th><th>Designation</th><th>Active Tasks</th></tr></thead>
             <tbody id="empBreakdownTable"></tbody>
           </table></div>
         </div>
@@ -2235,8 +2235,9 @@ async function loadDashboard() {
       <tr>
         <td>${i+1}</td>
         <td>${e.assigned_to_name || '--'}</td>
-        <td><strong style="color:#2155f3">${e.cnt}</strong></td>
-      </tr>`).join('') || '<tr><td colspan="3" class="empty-msg">No data</td></tr>';
+        <td>${e.designation || '--'}</td>
+        <td><button class="btn-sm btn-view" style="font-weight:800" onclick="openEmployeeActiveTasks('${jsArg(e.assigned_to_id)}','${jsArg(e.assigned_to_name || '')}')">${e.cnt}</button></td>
+      </tr>`).join('') || '<tr><td colspan="4" class="empty-msg">No data</td></tr>';
   } else {
     // Employee view
     document.getElementById('d-over').textContent = data.overdue || 0;
@@ -2263,6 +2264,25 @@ async function loadDashboard() {
 }
 
 // ── TASKS ────────────────────────────────────────────────────
+async function openEmployeeActiveTasks(empId, empName = '') {
+  if (!empId) return;
+  showPanel('alltasks');
+  await loadMeta();
+  const filter = document.getElementById('allEmpFilter');
+  if (filter) {
+    if (![...filter.options].some(o => o.value === empId)) {
+      filter.insertAdjacentHTML('beforeend', `<option value="${h(empId)}">${h(empName || empId)}</option>`);
+    }
+    filter.value = empId;
+  }
+  ['allSearch','allStatusFilter','allPriorityFilter','allWorkFilter'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  panelLoaded['alltasks'] = true;
+  loadTasks('all');
+}
+
 const _dbt = {};
 function debounceLoad(view) {
   clearTimeout(_dbt[view]);

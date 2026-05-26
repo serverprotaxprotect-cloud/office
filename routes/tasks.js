@@ -54,7 +54,18 @@ router.get('/dashboard', authMiddleware, async (req, res) => {
         db.query(`SELECT COUNT(*) FROM tasks WHERE active_flag=true AND status NOT IN ('Completed','Cancelled')`),
         db.query(`SELECT COUNT(*) FROM tasks WHERE active_flag=true AND due_date < CURRENT_DATE AND status NOT IN ('Completed','Cancelled')`),
         db.query(`SELECT COUNT(*) FROM tasks WHERE status='Completed' AND completion_date::date = CURRENT_DATE`),
-        db.query(`SELECT assigned_to_name, assigned_to_id, COUNT(*) as cnt FROM tasks WHERE active_flag=true AND status NOT IN ('Completed','Cancelled') GROUP BY assigned_to_id, assigned_to_name ORDER BY cnt DESC LIMIT 15`),
+        db.query(
+          `SELECT t.assigned_to_name, t.assigned_to_id,
+                  COALESCE(e.designation, a.role, '--') AS designation,
+                  COUNT(*) as cnt
+             FROM tasks t
+             LEFT JOIN emplist e ON e.emp_id=t.assigned_to_id
+             LEFT JOIN admins a ON a.username=t.assigned_to_id
+            WHERE t.active_flag=true AND t.status NOT IN ('Completed','Cancelled')
+            GROUP BY t.assigned_to_id, t.assigned_to_name, e.designation, a.role
+            ORDER BY cnt DESC
+            LIMIT 15`
+        ),
         db.query(`SELECT status, COUNT(*) as cnt FROM tasks WHERE active_flag=true AND status NOT IN ('Cancelled') GROUP BY status ORDER BY cnt DESC`),
       ]);
       return res.json({
