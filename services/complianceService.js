@@ -152,6 +152,23 @@ function complianceStatusForTask(status) {
   return null;
 }
 
+function kycStatusForTask(status) {
+  if (status === 'Completed') return 'Filed';
+  if (status === 'Cancelled') return 'Not Applicable';
+  if (status === 'Waiting for Client') return 'Pending by Client';
+  if (['In Progress', 'Under Review', 'Waiting for Government', 'On Hold', 'Reassigned'].includes(status)) return 'In Progress';
+  if (status === 'Pending') return 'Pending';
+  return null;
+}
+
+function taskStatusForKyc(status) {
+  if (status === 'Filed') return 'Completed';
+  if (status === 'Not Applicable') return 'Cancelled';
+  if (status === 'Pending by Client') return 'Waiting for Client';
+  if (status === 'In Progress' || status === 'Prepared') return 'In Progress';
+  return 'Pending';
+}
+
 async function ensureSchema(conn = db) {
   if (!schemaReady) {
     const existing = await conn.query(`SELECT to_regclass('public.company_compliance_records') AS records_table`);
@@ -971,9 +988,21 @@ async function createTaskForRecordId(id, actor) {
 async function syncComplianceForTaskStatus(conn, task, status, actor, remark) {
   await ensureSchema(conn);
   const complianceStatus = complianceStatusForTask(status);
-  if (!complianceStatus) return null;
+  const kycStatus = kycStatusForTask(status);
+  if (!complianceStatus && !kycStatus) return null;
   const recRes = await conn.query(`SELECT * FROM company_compliance_records WHERE linked_task_id=$1 FOR UPDATE`, [task.task_id]);
-  if (!recRes.rows.length) return null;
+  if (!recRes.rows.length) {
+    const kycRes = await conn.query(`SELECT * FROM director_kyc_tracking WHERE linked_task_id=$1 FOR UPDATE`, [task.task_id]);
+    if (!kycRes.rows.length || !kycStatus) return null;
+    const kyc = kycRes.rows[0];
+    if (kyc.kyc_status === kycStatus) return { kyc_id: kyc.id, status: kycStatus, changed: false };
+    await conn.query(
+      `UPDATE director_kyc_tracking SET kyc_status=$1, remarks=COALESCE($2,remarks),
+         updated_by_id=$3, updated_by_name=$4, updated_at=NOW() WHERE id=$5`,
+      [kycStatus, remark || null, actorId(actor), actorName(actor), kyc.id]
+    );
+    return { kyc_id: kyc.id, status: kycStatus, changed: true };
+  }
   const rec = recRes.rows[0];
   if (rec.status === complianceStatus) return { record_id: rec.id, status: complianceStatus, changed: false };
   const filingDate = complianceStatus === 'Filed' ? todayIST() : rec.filing_date;
@@ -1200,7 +1229,7 @@ async function createTaskForKyc(conn, kyc, actor) {
       (task_id, created_at, created_by_id, created_by_name, assigned_to_id, assigned_to_name,
        client_id, agent_name, legal_name, business_name, work_name, work_description, priority,
        status, internal_remark, self_assigned, billing_status, active_flag)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'DIR-3 KYC',$11,'Medium','Pending',$12,$13,'Not Applicable',true)`,
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'Medium','Pending',$13,$14,'Not Applicable',true)`,
     [
       taskId,
       nowIST(),
@@ -1212,7 +1241,8 @@ async function createTaskForKyc(conn, kyc, actor) {
       kyc.agent_name || null,
       kyc.company_name || kyc.cin,
       kyc.company_name || kyc.cin,
-      `DIR-3 KYC for ${kyc.director_name} (${kyc.financial_year})`,
+      `DIR-3 KYC - ${kyc.director_name || kyc.din}`,
+      `DIR-3 KYC for ${kyc.director_name || kyc.din} (${kyc.financial_year})`,
       'Auto Director KYC compliance task',
       createdById === kyc.assigned_to_id,
     ]
@@ -1248,9 +1278,9 @@ async function assignKycRecord(id, assigneeId, actor, remark) {
     let taskId = old.linked_task_id;
     if (taskId) {
       await conn.query(
-        `UPDATE tasks SET assigned_to_id=$1, assigned_to_name=$2, last_updated_at=NOW(),
-          last_updated_by_id=$3, last_updated_by_name=$4 WHERE task_id=$5`,
-        [emp.emp_id, assignedName, actorId(actor), actorName(actor), taskId]
+        `UPDATE tasks SET assigned_to_id=$1, assigned_to_name=$2, work_name=$3, last_updated_at=NOW(),
+          last_updated_by_id=$4, last_updated_by_name=$5 WHERE task_id=$6`,
+        [emp.emp_id, assignedName, `DIR-3 KYC - ${old.director_name || old.din}`, actorId(actor), actorName(actor), taskId]
       );
     } else {
       taskId = await createTaskForKyc(conn, { ...old, assigned_to_id: emp.emp_id, assigned_to_name: assignedName }, actor);
@@ -1270,6 +1300,26 @@ async function assignKycRecord(id, assigneeId, actor, remark) {
   } finally {
     conn.release();
   }
+}
+
+async function syncTaskForKycStatus(id, status, actor, remark) {
+  await ensureSchema();
+  if (!status) return null;
+  const taskStatus = taskStatusForKyc(status);
+  const completionDate = ['Completed', 'Cancelled'].includes(taskStatus) ? todayIST() : null;
+  const upd = await db.query(
+    `UPDATE tasks t SET status=$1,
+       work_name='DIR-3 KYC - ' || COALESCE(NULLIF(dk.director_name,''), dk.din, 'Director'),
+       completion_date=CASE WHEN $2::date IS NOT NULL THEN $2::date ELSE completion_date END,
+       completion_remark=CASE WHEN $1 IN ('Completed','Cancelled') THEN COALESCE($3, completion_remark) ELSE completion_remark END,
+       client_pending_remark=CASE WHEN $1='Waiting for Client' THEN COALESCE($3, client_pending_remark) ELSE client_pending_remark END,
+       last_updated_at=NOW(), last_updated_by_id=$4, last_updated_by_name=$5
+     FROM director_kyc_tracking dk
+     WHERE dk.id=$6 AND dk.linked_task_id=t.task_id
+     RETURNING t.task_id, t.status`,
+    [taskStatus, completionDate, remark || null, actorId(actor), actorName(actor), id]
+  );
+  return upd.rows[0] || null;
 }
 
 module.exports = {
@@ -1295,4 +1345,5 @@ module.exports = {
   fyReport,
   ensureKycAssignmentSchema,
   assignKycRecord,
+  syncTaskForKycStatus,
 };

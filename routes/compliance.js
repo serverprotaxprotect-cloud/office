@@ -535,7 +535,7 @@ router.put('/kyc/:id', authMiddleware, async (req, res) => {
   const { emp_id, name, formal_name } = req.user;
   const { kyc_status, srn, remarks, active_flag, inactive_remarks } = req.body;
   try {
-    const old = await db.query('SELECT din,director_name,cin,company_name,financial_year,kyc_status FROM director_kyc_tracking WHERE id=$1', [req.params.id]);
+    const old = await db.query('SELECT din,director_name,cin,company_name,financial_year,kyc_status,linked_task_id FROM director_kyc_tracking WHERE id=$1', [req.params.id]);
     if (!old.rows.length) return res.status(404).json({ success:false, message:'KYC record not found' });
     const r = old.rows[0];
     await db.query(
@@ -547,6 +547,7 @@ router.put('/kyc/:id', authMiddleware, async (req, res) => {
       [kyc_status||null,srn||null,remarks||null,active_flag||null,inactive_remarks||null,
        emp_id,formal_name||name,req.params.id]);
     if (kyc_status && kyc_status!==r.kyc_status) {
+      await complianceService.syncTaskForKycStatus(parseInt(req.params.id, 10), kyc_status, req.user, remarks || null);
       await logActivity({ module:'DirectorKYC', action:'UpdateKYC', cin:r.cin, company_name:r.company_name,
         din:r.din, director_name:r.director_name, financial_year:r.financial_year,
         old_value:r.kyc_status, new_value:kyc_status, remarks:remarks||null, emp_id, emp_name:formal_name||name });
