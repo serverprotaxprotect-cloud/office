@@ -64,6 +64,25 @@ const statements = [
     updated_at TIMESTAMPTZ DEFAULT NOW()
   )`,
   `CREATE INDEX IF NOT EXISTS idx_mca_firm_auditors_org_name ON mca_firm_auditors (organization_id, firm_name)`,
+  `CREATE TABLE IF NOT EXISTS mca_format_versions (
+    financial_year VARCHAR(20) PRIMARY KEY,
+    source_financial_year VARCHAR(20),
+    is_available BOOLEAN NOT NULL DEFAULT FALSE,
+    title VARCHAR(255) DEFAULT 'Annual Filing Report Preparation',
+    applicability_note TEXT DEFAULT 'Only for Small Private Limited Company. Not for Public Company and not for Section 8 Company.',
+    release_note TEXT DEFAULT '',
+    replacements JSONB NOT NULL DEFAULT '[]'::jsonb,
+    updated_by INTEGER,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  )`,
+  `INSERT INTO mca_format_versions
+     (financial_year, source_financial_year, is_available, release_note)
+   VALUES
+     ('2023-24','2023-24',true,'Format available for Small Private Limited Company annual filing reports.'),
+     ('2024-25','2024-25',true,'Format available for Small Private Limited Company annual filing reports.'),
+     ('2025-26','2024-25',false,'Format for FY 2025-26 has not been released yet.')
+   ON CONFLICT (financial_year) DO NOTHING`,
   `ALTER TABLE mca_report_settings ENABLE ROW LEVEL SECURITY`,
   `ALTER TABLE mca_report_settings FORCE ROW LEVEL SECURITY`,
   `DROP POLICY IF EXISTS tenant_isolation_mca_report_settings ON mca_report_settings`,

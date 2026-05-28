@@ -113,6 +113,19 @@
           <tbody id="orgsBody"><tr><td colspan="7">Loading...</td></tr></tbody>
         </table></div>
       </section>
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>MCA Annual Filing Format Versions</h2>
+            <small>Small Private Limited Company only. Not for Public Company and not for Section 8 Company.</small>
+          </div>
+          <button class="btn btn-soft" onclick="loadMcaFormats()">Reload</button>
+        </div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>FY</th><th>Status</th><th>Source FY</th><th>Notes</th><th>Text Changes</th><th>Updated</th><th>Actions</th></tr></thead>
+          <tbody id="mcaFormatsBody"><tr><td colspan="7">Loading...</td></tr></tbody>
+        </table></div>
+      </section>
     </main>
   </section>
 
@@ -134,6 +147,31 @@
         <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px">
           <button type="button" class="btn btn-soft" onclick="closeApprove()">Cancel</button>
           <button class="btn btn-blue" id="approveBtn" type="submit">Approve</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="mcaFormatModal" class="modal">
+    <div class="modal-card">
+      <h2 style="margin-bottom:12px">MCA Format Version</h2>
+      <form id="mcaFormatForm">
+        <div class="grid">
+          <div class="form-group"><label>Financial Year *</label><input id="mca_fy" placeholder="2025-26" required /></div>
+          <div class="form-group"><label>Source FY</label><input id="mca_source_fy" placeholder="2024-25" /></div>
+          <div class="form-group full"><label><input type="checkbox" id="mca_available" /> Format available for office users</label></div>
+          <div class="form-group full"><label>Title</label><input id="mca_title" /></div>
+          <div class="form-group full"><label>Applicability Note</label><textarea id="mca_applicability" rows="3"></textarea></div>
+          <div class="form-group full"><label>Release Note</label><textarea id="mca_release" rows="3"></textarea></div>
+          <div class="form-group full">
+            <label>Small Text Changes JSON</label>
+            <textarea id="mca_replacements" rows="7" placeholder='[{"find":"old text","replace":"new text"}]'></textarea>
+            <small>Previous format ko reuse karte hue minor wording change ke liye find/replace rules.</small>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px">
+          <button type="button" class="btn btn-soft" onclick="closeMcaFormat()">Cancel</button>
+          <button class="btn btn-blue" id="mcaFormatBtn" type="submit">Save Format</button>
         </div>
       </form>
     </div>
@@ -199,7 +237,7 @@
       showApp();
     }
     async function loadAll() {
-      await Promise.all([loadOverview(), loadRequests(), loadOrganizations(), loadExpiring()]);
+      await Promise.all([loadOverview(), loadRequests(), loadOrganizations(), loadExpiring(), loadMcaFormats()]);
     }
     async function loadOverview() {
       const data = await api('/overview');
@@ -246,6 +284,7 @@
     }
     let orgCache = [];
     let lastRequests = [];
+    let mcaFormats = [];
     async function loadOrganizations() {
       const data = await api('/organizations');
       const body = document.getElementById('orgsBody');
@@ -343,6 +382,67 @@
       showMsg(data.message || (data.success ? 'Updated' : 'Update failed'), !!data.success);
       if (data.success) loadAll();
     }
+    async function loadMcaFormats() {
+      const data = await api('/mca-formats');
+      const body = document.getElementById('mcaFormatsBody');
+      if (!body) return;
+      if (!data.success) { body.innerHTML = '<tr><td colspan="7">Load failed</td></tr>'; return; }
+      mcaFormats = data.formats || [];
+      if (!mcaFormats.length) { body.innerHTML = '<tr><td colspan="7">No MCA format versions</td></tr>'; return; }
+      body.innerHTML = mcaFormats.map(f => `
+        <tr>
+          <td><strong>${esc(f.financial_year)}</strong></td>
+          <td><span class="status ${f.is_available ? 'Active' : 'Pending'}">${f.is_available ? 'Available' : 'Not Ready'}</span></td>
+          <td>${esc(f.source_financial_year || '--')}</td>
+          <td><strong>${esc(f.title || '')}</strong><br><small>${esc(f.applicability_note || '')}<br>${esc(f.release_note || '')}</small></td>
+          <td>${Array.isArray(f.replacements) ? f.replacements.length : 0} rules</td>
+          <td>${esc(f.updated_at || '--')}</td>
+          <td><button class="btn btn-dark" onclick="openMcaFormat('${esc(f.financial_year)}')">Edit</button></td>
+        </tr>`).join('');
+    }
+    function openMcaFormat(fy) {
+      const f = mcaFormats.find(x => x.financial_year === fy) || {
+        financial_year: fy || '',
+        source_financial_year: '2024-25',
+        is_available: false,
+        title: 'Annual Filing Report Preparation',
+        applicability_note: 'Only for Small Private Limited Company. Not for Public Company and not for Section 8 Company.',
+        release_note: '',
+        replacements: [],
+      };
+      document.getElementById('mca_fy').value = f.financial_year || '';
+      document.getElementById('mca_source_fy').value = f.source_financial_year || '2024-25';
+      document.getElementById('mca_available').checked = !!f.is_available;
+      document.getElementById('mca_title').value = f.title || 'Annual Filing Report Preparation';
+      document.getElementById('mca_applicability').value = f.applicability_note || 'Only for Small Private Limited Company. Not for Public Company and not for Section 8 Company.';
+      document.getElementById('mca_release').value = f.release_note || '';
+      document.getElementById('mca_replacements').value = JSON.stringify(f.replacements || [], null, 2);
+      document.getElementById('mcaFormatModal').style.display = 'flex';
+    }
+    function closeMcaFormat() { document.getElementById('mcaFormatModal').style.display = 'none'; }
+    document.getElementById('mcaFormatForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fy = document.getElementById('mca_fy').value.trim();
+      const btn = document.getElementById('mcaFormatBtn');
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+      const payload = {
+        source_financial_year: document.getElementById('mca_source_fy').value.trim(),
+        is_available: document.getElementById('mca_available').checked,
+        title: document.getElementById('mca_title').value.trim(),
+        applicability_note: document.getElementById('mca_applicability').value.trim(),
+        release_note: document.getElementById('mca_release').value.trim(),
+        replacements: document.getElementById('mca_replacements').value.trim() || '[]',
+      };
+      const data = await api('/mca-formats/' + encodeURIComponent(fy), { method:'PUT', body: JSON.stringify(payload) });
+      showMsg(data.message || (data.success ? 'MCA format saved' : 'Save failed'), !!data.success);
+      btn.disabled = false;
+      btn.textContent = 'Save Format';
+      if (data.success) {
+        closeMcaFormat();
+        loadMcaFormats();
+      }
+    });
     showApp();
   </script>
 </body>

@@ -7,6 +7,9 @@
     company: null,
     tab: 'overview',
     searchTimer: null,
+    mode: 'home',
+    financialYear: '2024-25',
+    activeFormat: null,
   };
 
   function token() {
@@ -61,6 +64,9 @@
     box.className = '';
     box.innerHTML = `
       <style>
+        .mca-hub{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+        .mca-module{background:#fff;border-radius:8px;box-shadow:0 8px 22px rgba(15,23,42,.07);padding:18px;border:1px solid #dbeafe}
+        .mca-module h3{margin:0 0 6px}.mca-module p{color:#64748b;margin:0 0 14px}
         .mca-shell{display:grid;grid-template-columns:360px minmax(0,1fr);gap:14px}
         .mca-card{background:#fff;border-radius:8px;box-shadow:0 8px 22px rgba(15,23,42,.07);padding:16px}
         .mca-list{max-height:calc(100vh - 270px);overflow:auto;border:1px solid #e5edf7;border-radius:8px}
@@ -82,7 +88,60 @@
         .mca-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px}
         @media(max-width:900px){.mca-shell{grid-template-columns:1fr}.mca-grid,.mca-grid.three{grid-template-columns:1fr}}
       </style>
-      <div class="mca-shell">
+      <div id="mcaRoot"></div>`;
+    renderHome();
+  }
+
+  function currentFormat() {
+    return state.activeFormat || (state.meta.formats || []).find(f => f.financial_year === state.financialYear) || {};
+  }
+
+  function fyOptions() {
+    const formats = state.meta.formats || [];
+    return formats.map(f => `<option value="${attr(f.financial_year)}" ${f.financial_year === state.financialYear ? 'selected' : ''}>${esc(f.financial_year)}${f.is_available ? '' : ' - Format Not Ready'}</option>`).join('');
+  }
+
+  function renderHome() {
+    const root = document.getElementById('mcaRoot');
+    if (!root) return;
+    root.innerHTML = `
+      <div class="mca-hub">
+        <div class="mca-module">
+          <h3>Annual Filing Report Preparation</h3>
+          <p>Audit Report, Board Report, Notes to Accounts, AOC-1, AOC-2, Shareholder/Director list prepare karein.</p>
+          <div class="mca-muted" style="margin-bottom:12px">Only for Small Private Limited Company. Not for Public Company and not for Section 8 Company.</div>
+          <button class="mca-btn primary" onclick="mcaOpenAnnual()">Open Annual Filing</button>
+        </div>
+        <div class="mca-module" style="opacity:.65">
+          <h3>Future MCA Form Filing</h3>
+          <p>DIR-12, PAS-3, MGT-14, INC forms aur other MCA workflows yahan add honge.</p>
+          <button class="mca-btn" disabled>Coming Soon</button>
+        </div>
+      </div>`;
+  }
+
+  function renderAnnualShell() {
+    const root = document.getElementById('mcaRoot');
+    if (!root) return;
+    const format = currentFormat();
+    root.innerHTML = `
+      <div class="mca-top">
+        <button class="mca-btn" onclick="mcaBackHome()">Back</button>
+        <div class="mca-field" style="min-width:220px">
+          <label>Financial Year</label>
+          <select id="mcaFinancialYear" onchange="mcaFYChanged()">${fyOptions()}</select>
+        </div>
+      </div>
+      <div style="margin:0 0 12px;padding:10px 12px;border-radius:8px;background:${format.is_available ? '#ecfdf5' : '#fff7ed'};color:${format.is_available ? '#166534' : '#9a3412'};font-weight:700">
+        ${esc(format.release_note || '')}<br>
+        <span style="font-weight:600">${esc(format.applicability_note || 'Only for Small Private Limited Company. Not for Public Company and not for Section 8 Company.')}</span>
+      </div>
+      ${format.is_available ? annualWorkspaceHtml() : `<div class="mca-card"><b>Format not available</b><p class="mca-muted" style="margin-top:8px">FY ${esc(state.financialYear)} ke liye report format abhi release nahi hua hai. Super Admin release karega tab yahan company list aur documents enable honge.</p></div>`}`;
+    if (format.is_available) renderCompanyList();
+  }
+
+  function annualWorkspaceHtml() {
+    return `<div class="mca-shell">
         <div class="mca-card">
           <div class="mca-top">
             <div>
@@ -102,16 +161,19 @@
           <div id="mcaCompanyList" class="mca-list"><div class="mca-muted" style="padding:14px">Loading...</div></div>
         </div>
         <div id="mcaWorkspace" class="mca-card">
-          <div class="mca-muted">Company select karke MCA filing report workspace open karein.</div>
+          <div class="mca-muted">Financial year ke liye company select karke annual filing report workspace open karein.</div>
         </div>
       </div>`;
   }
 
   async function loadMeta() {
     state.meta = await req('/meta');
+    state.activeFormat = (state.meta.formats || []).find(f => f.financial_year === state.financialYear) || state.meta.formats?.[0] || null;
+    if (state.activeFormat) state.financialYear = state.activeFormat.financial_year;
   }
 
   async function reloadCompanies() {
+    if (!currentFormat().is_available) return;
     const search = encodeURIComponent(document.getElementById('mcaSearch')?.value || '');
     const status = encodeURIComponent(document.getElementById('mcaStatus')?.value || '');
     const data = await req(`/companies?search=${search}&status=${status}`);
@@ -141,7 +203,7 @@
     renderCompanyList();
     const ws = document.getElementById('mcaWorkspace');
     if (ws) ws.innerHTML = '<div class="mca-muted">Loading company...</div>';
-    const data = await req(`/companies/${encodeURIComponent(cin)}`);
+    const data = await req(`/companies/${encodeURIComponent(cin)}?financial_year=${encodeURIComponent(state.financialYear)}`);
     state.company = data.company;
     state.tab = 'overview';
     renderWorkspace();
@@ -309,7 +371,7 @@
 
   async function previewDoc() {
     const docType = val('mcaDocType');
-    const data = await req('/generate/html', { method: 'POST', body: JSON.stringify({ cin: state.activeCin, docType }) });
+    const data = await req('/generate/html', { method: 'POST', body: JSON.stringify({ cin: state.activeCin, docType, financial_year: state.financialYear }) });
     const box = document.getElementById('mcaPreview');
     if (box) box.innerHTML = `<iframe title="MCA Preview" style="width:100%;height:100%;border:0" srcdoc="${attr(data.html)}"></iframe>`;
     state.lastHtml = data.html;
@@ -320,7 +382,7 @@
     const res = await fetch(`/api/mca/generate/${kind === 'excel' ? 'excel' : 'docx'}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
-      body: JSON.stringify({ cin: state.activeCin, docType }),
+      body: JSON.stringify({ cin: state.activeCin, docType, financial_year: state.financialYear }),
     });
     if (!res.ok) throw new Error(`Download failed (${res.status})`);
     const blob = await res.blob();
@@ -345,7 +407,7 @@
 
   async function refreshCompany() {
     const tab = state.tab;
-    const data = await req(`/companies/${encodeURIComponent(state.activeCin)}`);
+    const data = await req(`/companies/${encodeURIComponent(state.activeCin)}?financial_year=${encodeURIComponent(state.financialYear)}`);
     state.company = data.company;
     state.tab = tab;
     renderWorkspace();
@@ -357,10 +419,20 @@
       state.ready = true;
       await loadMeta();
     }
-    await reloadCompanies();
+    renderHome();
   }
 
   window.initMCAFilingPanel = () => init().catch(err => msg(err.message || 'MCA Filing load failed', 'error'));
+  window.mcaOpenAnnual = () => { state.mode = 'annual'; state.activeCin = ''; state.company = null; renderAnnualShell(); reloadCompanies().catch(err => msg(err.message, 'error')); };
+  window.mcaBackHome = () => { state.mode = 'home'; renderHome(); };
+  window.mcaFYChanged = () => {
+    state.financialYear = val('mcaFinancialYear') || '2024-25';
+    state.activeFormat = (state.meta.formats || []).find(f => f.financial_year === state.financialYear) || null;
+    state.activeCin = '';
+    state.company = null;
+    renderAnnualShell();
+    reloadCompanies().catch(err => msg(err.message, 'error'));
+  };
   window.mcaReloadCompanies = () => reloadCompanies().catch(err => msg(err.message, 'error'));
   window.mcaSearchChanged = () => {
     clearTimeout(state.searchTimer);

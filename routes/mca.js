@@ -14,7 +14,10 @@ function safeName(value) {
 }
 
 router.get('/meta', authMiddleware, async (req, res) => {
-  res.json({ success: true, doc_types: Object.entries(mca.DOCS).map(([key, doc]) => ({ key, label: doc.label })) });
+  try {
+    const formats = await mca.listFormats();
+    res.json({ success: true, doc_types: Object.entries(mca.DOCS).map(([key, doc]) => ({ key, label: doc.label })), formats });
+  } catch (err) { routeError(res, err, '[mca meta]'); }
 });
 
 router.get('/companies', authMiddleware, async (req, res) => {
@@ -26,7 +29,7 @@ router.get('/companies', authMiddleware, async (req, res) => {
 
 router.get('/companies/:cin', authMiddleware, async (req, res) => {
   try {
-    const company = await mca.getCompany(req.params.cin);
+    const company = await mca.getCompany(req.params.cin, req.query.financial_year);
     res.json({ success: true, company });
   } catch (err) { routeError(res, err, '[mca company]'); }
 });
@@ -82,18 +85,18 @@ router.delete('/firm-auditors/:id', authMiddleware, async (req, res) => {
 
 router.post('/generate/html', authMiddleware, async (req, res) => {
   try {
-    const { cin, docType } = req.body;
+    const { cin, docType, financial_year } = req.body;
     if (!cin || !docType) return res.status(400).json({ success: false, message: 'CIN and document type required' });
-    const result = await mca.generateHtml(cin, docType);
-    res.json({ success: true, html: result.html, doc: result.doc, company_name: result.company.companyName });
+    const result = await mca.generateHtml(cin, docType, financial_year);
+    res.json({ success: true, html: result.html, doc: result.doc, company_name: result.company.companyName, format: result.format });
   } catch (err) { routeError(res, err, '[mca html]'); }
 });
 
 router.post('/generate/docx', authMiddleware, async (req, res) => {
   try {
-    const { cin, docType } = req.body;
+    const { cin, docType, financial_year } = req.body;
     if (!cin || !docType) return res.status(400).json({ success: false, message: 'CIN and document type required' });
-    const result = await mca.generateDocx(cin, docType);
+    const result = await mca.generateDocx(cin, docType, financial_year);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     res.setHeader('Content-Disposition', `attachment; filename="${safeName(docType)}_${safeName(result.company.companyName)}.docx"`);
     res.send(result.buffer);
@@ -102,9 +105,9 @@ router.post('/generate/docx', authMiddleware, async (req, res) => {
 
 router.post('/generate/excel', authMiddleware, async (req, res) => {
   try {
-    const { cin, docType } = req.body;
+    const { cin, docType, financial_year } = req.body;
     if (!cin || !docType) return res.status(400).json({ success: false, message: 'CIN and document type required' });
-    const result = await mca.generateExcel(cin, docType);
+    const result = await mca.generateExcel(cin, docType, financial_year);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="${safeName(docType)}_${safeName(result.company.companyName)}.xlsx"`);
     res.send(result.buffer);

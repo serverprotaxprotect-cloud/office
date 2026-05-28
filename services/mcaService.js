@@ -26,6 +26,86 @@ function normalizeBool(value) {
   return value === true || value === 'true' || value === 'yes' || value === 'Yes';
 }
 
+function normalizeFY(value) {
+  const fy = clean(value);
+  return /^\d{4}-\d{2}$/.test(fy) ? fy : '';
+}
+
+function fyDates(financialYear) {
+  const fy = normalizeFY(financialYear);
+  if (!fy) return {};
+  const startYear = parseInt(fy.slice(0, 4), 10);
+  const endYear = startYear + 1;
+  return {
+    financialYear: fy,
+    financialYearFrom: `${startYear}-04-01`,
+    financialYearTo: `${endYear}-03-31`,
+  };
+}
+
+async function listFormats() {
+  await ensureFormatVersions();
+  const r = await db.rawPool.query(
+    `SELECT financial_year, source_financial_year, is_available, title,
+            applicability_note, release_note, replacements,
+            to_char(updated_at, 'YYYY-MM-DD HH24:MI') AS updated_at
+       FROM mca_format_versions
+      ORDER BY financial_year DESC`
+  );
+  return r.rows;
+}
+
+async function getFormat(financialYear) {
+  await ensureFormatVersions();
+  const fy = normalizeFY(financialYear) || '2024-25';
+  const r = await db.rawPool.query(`SELECT * FROM mca_format_versions WHERE financial_year=$1`, [fy]);
+  if (r.rows.length) return r.rows[0];
+  return {
+    financial_year: fy,
+    source_financial_year: '2024-25',
+    is_available: false,
+    title: 'Annual Filing Report Preparation',
+    applicability_note: 'Only for Small Private Limited Company. Not for Public Company and not for Section 8 Company.',
+    release_note: `Format for FY ${fy} has not been released yet.`,
+    replacements: [],
+  };
+}
+
+async function requireAvailableFormat(financialYear) {
+  const format = await getFormat(financialYear);
+  if (!format.is_available) {
+    const err = new Error(format.release_note || `Format for FY ${format.financial_year} has not been released yet.`);
+    err.statusCode = 400;
+    err.format = format;
+    throw err;
+  }
+  return format;
+}
+
+async function ensureFormatVersions() {
+  await db.rawPool.query(`CREATE TABLE IF NOT EXISTS mca_format_versions (
+    financial_year VARCHAR(20) PRIMARY KEY,
+    source_financial_year VARCHAR(20),
+    is_available BOOLEAN NOT NULL DEFAULT FALSE,
+    title VARCHAR(255) DEFAULT 'Annual Filing Report Preparation',
+    applicability_note TEXT DEFAULT 'Only for Small Private Limited Company. Not for Public Company and not for Section 8 Company.',
+    release_note TEXT DEFAULT '',
+    replacements JSONB NOT NULL DEFAULT '[]'::jsonb,
+    updated_by INTEGER,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+  await db.rawPool.query(
+    `INSERT INTO mca_format_versions
+       (financial_year, source_financial_year, is_available, release_note)
+     VALUES
+       ('2023-24','2023-24',true,'Format available for Small Private Limited Company annual filing reports.'),
+       ('2024-25','2024-25',true,'Format available for Small Private Limited Company annual filing reports.'),
+       ('2025-26','2024-25',false,'Format for FY 2025-26 has not been released yet.')
+     ON CONFLICT (financial_year) DO NOTHING`
+  );
+}
+
 async function listCompanies(query = {}) {
   const params = [];
   const conds = [`c.organization_id::text = current_setting('app.organization_id', true)`];
@@ -83,7 +163,7 @@ async function getCompanyRaw(cin) {
   };
 }
 
-function mapCompany(data) {
+function mapCompany(data, financialYear) {
   const c = data.company || {};
   const m = data.master || {};
   const s = data.settings || {};
@@ -147,8 +227,9 @@ function mapCompany(data) {
     listedInSE: normalizeBool(m.listed_in_stock_exchange),
     category: c.category || m.category || '',
     subCategory: m.subcategory || c.company_type || '',
-    financialYearFrom: s.financial_year_from || null,
-    financialYearTo: s.financial_year_to || c.last_balance_sheet_date || m.date_of_balance_sheet || null,
+    financialYearFrom: fyDates(financialYear).financialYearFrom || s.financial_year_from || null,
+    financialYearTo: fyDates(financialYear).financialYearTo || s.financial_year_to || c.last_balance_sheet_date || m.date_of_balance_sheet || null,
+    selectedFinancialYear: normalizeFY(financialYear) || '',
     boardMeetingDate: s.board_meeting_date || c.last_agm_date || m.date_of_last_agm || null,
     boardMeetingPlace: s.board_meeting_place || c.city || '',
     website: s.website || '',
@@ -166,8 +247,8 @@ function mapCompany(data) {
   };
 }
 
-async function getCompany(cin) {
-  return mapCompany(await getCompanyRaw(cin));
+async function getCompany(cin, financialYear) {
+  return mapCompany(await getCompanyRaw(cin), financialYear);
 }
 
 async function saveSettings(cin, body, actor) {
@@ -362,37 +443,42 @@ function linesToHtml(lines) {
   </style></head><body>${segments.join('\n')}</body></html>`;
 }
 
-async function generateHtml(cin, docType) {
-  const company = await getCompany(cin);
-  const lines = buildLines(docType, company);
-  return { html: linesToHtml(lines), company, doc: DOCS[docType] };
+async function generateHtml(cin, docType, financialYear) {
+  const format = await requireAvailableFormat(financialYear);
+  const company = await getCompany(cin, format.financial_year);
+  const lines = buildLines(docType, company, { replacements: format.replacements });
+  return { html: linesToHtml(lines), company, doc: DOCS[docType], format };
 }
 
-async function generateDocx(cin, docType) {
-  const company = await getCompany(cin);
-  const lines = buildLines(docType, company);
+async function generateDocx(cin, docType, financialYear) {
+  const format = await requireAvailableFormat(financialYear);
+  const company = await getCompany(cin, format.financial_year);
+  const lines = buildLines(docType, company, { replacements: format.replacements });
   const paragraphs = lines.map((line, i) => new Paragraph({
     children: [new TextRun({ text: line, bold: i === 0, size: i === 0 ? 28 : 22, font: 'Times New Roman' })],
     alignment: i === 0 ? AlignmentType.CENTER : AlignmentType.LEFT,
     spacing: { after: line ? 80 : 200 },
   }));
   const doc = new Document({ sections: [{ properties: { page: { margin: { top: 720, bottom: 720, left: 1080, right: 720 } } }, children: paragraphs }] });
-  return { buffer: await Packer.toBuffer(doc), company, doc: DOCS[docType] };
+  return { buffer: await Packer.toBuffer(doc), company, doc: DOCS[docType], format };
 }
 
-async function generateExcel(cin, docType) {
-  const company = await getCompany(cin);
-  const lines = buildLines(docType, company);
+async function generateExcel(cin, docType, financialYear) {
+  const format = await requireAvailableFormat(financialYear);
+  const company = await getCompany(cin, format.financial_year);
+  const lines = buildLines(docType, company, { replacements: format.replacements });
   const rows = lines.map((line) => line.includes(' | ') ? line.split(' | ') : [line]);
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(rows);
   ws['!cols'] = [{ wch: 90 }, { wch: 35 }, { wch: 35 }, { wch: 25 }, { wch: 25 }];
   XLSX.utils.book_append_sheet(wb, ws, 'Document');
-  return { buffer: XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }), company, doc: DOCS[docType] };
+  return { buffer: XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }), company, doc: DOCS[docType], format };
 }
 
 module.exports = {
   DOCS,
+  listFormats,
+  getFormat,
   listCompanies,
   getCompany,
   saveSettings,

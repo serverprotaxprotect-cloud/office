@@ -869,14 +869,23 @@ const DOCS = {
   details_dir: { label: 'Details of Directors', build: buildDetailsOfDirectors },
 };
 
-function buildLines(docType, company) {
+function applyReplacements(lines, replacements) {
+  if (!Array.isArray(replacements) || !replacements.length) return lines;
+  return lines.map((line) => replacements.reduce((text, rule) => {
+    const find = String(rule?.find || '');
+    if (!find) return text;
+    return text.split(find).join(String(rule?.replace || ''));
+  }, line));
+}
+
+function buildLines(docType, company, options = {}) {
   const doc = DOCS[docType];
   if (!doc) {
     const err = new Error('Unknown document type');
     err.statusCode = 400;
     throw err;
   }
-  return doc.build(company);
+  return applyReplacements(doc.build(company), options.replacements);
 }
 
 module.exports = {

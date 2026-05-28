@@ -393,4 +393,90 @@ router.put('/organizations/:id/subscription', superAdminAuth, async (req, res) =
   }
 });
 
+async function ensureMcaFormatTable() {
+  await db.rawPool.query(`CREATE TABLE IF NOT EXISTS mca_format_versions (
+    financial_year VARCHAR(20) PRIMARY KEY,
+    source_financial_year VARCHAR(20),
+    is_available BOOLEAN NOT NULL DEFAULT FALSE,
+    title VARCHAR(255) DEFAULT 'Annual Filing Report Preparation',
+    applicability_note TEXT DEFAULT 'Only for Small Private Limited Company. Not for Public Company and not for Section 8 Company.',
+    release_note TEXT DEFAULT '',
+    replacements JSONB NOT NULL DEFAULT '[]'::jsonb,
+    updated_by INTEGER,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+  await db.rawPool.query(
+    `INSERT INTO mca_format_versions
+       (financial_year, source_financial_year, is_available, release_note)
+     VALUES
+       ('2023-24','2023-24',true,'Format available for Small Private Limited Company annual filing reports.'),
+       ('2024-25','2024-25',true,'Format available for Small Private Limited Company annual filing reports.'),
+       ('2025-26','2024-25',false,'Format for FY 2025-26 has not been released yet.')
+     ON CONFLICT (financial_year) DO NOTHING`
+  );
+}
+
+router.get('/mca-formats', superAdminAuth, async (req, res) => {
+  try {
+    await ensureMcaFormatTable();
+    const r = await db.rawPool.query(
+      `SELECT financial_year, source_financial_year, is_available, title,
+              applicability_note, release_note, replacements,
+              to_char(updated_at, 'YYYY-MM-DD HH24:MI') AS updated_at
+         FROM mca_format_versions
+        ORDER BY financial_year DESC`
+    );
+    res.json({ success: true, formats: r.rows });
+  } catch (err) {
+    console.error('[super mca formats]', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+router.put('/mca-formats/:fy', superAdminAuth, async (req, res) => {
+  const fy = clean(req.params.fy);
+  if (!/^\d{4}-\d{2}$/.test(fy)) return res.status(400).json({ success: false, message: 'Invalid financial year' });
+  let replacements = req.body.replacements || [];
+  if (typeof replacements === 'string') {
+    try { replacements = JSON.parse(replacements || '[]'); } catch { return res.status(400).json({ success: false, message: 'Replacement rules JSON invalid' }); }
+  }
+  if (!Array.isArray(replacements)) return res.status(400).json({ success: false, message: 'Replacement rules must be an array' });
+  replacements = replacements
+    .map(r => ({ find: clean(r.find), replace: String(r.replace || '') }))
+    .filter(r => r.find);
+  try {
+    await ensureMcaFormatTable();
+    const r = await db.rawPool.query(
+      `INSERT INTO mca_format_versions
+         (financial_year, source_financial_year, is_available, title, applicability_note, release_note, replacements, updated_by, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,NOW())
+       ON CONFLICT (financial_year) DO UPDATE SET
+         source_financial_year=EXCLUDED.source_financial_year,
+         is_available=EXCLUDED.is_available,
+         title=EXCLUDED.title,
+         applicability_note=EXCLUDED.applicability_note,
+         release_note=EXCLUDED.release_note,
+         replacements=EXCLUDED.replacements,
+         updated_by=EXCLUDED.updated_by,
+         updated_at=NOW()
+       RETURNING *`,
+      [
+        fy,
+        clean(req.body.source_financial_year) || '2024-25',
+        !!req.body.is_available,
+        clean(req.body.title) || 'Annual Filing Report Preparation',
+        clean(req.body.applicability_note) || 'Only for Small Private Limited Company. Not for Public Company and not for Section 8 Company.',
+        clean(req.body.release_note),
+        JSON.stringify(replacements),
+        req.superAdmin.id,
+      ]
+    );
+    res.json({ success: true, message: 'MCA format version saved', format: r.rows[0] });
+  } catch (err) {
+    console.error('[super mca format save]', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 module.exports = router;
