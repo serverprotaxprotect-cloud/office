@@ -103,6 +103,25 @@ router.post('/login', async (req, res) => {
 });
 
 // ── GET /api/admin/overview ──────────────────────────────────
+router.get('/session-from-office', adminAuth, async (req, res) => {
+  if (!canManageAdminUsers(req.admin)) {
+    return res.status(403).json({ success: false, message: 'Employee Management access not allowed for this admin.' });
+  }
+  res.json({
+    success: true,
+    token: req.headers.authorization?.split(' ')[1] || '',
+    admin: {
+      id: req.admin.id,
+      username: req.admin.username,
+      name: req.admin.name,
+      role: req.admin.role,
+      organization_code: req.admin.organization_code,
+      organization_name: req.admin.organization_name,
+      read_only: req.admin.read_only,
+    },
+  });
+});
+
 router.get('/overview', adminAuth, async (req, res) => {
   const today = todayIST();
   try {

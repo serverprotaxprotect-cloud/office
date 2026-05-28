@@ -1781,10 +1781,29 @@ function logout() {
   window.location.href = '/';
 }
 
-function openAdminPortal() {
+async function openAdminPortal() {
   if (localStorage.getItem('admin_token')) {
     window.open('/admin.html', '_blank');
     return;
+  }
+  if (token && user?.user_type === 'admin' && ['Director', 'Office Manager', 'HR'].includes(user.role)) {
+    try {
+      const res = await fetch('/api/admin/session-from-office', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.token) {
+        localStorage.setItem('admin_token', data.token);
+        localStorage.setItem('admin_info', JSON.stringify(data.admin || user));
+        window.open('/admin.html', '_blank');
+        return;
+      }
+      showToast(data.message || 'Employee Management access not allowed', 'error');
+      return;
+    } catch (e) {
+      showToast('Unable to open Employee Management. Please try again.', 'error');
+      return;
+    }
   }
   document.getElementById('apmUser').value = '';
   document.getElementById('apmPass').value = '';
