@@ -356,6 +356,7 @@
     <div class="sb-section" id="sec-management">Management</div>
     <div class="sb-item" id="sb-dataimport" onclick="showPanel('dataimport')"><span class="ic">&#128229;</span>Data Import</div>
     <div class="sb-item" id="sb-empmanagement" onclick="openAdminPortal()"><span class="ic">&#128101;</span>Employee Management</div>
+    <div class="sb-item" id="sb-mcafiling" onclick="showPanel('mcafiling')"><span class="ic">&#128196;</span>MCA Filing</div>
   </aside>
 
   <main class="content">
@@ -872,6 +873,13 @@
           <thead><tr><th>Taxpayer</th><th>PAN</th><th>Contact</th><th>Agent</th><th>Actions</th></tr></thead>
           <tbody id="itrUnassignedTable"></tbody>
         </table></div></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-mcafiling">
+      <div class="page-title">MCA Filing <small>Company reports from GeeBharat data</small></div>
+      <div id="mcaPanelContent" class="card">
+        <div class="muted" style="padding:18px">Loading MCA Filing...</div>
       </div>
     </div>
 
@@ -1553,8 +1561,8 @@ const ROLE_PERMS = {
   'Director':       { panels: 'all', attendance_admin: true },
   'Office Manager': { panels: 'all', attendance_admin: true },
   'HR':             { panels: 'all', attendance_admin: true },
-  'Accountant':     { panels: ['dashboard','mytasks','assignedby','completed','notifications','clients','companies','directors','comptracking','gstclients','incometax'], attendance_admin: false },
-  'employee':       { panels: ['dashboard','mytasks','assignedby','completed','notifications','clients','companies','directors','comptracking','gstclients','incometax'], attendance_admin: false },
+  'Accountant':     { panels: ['dashboard','mytasks','assignedby','completed','notifications','clients','companies','directors','comptracking','gstclients','incometax','mcafiling'], attendance_admin: false },
+  'employee':       { panels: ['dashboard','mytasks','assignedby','completed','notifications','clients','companies','directors','comptracking','gstclients','incometax','mcafiling'], attendance_admin: false },
 };
 
 function getRolePerms() {
@@ -1583,6 +1591,7 @@ function applyPermissions() {
     'sb-gstclients':  'gstclients',
     'sb-incometax':   'incometax',
     'sb-dataimport':  'dataimport',
+    'sb-mcafiling':   'mcafiling',
   };
 
   Object.entries(panelMap).forEach(([id, panel]) => {
@@ -1608,10 +1617,12 @@ function applyPermissions() {
   if (orgProfileBtn) orgProfileBtn.style.display = perms.attendance_admin ? '' : 'none';
   const dataImport = document.getElementById('sb-dataimport');
   const empMgmt    = document.getElementById('sb-empmanagement');
+  const mcaFiling  = document.getElementById('sb-mcafiling');
   const secMgmt    = document.getElementById('sec-management');
   if (dataImport) dataImport.style.display = perms.attendance_admin ? '' : 'none';
   if (empMgmt) empMgmt.style.display = perms.attendance_admin ? '' : 'none';
-  if (secMgmt) secMgmt.style.display = perms.attendance_admin ? '' : 'none';
+  if (mcaFiling) mcaFiling.style.display = (all || perms.panels.includes('mcafiling')) ? '' : 'none';
+  if (secMgmt) secMgmt.style.display = [dataImport, empMgmt, mcaFiling].some(el => el && el.style.display !== 'none') ? '' : 'none';
 
   // Create Task button — hide for employee
   const isEmployee = user.user_type === 'employee';
@@ -1974,6 +1985,7 @@ function showPanel(name) {
       dataimport: initDataImportPanel,
       gstclients: initGSTPanel,
       incometax: () => window.initIncomeTaxPanel?.(),
+      mcafiling: () => window.initMCAFilingPanel?.(),
     };
     loaders[name]?.();
   }
@@ -5279,5 +5291,6 @@ async function initOfficeApp() {
 if (token) { initOfficeApp(); }
 </script>
 <script src="/assets/income-tax.js?v=20260514-5"></script>
+<script src="/assets/mca-filing.js?v=20260528-1"></script>
 </body>
 </html>

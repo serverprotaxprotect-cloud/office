@@ -1,5 +1,5 @@
 // Gee Bharat Attendance Service Worker
-const CACHE_NAME   = 'gee-bharat-attendance-v8';
+const CACHE_NAME   = 'gee-bharat-attendance-v9';
 const OFFLINE_URL  = '/offline.html';
 
 // Static assets to cache immediately on install
@@ -11,6 +11,7 @@ const PRECACHE = [
   '/dashboard.html',
   '/client.html',
   '/assets/income-tax.js',
+  '/assets/mca-filing.js',
   '/assets/style.css',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
