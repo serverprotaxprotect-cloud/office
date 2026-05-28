@@ -108,7 +108,7 @@ router.get('/dashboard', authMiddleware, async (req, res) => {
 // ── GET /api/tasks ────────────────────────────────────────────
 router.get('/', authMiddleware, async (req, res) => {
   const { emp_id } = req.user;
-  const { view = 'my', status, priority, work_name, search, emp_filter, page = 1, limit = 100 } = req.query;
+  const { view = 'my', status, priority, work_name, search, emp_filter, date_from, date_to, sort_order, page = 1, limit = 100 } = req.query;
 
   const offset = (parseInt(page) - 1) * parseInt(limit);
   const params = [];
@@ -144,6 +144,17 @@ router.get('/', authMiddleware, async (req, res) => {
     conds.push(`(t.task_id ILIKE $${n} OR t.legal_name ILIKE $${n} OR t.business_name ILIKE $${n} OR t.work_name ILIKE $${n} OR t.client_id ILIKE $${n} OR t.assigned_to_name ILIKE $${n})`);
   }
 
+  const dateColumn = ['completed', 'all_completed'].includes(view) ? 't.completion_date::date' : 't.due_date::date';
+  if (date_from) { params.push(date_from); conds.push(`${dateColumn} >= $${params.length}::date`); }
+  if (date_to) { params.push(date_to); conds.push(`${dateColumn} <= $${params.length}::date`); }
+
+  let orderBy = `CASE WHEN t.status IN ('Completed','Cancelled') THEN 1 ELSE 0 END,
+         t.due_date ASC NULLS LAST, t.created_at DESC`;
+  if (sort_order === 'oldest' || sort_order === 'newest') {
+    const dir = sort_order === 'oldest' ? 'ASC' : 'DESC';
+    orderBy = `${dateColumn} ${dir} NULLS LAST, t.created_at ${dir}`;
+  }
+
   const where = conds.join(' AND ');
   try {
     params.push(parseInt(limit)); params.push(offset);
@@ -157,9 +168,7 @@ router.get('/', authMiddleware, async (req, res) => {
               t.last_updated_at, t.completion_date, t.drive_link,
               CASE WHEN t.due_date < CURRENT_DATE AND t.status NOT IN ('Completed','Cancelled') THEN true ELSE false END as is_overdue
        FROM tasks t WHERE ${where}
-       ORDER BY
-         CASE WHEN t.status IN ('Completed','Cancelled') THEN 1 ELSE 0 END,
-         t.due_date ASC NULLS LAST, t.created_at DESC
+       ORDER BY ${orderBy}
        LIMIT $${params.length - 1} OFFSET $${params.length}`,
       params
     );
