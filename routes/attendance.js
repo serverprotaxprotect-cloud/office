@@ -1,9 +1,15 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
+const multer = require('multer');
 const db = require('../db');
 const authMiddleware = require('../middleware/auth');
 
 const router = express.Router();
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
+
+function photoDataUrl(file) {
+  return `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+}
 
 // ── Helper: load all settings as a key-value map ─────────────
 async function getSettings() {
@@ -377,6 +383,30 @@ router.get('/profile', authMiddleware, async (req, res) => {
     if (!r.rows.length) return res.status(404).json({ success: false, message: 'Employee not found' });
     res.json({ success: true, employee: r.rows[0] });
   } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+router.put('/profile/photo', authMiddleware, upload.single('photo'), async (req, res) => {
+  const empId = req.user.emp_id || req.user.username || '';
+  const userId = Number(req.user.id) || null;
+  try {
+    if (!req.file) return res.status(400).json({ success: false, message: 'Photo required' });
+    if (!String(req.file.mimetype || '').startsWith('image/')) {
+      return res.status(400).json({ success: false, message: 'Only image files allowed' });
+    }
+    const photo = photoDataUrl(req.file);
+    const r = await db.query(
+      `UPDATE emplist
+       SET photo=$1
+       WHERE (lower(emp_id)=lower($2) OR id=$3)
+       RETURNING emp_id`,
+      [photo, empId, userId]
+    );
+    if (!r.rows.length) return res.status(404).json({ success: false, message: 'Employee not found' });
+    res.json({ success: true, message: 'Profile photo updated', photo });
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });

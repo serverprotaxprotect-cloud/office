@@ -14,7 +14,10 @@
     .topnav{background:linear-gradient(90deg,var(--sidebar),var(--sidebar2));color:#fff;height:56px;display:flex;align-items:center;padding:0 20px;gap:14px;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.2)}
     .topnav .brand{font-size:16px;font-weight:800;flex:1}
     .topnav .brand small{opacity:.6;font-weight:400;font-size:12px;margin-left:6px}
-    .user-chip{font-size:12px;background:rgba(255,255,255,.12);border-radius:20px;padding:4px 12px;white-space:nowrap}
+    .user-chip{font-size:12px;background:rgba(255,255,255,.12);border-radius:20px;padding:4px 12px;white-space:nowrap;display:flex;align-items:center;gap:8px;cursor:pointer}
+    .user-chip img{width:24px;height:24px;border-radius:50%;object-fit:cover;border:1px solid rgba(255,255,255,.35)}
+    .user-chip .uc-name{font-weight:800;line-height:1.1}
+    .user-chip .uc-role{font-size:10px;opacity:.72;line-height:1.1;margin-top:1px}
     .btn-back{background:rgba(255,255,255,.12);border:none;color:#fff;padding:6px 14px;border-radius:8px;font-size:12px;cursor:pointer;font-weight:700}
     .btn-back:hover{background:rgba(255,255,255,.2)}
     .notif-btn{position:relative;background:rgba(255,255,255,.12);border:none;color:#fff;padding:6px 12px;border-radius:8px;font-size:18px;cursor:pointer;line-height:1}
@@ -326,7 +329,7 @@
 <!-- Navbar -->
 <nav class="topnav">
   <div class="brand"><span id="officeBrandName">Office</span> <small>Office</small></div>
-  <span class="user-chip" id="userChip"></span>
+  <span class="user-chip" id="userChip" onclick="showUserPhoto()"></span>
   <button class="notif-btn" id="notifBtn" onclick="showPanel('notifications')" title="Notifications">
     &#128276;<span class="notif-dot hidden" id="notifDot"></span>
   </button>
@@ -1664,10 +1667,20 @@ function applyPermissions() {
 function showOfficeApp() {
   document.getElementById('officeLoginOverlay').style.display = 'none';
   const org = user.organization_code ? ` (${user.organization_code})` : '';
-  document.getElementById('userChip').textContent = (user.name || user.formal_name || '') + org;
+  const displayName = user.name || user.formal_name || '';
+  const designation = user.designation || user.role || '';
+  const initials = displayName.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() || '?';
+  document.getElementById('userChip').innerHTML = `${user.photo ? `<img src="${h(user.photo)}" alt="">` : `<span style="width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.18);font-size:10px;font-weight:900">${h(initials)}</span>`}<span><span class="uc-name">${h(displayName)}${h(org)}</span><span class="uc-role">${h(designation || 'Office User')}</span></span>`;
   const brand = document.getElementById('officeBrandName');
   if (brand) brand.textContent = user.organization_name || 'Office';
   applyPermissions();
+}
+
+function showUserPhoto() {
+  if (!user.photo) return;
+  const w = window.open('', '_blank', 'width=520,height=620');
+  if (!w) return;
+  w.document.write(`<title>${h(user.name || user.formal_name || 'Profile Photo')}</title><body style="margin:0;background:#0f172a;display:grid;place-items:center;min-height:100vh"><img src="${h(user.photo)}" style="max-width:96vw;max-height:96vh;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.35)"></body>`);
 }
 
 function escapeHTML(value) {
@@ -1953,6 +1966,12 @@ function jsArg(v) {
 // ── META ─────────────────────────────────────────────────────
 let META = { work_names:[], statuses:[], priorities:[], employees:[] };
 
+function employeeLabel(e) {
+  const name = e.formal_name || e.name || e.emp_id || '--';
+  const role = e.designation || e.role || '';
+  return `${name} (${e.emp_id || '--'})${role ? ' - ' + role : ''}`;
+}
+
 async function loadMeta() {
   const data = await api('/tasks/meta');
   if (!data.success) return;
@@ -1982,7 +2001,7 @@ async function loadMeta() {
     sel.innerHTML = id === 'tm_assign_to' ? '<option value="">Self</option>' : '<option value="">Keep Current</option>';
     META.employees.forEach(e => {
       if (e.emp_id !== user.emp_id)
-        sel.innerHTML += `<option value="${e.emp_id}" data-name="${e.formal_name||e.name}">${e.formal_name||e.name} (${e.emp_id})</option>`;
+        sel.innerHTML += `<option value="${e.emp_id}" data-name="${h(e.formal_name||e.name)}">${h(employeeLabel(e))}</option>`;
     });
   });
 
@@ -2409,7 +2428,7 @@ function populateEmpFilters(employees) {
     if (!el) return;
     const existing = el.innerHTML.includes('All Employees') ? '<option value="">All Employees</option>' : el.innerHTML;
     el.innerHTML = existing + employees.map(e =>
-      `<option value="${e.emp_id}">${e.formal_name || e.name}</option>`
+      `<option value="${e.emp_id}">${h(employeeLabel(e))}</option>`
     ).join('');
   });
 }
@@ -3600,7 +3619,7 @@ function populateComplianceAssignees() {
     if (!sel) return;
     sel.innerHTML = id === 'report_assignee' ? '<option value="">All assignees</option>' : '<option value="">Keep / Unassigned</option>';
     CT_META.employees.forEach(e => {
-      sel.innerHTML += `<option value="${h(e.emp_id)}">${h(e.name || e.formal_name || e.emp_id)} (${h(e.emp_id)})</option>`;
+      sel.innerHTML += `<option value="${h(e.emp_id)}">${h(employeeLabel(e))}</option>`;
     });
   });
 }
@@ -4034,7 +4053,7 @@ async function toggleComplianceTemplate(id, enabled) {
 }
 
 function ctEmployeeOptions(selected) {
-  return `<option value="">Unassigned</option>${CT_META.employees.map(e => `<option value="${h(e.emp_id)}" ${e.emp_id===selected?'selected':''}>${h(e.name || e.emp_id)} (${h(e.emp_id)})</option>`).join('')}`;
+  return `<option value="">Unassigned</option>${CT_META.employees.map(e => `<option value="${h(e.emp_id)}" ${e.emp_id===selected?'selected':''}>${h(employeeLabel(e))}</option>`).join('')}`;
 }
 
 function ctStatusOptions(selected) {
@@ -4447,14 +4466,14 @@ async function loadGSTMeta() {
 
 function populateGSTControls() {
   const empOptions = '<option value="">All Employees</option>' + GST_META.employees.map(e =>
-    `<option value="${h(e.emp_id)}">${h(e.formal_name || e.name)} (${h(e.emp_id)})</option>`
+    `<option value="${h(e.emp_id)}">${h(employeeLabel(e))}</option>`
   ).join('');
   ['gstAssigneeFilter','gstTrackEmployee','gstReportEmployee'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.innerHTML = empOptions;
   });
   const assignOptions = GST_META.employees.map(e =>
-    `<option value="${h(e.emp_id)}">${h(e.formal_name || e.name)} (${h(e.emp_id)})</option>`
+    `<option value="${h(e.emp_id)}">${h(employeeLabel(e))}</option>`
   ).join('');
   const defaultAssignee = document.getElementById('gst_default_assignee');
   if (defaultAssignee) defaultAssignee.innerHTML = '<option value="">Unassigned</option>' + assignOptions;
@@ -5369,7 +5388,7 @@ async function initOfficeApp() {
 
 if (token) { initOfficeApp(); }
 </script>
-<script src="/assets/income-tax.js?v=20260514-5"></script>
+<script src="/assets/income-tax.js?v=20260529-1"></script>
 <script src="/assets/mca-filing.js?v=20260528-2"></script>
 </body>
 </html>

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Employee Joining Form</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#eef2f7;color:#0f172a}.wrap{max-width:860px;margin:28px auto;padding:0 14px}.card{background:#fff;border-radius:14px;padding:22px;box-shadow:0 12px 30px rgba(15,23,42,.10)}h1{font-size:22px;margin:0 0 4px}.muted{color:#64748b;font-size:13px;margin:0 0 18px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}.full{grid-column:1/-1}label{display:block;font-size:12px;font-weight:800;color:#475569;text-transform:uppercase;letter-spacing:.35px;margin-bottom:5px}input,select,textarea{width:100%;padding:10px 12px;border:1.5px solid #dbe3ef;border-radius:9px;font:inherit;background:#f8fafc}textarea{min-height:76px}.section{font-weight:900;margin:20px 0 10px;border-top:1px solid #e2e8f0;padding-top:16px}.btn{border:0;border-radius:10px;background:#2563eb;color:white;font-weight:900;padding:12px 18px;cursor:pointer;width:100%;margin-top:18px}.alert{padding:11px 13px;border-radius:9px;margin:12px 0;font-size:14px}.err{background:#fee2e2;color:#991b1b}.ok{background:#dcfce7;color:#166534}@media(max-width:680px){.grid{grid-template-columns:1fr}.wrap{margin:12px auto}.card{padding:17px}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Employee Joining Form</h1>
+      <p class="muted" id="orgText">Loading...</p>
+      <div id="msg"></div>
+      <form id="joinForm" class="grid" style="display:none">
+        <div><label>Full Name *</label><input name="name" required /></div>
+        <div><label>Formal Name</label><input name="formal_name" placeholder="Mr./Miss ..." /></div>
+        <div><label>Father Name</label><input name="father_name" /></div>
+        <div><label>Designation *</label><input name="designation" required /></div>
+        <div><label>Email</label><input type="email" name="email_id" /></div>
+        <div><label>Mobile</label><input name="mobile_no" /></div>
+        <div><label>Date of Birth</label><input type="date" name="dob" /></div>
+        <div><label>Date of Joining</label><input type="date" name="date_of_joining" /></div>
+        <div><label>Gender</label><select name="sex"><option value="">Select</option><option>Male</option><option>Female</option><option>Other</option></select></div>
+        <div><label>Marital Status</label><select name="marital_status"><option value="">Select</option><option>Single</option><option>Married</option><option>Divorced</option><option>Widowed</option></select></div>
+        <div><label>PAN No</label><input name="pan_no" /></div>
+        <div><label>Aadhaar No</label><input name="aadhaar_no" /></div>
+        <div><label>Education</label><input name="education" /></div>
+        <div><label>Blood Group</label><input name="blood_group" /></div>
+        <div class="full"><label>Present Address</label><textarea name="present_address"></textarea></div>
+        <div class="full"><label>Permanent Address</label><textarea name="permanent_address"></textarea></div>
+        <div><label>Bank Name</label><input name="bank_name" /></div>
+        <div><label>IFSC Code</label><input name="ifsc_code" /></div>
+        <div><label>Account No</label><input name="account_no" /></div>
+        <div><label>Profile Photo</label><input type="file" name="employee_photo" accept="image/*" /></div>
+        <div class="section full">Documents</div>
+        <div><label>Aadhaar</label><input type="file" name="doc_aadhaar" accept="image/*,.pdf" /></div>
+        <div><label>PAN</label><input type="file" name="doc_pan" accept="image/*,.pdf" /></div>
+        <div><label>Bank Passbook First Page</label><input type="file" name="doc_bank_passbook" accept="image/*,.pdf" /></div>
+        <div><label>Highest Qualification Certificate</label><input type="file" name="doc_qualification" accept="image/*,.pdf" /></div>
+        <div class="full"><button class="btn" id="submitBtn">Submit for HR Review</button></div>
+      </form>
+    </div>
+  </div>
+  <script>
+    const token = new URLSearchParams(location.search).get('token') || '';
+    const msg = (text, type='err') => document.getElementById('msg').innerHTML = `<div class="alert ${type}">${text}</div>`;
+    async function init() {
+      if (!token) return msg('Invalid joining link.');
+      const res = await fetch('/api/admin/employee-onboarding/public/' + encodeURIComponent(token));
+      const data = await res.json();
+      if (!data.success) return msg(data.message || 'Invalid joining link.');
+      document.getElementById('orgText').textContent = `${data.organization.name} (${data.organization.code})`;
+      if (data.hr_remark) msg('HR Remark: ' + data.hr_remark, 'err');
+      document.getElementById('joinForm').style.display = 'grid';
+      prefillForm(data.data || {});
+    }
+    function prefillForm(data) {
+      Object.entries(data).forEach(([key, value]) => {
+        if (key === 'photo') return;
+        const el = document.querySelector(`[name="${CSS.escape(key)}"]`);
+        if (!el || el.type === 'file') return;
+        el.value = value || '';
+      });
+    }
+    document.getElementById('joinForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const btn = document.getElementById('submitBtn');
+      btn.disabled = true; btn.textContent = 'Submitting...';
+      const fd = new FormData(e.target);
+      try {
+        const res = await fetch('/api/admin/employee-onboarding/public/' + encodeURIComponent(token), { method:'POST', body: fd });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message || 'Submit failed');
+        e.target.reset();
+        msg('Details submitted. HR will review and approve.', 'ok');
+      } catch (err) {
+        msg(err.message || 'Submit failed');
+      }
+      btn.disabled = false; btn.textContent = 'Submit for HR Review';
+    });
+    init();
+  </script>
+</body>
+</html>

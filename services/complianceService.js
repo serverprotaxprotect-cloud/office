@@ -351,7 +351,7 @@ async function findEmployee(conn, empId) {
   const r = await conn.query(
     `SELECT emp_id, formal_name, name
      FROM (
-       SELECT emp_id, formal_name, name FROM emplist WHERE emp_id=$1 AND status='Active'
+       SELECT emp_id, formal_name, name, designation, photo FROM emplist WHERE emp_id=$1 AND status='Active'
        UNION ALL
        SELECT username AS emp_id, name AS formal_name, name FROM admins WHERE username=$1 AND status='Active'
      ) x LIMIT 1`,
@@ -722,7 +722,7 @@ async function listTemplates() {
   await ensureSchema();
   const [templates, employees] = await Promise.all([
     db.query(`SELECT * FROM compliance_templates ORDER BY sort_order, code`),
-    db.query(`SELECT emp_id, COALESCE(formal_name, name) AS name FROM emplist WHERE status='Active' ORDER BY COALESCE(formal_name, name)`),
+    db.query(`SELECT emp_id, COALESCE(formal_name, name) AS name, formal_name, designation, photo FROM emplist WHERE status='Active' ORDER BY COALESCE(formal_name, name)`),
   ]);
   return { templates: templates.rows, employees: employees.rows };
 }
@@ -1125,7 +1125,7 @@ async function workspace(cin, financialYear) {
     listRecords({ cin, financial_year: fy }),
     db.query(`SELECT * FROM directors WHERE UPPER(cin)=UPPER($1) AND COALESCE(director_status,'Active')='Active' ORDER BY director_name`, [cin]),
     db.query(`SELECT * FROM director_kyc_tracking WHERE UPPER(cin)=UPPER($1) AND financial_year=$2 ORDER BY director_name`, [cin, fy]),
-    db.query(`SELECT emp_id, COALESCE(formal_name, name) AS name FROM emplist WHERE status='Active' ORDER BY COALESCE(formal_name, name)`),
+    db.query(`SELECT emp_id, COALESCE(formal_name, name) AS name, formal_name, designation, photo FROM emplist WHERE status='Active' ORDER BY COALESCE(formal_name, name)`),
     db.query(`SELECT * FROM compliance_templates WHERE enabled=true ORDER BY sort_order, code`),
     db.query(
       `SELECT ifr.*

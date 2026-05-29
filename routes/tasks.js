@@ -29,7 +29,7 @@ router.get('/meta', authMiddleware, async (req, res) => {
       db.query('SELECT name FROM work_names ORDER BY name'),
       db.query('SELECT status FROM task_status_master ORDER BY id'),
       db.query('SELECT priority FROM task_priority_master ORDER BY id'),
-      db.query("SELECT emp_id, formal_name, name FROM emplist WHERE status='Active' ORDER BY name"),
+      db.query("SELECT emp_id, formal_name, name, designation, photo FROM emplist WHERE status='Active' ORDER BY name"),
     ]);
     res.json({
       success: true,

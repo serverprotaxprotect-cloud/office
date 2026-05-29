@@ -153,6 +153,10 @@
     .slip-net-label { font-size:12px; opacity:.8; text-transform:uppercase; letter-spacing:.5px; }
     .slip-net-amount { font-size:28px; font-weight:900; margin-top:4px; }
     .slip-print-btn { width:100%; padding:13px; background:linear-gradient(135deg,#2563eb,#3b82f6); color:#fff; border:none; border-radius:12px; font-size:15px; font-weight:700; cursor:pointer; }
+    .nav-profile-chip{display:flex;align-items:center;gap:8px;color:#fff;cursor:pointer}
+    .nav-profile-chip img,.nav-profile-fallback{width:28px;height:28px;border-radius:50%;object-fit:cover;background:rgba(255,255,255,.16);display:grid;place-items:center;font-size:11px;font-weight:900}
+    .nav-profile-name{font-size:13px;font-weight:800;line-height:1.1}
+    .nav-profile-role{font-size:10px;opacity:.7;line-height:1.1;margin-top:1px}
   </style>
 </head>
 <body class="dash-body">
@@ -166,7 +170,7 @@
 <nav class="navbar">
   <div class="navbar-brand"><span id="attBrandName">Office</span> <span>Attendance</span></div>
   <div class="nav-actions">
-    <span class="nav-emp-name" id="navEmpName"></span>
+    <span class="nav-profile-chip" id="navProfileChip" onclick="showNavPhoto()"></span>
     <button class="btn-logout" onclick="logout()">Logout</button>
   </div>
 </nav>
@@ -364,6 +368,10 @@
         <div class="profile-name" id="profileName">--</div>
         <div class="profile-desg" id="profileDesg">--</div>
         <div class="profile-id" id="profileId">--</div>
+        <label style="display:inline-block;margin-top:8px;font-size:12px;font-weight:800;color:#2563eb;cursor:pointer">
+          Change Photo
+          <input type="file" id="profilePhotoInput" accept="image/*" style="display:none" onchange="uploadProfilePhoto()">
+        </label>
       </div>
     </div>
 
@@ -528,12 +536,29 @@ document.getElementById('attBrandName').textContent = emp.organization_name || '
 
 // ── Helpers ─────────────────────────────────────────────
 const api = async (path, opts = {}) => {
+  const isFormData = opts.body instanceof FormData;
+  const headers = { 'Authorization': 'Bearer ' + token, ...(opts.headers || {}) };
+  if (!isFormData) headers['Content-Type'] = 'application/json';
   const res = await fetch('/api' + path, {
     ...opts,
-    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', ...(opts.headers||{}) }
+    headers
   });
   return res.json();
 };
+
+function setNavProfile(profile) {
+  const name = profile.formal_name || profile.name || '--';
+  const role = profile.designation || profile.role || '';
+  const initials = name.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase() || '?';
+  document.getElementById('navProfileChip').innerHTML = `${profile.photo ? `<img src="${profile.photo}" alt="">` : `<span class="nav-profile-fallback">${initials}</span>`}<span><span class="nav-profile-name">${name}</span><span class="nav-profile-role">${role || 'Employee'}</span></span>`;
+}
+
+function showNavPhoto() {
+  const img = document.querySelector('#navProfileChip img');
+  if (!img) return;
+  const w = window.open('', '_blank', 'width=520,height=620');
+  if (w) w.document.write(`<body style="margin:0;background:#0f172a;display:grid;place-items:center;min-height:100vh"><img src="${img.src}" style="max-width:96vw;max-height:96vh;border-radius:12px"></body>`);
+}
 
 function showToast(msg, type = '') {
   const t = document.getElementById('toast');
@@ -1014,7 +1039,11 @@ async function loadProfile() {
     const e = data.employee;
 
     const initials = (e.formal_name || e.name || '?').split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
-    document.getElementById('profileAvatar').textContent = initials;
+    const avatar = document.getElementById('profileAvatar');
+    avatar.textContent = e.photo ? '' : initials;
+    avatar.style.backgroundImage = e.photo ? `url("${e.photo}")` : '';
+    avatar.style.backgroundSize = 'cover';
+    avatar.style.backgroundPosition = 'center';
     document.getElementById('profileName').textContent   = e.formal_name || e.name || '--';
     document.getElementById('profileDesg').textContent   = e.designation || '--';
     document.getElementById('profileId').textContent     = e.emp_id || '--';
@@ -1023,10 +1052,23 @@ async function loadProfile() {
     document.getElementById('pBlood').textContent        = e.blood_group || '--';
     document.getElementById('pDoj').textContent          = e.date_of_joining ? new Date(e.date_of_joining).toLocaleDateString('en-IN', {day:'2-digit',month:'short',year:'numeric'}) : '--';
     document.getElementById('pStatus').textContent       = e.status || '--';
+    setNavProfile(e);
   } catch {}
 }
 
 // ── Tab switching ─────────────────────────────────────────
+async function uploadProfilePhoto() {
+  const input = document.getElementById('profilePhotoInput');
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('photo', file);
+  const data = await api('/attendance/profile/photo', { method: 'PUT', body: fd });
+  showToast(data.message || (data.success ? 'Photo updated' : 'Photo update failed'), data.success ? 'success' : 'error');
+  if (data.success) loadProfile();
+  input.value = '';
+}
+
 function switchTab(tab) {
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -1426,7 +1468,7 @@ async function logout() {
 // ── Init ─────────────────────────────────────────────────
 (async function init() {
   // Set emp name in navbar
-  document.getElementById('navEmpName').textContent = emp.name || '';
+  setNavProfile(emp);
   document.getElementById('clockEmp').textContent   = emp.formal_name || emp.name || '';
 
   // Year selector
@@ -1442,6 +1484,7 @@ async function logout() {
   document.getElementById('selMonth').value = new Date().getMonth() + 1;
 
   startClock();
+  loadProfile();
   await loadToday();
   setInterval(updateWorkProgress, 30000);
   loadNotices();

@@ -41,6 +41,56 @@ function cleanNullable(value) {
   return value;
 }
 
+const EMPLOYEE_UPLOAD_FIELDS = [
+  { name: 'employee_photo', maxCount: 1 },
+  { name: 'doc_aadhaar', maxCount: 1 },
+  { name: 'doc_pan', maxCount: 1 },
+  { name: 'doc_bank_passbook', maxCount: 1 },
+  { name: 'doc_qualification', maxCount: 1 },
+];
+
+function fileToDataUrl(file) {
+  if (!file) return null;
+  return {
+    filename: file.originalname,
+    mime_type: file.mimetype,
+    size: file.size,
+    data_url: `data:${file.mimetype};base64,${file.buffer.toString('base64')}`,
+    uploaded_at: new Date().toISOString(),
+  };
+}
+
+function collectEmployeeUploads(files = {}) {
+  const photo = fileToDataUrl(files.employee_photo?.[0]);
+  const docs = {
+    aadhaar: fileToDataUrl(files.doc_aadhaar?.[0]),
+    pan: fileToDataUrl(files.doc_pan?.[0]),
+    bank_passbook: fileToDataUrl(files.doc_bank_passbook?.[0]),
+    qualification: fileToDataUrl(files.doc_qualification?.[0]),
+  };
+  const cleanDocs = Object.fromEntries(Object.entries(docs).filter(([, v]) => v));
+  return { photo, documents: Object.keys(cleanDocs).length ? cleanDocs : null };
+}
+
+function parseEmployeePayload(req) {
+  const body = { ...req.body };
+  const uploads = collectEmployeeUploads(req.files || {});
+  if (uploads.photo) body.photo = uploads.photo.data_url;
+  if (uploads.documents) {
+    let existing = {};
+    if (body.documents) {
+      try { existing = JSON.parse(body.documents); } catch { existing = { note: body.documents }; }
+    }
+    body.documents = JSON.stringify({ ...existing, ...uploads.documents });
+    body.document_status = body.document_status || 'Uploaded';
+  }
+  return body;
+}
+
+function generatedEmployeePassword() {
+  return 'GB' + Math.random().toString(36).slice(2, 8).toUpperCase() + '@1';
+}
+
 async function nextSeriesNumber(conn, { table, idColumn, prefix, organizationId, storedNext }) {
   const result = await conn.query(
     `SELECT COALESCE(MAX(substring(${idColumn} from length($1) + 1)::integer), 0) + 1 AS next_no
@@ -337,10 +387,11 @@ router.get('/employees', adminAuth, async (req, res) => {
 });
 
 // ── POST /api/admin/employees/add ───────────────────────────
-router.post('/employees/add', adminAuth, async (req, res) => {
-  const { login_password } = req.body;
-  const name = req.body.name;
-  const designation = req.body.designation;
+router.post('/employees/add', adminAuth, upload.fields(EMPLOYEE_UPLOAD_FIELDS), async (req, res) => {
+  const body = parseEmployeePayload(req);
+  const { login_password } = body;
+  const name = body.name;
+  const designation = body.designation;
 
   if (!name || !designation || !login_password)
     return res.status(400).json({ success: false, message: 'Name, Designation and Password required' });
@@ -364,7 +415,7 @@ router.post('/employees/add', adminAuth, async (req, res) => {
     });
     const newId = `${prefix}${String(next).padStart(4, '0')}`;
     const passwordHash = await hashForStorage(login_password);
-    const payload = { ...req.body, formal_name: req.body.formal_name || name, status: req.body.status || 'Active', leave_availed: req.body.leave_availed || 0, paid_leave_per_year: req.body.paid_leave_per_year || 12 };
+    const payload = { ...body, formal_name: body.formal_name || name, status: body.status || 'Active', leave_availed: body.leave_availed || 0, paid_leave_per_year: body.paid_leave_per_year || 12 };
     payload.leave_rest = payload.leave_rest || payload.paid_leave_per_year;
     const cols = ['emp_id', ...EMPLOYEE_FIELDS, 'login_password'];
     const values = [newId, ...EMPLOYEE_FIELDS.map(f => cleanNullable(payload[f])), passwordHash];
@@ -386,19 +437,20 @@ router.post('/employees/add', adminAuth, async (req, res) => {
 });
 
 // ── PUT /api/admin/employees/:id ─────────────────────────────
-router.put('/employees/:id', adminAuth, async (req, res) => {
+router.put('/employees/:id', adminAuth, upload.fields(EMPLOYEE_UPLOAD_FIELDS), async (req, res) => {
   const { id } = req.params;
   try {
+    const body = parseEmployeePayload(req);
     const setParts = [];
     const values = [];
     for (const field of EMPLOYEE_FIELDS) {
-      if (Object.prototype.hasOwnProperty.call(req.body, field)) {
-        values.push(cleanNullable(req.body[field]));
+      if (Object.prototype.hasOwnProperty.call(body, field)) {
+        values.push(cleanNullable(body[field]));
         setParts.push(`${field}=$${values.length}`);
       }
     }
-    if (req.body.login_password) {
-      values.push(await hashForStorage(req.body.login_password));
+    if (body.login_password) {
+      values.push(await hashForStorage(body.login_password));
       setParts.push(`login_password=$${values.length}`);
     }
     if (!setParts.length) return res.status(400).json({ success: false, message: 'No fields to update' });
@@ -416,6 +468,186 @@ router.put('/employees/:id', adminAuth, async (req, res) => {
 });
 
 // ── Helpers for admin routes ──────────────────────────────────
+// Employee onboarding links and requests
+router.get('/employee-onboarding/requests', adminAuth, async (req, res) => {
+  try {
+    const r = await db.query(
+      `SELECT r.id, r.token, r.status, r.data, r.documents, r.hr_remark,
+              r.created_at, r.updated_at, l.expires_at, l.status AS link_status
+       FROM employee_onboarding_requests r
+       LEFT JOIN employee_onboarding_links l ON l.id=r.link_id
+       WHERE r.organization_id=$1
+       ORDER BY r.created_at DESC`,
+      [req.user.organization_id]
+    );
+    res.json({ success: true, requests: r.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error: ' + err.message });
+  }
+});
+
+router.post('/employee-onboarding/links', adminAuth, async (req, res) => {
+  try {
+    const token = uuidv4().replace(/-/g, '');
+    const days = Math.max(1, Math.min(30, Number(req.body.valid_days || 7)));
+    await db.query(
+      `INSERT INTO employee_onboarding_links
+       (organization_id, token, status, created_by_id, created_by_name, expires_at)
+       VALUES ($1,$2,'Active',$3,$4,NOW() + ($5 || ' days')::interval)`,
+      [req.user.organization_id, token, req.user.emp_id || req.user.username || req.user.id, req.user.name || req.user.username, days]
+    );
+    const base = `${req.protocol}://${req.get('host')}`;
+    res.json({ success: true, link: `${base}/employee-onboarding.html?token=${token}`, token });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error: ' + err.message });
+  }
+});
+
+router.put('/employee-onboarding/requests/:id/reupload', adminAuth, async (req, res) => {
+  try {
+    const remark = cleanNullable(req.body.remark) || 'Please reupload required documents.';
+    const r = await db.query(
+      `UPDATE employee_onboarding_requests
+       SET status='Needs Reupload', hr_remark=$1, updated_at=NOW()
+       WHERE id=$2 AND organization_id=$3 RETURNING id`,
+      [remark, req.params.id, req.user.organization_id]
+    );
+    if (!r.rows.length) return res.status(404).json({ success: false, message: 'Request not found' });
+    res.json({ success: true, message: 'Reupload request marked' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error: ' + err.message });
+  }
+});
+
+router.post('/employee-onboarding/requests/:id/approve', adminAuth, async (req, res) => {
+  const conn = await db.pool.connect();
+  try {
+    await conn.query('BEGIN');
+    await requireOrgSetup(conn, req.user.organization_id);
+    const reqRes = await conn.query(
+      `SELECT * FROM employee_onboarding_requests
+       WHERE id=$1 AND organization_id=$2 FOR UPDATE`,
+      [req.params.id, req.user.organization_id]
+    );
+    const row = reqRes.rows[0];
+    if (!row) {
+      await conn.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'Request not found' });
+    }
+    if (row.status === 'Approved') {
+      await conn.query('ROLLBACK');
+      return res.status(400).json({ success: false, message: 'Already approved' });
+    }
+    const data = { ...(row.data || {}), ...(req.body.employee || {}) };
+    if (!data.name || !data.designation) {
+      await conn.query('ROLLBACK');
+      return res.status(400).json({ success: false, message: 'Name and designation required before approval' });
+    }
+    const org = await conn.query(`SELECT employee_id_prefix, employee_id_next FROM organizations WHERE id=$1 FOR UPDATE`, [req.user.organization_id]);
+    const o = org.rows[0] || {};
+    const next = await nextSeriesNumber(conn, {
+      table: 'emplist',
+      idColumn: 'emp_id',
+      prefix: o.employee_id_prefix,
+      organizationId: req.user.organization_id,
+      storedNext: o.employee_id_next,
+    });
+    const newId = `${o.employee_id_prefix}${String(next).padStart(4, '0')}`;
+    const password = req.body.login_password || generatedEmployeePassword();
+    const payload = {
+      ...data,
+      formal_name: data.formal_name || data.name,
+      status: 'Active',
+      document_status: data.document_status || 'Uploaded',
+      documents: JSON.stringify(row.documents || {}),
+      paid_leave_per_year: data.paid_leave_per_year || 12,
+      leave_availed: data.leave_availed || 0,
+      leave_rest: data.leave_rest || data.paid_leave_per_year || 12,
+    };
+    const cols = ['emp_id', ...EMPLOYEE_FIELDS, 'login_password'];
+    const values = [newId, ...EMPLOYEE_FIELDS.map(f => cleanNullable(payload[f])), await hashForStorage(password)];
+    const placeholders = values.map((_, i) => `$${i + 1}`).join(',');
+    await conn.query(`INSERT INTO emplist (${cols.join(',')}) VALUES (${placeholders})`, values);
+    const employeeNo = seriesNumberFromId(newId, o.employee_id_prefix);
+    if (employeeNo) {
+      await conn.query(`UPDATE organizations SET employee_id_next=GREATEST(employee_id_next, $1), updated_at=NOW() WHERE id=$2`, [employeeNo + 1, req.user.organization_id]);
+    }
+    await conn.query(`UPDATE employee_onboarding_requests SET status='Approved', approved_emp_id=$1, updated_at=NOW() WHERE id=$2`, [newId, row.id]);
+    await conn.query(`UPDATE employee_onboarding_links SET status='Used' WHERE id=$1`, [row.link_id]);
+    await conn.query('COMMIT');
+    res.json({ success: true, message: `Employee approved and added: ${newId}`, emp_id: newId, login_password: password });
+  } catch (err) {
+    await conn.query('ROLLBACK').catch(() => {});
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error: ' + err.message });
+  } finally {
+    conn.release();
+  }
+});
+
+router.get('/employee-onboarding/public/:token', async (req, res) => {
+  try {
+    const link = await db.query(
+      `SELECT l.id, l.organization_id, l.status, l.expires_at, o.office_name, o.org_code,
+              r.status AS request_status, r.hr_remark, r.data, r.documents
+       FROM employee_onboarding_links l
+       JOIN organizations o ON o.id=l.organization_id
+       LEFT JOIN employee_onboarding_requests r ON r.link_id=l.id
+       WHERE l.token=$1`,
+      [req.params.token]
+    );
+    const row = link.rows[0];
+    if (!row) return res.status(404).json({ success: false, message: 'Invalid onboarding link' });
+    if (row.status !== 'Active' && row.request_status !== 'Needs Reupload') return res.status(400).json({ success: false, message: 'This onboarding link is not active' });
+    if (row.expires_at && new Date(row.expires_at) < new Date()) return res.status(400).json({ success: false, message: 'This onboarding link has expired' });
+    res.json({
+      success: true,
+      organization: { name: row.office_name, code: row.org_code },
+      request_status: row.request_status,
+      hr_remark: row.hr_remark,
+      data: row.data || {},
+      documents: row.documents || {}
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+router.post('/employee-onboarding/public/:token', upload.fields(EMPLOYEE_UPLOAD_FIELDS), async (req, res) => {
+  try {
+    const link = await db.query(`SELECT * FROM employee_onboarding_links WHERE token=$1`, [req.params.token]);
+    const l = link.rows[0];
+    if (!l || l.status !== 'Active') return res.status(400).json({ success: false, message: 'Invalid or inactive onboarding link' });
+    if (l.expires_at && new Date(l.expires_at) < new Date()) return res.status(400).json({ success: false, message: 'This onboarding link has expired' });
+    const uploads = collectEmployeeUploads(req.files || {});
+    const data = { ...req.body };
+    if (uploads.photo) data.photo = uploads.photo.data_url;
+    const documents = uploads.documents || {};
+    const existing = await db.query(`SELECT id, documents FROM employee_onboarding_requests WHERE link_id=$1`, [l.id]);
+    if (existing.rows.length) {
+      const mergedDocs = { ...(existing.rows[0].documents || {}), ...documents };
+      await db.query(
+        `UPDATE employee_onboarding_requests SET data=$1::jsonb, documents=$2::jsonb, status='Pending', updated_at=NOW() WHERE id=$3`,
+        [JSON.stringify(data), JSON.stringify(mergedDocs), existing.rows[0].id]
+      );
+    } else {
+      await db.query(
+        `INSERT INTO employee_onboarding_requests (organization_id, link_id, token, status, data, documents)
+         VALUES ($1,$2,$3,'Pending',$4::jsonb,$5::jsonb)`,
+        [l.organization_id, l.id, req.params.token, JSON.stringify(data), JSON.stringify(documents)]
+      );
+    }
+    res.json({ success: true, message: 'Details submitted for HR review' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error: ' + err.message });
+  }
+});
+
 async function getSettings() {
   const r = await db.query('SELECT key, value FROM attendance_settings');
   const s = {};

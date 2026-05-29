@@ -16,6 +16,7 @@
     "compliance:migrate:apply": "node scripts/compliance_migrate.js --apply",
     "mca:migrate": "node scripts/mca_migrate.js",
     "mca:migrate:apply": "node scripts/mca_migrate.js --apply",
+    "employee-onboarding:migrate": "node scripts/employee_onboarding_migrate.js",
     "perf:migrate": "node scripts/performance_migrate.js",
     "perf:migrate:apply": "node scripts/performance_migrate.js --apply",
     "gst:import:preview": "node scripts/gst_import.js C:/Users/HP/Downloads/GST_CLIENTS.xlsx",

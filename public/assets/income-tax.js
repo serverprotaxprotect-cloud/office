@@ -48,7 +48,8 @@
   }
 
   function assigneeLabel(e) {
-    return `${e.formal_name || e.name || e.emp_id} (${e.emp_id}${e.source ? ' - ' + e.source : ''})`;
+    const role = e.designation || e.role || '';
+    return `${e.formal_name || e.name || e.emp_id} (${e.emp_id}${e.source ? ' - ' + e.source : ''})${role ? ' - ' + role : ''}`;
   }
 
   function rebuildAssigneeLookup(people) {

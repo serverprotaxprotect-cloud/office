@@ -78,13 +78,13 @@ function normalizeDueDate(value, assessmentYear) {
 
 async function loadAssigneeOptions() {
   const result = await db.query(
-    `SELECT emp_id, formal_name, name, source, role
+    `SELECT emp_id, formal_name, name, designation, photo, source, role
      FROM (
-       SELECT emp_id, formal_name, name, 'Employee' AS source, designation AS role
+       SELECT emp_id, formal_name, name, designation, photo, 'Employee' AS source, designation AS role
        FROM emplist
        WHERE status='Active'
        UNION ALL
-       SELECT username AS emp_id, name AS formal_name, name, 'Admin' AS source, role
+       SELECT username AS emp_id, name AS formal_name, name, role AS designation, NULL::text AS photo, 'Admin' AS source, role
        FROM admins
        WHERE status='Active'
      ) x

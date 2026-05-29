@@ -155,7 +155,7 @@
 <nav class="admin-navbar">
   <div class="brand"><span id="adminBrandName">Office</span> <span>Attendance System</span><span class="admin-badge">ADMIN</span></div>
   <div style="display:flex;align-items:center;gap:12px;">
-    <span style="font-size:13px;opacity:.8;" id="adminName"></span>
+    <span style="font-size:13px;opacity:.8;line-height:1.15;" id="adminName"></span>
     <button class="btn-logout" style="background:rgba(255,255,255,.15);color:#fff;" onclick="window.location.href='/office.html'">&#128188; Office</button>
     <button class="btn-logout" onclick="adminLogout()">Logout</button>
   </div>
@@ -315,7 +315,10 @@
     <div class="admin-panel" id="panel-employees">
       <div class="page-title" style="display:flex;align-items:center;justify-content:space-between;">
         <span>Employee Management</span>
-        <button class="btn-sm" onclick="openAddEmp()">+ Add Employee</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-sm" onclick="generateEmployeeOnboardingLink()">Generate Joining Link</button>
+          <button class="btn-sm" onclick="openAddEmp()">+ Add Employee</button>
+        </div>
       </div>
 
       <div class="filter-row">
@@ -330,8 +333,20 @@
       <div class="today-table-wrap">
         <div class="hist-table-wrap">
           <table>
-            <thead><tr><th>Emp ID</th><th>Name</th><th>Designation</th><th>Mobile</th><th>Joined</th><th>Basic Pay</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Photo</th><th>Emp ID</th><th>Name</th><th>Designation</th><th>Mobile</th><th>Joined</th><th>Basic Pay</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody id="empTable"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card" style="margin-top:18px">
+        <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
+          <span>Joining Requests</span>
+          <button class="btn-sm" onclick="loadOnboardingRequests()">Refresh</button>
+        </div>
+        <div class="hist-table-wrap">
+          <table>
+            <thead><tr><th>Date</th><th>Name</th><th>Designation</th><th>Mobile</th><th>Status</th><th>Documents</th><th>Action</th></tr></thead>
+            <tbody id="onboardingRequestsTable"><tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:18px">Generate a joining link to receive employee details.</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -682,6 +697,25 @@
   </div>
 </div>
 
+<!-- Onboarding Review Modal -->
+<div class="modal-backdrop" id="onboardingReviewModal" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal" style="max-width:900px;">
+    <div class="modal-title">Review Joining Request</div>
+    <input type="hidden" id="obr_id"/>
+    <div class="modal-grid" id="onboardingReviewFields"></div>
+    <div class="card" style="margin-top:12px">
+      <div class="card-title">Uploaded Documents</div>
+      <div id="onboardingReviewDocs" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+    </div>
+    <div id="onboardingReviewError" class="alert alert-error" style="display:none;margin-top:12px;"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="document.getElementById('onboardingReviewModal').style.display='none'">Close</button>
+      <button class="btn-cancel" onclick="askOnboardingReuploadFromModal()">Ask Reupload</button>
+      <button class="btn-sm" onclick="approveOnboardingFromModal()">Approve & Add Employee</button>
+    </div>
+  </div>
+</div>
+
 <!-- Add Salary Structure Modal -->
 <div class="modal-backdrop" id="addSalModal" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
   <div class="modal">
@@ -813,9 +847,12 @@ if (!token) window.location.href = '/admin-login.html';
 
 // ── Helpers ──────────────────────────────────────────────────
 const api = async (path, opts = {}) => {
+  const isFormData = opts.body instanceof FormData;
+  const headers = { 'Authorization': 'Bearer ' + token, ...(opts.headers || {}) };
+  if (!isFormData) headers['Content-Type'] = 'application/json';
   const res = await fetch('/api' + path, {
     ...opts,
-    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', ...(opts.headers||{}) }
+    headers
   });
   return res.json();
 };
@@ -1093,7 +1130,11 @@ const EMPLOYEE_FORM_FIELDS = [
   { key:'leave_rest', label:'Leave Rest', type:'number' },
   { key:'certificate', label:'Certificate' },
   { key:'document_status', label:'Document Status' },
-  { key:'photo', label:'Photo URL / Data' },
+  { key:'employee_photo', label:'Employee Photo', type:'file', accept:'image/*', fileOnly:true },
+  { key:'doc_aadhaar', label:'Aadhaar Attachment', type:'file', accept:'image/*,.pdf', fileOnly:true },
+  { key:'doc_pan', label:'PAN Attachment', type:'file', accept:'image/*,.pdf', fileOnly:true },
+  { key:'doc_bank_passbook', label:'Bank Passbook First Page', type:'file', accept:'image/*,.pdf', fileOnly:true },
+  { key:'doc_qualification', label:'Highest Qualification Certificate', type:'file', accept:'image/*,.pdf', fileOnly:true },
   { key:'documents', label:'Documents', textarea:true, full:true },
   { key:'related_documents', label:'Related Documents', textarea:true, full:true },
   { key:'date_of_cessation', label:'Date of Cessation', type:'date' },
@@ -1114,6 +1155,7 @@ function renderEmployeeForm(containerId, prefix, mode) {
       if (f.select) {
         return `<div${cls}><label>${f.label}</label><select id="${id}">${f.select.map(v => `<option value="${v}">${v || 'Select'}</option>`).join('')}</select></div>`;
       }
+      if (f.type === 'file') return `<div${cls}><label>${f.label}</label><input id="${id}" type="file" accept="${f.accept || ''}"/></div>`;
       if (f.textarea) return `<div${cls}><label>${f.label}</label><textarea id="${id}"></textarea></div>`;
       return `<div${cls}><label>${f.label}</label><input id="${id}" type="${f.type || 'text'}" placeholder="${f.placeholder || ''}"${req}/></div>`;
     }).join('');
@@ -1141,10 +1183,28 @@ function collectEmployeeForm(prefix, mode) {
   EMPLOYEE_FORM_FIELDS.filter(f => mode === 'add' ? !f.editOnly : !f.addOnly).forEach(f => {
     const el = document.getElementById(`${prefix}_${f.key}`);
     if (!el) return;
-    payload[f.key] = el.value;
+    if (!f.fileOnly) payload[f.key] = el.value;
   });
   return payload;
 }
+
+function collectEmployeeFormData(prefix, mode) {
+  const fd = new FormData();
+  EMPLOYEE_FORM_FIELDS.filter(f => mode === 'add' ? !f.editOnly : !f.addOnly).forEach(f => {
+    const el = document.getElementById(`${prefix}_${f.key}`);
+    if (!el) return;
+    if (f.type === 'file') {
+      if (el.files && el.files[0]) fd.append(f.key, el.files[0]);
+    } else {
+      fd.append(f.key, el.value || '');
+    }
+  });
+  return fd;
+}
+
+const ONBOARDING_REVIEW_FIELDS = EMPLOYEE_FORM_FIELDS.filter(f =>
+  !f.fileOnly && !['login_password', 'documents', 'related_documents', 'status', 'date_of_cessation'].includes(f.key)
+);
 
 async function loadAdminUsers() {
   const tb = document.getElementById('adminUsersTable');
@@ -1213,12 +1273,14 @@ async function loadEmployees() {
   if (!data.success) return;
   allEmps = data.employees;
   renderEmps(allEmps);
+  loadOnboardingRequests();
 }
 
 function renderEmps(emps) {
   const tb = document.getElementById('empTable');
   tb.innerHTML = emps.length ? emps.map(e => `
     <tr>
+      <td>${e.photo ? `<img src="${e.photo}" style="width:34px;height:34px;border-radius:50%;object-fit:cover">` : '<span style="color:#94a3b8">--</span>'}</td>
       <td><strong>${e.emp_id}</strong></td>
       <td>${e.formal_name||e.name}</td>
       <td>${e.designation||'--'}</td>
@@ -1229,7 +1291,7 @@ function renderEmps(emps) {
       <td>
         <button class="btn-edit" onclick="openEditEmp(${JSON.stringify(e).replace(/"/g,'&quot;')})">Edit</button>
       </td>
-    </tr>`).join('') : '<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:20px">No employees</td></tr>';
+    </tr>`).join('') : '<tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:20px">No employees</td></tr>';
 }
 
 function filterEmps() {
@@ -1254,7 +1316,7 @@ async function submitAddEmp() {
   err.style.display = 'none';
   const data = await api('/admin/employees/add', {
     method: 'POST',
-    body: JSON.stringify(collectEmployeeForm('aef', 'add'))
+    body: collectEmployeeFormData('aef', 'add')
   });
   if (data.success) {
     document.getElementById('addEmpModal').style.display = 'none';
@@ -1281,11 +1343,11 @@ function openEditEmp(e) {
 
 async function submitEditEmp() {
   const empId = document.getElementById('editEmpModal')._empId;
-  const payload = collectEmployeeForm('edf', 'edit');
-  if (!payload.login_password) delete payload.login_password;
+  const payload = collectEmployeeFormData('edf', 'edit');
+  if (!document.getElementById('edf_login_password')?.value) payload.delete('login_password');
   const data  = await api(`/admin/employees/${empId}`, {
     method: 'PUT',
-    body: JSON.stringify(payload)
+    body: payload
   });
   document.getElementById('editEmpModal').style.display = 'none';
   showToast(data.message, data.success ? 'success' : 'error');
@@ -1293,6 +1355,134 @@ async function submitEditEmp() {
 }
 
 // ── LEAVE ────────────────────────────────────────────────────
+async function generateEmployeeOnboardingLink() {
+  const data = await api('/admin/employee-onboarding/links', {
+    method: 'POST',
+    body: JSON.stringify({ valid_days: 7 })
+  });
+  if (!data.success) return showToast(data.message || 'Unable to generate link', 'error');
+  await navigator.clipboard?.writeText(data.link).catch(() => {});
+  showToast('Joining link generated and copied', 'success');
+  prompt('Send this joining link to the employee:', data.link);
+}
+
+async function loadOnboardingRequests() {
+  const tb = document.getElementById('onboardingRequestsTable');
+  if (!tb) return;
+  const data = await api('/admin/employee-onboarding/requests');
+  if (!data.success) {
+    tb.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#dc2626;padding:18px">Unable to load requests</td></tr>';
+    return;
+  }
+  window.ONBOARDING_REQUESTS = Object.fromEntries((data.requests || []).map(r => [String(r.id), r]));
+  tb.innerHTML = (data.requests || []).length ? data.requests.map(r => {
+    const d = r.data || {};
+    const docs = r.documents || {};
+    const docLinks = Object.entries(docs).map(([k, v]) => v?.data_url ? `<a href="${v.data_url}" target="_blank">${k}</a>` : '').filter(Boolean).join(' | ') || '--';
+    return `<tr>
+      <td>${fmtDate(r.created_at)}</td>
+      <td>${d.formal_name || d.name || '--'}</td>
+      <td>${d.designation || '--'}</td>
+      <td>${d.mobile_no || '--'}</td>
+      <td><span class="badge ${r.status==='Approved'?'badge-present':r.status==='Needs Reupload'?'badge-absent':'badge-pending'}">${r.status}</span></td>
+      <td>${docLinks}</td>
+      <td style="white-space:nowrap">
+        <button class="btn-edit" onclick="openOnboardingReviewById(${r.id})">Review</button>
+        ${r.status !== 'Approved' ? `<button class="btn-sm" onclick="openOnboardingReviewById(${r.id})">Approve</button>
+        <button class="btn-cancel" onclick="askOnboardingReupload(${r.id})">Reupload</button>` : ''}
+      </td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:18px">No joining requests yet</td></tr>';
+}
+
+function openOnboardingReviewById(id) {
+  const r = window.ONBOARDING_REQUESTS?.[String(id)];
+  if (!r) return showToast('Request not found. Please refresh.', 'error');
+  openOnboardingReview(r);
+}
+
+function openOnboardingReview(r) {
+  const d = r.data || {};
+  document.getElementById('obr_id').value = r.id;
+  const box = document.getElementById('onboardingReviewFields');
+  box.innerHTML = ONBOARDING_REVIEW_FIELDS.map(f => {
+    const id = `obr_${f.key}`;
+    const val = d[f.key] || '';
+    const cls = f.full ? ' class="full"' : '';
+    if (f.select) return `<div${cls}><label>${f.label}</label><select id="${id}">${f.select.map(v => `<option value="${v}" ${String(v)===String(val)?'selected':''}>${v || 'Select'}</option>`).join('')}</select></div>`;
+    if (f.textarea) return `<div${cls}><label>${f.label}</label><textarea id="${id}">${val}</textarea></div>`;
+    return `<div${cls}><label>${f.label}</label><input id="${id}" type="${f.type || 'text'}" value="${String(val).replace(/"/g, '&quot;')}"/></div>`;
+  }).join('') + `<div><label>Login Password</label><input id="obr_login_password" placeholder="Blank = auto generate"/></div>`;
+  const docs = r.documents || {};
+  document.getElementById('onboardingReviewDocs').innerHTML = Object.entries(docs).map(([k, v]) =>
+    v?.data_url ? `<a class="btn-edit" href="${v.data_url}" target="_blank">${k}</a>` : ''
+  ).filter(Boolean).join('') || '<span style="color:#94a3b8">No documents uploaded</span>';
+  document.getElementById('onboardingReviewError').style.display = 'none';
+  document.getElementById('onboardingReviewModal').style.display = 'flex';
+}
+
+function collectOnboardingReviewData() {
+  const employee = {};
+  ONBOARDING_REVIEW_FIELDS.forEach(f => {
+    const el = document.getElementById(`obr_${f.key}`);
+    if (el) employee[f.key] = el.value;
+  });
+  return {
+    employee,
+    login_password: document.getElementById('obr_login_password')?.value || ''
+  };
+}
+
+async function approveOnboardingFromModal() {
+  const id = document.getElementById('obr_id').value;
+  const err = document.getElementById('onboardingReviewError');
+  err.style.display = 'none';
+  const payload = collectOnboardingReviewData();
+  if (!payload.employee.name || !payload.employee.designation) {
+    err.textContent = 'Name and designation required.';
+    err.style.display = 'block';
+    return;
+  }
+  const data = await api(`/admin/employee-onboarding/requests/${id}/approve`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  if (!data.success) {
+    err.textContent = data.message || 'Approval failed';
+    err.style.display = 'block';
+    return;
+  }
+  document.getElementById('onboardingReviewModal').style.display = 'none';
+  showToast(`${data.message}. Password: ${data.login_password}`, 'success');
+  loadEmployees();
+}
+
+function askOnboardingReuploadFromModal() {
+  const id = document.getElementById('obr_id').value;
+  askOnboardingReupload(id);
+}
+
+async function approveOnboardingRequest(id) {
+  const login_password = prompt('Login password for new employee (blank = auto generate):') || '';
+  const data = await api(`/admin/employee-onboarding/requests/${id}/approve`, {
+    method: 'POST',
+    body: JSON.stringify({ login_password })
+  });
+  showToast(data.success ? `${data.message}. Password: ${data.login_password}` : data.message, data.success ? 'success' : 'error');
+  if (data.success) loadEmployees();
+}
+
+async function askOnboardingReupload(id) {
+  const remark = prompt('What should employee reupload/correct?', 'Please reupload required documents.') || '';
+  if (!remark) return;
+  const data = await api(`/admin/employee-onboarding/requests/${id}/reupload`, {
+    method: 'PUT',
+    body: JSON.stringify({ remark })
+  });
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) loadOnboardingRequests();
+}
+
 async function loadLeaves() {
   const status = document.getElementById('leaveStatusFilter').value;
   const data = await api(`/leave/all${status ? '?status=' + status : ''}`);
@@ -1908,7 +2098,7 @@ function adminLogout() {
 
 // ── Init ─────────────────────────────────────────────────────
 (async function init() {
-  document.getElementById('adminName').textContent = admin.name || admin.username || '';
+  document.getElementById('adminName').innerHTML = `<strong>${admin.name || admin.username || ''}</strong><br><small>${admin.role || 'Admin'}</small>`;
   loadOrgBranding();
 
   // Populate year selectors

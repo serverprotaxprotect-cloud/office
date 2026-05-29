@@ -69,11 +69,11 @@ function fyOptions() {
 router.get('/meta', authMiddleware, async (req, res) => {
   try {
     const emps = await db.query(
-      `SELECT emp_id, formal_name, name
+      `SELECT emp_id, formal_name, name, designation, photo
        FROM (
-         SELECT emp_id, formal_name, name FROM emplist WHERE status='Active'
+         SELECT emp_id, formal_name, name, designation, photo FROM emplist WHERE status='Active'
          UNION ALL
-         SELECT username AS emp_id, name AS formal_name, name FROM admins WHERE status='Active'
+         SELECT username AS emp_id, name AS formal_name, name, role AS designation, NULL::text AS photo FROM admins WHERE status='Active'
        ) x
        ORDER BY name`
     );
