@@ -398,7 +398,7 @@ router.put('/profile/photo', authMiddleware, upload.single('photo'), async (req,
       return res.status(400).json({ success: false, message: 'Only image files allowed' });
     }
     const photo = photoDataUrl(req.file);
-    const r = await db.query(
+    let r = await db.query(
       `UPDATE emplist
        SET photo=$1
        WHERE (
@@ -411,6 +411,22 @@ router.put('/profile/photo', authMiddleware, upload.single('photo'), async (req,
        RETURNING emp_id`,
       [photo, empId, userId, displayName, email]
     );
+    if (!r.rows.length && req.user.organization_id) {
+      r = await db.runWithTenant({ bypassTenant: true }, () => db.query(
+        `UPDATE emplist
+         SET photo=$1
+         WHERE organization_id=$2
+           AND (
+             lower(emp_id)=lower($3)
+             OR id=$4
+             OR lower(coalesce(formal_name,''))=lower($5)
+             OR lower(coalesce(name,''))=lower($5)
+             OR lower(coalesce(email_id,''))=lower($6)
+           )
+         RETURNING emp_id`,
+        [photo, req.user.organization_id, empId, userId, displayName, email]
+      ));
+    }
     if (!r.rows.length) return res.status(404).json({ success: false, message: 'Employee not found' });
     res.json({ success: true, message: 'Profile photo updated', photo });
   } catch (err) {
