@@ -15,7 +15,7 @@
   <link rel="apple-touch-icon" href="/icons/icon-192.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
 
-  <link rel="stylesheet" href="/assets/style.css" />
+  <link rel="stylesheet" href="/assets/style.css?v=20260529-2" />
   <style>
     .leave-type-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px; }
     .leave-type-btn {
@@ -186,9 +186,18 @@
 
     <!-- Clock Card -->
     <div class="clock-card">
+      <div class="clock-profile-row">
+        <div class="clock-avatar" id="clockAvatar">?</div>
+        <div style="text-align:left">
+          <div class="clock-emp" id="clockEmp"></div>
+          <label class="clock-photo-link">
+            Change Photo
+            <input type="file" id="homePhotoInput" accept="image/*" style="display:none" onchange="uploadProfilePhoto('homePhotoInput')">
+          </label>
+        </div>
+      </div>
       <div class="clock-time" id="clockTime">--:--:--</div>
       <div class="clock-date" id="clockDate"></div>
-      <div class="clock-emp" id="clockEmp"></div>
       <div class="status-bar">
         <div class="status-dot none" id="statusDot"></div>
         <span id="statusText">Loading...</span>
@@ -551,6 +560,11 @@ function setNavProfile(profile) {
   const role = profile.designation || profile.role || '';
   const initials = name.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase() || '?';
   document.getElementById('navProfileChip').innerHTML = `${profile.photo ? `<img src="${profile.photo}" alt="">` : `<span class="nav-profile-fallback">${initials}</span>`}<span><span class="nav-profile-name">${name}</span><span class="nav-profile-role">${role || 'Employee'}</span></span>`;
+  const clockAvatar = document.getElementById('clockAvatar');
+  if (clockAvatar) {
+    clockAvatar.textContent = profile.photo ? '' : initials;
+    clockAvatar.style.backgroundImage = profile.photo ? `url("${profile.photo}")` : '';
+  }
 }
 
 function showNavPhoto() {
@@ -1057,8 +1071,8 @@ async function loadProfile() {
 }
 
 // ── Tab switching ─────────────────────────────────────────
-async function uploadProfilePhoto() {
-  const input = document.getElementById('profilePhotoInput');
+async function uploadProfilePhoto(inputId = 'profilePhotoInput') {
+  const input = document.getElementById(inputId);
   const file = input.files && input.files[0];
   if (!file) return;
   const fd = new FormData();

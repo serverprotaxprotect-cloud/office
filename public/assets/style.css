@@ -169,21 +169,50 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; color: var(--text); backg
 .clock-card {
   background: linear-gradient(135deg, #1e3a5f, #2563eb);
   border-radius: var(--radius);
-  padding: 28px 24px;
+  padding: 22px 24px;
   color: #fff;
   text-align: center;
   margin-bottom: 20px;
   box-shadow: 0 8px 32px rgba(37,99,235,.35);
 }
+.clock-profile-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.clock-avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(255,255,255,.16);
+  border: 2px solid rgba(255,255,255,.32);
+  font-size: 16px;
+  font-weight: 900;
+  background-size: cover;
+  background-position: center;
+  flex-shrink: 0;
+}
+.clock-photo-link {
+  display: inline-block;
+  margin-top: 3px;
+  color: #bfdbfe;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
 .clock-time {
-  font-size: 52px;
+  font-size: 38px;
   font-weight: 700;
-  letter-spacing: 2px;
+  letter-spacing: 1px;
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
-.clock-date { font-size: 15px; opacity: .8; margin-top: 8px; }
-.clock-emp  { font-size: 14px; opacity: .65; margin-top: 4px; }
+.clock-date { font-size: 14px; opacity: .8; margin-top: 7px; }
+.clock-emp  { font-size: 14px; opacity: .9; margin-top: 0; font-weight: 800; }
 
 /* Status badge */
 .status-bar {
@@ -480,7 +509,7 @@ tr:hover td { background: #f8fafc; }
 
 /* Responsive */
 @media (max-width: 420px) {
-  .clock-time { font-size: 42px; }
+  .clock-time { font-size: 34px; }
   .punch-btn  { padding: 16px 8px; font-size: 15px; }
   .punch-btn .punch-icon { font-size: 24px; }
 }

@@ -390,6 +390,8 @@ router.get('/profile', authMiddleware, async (req, res) => {
 router.put('/profile/photo', authMiddleware, upload.single('photo'), async (req, res) => {
   const empId = req.user.emp_id || req.user.username || '';
   const userId = Number(req.user.id) || null;
+  const displayName = req.user.formal_name || req.user.name || '';
+  const email = req.user.email_id || '';
   try {
     if (!req.file) return res.status(400).json({ success: false, message: 'Photo required' });
     if (!String(req.file.mimetype || '').startsWith('image/')) {
@@ -399,9 +401,15 @@ router.put('/profile/photo', authMiddleware, upload.single('photo'), async (req,
     const r = await db.query(
       `UPDATE emplist
        SET photo=$1
-       WHERE (lower(emp_id)=lower($2) OR id=$3)
+       WHERE (
+         lower(emp_id)=lower($2)
+         OR id=$3
+         OR lower(coalesce(formal_name,''))=lower($4)
+         OR lower(coalesce(name,''))=lower($4)
+         OR lower(coalesce(email_id,''))=lower($5)
+       )
        RETURNING emp_id`,
-      [photo, empId, userId]
+      [photo, empId, userId, displayName, email]
     );
     if (!r.rows.length) return res.status(404).json({ success: false, message: 'Employee not found' });
     res.json({ success: true, message: 'Profile photo updated', photo });
