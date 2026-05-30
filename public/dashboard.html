@@ -541,6 +541,12 @@
 const token = localStorage.getItem('att_token');
 const emp   = JSON.parse(localStorage.getItem('att_emp') || '{}');
 if (!token) { window.location.href = '/'; }
+if (token.length > 8000) {
+  localStorage.removeItem('att_token');
+  localStorage.removeItem('att_emp');
+  alert('Session refresh required. Please login again.');
+  window.location.href = '/attendance.html';
+}
 document.getElementById('attBrandName').textContent = emp.organization_name || 'Office';
 
 // ── Helpers ─────────────────────────────────────────────
