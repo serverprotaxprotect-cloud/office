@@ -559,6 +559,12 @@
             <input id="chatSearch" placeholder="Search threads, client, task..." oninput="debounceChatThreads()" style="flex:1;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px"/>
             <button class="btn-sm btn-view" onclick="loadChatThreads(true)">Refresh</button>
           </div>
+          <div class="filter-row" style="padding:10px 12px;margin:0;border-bottom:1px solid #eef2f7">
+            <select id="chatInboxFilter" onchange="loadChatThreads(true)" style="flex:1;min-width:150px"><option value="">All Threads</option><option value="unread">Unread</option><option value="mentioned">Mentioned Me</option><option value="client_replies">Client Replies</option><option value="pending_followup">Pending Follow-up</option></select>
+            <select id="chatStatusFilter" onchange="loadChatThreads(true)" style="flex:1;min-width:150px"><option value="">All Status</option><option>Open</option><option>Waiting for Client</option><option>Resolved</option><option>Closed</option></select>
+            <button class="btn-sm btn-green" onclick="loadChatFollowups()">Follow-ups</button>
+            <button class="btn-sm btn-view" onclick="toggleChatReport()">Report</button>
+          </div>
           <div class="chat-list-body" id="chatThreadList"><div class="chat-empty">Loading...</div></div>
         </div>
         <div class="chat-main">
@@ -567,7 +573,22 @@
               <strong id="chatTitle">Select or create a chat</strong>
               <div id="chatSub" style="font-size:11px;color:#64748b;margin-top:2px">Internal messages stay inside team unless Client Visible is selected.</div>
             </div>
-            <button class="btn-sm btn-green hidden" id="chatCloseBtn" onclick="closeChatThread()">Close Thread</button>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <select id="chatThreadStatus" class="hidden" onchange="updateChatThreadStatus(this.value)" style="padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:8px"><option>Open</option><option>Waiting for Client</option><option>Resolved</option><option>Closed</option></select>
+              <button class="btn-sm btn-green hidden" id="chatResolveBtn" onclick="resolveChatThread()">Resolved</button>
+              <button class="btn-sm btn-dark hidden" id="chatCloseBtn" onclick="updateChatThreadStatus('Closed')">Close Thread</button>
+            </div>
+          </div>
+          <div id="chatReportBox" class="hidden" style="padding:12px;border-bottom:1px solid #e2e8f0;background:#fff">
+            <div class="filter-row">
+              <input id="chatReportClient" placeholder="Client ID" style="max-width:150px"/>
+              <input id="chatReportFrom" type="date"/>
+              <input id="chatReportTo" type="date"/>
+              <select id="chatReportModule" style="max-width:150px"><option value="">All Module</option><option value="task">Task</option><option value="compliance">Compliance</option><option value="gst">GST</option><option value="income_tax">Income Tax</option><option value="mca">MCA</option></select>
+              <button class="btn-sm btn-view" onclick="loadChatReport()">Load Report</button>
+              <button class="btn-sm btn-green" onclick="downloadChatReportCsv()">CSV</button>
+            </div>
+            <div class="tbl-wrap" style="max-height:220px"><table><thead><tr><th>Date</th><th>Client</th><th>Thread</th><th>Type</th><th>Sender</th><th>Status/Seen</th><th>Message</th></tr></thead><tbody id="chatReportTable"><tr><td colspan="7" class="empty-msg">Use filters and Load Report.</td></tr></tbody></table></div>
           </div>
           <div class="chat-main-body">
             <div class="chat-messages" id="chatMessages"><div class="chat-empty">No thread selected.</div></div>
@@ -585,6 +606,11 @@
                 <select id="chatMessageType" onchange="toggleChatCallFields()"><option value="message">Message</option><option value="call_log">Call Log</option></select>
                 <select id="chatCallStatus" class="hidden"><option>Called</option><option>Connected</option><option>No Response</option><option>Client Will Send</option><option>Pending From Client</option><option>Refused/Denied</option><option>Callback Scheduled</option></select>
                 <input id="chatFollowUp" type="datetime-local" class="hidden"/>
+              </div>
+              <div class="filter-row" style="margin-bottom:8px">
+                <select id="chatQuickTemplate" onchange="applyChatTemplate()" style="min-width:260px"><option value="">Quick reply templates</option></select>
+                <select id="chatAttachmentCategory" style="min-width:180px"><option>General</option><option>PAN</option><option>Aadhaar</option><option>Bank Statement</option><option>GST Data</option><option>MCA Document</option><option>Income Tax Document</option><option>KYC Document</option></select>
+                <span id="chatSeenInfo" style="font-size:12px;color:#64748b"></span>
               </div>
               <div style="position:relative;margin-bottom:8px">
                 <input id="chatMentionSearch" placeholder="@ mention employee..." oninput="searchChatMentions()" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px"/>
@@ -4580,6 +4606,252 @@ function removeChatMention(empId){ CHAT.mentions=CHAT.mentions.filter(m=>m.emp_i
 function searchChatContext(){ clearTimeout(CHAT.contextTimer); CHAT.contextTimer=setTimeout(async()=>{ const q=document.getElementById('chatContextSearch').value.trim(); const box=document.getElementById('chatContextSuggest'); if(q.length<2){box.classList.add('hidden');return;} const data=await api('/chat/context/search?q='+encodeURIComponent(q),{cache:false}); if(!data.success||!data.results?.length){box.classList.add('hidden');return;} box.innerHTML=data.results.map(r=>`<button onclick="selectChatContext('${h(r.type)}','${h(r.id)}','${h(r.client_id||'')}','${h(r.label||r.id)}')"><strong>${h(r.label||r.id)}</strong><br><small>${h(r.type)} ${r.client_id?' - '+h(r.client_id):''}</small></button>`).join(''); box.classList.remove('hidden'); },250); }
 function selectChatContext(type,id,clientId,label){ document.getElementById('chatContextSearch').value=label; document.getElementById('chatClientId').value=clientId||''; document.getElementById('chatLinkedModule').value=type==='client'?'':type; document.getElementById('chatLinkedRecord').value=type==='client'?'':id; document.getElementById('chatSubject').value=document.getElementById('chatSubject').value||label; document.getElementById('chatContextSuggest').classList.add('hidden'); }
 function connectChatEvents(){ if(!window.EventSource||CHAT.eventSource)return; try{ CHAT.eventSource=new EventSource('/api/chat/events?token='+encodeURIComponent(token)); ['message_created','message_edited','message_deleted','thread_unread_changed'].forEach(evt=>{ CHAT.eventSource.addEventListener(evt,e=>{ let payload={}; try{payload=JSON.parse(e.data||'{}')}catch{} loadChatThreads(false); if(CHAT.activeThread&&Number(payload.thread_id)===Number(CHAT.activeThread.id))loadChatMessages(CHAT.activeThread.id,true); }); }); }catch{} }
+
+// Enhanced Smart Chat workflow overrides
+CHAT.templates = [];
+CHAT.reportRows = [];
+
+async function loadChatTemplates() {
+  const data = await api('/chat/templates', { cache:false });
+  if (!data.success) return;
+  CHAT.templates = data.templates || [];
+  const sel = document.getElementById('chatQuickTemplate');
+  if (sel) sel.innerHTML = '<option value="">Quick reply templates</option>' + CHAT.templates.map(t => `<option value="${t.id}">${h(t.category || 'General')} - ${h(t.title)}</option>`).join('');
+}
+
+function initChatPanel() {
+  if (!CHAT.loaded) {
+    CHAT.loaded = true;
+    loadChatTemplates();
+    loadChatThreads(true);
+    connectChatEvents();
+    CHAT.pollTimer = setInterval(() => {
+      if (document.getElementById('panel-chat')?.classList.contains('active')) {
+        loadChatThreads(false);
+        if (CHAT.activeThread) loadChatMessages(CHAT.activeThread.id, false);
+      }
+    }, 15000);
+  } else {
+    loadChatThreads(false);
+  }
+}
+
+async function loadChatThreads(force=false) {
+  const params = new URLSearchParams();
+  const q = document.getElementById('chatSearch')?.value || '';
+  const inbox = document.getElementById('chatInboxFilter')?.value || '';
+  const status = document.getElementById('chatStatusFilter')?.value || '';
+  if (q) params.set('search', q);
+  if (inbox) params.set('inbox', inbox);
+  if (status) params.set('status', status);
+  const data = await api('/chat/threads?' + params.toString(), { cache:false, force });
+  const box = document.getElementById('chatThreadList');
+  if (!box) return;
+  if (!data.success) {
+    box.innerHTML = `<div class="chat-empty">${h(data.message || 'Chat load failed')}</div>`;
+    return;
+  }
+  CHAT.threads = data.threads || [];
+  renderChatThreads();
+}
+
+function renderChatThreads() {
+  const box = document.getElementById('chatThreadList');
+  if (!box) return;
+  if (!CHAT.threads.length) {
+    box.innerHTML = '<div class="chat-empty">No chat thread found.</div>';
+    return;
+  }
+  box.innerHTML = CHAT.threads.map(t => {
+    const flags = [];
+    if (Number(t.unread_count || 0)) flags.push(`<span class="chat-unread">${Number(t.unread_count || 0)}</span>`);
+    if (Number(t.client_unseen_count || 0)) flags.push(`<span class="badge b-waiting">${Number(t.client_unseen_count)} unseen</span>`);
+    if (t.escalated_at) flags.push('<span class="badge b-cancel">Escalated</span>');
+    return `<div class="chat-thread ${CHAT.activeThread?.id === t.id ? 'active' : ''}" onclick="openChatThread(${t.id})">
+      <div class="chat-thread-title"><span>${h(t.subject || 'Untitled chat')}</span><span>${flags.join(' ')}</span></div>
+      <div class="chat-thread-meta">
+        ${statusBadge(t.status || 'Open')} ${h(t.client_id || t.agent_id || t.linked_module || 'Internal')} ${t.linked_task_id ? ' - ' + h(t.linked_task_id) : ''}<br>
+        ${h((t.last_message_body || '').slice(0, 90))}
+        ${t.next_follow_up_at ? `<br>Follow-up: ${h(new Date(t.next_follow_up_at).toLocaleString('en-IN'))}` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function setChatHeader(t) {
+  document.getElementById('chatTitle').textContent = t?.subject || 'New chat thread';
+  const context = [t?.client_id, t?.linked_module, t?.linked_task_id || t?.linked_record_id].filter(Boolean).join(' - ');
+  const seen = t?.last_client_seen_at ? `Client seen: ${new Date(t.last_client_seen_at).toLocaleString('en-IN')}` : '';
+  document.getElementById('chatSub').textContent = [context, seen].filter(Boolean).join(' | ') || 'Internal messages stay inside team unless Client Visible is selected.';
+  const st = document.getElementById('chatThreadStatus');
+  if (st) {
+    st.classList.toggle('hidden', !t?.id);
+    st.value = t?.status || 'Open';
+  }
+  document.getElementById('chatResolveBtn')?.classList.toggle('hidden', !t?.id || ['Resolved','Closed'].includes(t?.status));
+  document.getElementById('chatCloseBtn')?.classList.toggle('hidden', !t?.id);
+  document.getElementById('chatSeenInfo').textContent = seen;
+}
+
+function renderChatMessages(scrollBottom=false) {
+  const box = document.getElementById('chatMessages');
+  if (!box) return;
+  if (!CHAT.messages.length) {
+    box.innerHTML = '<div class="chat-empty">No message yet.</div>';
+    return;
+  }
+  const myKey = chatActorKey();
+  box.innerHTML = CHAT.messages.map(m => {
+    const mine = `${m.sender_type}:${m.sender_id}` === myKey;
+    const deleted = !!m.deleted_at;
+    const call = m.message_type === 'call_log';
+    const seen = m.client_visible && ['employee','admin'].includes(m.sender_type)
+      ? (m.seen_by_client_at ? `Seen: ${new Date(m.seen_by_client_at).toLocaleString('en-IN')}` : 'Not seen by client')
+      : '';
+    const atts = (m.attachments || []).map(a => `<div><a href="${h(a.url || a.file_url)}" target="_blank">${h(a.filename || 'Attachment')}</a> <small>${h(a.category || '')}</small></div>`).join('');
+    return `<div class="chat-msg ${mine ? 'mine' : ''} ${m.client_visible ? 'client-visible' : ''}">
+      <div class="chat-msg-meta">${h(m.sender_name || m.sender_type)} - ${call ? 'Call Log' : (m.client_visible ? 'Client Visible' : 'Internal')} - ${fmtDate(m.created_at)}</div>
+      <div class="chat-msg-body">${deleted ? 'Message removed' : h(m.body || '')}</div>
+      ${call && !deleted ? `<div class="chat-msg-meta">Status: ${h(m.call_status || '--')}${m.follow_up_at ? ' - Follow-up: ' + h(new Date(m.follow_up_at).toLocaleString('en-IN')) : ''}</div>` : ''}
+      ${seen ? `<div class="chat-msg-meta">${h(seen)}</div>` : ''}
+      ${atts}
+    </div>`;
+  }).join('');
+  if (scrollBottom) box.scrollTop = box.scrollHeight;
+}
+
+function applyChatTemplate() {
+  const id = Number(document.getElementById('chatQuickTemplate')?.value || 0);
+  const t = CHAT.templates.find(x => Number(x.id) === id);
+  if (!t) return;
+  const body = document.getElementById('chatBody');
+  body.value = body.value ? `${body.value}\n${t.body}` : t.body;
+  body.focus();
+}
+
+async function sendChatMessage() {
+  const btn = document.getElementById('chatSendBtn');
+  const body = document.getElementById('chatBody').value.trim();
+  const visibility = document.getElementById('chatVisibility').value;
+  const clientVisible = visibility === 'client' || visibility === 'client_team';
+  const tellAll = visibility === 'team_all' || visibility === 'client_team';
+  const clientId = document.getElementById('chatClientId').value.trim();
+  if (!body && !CHAT.attachments.length) return showToast('Message required', 'error');
+  if (clientVisible && !clientId && !CHAT.activeThread?.client_id) return showToast('Client visible message ke liye client select required hai.', 'error');
+  btn.disabled = true; btn.textContent = 'Sending...';
+  const payload = {
+    body,
+    message_type: document.getElementById('chatMessageType').value,
+    client_visible: clientVisible,
+    mention_ids: CHAT.mentions.map(m => m.emp_id || m.id),
+    attachment_ids: CHAT.attachments.map(a => a.id),
+    attachment_category: document.getElementById('chatAttachmentCategory').value,
+    call_status: document.getElementById('chatCallStatus').value,
+    follow_up_at: document.getElementById('chatFollowUp').value || null,
+    tell_all_team: tellAll
+  };
+  let data;
+  if (!CHAT.activeThread) {
+    payload.subject = document.getElementById('chatSubject').value.trim() || body.slice(0, 70);
+    payload.visibility = clientVisible ? 'client_visible' : 'internal';
+    payload.thread_type = 'work';
+    payload.client_id = clientId || null;
+    payload.linked_module = document.getElementById('chatLinkedModule').value || null;
+    payload.linked_record_id = document.getElementById('chatLinkedRecord').value || null;
+    payload.linked_task_id = payload.linked_module === 'task' ? payload.linked_record_id : null;
+    data = await api('/chat/threads', { method:'POST', body:JSON.stringify(payload), cache:false });
+  } else {
+    data = await api(`/chat/threads/${CHAT.activeThread.id}/messages`, { method:'POST', body:JSON.stringify(payload), cache:false });
+  }
+  btn.disabled = false; btn.textContent = 'Send';
+  if (!data.success) return showToast(data.message || 'Message failed', 'error');
+  document.getElementById('chatBody').value = '';
+  document.getElementById('chatAttachmentFile').value = '';
+  document.getElementById('chatAttachmentInfo').textContent = '';
+  CHAT.attachments = [];
+  if (data.thread) {
+    CHAT.activeThread = data.thread;
+    document.getElementById('chatNewFields').classList.add('hidden');
+    setChatHeader(CHAT.activeThread);
+  }
+  await loadChatThreads(true);
+  await openChatThread(CHAT.activeThread.id);
+}
+
+async function uploadChatAttachment() {
+  const input = document.getElementById('chatAttachmentFile');
+  const file = input.files?.[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('category', document.getElementById('chatAttachmentCategory')?.value || 'General');
+  document.getElementById('chatAttachmentInfo').textContent = 'Uploading...';
+  const data = await api('/chat/attachments', { method:'POST', body:fd, cache:false });
+  if (!data.success) {
+    document.getElementById('chatAttachmentInfo').textContent = '';
+    input.value = '';
+    return showToast(data.message || 'Attachment upload failed', 'error');
+  }
+  CHAT.attachments.push(data.attachment);
+  document.getElementById('chatAttachmentInfo').textContent = `${CHAT.attachments.length} attachment ready`;
+}
+
+async function updateChatThreadStatus(status) {
+  if (!CHAT.activeThread?.id) return;
+  const data = await api(`/chat/threads/${CHAT.activeThread.id}/status`, { method:'PUT', body:JSON.stringify({ status }), cache:false });
+  showToast(data.message || (data.success ? 'Updated' : 'Status update failed'), data.success ? 'success' : 'error');
+  if (data.success) {
+    CHAT.activeThread = data.thread;
+    setChatHeader(CHAT.activeThread);
+    loadChatThreads(true);
+  }
+}
+
+async function resolveChatThread() {
+  if (!CHAT.activeThread?.id) return;
+  const data = await api(`/chat/threads/${CHAT.activeThread.id}/resolve`, { method:'POST', body:'{}', cache:false });
+  showToast(data.message || (data.success ? 'Resolved' : 'Resolve failed'), data.success ? 'success' : 'error');
+  if (data.success) {
+    CHAT.activeThread = data.thread;
+    setChatHeader(CHAT.activeThread);
+    loadChatThreads(true);
+  }
+}
+
+async function loadChatFollowups() {
+  document.getElementById('chatInboxFilter').value = 'pending_followup';
+  await loadChatThreads(true);
+  const data = await api('/chat/followups', { cache:false });
+  if (data.success) showToast(`${(data.followups || []).length} follow-up / waiting threads found`, 'success');
+}
+
+function toggleChatReport() {
+  document.getElementById('chatReportBox')?.classList.toggle('hidden');
+}
+
+async function loadChatReport() {
+  const params = new URLSearchParams();
+  ['Client','From','To','Module'].forEach(k => {
+    const id = 'chatReport' + k;
+    const v = document.getElementById(id)?.value || '';
+    if (!v) return;
+    params.set({Client:'client_id',From:'date_from',To:'date_to',Module:'module'}[k], v);
+  });
+  const data = await api('/chat/report?' + params.toString(), { cache:false });
+  const tb = document.getElementById('chatReportTable');
+  if (!data.success) { tb.innerHTML = `<tr><td colspan="7" class="empty-msg">${h(data.message || 'Report failed')}</td></tr>`; return; }
+  CHAT.reportRows = data.rows || [];
+  tb.innerHTML = CHAT.reportRows.map(r => `<tr><td>${fmtDate(r.created_at)}</td><td>${h(r.client_id || r.agent_id || '--')}</td><td>${h(r.subject || '--')}</td><td>${h(r.message_type || '--')}</td><td>${h(r.sender_name || r.sender_type || '--')}</td><td>${h(r.call_status || r.thread_status || '--')} ${r.seen_by_client_at ? 'Seen' : ''}</td><td>${h((r.body || '').slice(0, 120))}</td></tr>`).join('') || '<tr><td colspan="7" class="empty-msg">No report rows.</td></tr>';
+}
+
+function downloadChatReportCsv() {
+  const rows = CHAT.reportRows || [];
+  if (!rows.length) return showToast('Load report first', 'error');
+  const headers = ['Date','Client','Thread','Module','Type','Sender','Client Visible','Status','Seen At','Message'];
+  const lines = [headers.join(',')].concat(rows.map(r => [r.created_at, r.client_id || r.agent_id || '', r.subject || '', r.linked_module || '', r.message_type || '', r.sender_name || '', r.client_visible ? 'Yes' : 'No', r.call_status || r.thread_status || '', r.seen_by_client_at || '', String(r.body || '').replace(/\s+/g,' ')].map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')));
+  const blob = new Blob([lines.join('\n')], { type:'text/csv;charset=utf-8;' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `Chat_Report_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+}
 
 const GST_MONTHS = [
   [1,'Jan'],[2,'Feb'],[3,'Mar'],[4,'Apr'],[5,'May'],[6,'Jun'],

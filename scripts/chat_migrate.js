@@ -98,6 +98,39 @@ const statements = [
   `CREATE INDEX IF NOT EXISTS idx_chat_participants_user ON chat_participants(organization_id, participant_type, participant_id, unread_count)`,
   `CREATE INDEX IF NOT EXISTS idx_chat_mentions_user ON chat_mentions(organization_id, mentioned_type, mentioned_id, created_at DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_chat_attachments_message ON chat_attachments(organization_id, message_id)`,
+  `ALTER TABLE chat_threads ADD COLUMN IF NOT EXISTS waiting_since TIMESTAMPTZ`,
+  `ALTER TABLE chat_threads ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMPTZ`,
+  `ALTER TABLE chat_threads ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ`,
+  `ALTER TABLE chat_threads ADD COLUMN IF NOT EXISTS escalated_at TIMESTAMPTZ`,
+  `ALTER TABLE chat_threads ADD COLUMN IF NOT EXISTS next_follow_up_at TIMESTAMPTZ`,
+  `ALTER TABLE chat_threads ADD COLUMN IF NOT EXISTS followup_notified_at TIMESTAMPTZ`,
+  `ALTER TABLE chat_threads ADD COLUMN IF NOT EXISTS last_client_visible_at TIMESTAMPTZ`,
+  `ALTER TABLE chat_threads ADD COLUMN IF NOT EXISTS last_client_seen_at TIMESTAMPTZ`,
+  `ALTER TABLE chat_threads ADD COLUMN IF NOT EXISTS last_client_reply_at TIMESTAMPTZ`,
+  `ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS seen_by_client_at TIMESTAMPTZ`,
+  `ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS attachment_category VARCHAR(80)`,
+  `ALTER TABLE chat_attachments ADD COLUMN IF NOT EXISTS category VARCHAR(80)`,
+  `CREATE TABLE IF NOT EXISTS chat_quick_templates (
+    id SERIAL PRIMARY KEY,
+    organization_id INTEGER DEFAULT current_organization_id(),
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    category VARCHAR(80),
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_chat_threads_followup ON chat_threads(organization_id, status, next_follow_up_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_chat_messages_client_seen ON chat_messages(organization_id, thread_id, client_visible, seen_by_client_at)`,
+  `INSERT INTO chat_quick_templates (title, body, category)
+   SELECT v.title, v.body, v.category
+   FROM (VALUES
+     ('Bank Statement Request','Please send bank statement for the required period so we can complete the work.','Documents'),
+     ('DSC OTP Request','Please share the DSC OTP when received.','MCA'),
+     ('ITR Documents Pending','ITR filing documents are pending. Please share Form 16, bank statement, investment proofs and AIS/TIS details.','Income Tax'),
+     ('GST Data Pending','GST data/invoices are pending. Please share purchase, sales and expense details.','GST'),
+     ('KYC Documents Pending','PAN, Aadhaar and required KYC documents are pending. Please share clear copies.','KYC')
+   ) AS v(title, body, category)
+   WHERE NOT EXISTS (SELECT 1 FROM chat_quick_templates q WHERE q.organization_id=current_organization_id() AND q.title=v.title)`,
 ];
 
 async function main() {
