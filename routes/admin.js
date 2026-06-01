@@ -454,9 +454,17 @@ router.put('/employees/:id', adminAuth, upload.fields(EMPLOYEE_UPLOAD_FIELDS), a
       setParts.push(`login_password=$${values.length}`);
     }
     if (!setParts.length) return res.status(400).json({ success: false, message: 'No fields to update' });
-    values.push(id);
+    const employeeKey = String(id || '').trim();
+    const employeeNumericId = Number(employeeKey);
+    values.push(employeeKey);
+    values.push(Number.isFinite(employeeNumericId) ? employeeNumericId : null);
+    values.push(req.user.organization_id);
     const updated = await db.query(
-      `UPDATE emplist SET ${setParts.join(', ')} WHERE emp_id=$${values.length} RETURNING emp_id`,
+      `UPDATE emplist
+       SET ${setParts.join(', ')}
+       WHERE organization_id=$${values.length}
+         AND (lower(emp_id)=lower($${values.length - 2}) OR id=$${values.length - 1})
+       RETURNING emp_id`,
       values
     );
     if (!updated.rows.length) return res.status(404).json({ success: false, message: 'Employee not found' });

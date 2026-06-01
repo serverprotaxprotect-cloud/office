@@ -1666,14 +1666,38 @@ function applyPermissions() {
 
 function showOfficeApp() {
   document.getElementById('officeLoginOverlay').style.display = 'none';
+  renderUserChip();
+  const brand = document.getElementById('officeBrandName');
+  if (brand) brand.textContent = user.organization_name || 'Office';
+  applyPermissions();
+  setTimeout(refreshOfficeUserPhoto, 0);
+}
+
+function renderUserChip() {
   const org = user.organization_code ? ` (${user.organization_code})` : '';
   const displayName = user.name || user.formal_name || '';
   const designation = user.designation || user.role || '';
   const initials = displayName.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() || '?';
   document.getElementById('userChip').innerHTML = `${user.photo ? `<img src="${h(user.photo)}" alt="">` : `<span style="width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.18);font-size:10px;font-weight:900">${h(initials)}</span>`}<span><span class="uc-name">${h(displayName)}${h(org)}</span><span class="uc-role">${h(designation || 'Office User')}</span></span>`;
-  const brand = document.getElementById('officeBrandName');
-  if (brand) brand.textContent = user.organization_name || 'Office';
-  applyPermissions();
+}
+
+async function refreshOfficeUserPhoto() {
+  if (user.user_type !== 'employee') return;
+  try {
+    const data = await api('/attendance/profile', { cache: false });
+    if (!data.success || !data.employee) return;
+    const e = data.employee;
+    user = {
+      ...user,
+      name: e.formal_name || e.name || user.name,
+      formal_name: e.formal_name || user.formal_name,
+      designation: e.designation || user.designation,
+      role: e.designation || user.role,
+      photo: e.photo || null,
+    };
+    localStorage.setItem('office_user', JSON.stringify(user));
+    renderUserChip();
+  } catch (e) {}
 }
 
 function showUserPhoto() {
@@ -1788,6 +1812,7 @@ function clearApiCache(prefix = '') {
 
 const api = async (path, opts = {}) => {
   const method = (opts.method || 'GET').toUpperCase();
+  const isFormData = opts.body instanceof FormData;
   const cacheKey = method + ':' + path;
   const useCache = method === 'GET' && opts.cache !== false;
   const ttl = opts.cacheTtl ?? ((path.includes('/meta') || path.includes('/templates')) ? API_META_TTL : API_DEFAULT_TTL);
@@ -1805,7 +1830,11 @@ const api = async (path, opts = {}) => {
 
   const request = fetch('/api' + path, {
     ...fetchOpts,
-    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', ...(fetchOpts.headers||{}) }
+    headers: {
+      'Authorization': 'Bearer ' + token,
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+      ...(fetchOpts.headers||{})
+    }
   }).then(async (r) => {
     const data = await r.json().catch(() => ({ success: false, message: 'Invalid server response' }));
     if (useCache && r.ok && data.success !== false) {
