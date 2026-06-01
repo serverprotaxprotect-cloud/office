@@ -388,6 +388,7 @@ router.get('/employees', adminAuth, async (req, res) => {
 
 // ── POST /api/admin/employees/add ───────────────────────────
 router.post('/employees/add', adminAuth, upload.fields(EMPLOYEE_UPLOAD_FIELDS), async (req, res) => {
+  return db.runWithTenant({ organizationId: req.user.organization_id, readOnly: req.user.read_only }, async () => {
   const body = parseEmployeePayload(req);
   const { login_password } = body;
   const name = body.name;
@@ -434,10 +435,12 @@ router.post('/employees/add', adminAuth, upload.fields(EMPLOYEE_UPLOAD_FIELDS), 
   } finally {
     conn.release();
   }
+  });
 });
 
 // ── PUT /api/admin/employees/:id ─────────────────────────────
 router.put('/employees/:id', adminAuth, upload.fields(EMPLOYEE_UPLOAD_FIELDS), async (req, res) => {
+  return db.runWithTenant({ organizationId: req.user.organization_id, readOnly: req.user.read_only }, async () => {
   const { id } = req.params;
   try {
     const body = parseEmployeePayload(req);
@@ -473,6 +476,7 @@ router.put('/employees/:id', adminAuth, upload.fields(EMPLOYEE_UPLOAD_FIELDS), a
     console.error(err);
     res.status(500).json({ success: false, message: 'Server error: ' + err.message });
   }
+  });
 });
 
 // ── Helpers for admin routes ──────────────────────────────────
