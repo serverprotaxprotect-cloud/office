@@ -100,6 +100,33 @@
     #panel-gstclients .gst-client-id{font-size:11px;color:#64748b;margin-top:2px}
     #panel-incometax .itr-name{font-weight:800;color:#0f172a;max-width:420px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     #panel-incometax .itr-client-id{font-size:11px;color:#64748b;margin-top:2px}
+    .chat-layout{display:grid;grid-template-columns:360px minmax(0,1fr);gap:14px;min-height:calc(100vh - 180px)}
+    .chat-list,.chat-main{background:#fff;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);overflow:hidden}
+    .chat-list-head,.chat-main-head{padding:12px 14px;border-bottom:1px solid #e2e8f0;display:flex;gap:8px;align-items:center;justify-content:space-between}
+    .chat-list-body{max-height:calc(100vh - 245px);overflow:auto}
+    .chat-thread{padding:12px 14px;border-bottom:1px solid #eef2f7;cursor:pointer}
+    .chat-thread:hover,.chat-thread.active{background:#eff6ff}
+    .chat-thread-title{font-weight:900;color:#0f172a;font-size:13px;display:flex;justify-content:space-between;gap:8px}
+    .chat-thread-meta{font-size:11px;color:#64748b;margin-top:4px;line-height:1.35}
+    .chat-unread{background:#e94560;color:#fff;border-radius:999px;padding:1px 7px;font-size:10px}
+    .chat-main-body{display:grid;grid-template-rows:1fr auto;min-height:calc(100vh - 245px)}
+    .chat-messages{padding:14px;overflow:auto;max-height:calc(100vh - 405px);background:#f8fafc}
+    .chat-msg{max-width:78%;margin-bottom:10px;padding:9px 11px;border-radius:11px;background:#fff;border:1px solid #e2e8f0}
+    .chat-msg.mine{margin-left:auto;background:#eff6ff;border-color:#bfdbfe}
+    .chat-msg.client-visible{border-left:4px solid #16a34a}
+    .chat-msg-meta{font-size:10px;color:#64748b;margin-bottom:4px;font-weight:800}
+    .chat-msg-body{font-size:13px;line-height:1.45;white-space:pre-wrap}
+    .chat-composer{border-top:1px solid #e2e8f0;padding:12px;background:#fff}
+    .chat-compose-grid{display:grid;grid-template-columns:160px 150px 1fr 1fr;gap:8px;margin-bottom:8px}
+    .chat-compose-grid input,.chat-compose-grid select,.chat-composer textarea{width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;background:#f8fafc;outline:none}
+    .chat-composer textarea{min-height:72px;resize:vertical}
+    .chat-suggest{position:absolute;background:#fff;border:1px solid #dbe3ef;border-radius:9px;box-shadow:0 12px 30px rgba(15,23,42,.16);z-index:20;max-height:240px;overflow:auto;min-width:280px}
+    .chat-suggest button{display:block;width:100%;border:0;background:#fff;text-align:left;padding:9px 11px;cursor:pointer;border-bottom:1px solid #eef2f7}
+    .chat-suggest button:hover{background:#eff6ff}
+    .chat-pill{display:inline-flex;align-items:center;gap:5px;border-radius:999px;background:#e0f2fe;color:#0369a1;font-size:11px;font-weight:800;padding:3px 8px;margin:2px}
+    .chat-pill button{border:0;background:transparent;color:#0369a1;cursor:pointer;font-weight:900}
+    .chat-empty{padding:26px;text-align:center;color:#94a3b8}
+    @media(max-width:1000px){.chat-layout{grid-template-columns:1fr}.chat-list-body{max-height:260px}.chat-compose-grid{grid-template-columns:1fr 1fr}.chat-msg{max-width:94%}}
     .import-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:14px}
     .import-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px;box-shadow:0 2px 8px rgba(15,23,42,.06)}
     .import-card h3{margin:0 0 6px;font-size:16px;color:#0f172a}
@@ -349,6 +376,7 @@
     <div class="sb-item" id="sb-alltasks" onclick="showPanel('alltasks')"><span class="ic">&#128203;</span>All Tasks</div>
     <div class="sb-item" id="sb-completed" onclick="showPanel('completed')"><span class="ic">&#9745;</span>Completed</div>
     <div class="sb-item" id="sb-notifications" onclick="showPanel('notifications')"><span class="ic">&#128276;</span>Notifications<span class="sb-badge hidden" id="notifBadge">0</span></div>
+    <div class="sb-item" id="sb-chat" onclick="showPanel('chat')"><span class="ic">&#128172;</span>Smart Chat<span class="sb-badge hidden" id="chatBadge">0</span></div>
     <div class="sb-section" id="sec-clients">Clients</div>
     <div class="sb-item" id="sb-clients" onclick="showPanel('clients')"><span class="ic">&#128100;</span>Client/Agent Search</div>
     <div class="sb-section" id="sec-compliance">Compliance</div>
@@ -520,6 +548,63 @@
     </div>
 
     <!-- ════ DATA IMPORT ════ -->
+    <div class="panel" id="panel-chat">
+      <div class="page-title">
+        <span>Smart Chat <small>Team, client communication and call log</small></span>
+        <button class="btn btn-primary" onclick="openNewChat()">+ New Thread</button>
+      </div>
+      <div class="chat-layout">
+        <div class="chat-list">
+          <div class="chat-list-head">
+            <input id="chatSearch" placeholder="Search threads, client, task..." oninput="debounceChatThreads()" style="flex:1;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px"/>
+            <button class="btn-sm btn-view" onclick="loadChatThreads(true)">Refresh</button>
+          </div>
+          <div class="chat-list-body" id="chatThreadList"><div class="chat-empty">Loading...</div></div>
+        </div>
+        <div class="chat-main">
+          <div class="chat-main-head">
+            <div>
+              <strong id="chatTitle">Select or create a chat</strong>
+              <div id="chatSub" style="font-size:11px;color:#64748b;margin-top:2px">Internal messages stay inside team unless Client Visible is selected.</div>
+            </div>
+            <button class="btn-sm btn-green hidden" id="chatCloseBtn" onclick="closeChatThread()">Close Thread</button>
+          </div>
+          <div class="chat-main-body">
+            <div class="chat-messages" id="chatMessages"><div class="chat-empty">No thread selected.</div></div>
+            <div class="chat-composer">
+              <div id="chatNewFields" class="filter-row hidden" style="position:relative">
+                <input id="chatSubject" placeholder="Subject" style="min-width:240px"/>
+                <input id="chatContextSearch" placeholder="@ client / task / GST / ITR / MCA context" oninput="searchChatContext()" style="min-width:300px"/>
+                <div id="chatContextSuggest" class="chat-suggest hidden"></div>
+                <input id="chatClientId" placeholder="Client ID for client visible" style="max-width:190px"/>
+                <select id="chatLinkedModule" style="max-width:160px"><option value="">No Module</option><option value="task">Task</option><option value="compliance">Compliance</option><option value="gst">GST</option><option value="income_tax">Income Tax</option><option value="mca">MCA</option></select>
+                <input id="chatLinkedRecord" placeholder="Linked record/task ID" style="max-width:220px"/>
+              </div>
+              <div class="chat-compose-grid">
+                <select id="chatVisibility"><option value="internal">Internal Team</option><option value="client">Client Visible</option><option value="team_all">Tell All Team</option><option value="client_team">Client + Team</option></select>
+                <select id="chatMessageType" onchange="toggleChatCallFields()"><option value="message">Message</option><option value="call_log">Call Log</option></select>
+                <select id="chatCallStatus" class="hidden"><option>Called</option><option>Connected</option><option>No Response</option><option>Client Will Send</option><option>Pending From Client</option><option>Refused/Denied</option><option>Callback Scheduled</option></select>
+                <input id="chatFollowUp" type="datetime-local" class="hidden"/>
+              </div>
+              <div style="position:relative;margin-bottom:8px">
+                <input id="chatMentionSearch" placeholder="@ mention employee..." oninput="searchChatMentions()" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px"/>
+                <div id="chatMentionSuggest" class="chat-suggest hidden"></div>
+                <div id="chatMentionPills" style="margin-top:6px"></div>
+              </div>
+              <textarea id="chatBody" placeholder="Write message, question, client update, or call summary..."></textarea>
+              <div style="display:flex;gap:8px;align-items:center;justify-content:space-between;margin-top:8px;flex-wrap:wrap">
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                  <input type="file" id="chatAttachmentFile" accept="image/*,.pdf" onchange="uploadChatAttachment()" style="max-width:260px"/>
+                  <span id="chatAttachmentInfo" style="font-size:12px;color:#64748b"></span>
+                </div>
+                <button class="btn btn-primary" id="chatSendBtn" onclick="sendChatMessage()">Send</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="panel" id="panel-dataimport">
       <div class="page-title">Setup / Data Import</div>
       <div class="card" style="padding:14px 16px;margin-bottom:14px">
@@ -1596,8 +1681,8 @@ const ROLE_PERMS = {
   'Director':       { panels: 'all', attendance_admin: true },
   'Office Manager': { panels: 'all', attendance_admin: true },
   'HR':             { panels: 'all', attendance_admin: true },
-  'Accountant':     { panels: ['dashboard','mytasks','assignedby','completed','notifications','clients','companies','directors','comptracking','gstclients','incometax','mcafiling'], attendance_admin: false },
-  'employee':       { panels: ['dashboard','mytasks','assignedby','completed','notifications','clients','companies','directors','comptracking','gstclients','incometax','mcafiling'], attendance_admin: false },
+  'Accountant':     { panels: ['dashboard','mytasks','assignedby','completed','notifications','chat','clients','companies','directors','comptracking','gstclients','incometax','mcafiling'], attendance_admin: false },
+  'employee':       { panels: ['dashboard','mytasks','assignedby','completed','notifications','chat','clients','companies','directors','comptracking','gstclients','incometax','mcafiling'], attendance_admin: false },
 };
 
 function getRolePerms() {
@@ -1620,6 +1705,7 @@ function applyPermissions() {
     'sb-alltasks':    'alltasks',
     'sb-completed':   'completed',
     'sb-notifications':'notifications',
+    'sb-chat':        'chat',
     'sb-clients':     'clients',
     'sb-companies':   'companies',
     'sb-comptracking':'comptracking',
@@ -2076,6 +2162,7 @@ function showPanel(name) {
       alltasks: () => loadTasks('all'),
       completed: loadCompletedTasks,
       notifications: loadNotifications,
+      chat: initChatPanel,
       clients: searchClients,
       companies: loadCompanies,
       directors: loadDirectors,
@@ -2515,6 +2602,7 @@ async function loadTasks(view) {
           <div class="task-actions">
             <button class="btn-sm btn-view" onclick="viewTask('${taskId}')">View</button>
             <button class="btn-sm btn-edit" onclick="quickUpdate('${taskId}','${jsArg(t.status)}','${jsArg(t.priority)}','${jsArg(t.due_date||'')}')">Update</button>
+            <button class="btn-sm btn-view" onclick="openChatForTask('${taskId}','${jsArg(t.client_id||'')}','${jsArg(client)}','${jsArg(t.work_name||'Task')}')">Chat</button>
             ${canComplete ? `<button class="btn-sm btn-green" title="Mark task complete" onclick="markTaskComplete('${taskId}', this)">Mark as Complete</button>` : ''}
           </div>
         </td>
@@ -4465,6 +4553,34 @@ async function submitKYCUpdate() {
 
 // ── EXCEL IMPORT ─────────────────────────────────────────────
 // GST CLIENT TRACKING
+// SMART CHAT
+const CHAT = {
+  loaded:false, threads:[], activeThread:null, messages:[], mentions:[], attachments:[],
+  threadTimer:null, mentionTimer:null, contextTimer:null, pollTimer:null, eventSource:null
+};
+function chatActorKey(){ return `${user?.user_type || 'employee'}:${user?.emp_id || user?.admin_id || user?.id || ''}`; }
+function initChatPanel(){ if(!CHAT.loaded){ CHAT.loaded=true; loadChatThreads(true); connectChatEvents(); CHAT.pollTimer=setInterval(()=>{ if(document.getElementById('panel-chat')?.classList.contains('active')){ loadChatThreads(false); if(CHAT.activeThread) loadChatMessages(CHAT.activeThread.id,false); } },15000); } else loadChatThreads(false); }
+function debounceChatThreads(){ clearTimeout(CHAT.threadTimer); CHAT.threadTimer=setTimeout(()=>loadChatThreads(true),300); }
+async function loadChatThreads(force=false){ const q=document.getElementById('chatSearch')?.value||''; const data=await api('/chat/threads?search='+encodeURIComponent(q),{cache:false,force}); const box=document.getElementById('chatThreadList'); if(!box)return; if(!data.success){box.innerHTML=`<div class="chat-empty">${h(data.message||'Chat load failed')}</div>`;return;} CHAT.threads=data.threads||[]; renderChatThreads(); }
+function renderChatThreads(){ const box=document.getElementById('chatThreadList'); if(!box)return; if(!CHAT.threads.length){box.innerHTML='<div class="chat-empty">No chat thread yet. Create New Thread.</div>';return;} box.innerHTML=CHAT.threads.map(t=>`<div class="chat-thread ${CHAT.activeThread?.id===t.id?'active':''}" onclick="openChatThread(${t.id})"><div class="chat-thread-title"><span>${h(t.subject||'Untitled chat')}</span>${Number(t.unread_count||0)?`<span class="chat-unread">${Number(t.unread_count||0)}</span>`:''}</div><div class="chat-thread-meta">${h(t.client_id||t.agent_id||t.linked_module||'Internal')} ${t.linked_task_id?' - '+h(t.linked_task_id):''}<br>${h((t.last_message_body||'').slice(0,90))}</div></div>`).join(''); }
+async function openChatThread(id){ const t=CHAT.threads.find(x=>Number(x.id)===Number(id)); CHAT.activeThread=t||{id}; document.getElementById('chatNewFields')?.classList.add('hidden'); document.getElementById('chatCloseBtn')?.classList.remove('hidden'); setChatHeader(CHAT.activeThread); renderChatThreads(); await loadChatMessages(id,true); await api(`/chat/threads/${id}/read`,{method:'POST',body:'{}',cache:false}); loadChatThreads(false); }
+function setChatHeader(t){ document.getElementById('chatTitle').textContent=t?.subject||'New chat thread'; const context=[t?.client_id,t?.linked_module,t?.linked_task_id||t?.linked_record_id].filter(Boolean).join(' - '); document.getElementById('chatSub').textContent=context||'Internal messages stay inside team unless Client Visible is selected.'; }
+async function loadChatMessages(id,scrollBottom=false){ const data=await api(`/chat/threads/${id}/messages`,{cache:false}); if(!data.success){document.getElementById('chatMessages').innerHTML=`<div class="chat-empty">${h(data.message||'Unable to load messages')}</div>`;return;} CHAT.messages=data.messages||[]; renderChatMessages(scrollBottom); }
+function renderChatMessages(scrollBottom=false){ const box=document.getElementById('chatMessages'); if(!box)return; if(!CHAT.messages.length){box.innerHTML='<div class="chat-empty">No message yet.</div>';return;} const myKey=chatActorKey(); box.innerHTML=CHAT.messages.map(m=>{ const mine=`${m.sender_type}:${m.sender_id}`===myKey; const deleted=!!m.deleted_at; const call=m.message_type==='call_log'; const atts=(m.attachments||[]).map(a=>`<div><a href="${h(a.file_url)}" target="_blank">${h(a.filename||'Attachment')}</a></div>`).join(''); return `<div class="chat-msg ${mine?'mine':''} ${m.client_visible?'client-visible':''}"><div class="chat-msg-meta">${h(m.sender_name||m.sender_type)} - ${call?'Call Log':(m.client_visible?'Client Visible':'Internal')} - ${fmtDate(m.created_at)}</div><div class="chat-msg-body">${deleted?'Message removed':h(m.body||'')}</div>${call&&!deleted?`<div class="chat-msg-meta">Status: ${h(m.call_status||'--')}${m.follow_up_at?' - Follow-up: '+h(new Date(m.follow_up_at).toLocaleString('en-IN')):''}</div>`:''}${atts}</div>`; }).join(''); if(scrollBottom) box.scrollTop=box.scrollHeight; }
+function openNewChat(){ CHAT.activeThread=null; CHAT.messages=[]; CHAT.mentions=[]; CHAT.attachments=[]; ['chatSubject','chatContextSearch','chatClientId','chatLinkedRecord','chatBody','chatMentionSearch'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';}); document.getElementById('chatLinkedModule').value=''; document.getElementById('chatVisibility').value='internal'; document.getElementById('chatMessageType').value='message'; document.getElementById('chatAttachmentInfo').textContent=''; document.getElementById('chatNewFields').classList.remove('hidden'); document.getElementById('chatCloseBtn').classList.add('hidden'); document.getElementById('chatMessages').innerHTML='<div class="chat-empty">Create a thread and send first message.</div>'; renderChatMentionPills(); setChatHeader({subject:'New chat thread'}); showPanel('chat'); }
+function openChatForTask(taskId,clientId,clientName,workName){ openNewChat(); document.getElementById('chatSubject').value=`${workName||'Task'} - ${clientName||clientId||taskId}`; document.getElementById('chatClientId').value=clientId||''; document.getElementById('chatLinkedModule').value='task'; document.getElementById('chatLinkedRecord').value=taskId; document.getElementById('chatContextSearch').value=[clientName,clientId,taskId].filter(Boolean).join(' | '); }
+function closeChatThread(){ showToast('Thread close action backend moderation ke saath next step me add hoga. Abhi thread active rahega.','success'); }
+function toggleChatCallFields(){ const call=document.getElementById('chatMessageType').value==='call_log'; document.getElementById('chatCallStatus').classList.toggle('hidden',!call); document.getElementById('chatFollowUp').classList.toggle('hidden',!call); }
+async function sendChatMessage(){ const btn=document.getElementById('chatSendBtn'); const body=document.getElementById('chatBody').value.trim(); const visibility=document.getElementById('chatVisibility').value; const clientVisible=visibility==='client'||visibility==='client_team'; const tellAll=visibility==='team_all'||visibility==='client_team'; const clientId=document.getElementById('chatClientId').value.trim(); if(!body&&!CHAT.attachments.length)return showToast('Message required','error'); if(clientVisible&&!clientId&&!CHAT.activeThread?.client_id)return showToast('Client visible message ke liye client select required hai.','error'); btn.disabled=true;btn.textContent='Sending...'; const payload={body,message_type:document.getElementById('chatMessageType').value,client_visible:clientVisible,mention_ids:CHAT.mentions.map(m=>m.emp_id||m.id),attachment_ids:CHAT.attachments.map(a=>a.id),call_status:document.getElementById('chatCallStatus').value,follow_up_at:document.getElementById('chatFollowUp').value||null,tell_all_team:tellAll}; let data; if(!CHAT.activeThread){ payload.subject=document.getElementById('chatSubject').value.trim()||body.slice(0,70); payload.visibility=clientVisible?'client_visible':'internal'; payload.thread_type='work'; payload.client_id=clientId||null; payload.linked_module=document.getElementById('chatLinkedModule').value||null; payload.linked_record_id=document.getElementById('chatLinkedRecord').value||null; payload.linked_task_id=payload.linked_module==='task'?payload.linked_record_id:null; data=await api('/chat/threads',{method:'POST',body:JSON.stringify(payload),cache:false}); } else { data=await api(`/chat/threads/${CHAT.activeThread.id}/messages`,{method:'POST',body:JSON.stringify(payload),cache:false}); } btn.disabled=false;btn.textContent='Send'; if(!data.success)return showToast(data.message||'Message failed','error'); document.getElementById('chatBody').value=''; document.getElementById('chatAttachmentFile').value=''; document.getElementById('chatAttachmentInfo').textContent=''; CHAT.attachments=[]; if(data.thread){CHAT.activeThread=data.thread;document.getElementById('chatNewFields').classList.add('hidden');setChatHeader(CHAT.activeThread);} await loadChatThreads(true); await openChatThread(CHAT.activeThread.id); }
+async function uploadChatAttachment(){ const input=document.getElementById('chatAttachmentFile'); const file=input.files?.[0]; if(!file)return; const fd=new FormData(); fd.append('file',file); document.getElementById('chatAttachmentInfo').textContent='Uploading...'; const data=await api('/chat/attachments',{method:'POST',body:fd,cache:false}); if(!data.success){document.getElementById('chatAttachmentInfo').textContent='';input.value='';return showToast(data.message||'Attachment upload failed','error');} CHAT.attachments.push(data.attachment); document.getElementById('chatAttachmentInfo').textContent=`${CHAT.attachments.length} attachment ready`; }
+function searchChatMentions(){ clearTimeout(CHAT.mentionTimer); CHAT.mentionTimer=setTimeout(async()=>{ const q=document.getElementById('chatMentionSearch').value.trim().replace(/^@/,''); const box=document.getElementById('chatMentionSuggest'); if(q.length<2){box.classList.add('hidden');return;} const data=await api('/chat/mentions/search?q='+encodeURIComponent(q),{cache:false}); if(!data.success||!data.employees?.length){box.classList.add('hidden');return;} box.innerHTML=data.employees.map(e=>`<button onclick="addChatMention('${h(e.emp_id)}','${h(e.name||e.emp_id)}','${h(e.designation||'')}')"><strong>${h(e.name||e.emp_id)}</strong><br><small>${h(e.emp_id)}${e.designation?' - '+h(e.designation):''}</small></button>`).join(''); box.classList.remove('hidden'); },250); }
+function addChatMention(empId,name,designation){ if(!CHAT.mentions.some(m=>m.emp_id===empId))CHAT.mentions.push({emp_id:empId,name,designation}); document.getElementById('chatMentionSearch').value=''; document.getElementById('chatMentionSuggest').classList.add('hidden'); renderChatMentionPills(); }
+function renderChatMentionPills(){ const box=document.getElementById('chatMentionPills'); if(!box)return; box.innerHTML=CHAT.mentions.map(m=>`<span class="chat-pill">@${h(m.name)} <button onclick="removeChatMention('${h(m.emp_id)}')">&times;</button></span>`).join(''); }
+function removeChatMention(empId){ CHAT.mentions=CHAT.mentions.filter(m=>m.emp_id!==empId); renderChatMentionPills(); }
+function searchChatContext(){ clearTimeout(CHAT.contextTimer); CHAT.contextTimer=setTimeout(async()=>{ const q=document.getElementById('chatContextSearch').value.trim(); const box=document.getElementById('chatContextSuggest'); if(q.length<2){box.classList.add('hidden');return;} const data=await api('/chat/context/search?q='+encodeURIComponent(q),{cache:false}); if(!data.success||!data.results?.length){box.classList.add('hidden');return;} box.innerHTML=data.results.map(r=>`<button onclick="selectChatContext('${h(r.type)}','${h(r.id)}','${h(r.client_id||'')}','${h(r.label||r.id)}')"><strong>${h(r.label||r.id)}</strong><br><small>${h(r.type)} ${r.client_id?' - '+h(r.client_id):''}</small></button>`).join(''); box.classList.remove('hidden'); },250); }
+function selectChatContext(type,id,clientId,label){ document.getElementById('chatContextSearch').value=label; document.getElementById('chatClientId').value=clientId||''; document.getElementById('chatLinkedModule').value=type==='client'?'':type; document.getElementById('chatLinkedRecord').value=type==='client'?'':id; document.getElementById('chatSubject').value=document.getElementById('chatSubject').value||label; document.getElementById('chatContextSuggest').classList.add('hidden'); }
+function connectChatEvents(){ if(!window.EventSource||CHAT.eventSource)return; try{ CHAT.eventSource=new EventSource('/api/chat/events?token='+encodeURIComponent(token)); ['message_created','message_edited','message_deleted','thread_unread_changed'].forEach(evt=>{ CHAT.eventSource.addEventListener(evt,e=>{ let payload={}; try{payload=JSON.parse(e.data||'{}')}catch{} loadChatThreads(false); if(CHAT.activeThread&&Number(payload.thread_id)===Number(CHAT.activeThread.id))loadChatMessages(CHAT.activeThread.id,true); }); }); }catch{} }
+
 const GST_MONTHS = [
   [1,'Jan'],[2,'Feb'],[3,'Mar'],[4,'Apr'],[5,'May'],[6,'Jun'],
   [7,'Jul'],[8,'Aug'],[9,'Sep'],[10,'Oct'],[11,'Nov'],[12,'Dec']

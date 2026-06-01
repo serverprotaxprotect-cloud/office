@@ -17,12 +17,15 @@
     "mca:migrate": "node scripts/mca_migrate.js",
     "mca:migrate:apply": "node scripts/mca_migrate.js --apply",
     "employee-onboarding:migrate": "node scripts/employee_onboarding_migrate.js",
+    "chat:migrate": "node scripts/chat_migrate.js",
+    "chat:migrate:apply": "node scripts/chat_migrate.js --apply",
     "perf:migrate": "node scripts/performance_migrate.js",
     "perf:migrate:apply": "node scripts/performance_migrate.js --apply",
     "gst:import:preview": "node scripts/gst_import.js C:/Users/HP/Downloads/GST_CLIENTS.xlsx",
     "gst:import": "node scripts/gst_import.js C:/Users/HP/Downloads/GST_CLIENTS.xlsx --apply"
   },
   "dependencies": {
+    "@vercel/blob": "^2.4.0",
     "bcryptjs": "^2.4.3",
     "compression": "^1.8.1",
     "cors": "^2.8.5",

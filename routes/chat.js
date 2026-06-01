@@ -1,0 +1,628 @@
+const express = require('express');
+const multer = require('multer');
+const jwt = require('jsonwebtoken');
+const { put } = require('@vercel/blob');
+const { EventEmitter } = require('events');
+const db = require('../db');
+const authMiddleware = require('../middleware/auth');
+const portalAuth = require('../middleware/portalAuth');
+const { createNotif } = require('./notifications');
+
+const router = express.Router();
+const portalRouter = express.Router();
+const bus = new EventEmitter();
+bus.setMaxListeners(200);
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
+
+function sseAuth(req, res, next) {
+  const header = req.headers.authorization;
+  const raw = (header && header.split(' ')[1]) || req.query.token;
+  if (!raw) return res.status(401).json({ success: false, message: 'Login required' });
+  try {
+    const decoded = jwt.verify(raw, process.env.JWT_SECRET);
+    if (!decoded.organization_id) return res.status(401).json({ success: false, message: 'Organisation context missing' });
+    req.user = decoded;
+    next();
+  } catch {
+    res.status(401).json({ success: false, message: 'Session expired, please login again' });
+  }
+}
+const VALID_MESSAGE_TYPES = new Set(['message', 'call_log']);
+const CALL_STATUSES = new Set(['Called', 'Connected', 'No Response', 'Client Will Send', 'Pending From Client', 'Refused/Denied', 'Callback Scheduled']);
+
+function actorFromUser(user = {}) {
+  const isAdmin = user.user_type === 'admin' || user.is_admin;
+  return {
+    type: isAdmin ? 'admin' : 'employee',
+    id: user.emp_id || user.username || String(user.id || ''),
+    name: user.formal_name || user.name || user.username || user.emp_id || 'User',
+    isAdmin,
+  };
+}
+
+function actorFromPortal(user = {}) {
+  return {
+    type: user.account_type === 'agent' ? 'agent' : 'client',
+    id: user.account_type === 'agent' ? user.agent_id : user.client_id,
+    name: user.display_name || user.login_id || 'Portal User',
+  };
+}
+
+function escLike(value) {
+  return `%${String(value || '').trim()}%`;
+}
+
+async function ensureTables() {
+  await db.query(`CREATE TABLE IF NOT EXISTS chat_threads (
+    id SERIAL PRIMARY KEY,
+    organization_id INTEGER DEFAULT current_organization_id(),
+    thread_type VARCHAR(40) NOT NULL DEFAULT 'general',
+    visibility VARCHAR(40) NOT NULL DEFAULT 'internal',
+    client_id VARCHAR(50),
+    agent_id VARCHAR(50),
+    linked_module VARCHAR(40),
+    linked_record_id VARCHAR(100),
+    linked_task_id VARCHAR(100),
+    subject TEXT NOT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'Open',
+    created_by_type VARCHAR(20) NOT NULL,
+    created_by_id VARCHAR(80) NOT NULL,
+    created_by_name TEXT,
+    last_message_at TIMESTAMPTZ DEFAULT NOW(),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+  await db.query(`CREATE TABLE IF NOT EXISTS chat_messages (
+    id SERIAL PRIMARY KEY,
+    organization_id INTEGER DEFAULT current_organization_id(),
+    thread_id INTEGER NOT NULL REFERENCES chat_threads(id) ON DELETE CASCADE,
+    sender_type VARCHAR(20) NOT NULL,
+    sender_id VARCHAR(80) NOT NULL,
+    sender_name TEXT,
+    message_type VARCHAR(30) NOT NULL DEFAULT 'message',
+    body TEXT,
+    client_visible BOOLEAN NOT NULL DEFAULT FALSE,
+    call_status VARCHAR(50),
+    follow_up_at TIMESTAMPTZ,
+    edited_at TIMESTAMPTZ,
+    edited_by_type VARCHAR(20),
+    edited_by_id VARCHAR(80),
+    deleted_at TIMESTAMPTZ,
+    deleted_by_type VARCHAR(20),
+    deleted_by_id VARCHAR(80),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+  await db.query(`CREATE TABLE IF NOT EXISTS chat_participants (
+    id SERIAL PRIMARY KEY,
+    organization_id INTEGER DEFAULT current_organization_id(),
+    thread_id INTEGER NOT NULL REFERENCES chat_threads(id) ON DELETE CASCADE,
+    participant_type VARCHAR(20) NOT NULL,
+    participant_id VARCHAR(80) NOT NULL,
+    participant_name TEXT,
+    last_read_message_id INTEGER,
+    last_read_at TIMESTAMPTZ,
+    unread_count INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (organization_id, thread_id, participant_type, participant_id)
+  )`);
+  await db.query(`CREATE TABLE IF NOT EXISTS chat_mentions (
+    id SERIAL PRIMARY KEY,
+    organization_id INTEGER DEFAULT current_organization_id(),
+    thread_id INTEGER NOT NULL REFERENCES chat_threads(id) ON DELETE CASCADE,
+    message_id INTEGER NOT NULL REFERENCES chat_messages(id) ON DELETE CASCADE,
+    mentioned_type VARCHAR(20) NOT NULL,
+    mentioned_id VARCHAR(80) NOT NULL,
+    mentioned_name TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+  await db.query(`CREATE TABLE IF NOT EXISTS chat_attachments (
+    id SERIAL PRIMARY KEY,
+    organization_id INTEGER DEFAULT current_organization_id(),
+    thread_id INTEGER REFERENCES chat_threads(id) ON DELETE CASCADE,
+    message_id INTEGER REFERENCES chat_messages(id) ON DELETE CASCADE,
+    url TEXT NOT NULL,
+    pathname TEXT,
+    filename TEXT NOT NULL,
+    mime_type VARCHAR(120),
+    size_bytes INTEGER,
+    uploaded_by_type VARCHAR(20),
+    uploaded_by_id VARCHAR(80),
+    uploaded_by_name TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+  await db.query(`CREATE TABLE IF NOT EXISTS chat_message_audit (
+    id SERIAL PRIMARY KEY,
+    organization_id INTEGER DEFAULT current_organization_id(),
+    message_id INTEGER NOT NULL,
+    action VARCHAR(20) NOT NULL,
+    old_value JSONB,
+    new_value JSONB,
+    actor_type VARCHAR(20),
+    actor_id VARCHAR(80),
+    actor_name TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+}
+
+function emitChat(orgId, event) {
+  bus.emit(`org:${orgId}`, event);
+}
+
+async function upsertParticipant(conn, threadId, type, id, name) {
+  if (!id) return;
+  await conn.query(
+    `INSERT INTO chat_participants (thread_id, participant_type, participant_id, participant_name)
+     VALUES ($1,$2,$3,$4)
+     ON CONFLICT (organization_id, thread_id, participant_type, participant_id)
+     DO UPDATE SET participant_name=COALESCE(EXCLUDED.participant_name, chat_participants.participant_name)`,
+    [threadId, type, id, name || id]
+  );
+}
+
+async function loadEmployeeNames(conn, ids) {
+  const clean = [...new Set((ids || []).filter(Boolean))];
+  if (!clean.length) return new Map();
+  const r = await conn.query(
+    `SELECT emp_id, COALESCE(formal_name, name, emp_id) AS name FROM emplist WHERE emp_id = ANY($1)
+     UNION ALL
+     SELECT username AS emp_id, name FROM admins WHERE username = ANY($1)`,
+    [clean]
+  );
+  return new Map(r.rows.map(row => [row.emp_id, row.name]));
+}
+
+async function addAllTeamParticipants(conn, threadId) {
+  const r = await conn.query(
+    `SELECT emp_id, COALESCE(formal_name, name, emp_id) AS name FROM emplist WHERE COALESCE(status,'Active')='Active'
+     UNION ALL
+     SELECT username AS emp_id, name FROM admins WHERE COALESCE(status,'Active')='Active'`
+  );
+  for (const row of r.rows) await upsertParticipant(conn, threadId, 'employee', row.emp_id, row.name);
+}
+
+async function createChatNotifications(conn, thread, message, actor, mentionedIds) {
+  const participants = await conn.query(
+    `SELECT participant_type, participant_id FROM chat_participants
+     WHERE thread_id=$1 AND participant_type IN ('employee','admin')`,
+    [thread.id]
+  );
+  const notifyIds = new Set(participants.rows.map(p => p.participant_id).filter(id => id && id !== actor.id));
+  (mentionedIds || []).forEach(id => { if (id && id !== actor.id) notifyIds.add(id); });
+  const title = mentionedIds?.length ? `You were mentioned: ${thread.subject}` : `New chat: ${thread.subject}`;
+  const body = String(message.body || message.call_status || 'New chat activity').slice(0, 250);
+  for (const empId of notifyIds) {
+    await createNotif(empId, mentionedIds?.includes(empId) ? 'chat_mention' : 'chat_message', title, body, `CHAT-${thread.id}`);
+  }
+}
+
+async function addMessage(conn, thread, actor, payload, portalMode = false) {
+  const messageType = VALID_MESSAGE_TYPES.has(payload.message_type) ? payload.message_type : 'message';
+  const clientVisible = portalMode ? true : !!payload.client_visible;
+  if (clientVisible && !thread.client_id && !thread.agent_id) {
+    const err = new Error('Client/agent selection required for client-visible message');
+    err.statusCode = 400;
+    throw err;
+  }
+  if (messageType === 'call_log' && payload.call_status && !CALL_STATUSES.has(payload.call_status)) {
+    const err = new Error('Invalid call status');
+    err.statusCode = 400;
+    throw err;
+  }
+  if (!String(payload.body || '').trim() && messageType === 'message') {
+    const err = new Error('Message required');
+    err.statusCode = 400;
+    throw err;
+  }
+  const msg = await conn.query(
+    `INSERT INTO chat_messages
+       (thread_id, sender_type, sender_id, sender_name, message_type, body, client_visible, call_status, follow_up_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+     RETURNING *`,
+    [thread.id, actor.type, actor.id, actor.name, messageType, payload.body || null, clientVisible, payload.call_status || null, payload.follow_up_at || null]
+  );
+  const message = msg.rows[0];
+  const mentionNames = await loadEmployeeNames(conn, payload.mention_ids || []);
+  if (payload.tell_all_team) await addAllTeamParticipants(conn, thread.id);
+  for (const [id, name] of mentionNames.entries()) {
+    await upsertParticipant(conn, thread.id, 'employee', id, name);
+    await conn.query(
+      `INSERT INTO chat_mentions (thread_id, message_id, mentioned_type, mentioned_id, mentioned_name)
+       VALUES ($1,$2,'employee',$3,$4)`,
+      [thread.id, message.id, id, name]
+    );
+  }
+  if (Array.isArray(payload.attachment_ids) && payload.attachment_ids.length) {
+    await conn.query(
+      `UPDATE chat_attachments SET thread_id=$1, message_id=$2 WHERE id = ANY($3) AND message_id IS NULL`,
+      [thread.id, message.id, payload.attachment_ids.map(Number).filter(Boolean)]
+    );
+  }
+  await upsertParticipant(conn, thread.id, actor.type, actor.id, actor.name);
+  await conn.query(`UPDATE chat_threads SET last_message_at=NOW(), updated_at=NOW() WHERE id=$1`, [thread.id]);
+  await conn.query(
+    `UPDATE chat_participants SET unread_count=unread_count+1
+     WHERE thread_id=$1 AND NOT (participant_type=$2 AND participant_id=$3)`,
+    [thread.id, actor.type, actor.id]
+  );
+  if (!portalMode) {
+    await createChatNotifications(conn, thread, message, actor, [...mentionNames.keys()]);
+  } else {
+    await createChatNotifications(conn, thread, message, actor, []);
+  }
+  return message;
+}
+
+async function getThreadForOffice(id) {
+  const r = await db.query(`SELECT * FROM chat_threads WHERE id=$1`, [id]);
+  return r.rows[0] || null;
+}
+
+async function getThreadForPortal(id, portalUser) {
+  const params = [id, portalUser.organization_id];
+  let where = 'id=$1 AND organization_id=$2 AND status <> $3';
+  params.push('Deleted');
+  if (portalUser.account_type === 'agent') {
+    params.push(portalUser.agent_id);
+    where += ` AND agent_id=$${params.length}`;
+  } else {
+    params.push(portalUser.client_id);
+    where += ` AND client_id=$${params.length}`;
+  }
+  const r = await db.runWithTenant({ bypassTenant: true }, () => db.query(`SELECT * FROM chat_threads WHERE ${where}`, params));
+  return r.rows[0] || null;
+}
+
+router.get('/threads', authMiddleware, async (req, res) => {
+  try {
+    await ensureTables();
+    const actor = actorFromUser(req.user);
+    const params = [];
+    const conds = [`t.status <> 'Deleted'`];
+    if (req.query.client_id) { params.push(req.query.client_id); conds.push(`t.client_id=$${params.length}`); }
+    if (req.query.module) { params.push(req.query.module); conds.push(`t.linked_module=$${params.length}`); }
+    if (req.query.record_id) { params.push(req.query.record_id); conds.push(`t.linked_record_id=$${params.length}`); }
+    if (req.query.status) { params.push(req.query.status); conds.push(`t.status=$${params.length}`); }
+    if (req.query.search) {
+      params.push(escLike(req.query.search));
+      conds.push(`(t.subject ILIKE $${params.length} OR t.client_id ILIKE $${params.length} OR t.linked_task_id ILIKE $${params.length})`);
+    }
+    const participantJoin = actor.isAdmin ? '' : `LEFT JOIN chat_participants p ON p.thread_id=t.id AND p.participant_type=$${params.length + 1} AND p.participant_id=$${params.length + 2}`;
+    if (!actor.isAdmin) {
+      params.push(actor.type, actor.id);
+      conds.push(`(p.id IS NOT NULL OR t.created_by_id=$${params.length + 1})`);
+      params.push(actor.id);
+    }
+    const r = await db.query(
+      `SELECT t.*,
+              COALESCE(p2.unread_count,0) AS unread_count,
+              (SELECT body FROM chat_messages m WHERE m.thread_id=t.id AND m.deleted_at IS NULL ORDER BY m.created_at DESC LIMIT 1) AS last_message_body
+       FROM chat_threads t
+       ${participantJoin}
+       LEFT JOIN chat_participants p2 ON p2.thread_id=t.id AND p2.participant_type=$${params.length + 1} AND p2.participant_id=$${params.length + 2}
+       WHERE ${conds.join(' AND ')}
+       ORDER BY t.last_message_at DESC LIMIT 200`,
+      [...params, actor.type, actor.id]
+    );
+    res.json({ success: true, threads: r.rows });
+  } catch (err) {
+    console.error('[chat threads]', err);
+    res.status(500).json({ success: false, message: err.message || 'Chat load failed' });
+  }
+});
+
+router.post('/threads', authMiddleware, async (req, res) => {
+  await ensureTables();
+  const actor = actorFromUser(req.user);
+  const conn = await db.pool.connect();
+  try {
+    await conn.query('BEGIN');
+    const visibility = ['client', 'client_visible'].includes(req.body.visibility) ? 'client' : 'internal';
+    if (visibility === 'client' && !req.body.client_id && !req.body.agent_id) {
+      await conn.query('ROLLBACK');
+      return res.status(400).json({ success: false, message: 'Client/agent required for client-visible thread' });
+    }
+    const t = await conn.query(
+      `INSERT INTO chat_threads
+        (thread_type, visibility, client_id, agent_id, linked_module, linked_record_id, linked_task_id, subject, created_by_type, created_by_id, created_by_name)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+       RETURNING *`,
+      [req.body.thread_type || 'general', visibility, req.body.client_id || null, req.body.agent_id || null, req.body.linked_module || null, req.body.linked_record_id || null, req.body.linked_task_id || null, req.body.subject || 'Chat', actor.type, actor.id, actor.name]
+    );
+    const thread = t.rows[0];
+    await upsertParticipant(conn, thread.id, actor.type, actor.id, actor.name);
+    const names = await loadEmployeeNames(conn, req.body.participant_ids || []);
+    for (const [id, name] of names.entries()) await upsertParticipant(conn, thread.id, 'employee', id, name);
+    const message = await addMessage(conn, thread, actor, {
+      body: req.body.message || req.body.body || 'Thread started',
+      client_visible: visibility === 'client',
+      mention_ids: req.body.mention_ids || [],
+      attachment_ids: req.body.attachment_ids || [],
+      tell_all_team: !!req.body.tell_all_team,
+    });
+    await conn.query('COMMIT');
+    emitChat(req.user.organization_id, { type: 'message_created', thread_id: thread.id, message_id: message.id });
+    res.json({ success: true, message: 'Chat thread created', thread, first_message: message });
+  } catch (err) {
+    await conn.query('ROLLBACK').catch(() => {});
+    console.error('[chat create]', err);
+    res.status(err.statusCode || 500).json({ success: false, message: err.message || 'Chat create failed' });
+  } finally {
+    conn.release();
+  }
+});
+
+router.get('/threads/:id/messages', authMiddleware, async (req, res) => {
+  try {
+    await ensureTables();
+    const thread = await getThreadForOffice(req.params.id);
+    if (!thread) return res.status(404).json({ success: false, message: 'Thread not found' });
+    const r = await db.query(
+      `SELECT m.*,
+              COALESCE(json_agg(json_build_object('id',a.id,'url',a.url,'filename',a.filename,'mime_type',a.mime_type,'size_bytes',a.size_bytes)) FILTER (WHERE a.id IS NOT NULL), '[]') AS attachments
+       FROM chat_messages m
+       LEFT JOIN chat_attachments a ON a.message_id=m.id
+       WHERE m.thread_id=$1
+       GROUP BY m.id
+       ORDER BY m.created_at ASC`,
+      [thread.id]
+    );
+    res.json({ success: true, thread, messages: r.rows });
+  } catch (err) {
+    console.error('[chat messages]', err);
+    res.status(500).json({ success: false, message: 'Messages load failed' });
+  }
+});
+
+router.post('/threads/:id/messages', authMiddleware, async (req, res) => {
+  await ensureTables();
+  const actor = actorFromUser(req.user);
+  const conn = await db.pool.connect();
+  try {
+    await conn.query('BEGIN');
+    const thread = (await conn.query(`SELECT * FROM chat_threads WHERE id=$1 FOR UPDATE`, [req.params.id])).rows[0];
+    if (!thread) throw Object.assign(new Error('Thread not found'), { statusCode: 404 });
+    const message = await addMessage(conn, thread, actor, req.body);
+    await conn.query('COMMIT');
+    emitChat(req.user.organization_id, { type: 'message_created', thread_id: thread.id, message_id: message.id });
+    res.json({ success: true, message: 'Message sent', chat_message: message });
+  } catch (err) {
+    await conn.query('ROLLBACK').catch(() => {});
+    console.error('[chat send]', err);
+    res.status(err.statusCode || 500).json({ success: false, message: err.message || 'Message send failed' });
+  } finally {
+    conn.release();
+  }
+});
+
+router.put('/messages/:id', authMiddleware, async (req, res) => {
+  const actor = actorFromUser(req.user);
+  try {
+    await ensureTables();
+    const old = await db.query(`SELECT * FROM chat_messages WHERE id=$1`, [req.params.id]);
+    const msg = old.rows[0];
+    if (!msg) return res.status(404).json({ success: false, message: 'Message not found' });
+    const created = new Date(msg.created_at).getTime();
+    if (Date.now() - created > 24 * 60 * 60 * 1000 && !actor.isAdmin) return res.status(403).json({ success: false, message: 'Edit window expired' });
+    if (!actor.isAdmin && (msg.sender_type !== actor.type || msg.sender_id !== actor.id)) return res.status(403).json({ success: false, message: 'Cannot edit this message' });
+    const updated = await db.query(
+      `UPDATE chat_messages SET body=$1, edited_at=NOW(), edited_by_type=$2, edited_by_id=$3 WHERE id=$4 RETURNING *`,
+      [req.body.body || '', actor.type, actor.id, msg.id]
+    );
+    await db.query(
+      `INSERT INTO chat_message_audit (message_id, action, old_value, new_value, actor_type, actor_id, actor_name)
+       VALUES ($1,'edit',$2,$3,$4,$5,$6)`,
+      [msg.id, JSON.stringify({ body: msg.body }), JSON.stringify({ body: req.body.body || '' }), actor.type, actor.id, actor.name]
+    );
+    emitChat(req.user.organization_id, { type: 'message_edited', thread_id: msg.thread_id, message_id: msg.id });
+    res.json({ success: true, message: 'Message edited', chat_message: updated.rows[0] });
+  } catch (err) {
+    console.error('[chat edit]', err);
+    res.status(500).json({ success: false, message: 'Message edit failed' });
+  }
+});
+
+router.delete('/messages/:id', authMiddleware, async (req, res) => {
+  const actor = actorFromUser(req.user);
+  if (!actor.isAdmin) return res.status(403).json({ success: false, message: 'Only admin can delete messages' });
+  try {
+    await ensureTables();
+    const old = await db.query(`SELECT * FROM chat_messages WHERE id=$1`, [req.params.id]);
+    const msg = old.rows[0];
+    if (!msg) return res.status(404).json({ success: false, message: 'Message not found' });
+    await db.query(`UPDATE chat_messages SET deleted_at=NOW(), deleted_by_type=$1, deleted_by_id=$2 WHERE id=$3`, [actor.type, actor.id, msg.id]);
+    await db.query(
+      `INSERT INTO chat_message_audit (message_id, action, old_value, actor_type, actor_id, actor_name)
+       VALUES ($1,'delete',$2,$3,$4,$5)`,
+      [msg.id, JSON.stringify({ body: msg.body, client_visible: msg.client_visible }), actor.type, actor.id, actor.name]
+    );
+    emitChat(req.user.organization_id, { type: 'message_deleted', thread_id: msg.thread_id, message_id: msg.id });
+    res.json({ success: true, message: 'Message deleted' });
+  } catch (err) {
+    console.error('[chat delete]', err);
+    res.status(500).json({ success: false, message: 'Message delete failed' });
+  }
+});
+
+router.post('/threads/:id/read', authMiddleware, async (req, res) => {
+  const actor = actorFromUser(req.user);
+  try {
+    await ensureTables();
+    await db.query(
+      `UPDATE chat_participants SET unread_count=0, last_read_at=NOW()
+       WHERE thread_id=$1 AND participant_type=$2 AND participant_id=$3`,
+      [req.params.id, actor.type, actor.id]
+    );
+    res.json({ success: true });
+  } catch {
+    res.status(500).json({ success: false });
+  }
+});
+
+router.get('/mentions/search', authMiddleware, async (req, res) => {
+  try {
+    const q = escLike(req.query.q || '');
+    const r = await db.query(
+      `SELECT emp_id, COALESCE(formal_name,name,emp_id) AS name, designation, photo
+       FROM emplist
+       WHERE status='Active' AND (emp_id ILIKE $1 OR formal_name ILIKE $1 OR name ILIKE $1)
+       ORDER BY name LIMIT 20`,
+      [q]
+    );
+    res.json({ success: true, employees: r.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Mention search failed' });
+  }
+});
+
+router.get('/context/search', authMiddleware, async (req, res) => {
+  try {
+    const q = escLike(req.query.q || '');
+    const [clients, tasks] = await Promise.all([
+      db.query(
+        `SELECT client_id, COALESCE(legal_name,business_name,client_id) AS name, agent_id, agent_name
+         FROM clients
+         WHERE client_id ILIKE $1 OR legal_name ILIKE $1 OR business_name ILIKE $1 OR mobile_number ILIKE $1
+         ORDER BY name LIMIT 15`,
+        [q]
+      ),
+      db.query(
+        `SELECT task_id, client_id, COALESCE(legal_name,business_name,client_id) AS client_name, work_name, status
+         FROM tasks
+         WHERE task_id ILIKE $1 OR client_id ILIKE $1 OR legal_name ILIKE $1 OR business_name ILIKE $1 OR work_name ILIKE $1
+         ORDER BY created_at DESC LIMIT 15`,
+        [q]
+      ),
+    ]);
+    const results = [
+      ...clients.rows.map(c => ({
+        type: 'client',
+        id: c.client_id,
+        client_id: c.client_id,
+        label: `${c.name || c.client_id} (${c.client_id})`,
+      })),
+      ...tasks.rows.map(t => ({
+        type: 'task',
+        id: t.task_id,
+        client_id: t.client_id,
+        label: `${t.work_name || 'Task'} - ${t.client_name || t.client_id} (${t.task_id})`,
+      })),
+    ];
+    res.json({ success: true, clients: clients.rows, tasks: tasks.rows, results });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Context search failed' });
+  }
+});
+
+router.post('/attachments', authMiddleware, upload.single('file'), async (req, res) => {
+  const actor = actorFromUser(req.user);
+  try {
+    await ensureTables();
+    if (!req.file) return res.status(400).json({ success: false, message: 'File required' });
+    if (!['application/pdf', 'image/png', 'image/jpeg', 'image/webp'].includes(req.file.mimetype)) {
+      return res.status(400).json({ success: false, message: 'Only image/PDF allowed' });
+    }
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      return res.status(500).json({ success: false, message: 'Vercel Blob token is not configured' });
+    }
+    const safeName = String(req.file.originalname || 'attachment').replace(/[^a-z0-9._-]/gi, '_');
+    const blob = await put(`chat/${req.user.organization_id}/${Date.now()}-${safeName}`, req.file.buffer, {
+      access: 'public',
+      contentType: req.file.mimetype,
+    });
+    const inserted = await db.query(
+      `INSERT INTO chat_attachments (url, pathname, filename, mime_type, size_bytes, uploaded_by_type, uploaded_by_id, uploaded_by_name)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [blob.url, blob.pathname, req.file.originalname || safeName, req.file.mimetype, req.file.size, actor.type, actor.id, actor.name]
+    );
+    res.json({ success: true, attachment: inserted.rows[0] });
+  } catch (err) {
+    console.error('[chat attachment]', err);
+    res.status(500).json({ success: false, message: err.message || 'Attachment upload failed' });
+  }
+});
+
+router.get('/events', sseAuth, async (req, res) => {
+  const orgId = req.user.organization_id;
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.write(`event: ready\ndata: ${JSON.stringify({ ok: true })}\n\n`);
+  const handler = (event) => res.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
+  bus.on(`org:${orgId}`, handler);
+  req.on('close', () => bus.off(`org:${orgId}`, handler));
+});
+
+portalRouter.get('/threads', portalAuth, async (req, res) => {
+  try {
+    await ensureTables();
+    const params = [req.portalUser.organization_id];
+    let where = `t.organization_id=$1 AND t.status <> 'Deleted'`;
+    if (req.portalUser.account_type === 'agent') {
+      params.push(req.portalUser.agent_id);
+      where += ` AND t.agent_id=$${params.length}`;
+    } else {
+      params.push(req.portalUser.client_id);
+      where += ` AND t.client_id=$${params.length}`;
+    }
+    const r = await db.runWithTenant({ bypassTenant: true }, () => db.query(
+      `SELECT t.id, t.subject, t.client_id, t.agent_id, t.linked_module, t.linked_task_id, t.last_message_at,
+              (SELECT body FROM chat_messages m WHERE m.thread_id=t.id AND m.client_visible=true AND m.deleted_at IS NULL ORDER BY created_at DESC LIMIT 1) AS last_message
+       FROM chat_threads t
+       WHERE ${where}
+         AND EXISTS (SELECT 1 FROM chat_messages m WHERE m.thread_id=t.id AND m.client_visible=true)
+       ORDER BY t.last_message_at DESC LIMIT 100`,
+      params
+    ));
+    res.json({ success: true, threads: r.rows });
+  } catch (err) {
+    console.error('[portal chat threads]', err);
+    res.status(500).json({ success: false, message: 'Chat load failed' });
+  }
+});
+
+portalRouter.get('/threads/:id/messages', portalAuth, async (req, res) => {
+  try {
+    await ensureTables();
+    const thread = await getThreadForPortal(req.params.id, req.portalUser);
+    if (!thread) return res.status(404).json({ success: false, message: 'Thread not found' });
+    const r = await db.runWithTenant({ bypassTenant: true }, () => db.query(
+      `SELECT m.id, m.thread_id, m.sender_type, m.sender_id, m.sender_name, m.message_type,
+              CASE WHEN m.deleted_at IS NULL THEN m.body ELSE 'Message removed' END AS body,
+              m.call_status, m.follow_up_at, m.created_at, m.deleted_at,
+              COALESCE(json_agg(json_build_object('id',a.id,'url',a.url,'filename',a.filename,'mime_type',a.mime_type,'size_bytes',a.size_bytes)) FILTER (WHERE a.id IS NOT NULL), '[]') AS attachments
+       FROM chat_messages m
+       LEFT JOIN chat_attachments a ON a.message_id=m.id
+       WHERE m.thread_id=$1 AND m.client_visible=true
+       GROUP BY m.id
+       ORDER BY m.created_at ASC`,
+      [thread.id]
+    ));
+    res.json({ success: true, thread, messages: r.rows });
+  } catch (err) {
+    console.error('[portal chat messages]', err);
+    res.status(500).json({ success: false, message: 'Messages load failed' });
+  }
+});
+
+portalRouter.post('/threads/:id/messages', portalAuth, async (req, res) => {
+  await ensureTables();
+  const actor = actorFromPortal(req.portalUser);
+  const conn = await db.pool.connect();
+  try {
+    await conn.query('BEGIN');
+    const thread = await getThreadForPortal(req.params.id, req.portalUser);
+    if (!thread) throw Object.assign(new Error('Thread not found'), { statusCode: 404 });
+    const message = await addMessage(conn, thread, actor, { body: req.body.body, client_visible: true }, true);
+    await conn.query('COMMIT');
+    emitChat(req.portalUser.organization_id, { type: 'message_created', thread_id: thread.id, message_id: message.id });
+    res.json({ success: true, message: 'Reply sent', chat_message: message });
+  } catch (err) {
+    await conn.query('ROLLBACK').catch(() => {});
+    res.status(err.statusCode || 500).json({ success: false, message: err.message || 'Reply failed' });
+  } finally {
+    conn.release();
+  }
+});
+
+module.exports = { router, portalRouter };

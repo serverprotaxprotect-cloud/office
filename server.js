@@ -20,6 +20,7 @@ const organizationRoutes = require('./routes/organizations');
 const superAdminRoutes = require('./routes/superAdmin');
 const onboardingImportRoutes = require('./routes/onboardingImport');
 const portalRoutes = require('./routes/portal');
+const chatRoutes = require('./routes/chat');
 const { router: notifRoutes } = require('./routes/notifications');
 
 const app = express();
@@ -81,6 +82,8 @@ app.use('/api/organizations',  organizationRoutes);
 app.use('/api/super-admin',    superAdminRoutes);
 app.use('/api/onboarding-import', onboardingImportRoutes);
 app.use('/api/portal',     portalRoutes);
+app.use('/api/chat',       chatRoutes.router);
+app.use('/api/portal/chat', chatRoutes.portalRouter);
 app.use('/api/notifications',  notifRoutes);
 
 app.get('/api/maps/config', (req, res) => {
