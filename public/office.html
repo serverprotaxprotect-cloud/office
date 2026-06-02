@@ -4619,20 +4619,39 @@ async function loadChatTemplates() {
   if (sel) sel.innerHTML = '<option value="">Quick reply templates</option>' + CHAT.templates.map(t => `<option value="${t.id}">${h(t.category || 'General')} - ${h(t.title)}</option>`).join('');
 }
 
+async function updateChatBadge() {
+  try {
+    const data = await api('/chat/threads?inbox=unread', { cache:false });
+    if (!data.success) return;
+    const total = (data.threads || []).reduce((sum, t) => sum + Number(t.unread_count || 0), 0);
+    const badge = document.getElementById('chatBadge');
+    if (!badge) return;
+    if (total > 0) {
+      badge.textContent = total > 99 ? '99+' : total;
+      badge.classList.remove('hidden');
+    } else {
+      badge.classList.add('hidden');
+    }
+  } catch (e) {}
+}
+
 function initChatPanel() {
   if (!CHAT.loaded) {
     CHAT.loaded = true;
     loadChatTemplates();
     loadChatThreads(true);
+    updateChatBadge();
     connectChatEvents();
     CHAT.pollTimer = setInterval(() => {
       if (document.getElementById('panel-chat')?.classList.contains('active')) {
         loadChatThreads(false);
         if (CHAT.activeThread) loadChatMessages(CHAT.activeThread.id, false);
       }
+      updateChatBadge();
     }, 15000);
   } else {
     loadChatThreads(false);
+    updateChatBadge();
   }
 }
 
@@ -4653,6 +4672,23 @@ async function loadChatThreads(force=false) {
   }
   CHAT.threads = data.threads || [];
   renderChatThreads();
+  updateChatBadge();
+}
+
+function connectChatEvents() {
+  if (!window.EventSource || CHAT.eventSource) return;
+  try {
+    CHAT.eventSource = new EventSource('/api/chat/events?token=' + encodeURIComponent(token));
+    ['message_created','message_edited','message_deleted','thread_unread_changed'].forEach(evt => {
+      CHAT.eventSource.addEventListener(evt, e => {
+        let payload = {};
+        try { payload = JSON.parse(e.data || '{}'); } catch {}
+        loadChatThreads(false);
+        updateChatBadge();
+        if (CHAT.activeThread && Number(payload.thread_id) === Number(CHAT.activeThread.id)) loadChatMessages(CHAT.activeThread.id, true);
+      });
+    });
+  } catch {}
 }
 
 function renderChatThreads() {
@@ -5664,6 +5700,7 @@ let _officeLastUnread = 0;
 
 async function pollOfficeNotifs(silent) {
   try {
+    updateChatBadge();
     const data = await api('/notifications/my');
     if (!data.success) return;
     if (!silent && data.unread > _officeLastUnread) {
