@@ -27,6 +27,11 @@ function seriesNumberFromId(id, prefix) {
   return Number(suffix);
 }
 
+function safeAgentPrefix(prefix) {
+  const cleaned = String(prefix || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  return (cleaned || 'AG').slice(0, 12);
+}
+
 // ── GET /api/clients/next-id ─────────────────────────────────
 router.get('/next-id', authMiddleware, async (req, res) => {
   try {
@@ -121,14 +126,15 @@ router.post('/agents', authMiddleware, async (req, res) => {
     await requireOrgSetup(conn, req.user.organization_id);
     const org = await conn.query(`SELECT agent_id_prefix, agent_id_next FROM organizations WHERE id=$1 FOR UPDATE`, [req.user.organization_id]);
     const o = org.rows[0] || {};
+    const agentPrefix = safeAgentPrefix(o.agent_id_prefix);
     const nextNo = await nextSeriesNumber(conn, {
       table: 'agents',
       idColumn: 'agent_id',
-      prefix: o.agent_id_prefix,
+      prefix: agentPrefix,
       organizationId: req.user.organization_id,
       storedNext: o.agent_id_next,
     });
-    const next = `${o.agent_id_prefix}${String(nextNo).padStart(4, '0')}`;
+    const next = `${agentPrefix}${String(nextNo).padStart(4, '0')}`;
     const portalHash = portal_password ? await hashPassword(portal_password) : null;
     await conn.query(
       `INSERT INTO agents (agent_id, name, mobile_number, email_id, portal_enabled, portal_password_hash, portal_password_changed_at)
