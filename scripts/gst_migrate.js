@@ -88,6 +88,31 @@ const statements = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_gst_history_client ON gst_history_log (gst_client_id, updated_at DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_gst_history_filing ON gst_history_log (filing_id, updated_at DESC)`,
+  `CREATE TABLE IF NOT EXISTS gst_autofill_tokens (
+    id SERIAL PRIMARY KEY,
+    organization_id INTEGER DEFAULT current_organization_id(),
+    token_hash VARCHAR(128) NOT NULL UNIQUE,
+    gst_client_id INTEGER NOT NULL REFERENCES gst_clients(id) ON DELETE CASCADE,
+    created_by_id VARCHAR(80),
+    created_by_name VARCHAR(255),
+    expires_at TIMESTAMPTZ NOT NULL,
+    used_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_gst_autofill_tokens_org_client ON gst_autofill_tokens (organization_id, gst_client_id, created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_gst_autofill_tokens_expiry ON gst_autofill_tokens (expires_at, used_at)`,
+  `ALTER TABLE gst_autofill_tokens ENABLE ROW LEVEL SECURITY`,
+  `ALTER TABLE gst_autofill_tokens FORCE ROW LEVEL SECURITY`,
+  `DROP POLICY IF EXISTS tenant_isolation_gst_autofill_tokens ON gst_autofill_tokens`,
+  `CREATE POLICY tenant_isolation_gst_autofill_tokens ON gst_autofill_tokens
+    USING (
+      current_setting('app.bypass_rls', true) = 'on'
+      OR organization_id::text = current_setting('app.organization_id', true)
+    )
+    WITH CHECK (
+      current_setting('app.bypass_rls', true) = 'on'
+      OR organization_id::text = current_setting('app.organization_id', true)
+    )`,
   `INSERT INTO work_names (name)
    SELECT 'GSTR-1 Filing'
    WHERE NOT EXISTS (SELECT 1 FROM work_names WHERE name='GSTR-1 Filing')`,

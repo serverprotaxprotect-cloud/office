@@ -5046,6 +5046,9 @@ async function loadGSTClients() {
       : (!c.default_assignee_id
         ? `<button class="btn-sm btn-view" onclick="openGSTAssign('client',${c.id})">Assign</button>`
         : '<small style="color:#94a3b8">View only</small>');
+    const loginAction = c.can_autofill
+      ? `<button class="btn-sm btn-green" title="Open GST portal and autofill login" onclick="openGSTPortalLogin(${c.id})">&#128272; Login</button>`
+      : '';
     return `
     <tr>
       <td><strong>${h(c.client_id)}</strong><br><small style="color:#64748b">${h(c.agent_name || '--')}</small></td>
@@ -5056,6 +5059,7 @@ async function loadGSTClients() {
       <td><span class="badge ${c.filing_frequency === 'QRMP' ? 'b-review' : 'b-progress'}">${h(c.filing_frequency)}</span></td>
       <td>${h(c.default_assignee_name || '--')}<br><small style="color:#64748b">${h(c.default_assignee_id || '')}</small></td>
       <td style="white-space:nowrap">
+        ${loginAction}
         ${actions}
       </td>
     </tr>`;
@@ -5626,6 +5630,24 @@ async function viewCompanyFull(cin) {
     sec(`Compliance Tracking (${normalizedCompliance.length || data.compliance_tracking.length})`, '&#9989;', ctHtml);
 }
 
+async function openGSTPortalLogin(id) {
+  const row = GST_STATE.clientMap[id];
+  if (!row) return showToast('GST client not loaded', 'error');
+  if (!row.gst_login_id || !row.gst_password) {
+    return showToast('GST login ID/password missing', 'error');
+  }
+  const data = await api('/gst/clients/' + id + '/autofill-token', {
+    method: 'POST',
+    body: JSON.stringify({ origin: window.location.origin })
+  });
+  if (!data.success) return showToast(data.message || 'GST autofill token failed', 'error');
+  const opened = window.open(data.extension_url_hint || data.login_url, '_blank', 'noopener');
+  if (!opened) {
+    return showToast('Popup blocked. Browser popup allow karke dobara Login click karein.', 'error');
+  }
+  showToast('GST login page open ho gaya. Chrome extension installed hoga to fields auto-fill honge; captcha/login manual rahega.', 'success');
+}
+
 // ── DIRECTOR SEARCH ───────────────────────────────────────────
 function openDirSearch() {
   document.getElementById('dsm_search').value = '';
@@ -5808,6 +5830,7 @@ Object.assign(window, {
   openGSTAssign,
   openGSTStatus,
   openGSTClientStatus,
+  openGSTPortalLogin,
   openGSTGenerateModal,
   submitGSTClient,
   submitGSTAssign,

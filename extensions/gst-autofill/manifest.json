@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "GeeBharat GST Autofill",
+  "version": "1.0.0",
+  "description": "Autofills GST portal login credentials from GeeBharat one-time tokens.",
+  "content_scripts": [
+    {
+      "matches": ["https://services.gst.gov.in/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "host_permissions": [
+    "https://services.gst.gov.in/*",
+    "https://geebharat.com/*",
+    "http://localhost:*/*"
+  ]
+}

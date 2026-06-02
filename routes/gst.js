@@ -1,5 +1,6 @@
 const express = require('express');
 const multer = require('multer');
+const crypto = require('crypto');
 const db = require('../db');
 const authMiddleware = require('../middleware/auth');
 const {
@@ -33,6 +34,15 @@ const {
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const GST_LOGIN_URL = 'https://services.gst.gov.in/services/login';
+
+function tokenHash(token) {
+  return crypto.createHash('sha256').update(String(token || '')).digest('hex');
+}
+
+function randomToken() {
+  return crypto.randomBytes(32).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
 
 function handleError(res, err) {
   if (err.code === '42P01') {
@@ -56,6 +66,13 @@ function requireAdmin(req, res) {
 function mapGSTClient(row) {
   const { gst_password_enc, ...rest } = row;
   return { ...rest, gst_password: decryptText(gst_password_enc) };
+}
+
+function canAutofillGSTClient(row, user) {
+  if (isGstAdmin(user)) return true;
+  const userId = user?.emp_id || user?.username || user?.id;
+  if (!userId) return false;
+  return row.default_assignee_id === userId || row.current_filing_assignee_id === userId;
 }
 
 function fyOptions() {
@@ -130,28 +147,172 @@ router.get('/clients', authMiddleware, async (req, res) => {
   try {
     params.push(parseInt(limit, 10));
     params.push(offset);
+    const current = currentISTPeriod();
     const data = await db.query(
       `SELECT gc.*,
               COALESCE(gc.default_assignee_name, ea.formal_name, ea.name, aa.name) AS default_assignee_name,
+              gf_current.assigned_to_id AS current_filing_assignee_id,
               c.legal_name, c.business_name, c.mobile_number, c.email_id
        FROM gst_clients gc
        LEFT JOIN clients c ON c.client_id=gc.client_id
        LEFT JOIN emplist ea ON ea.emp_id=gc.default_assignee_id
        LEFT JOIN admins aa ON aa.username=gc.default_assignee_id
+       LEFT JOIN LATERAL (
+         SELECT assigned_to_id
+         FROM gst_filing_records gf
+         WHERE gf.gst_client_id=gc.id AND gf.tax_year=$${params.length + 1} AND gf.tax_month=$${params.length + 2}
+           AND COALESCE(gf.assigned_to_id,'') <> ''
+         ORDER BY gf.updated_at DESC, gf.id DESC
+         LIMIT 1
+       ) gf_current ON true
        WHERE ${conds.join(' AND ')}
        ORDER BY gc.status, gc.firm_name, gc.id
        LIMIT $${params.length - 1} OFFSET $${params.length}`,
-      params
+      [...params, current.taxYear, current.taxMonth]
     );
     const count = await db.query(`SELECT COUNT(*) FROM gst_clients gc WHERE ${conds.join(' AND ')}`, params.slice(0, -2));
     res.json({
       success: true,
       is_admin: isGstAdmin(req.user),
-      clients: data.rows.map(mapGSTClient),
+      clients: data.rows.map(row => ({ ...mapGSTClient(row), can_autofill: canAutofillGSTClient(row, req.user) })),
       total: parseInt(count.rows[0].count, 10),
     });
   } catch (err) {
     handleError(res, err);
+  }
+});
+
+router.post('/clients/:id/autofill-token', authMiddleware, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!id) return res.status(400).json({ success: false, message: 'Valid GST client required' });
+  const conn = await db.pool.connect();
+  try {
+    await conn.query('BEGIN');
+    const current = currentISTPeriod();
+    const client = await conn.query(
+      `SELECT gc.*,
+              EXISTS (
+                SELECT 1 FROM gst_filing_records gf
+                WHERE gf.gst_client_id=gc.id
+                  AND gf.tax_year=$2
+                  AND gf.tax_month=$3
+                  AND gf.assigned_to_id=$4
+              ) AS assigned_current_period
+       FROM gst_clients gc
+       WHERE gc.id=$1 AND gc.status='Active'
+       FOR UPDATE`,
+      [id, current.taxYear, current.taxMonth, req.user.emp_id || req.user.username || req.user.id || '']
+    );
+    const row = client.rows[0];
+    if (!row) {
+      await conn.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'GST client not found' });
+    }
+    const allowed = isGstAdmin(req.user)
+      || row.default_assignee_id === (req.user.emp_id || req.user.username || req.user.id)
+      || row.assigned_current_period;
+    if (!allowed) {
+      await conn.query('ROLLBACK');
+      return res.status(403).json({ success: false, message: 'GST credential autofill access denied' });
+    }
+    if (!row.gst_login_id || !decryptText(row.gst_password_enc)) {
+      await conn.query('ROLLBACK');
+      return res.status(400).json({ success: false, message: 'GST login ID/password missing for this client' });
+    }
+    const tokenSecret = randomToken();
+    const expiresAt = new Date(Date.now() + 60 * 1000);
+    const tokenRow = await conn.query(
+      `INSERT INTO gst_autofill_tokens
+        (token_hash, gst_client_id, created_by_id, created_by_name, expires_at)
+       VALUES ($1,$2,$3,$4,$5)
+       RETURNING id`,
+      [tokenHash(tokenSecret), row.id, req.user.emp_id || req.user.username || req.user.id || null, req.user.formal_name || req.user.name || null, expiresAt]
+    );
+    const token = `${tokenRow.rows[0].id}.${tokenSecret}`;
+    await logGST(conn, {
+      gst_client_id: row.id,
+      action: 'CreateGSTAutofillToken',
+      new_value: { gst_login_id: row.gst_login_id, expires_at: expiresAt.toISOString() },
+      actor: req.user,
+    });
+    await conn.query('COMMIT');
+    const origin = encodeURIComponent(req.body.origin || req.get('origin') || 'https://geebharat.com');
+    res.json({
+      success: true,
+      token,
+      expires_at: expiresAt.toISOString(),
+      login_url: GST_LOGIN_URL,
+      extension_url_hint: `${GST_LOGIN_URL}#gb_autofill=${encodeURIComponent(token)}&gb_origin=${origin}`,
+    });
+  } catch (err) {
+    await conn.query('ROLLBACK').catch(() => {});
+    handleError(res, err);
+  } finally {
+    conn.release();
+  }
+});
+
+router.get('/autofill/:token', async (req, res) => {
+  const rawToken = String(req.params.token || '').trim();
+  if (!rawToken || rawToken.length > 160) return res.status(400).json({ success: false, message: 'Invalid autofill token' });
+  const tokenParts = rawToken.match(/^(\d+)\.([A-Za-z0-9_-]{20,})$/);
+  const tokenId = tokenParts ? Number(tokenParts[1]) : null;
+  const tokenSecret = tokenParts ? tokenParts[2] : rawToken;
+  const conn = await db.pool.connect();
+  try {
+    await db.runWithTenant({ bypassTenant: true }, () => conn.query('BEGIN'));
+    const sql = `SELECT t.*, gc.gst_login_id, gc.gst_password_enc, gc.gst_no, gc.firm_name
+       FROM gst_autofill_tokens t
+       JOIN gst_clients gc ON gc.id=t.gst_client_id AND gc.organization_id=t.organization_id
+       WHERE ${tokenId ? 't.id=$1' : 't.token_hash=$1'}
+       FOR UPDATE`;
+    const found = await db.runWithTenant({ bypassTenant: true }, () => conn.query(sql, [tokenId || tokenHash(rawToken)]));
+    const row = found.rows[0];
+    if (!row) {
+      await db.runWithTenant({ bypassTenant: true }, () => conn.query('ROLLBACK'));
+      return res.status(404).json({ success: false, message: 'Autofill token not found' });
+    }
+    if (row.token_hash !== tokenHash(tokenSecret)) {
+      await db.runWithTenant({ bypassTenant: true }, () => conn.query('ROLLBACK'));
+      return res.status(404).json({ success: false, message: 'Autofill token not found' });
+    }
+    if (row.used_at) {
+      await db.runWithTenant({ bypassTenant: true }, () => conn.query('ROLLBACK'));
+      return res.status(410).json({ success: false, message: 'Autofill token already used. Click Login again from GeeBharat.' });
+    }
+    if (new Date(row.expires_at).getTime() < Date.now()) {
+      await db.runWithTenant({ bypassTenant: true }, () => conn.query('ROLLBACK'));
+      return res.status(410).json({ success: false, message: 'Autofill token expired. Click Login again from GeeBharat.' });
+    }
+    const password = decryptText(row.gst_password_enc);
+    if (!row.gst_login_id || !password) {
+      await db.runWithTenant({ bypassTenant: true }, () => conn.query('ROLLBACK'));
+      return res.status(400).json({ success: false, message: 'GST login credentials missing' });
+    }
+    await db.runWithTenant({ organizationId: row.organization_id }, async () => {
+      await conn.query(`UPDATE gst_autofill_tokens SET used_at=NOW() WHERE id=$1`, [row.id]);
+      await logGST(conn, {
+        gst_client_id: row.gst_client_id,
+        action: 'FetchGSTAutofillCredential',
+        new_value: { gst_login_id: row.gst_login_id, extension_fetch: true },
+        actor: { emp_id: row.created_by_id, formal_name: row.created_by_name },
+      });
+      await conn.query('COMMIT');
+    });
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({
+      success: true,
+      gst_login_id: row.gst_login_id,
+      gst_password: password,
+      gst_no: row.gst_no || '',
+      firm_name: row.firm_name || '',
+      login_url: GST_LOGIN_URL,
+    });
+  } catch (err) {
+    await db.runWithTenant({ bypassTenant: true }, () => conn.query('ROLLBACK')).catch(() => {});
+    handleError(res, err);
+  } finally {
+    conn.release();
   }
 });
 
