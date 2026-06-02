@@ -106,8 +106,18 @@ function currentISTPeriod(date = nowIST()) {
 }
 
 function secretKey() {
-  const secret = process.env.GST_CREDENTIAL_SECRET || process.env.JWT_SECRET || 'gst-dev-secret';
+  const secret = process.env.GST_CREDENTIAL_SECRET || process.env.JWT_SECRET || 'PTP_Attendance_Secret_Key_2024_XYZ';
   return crypto.createHash('sha256').update(secret).digest();
+}
+
+function secretKeyCandidates() {
+  const secrets = [
+    process.env.GST_CREDENTIAL_SECRET,
+    process.env.JWT_SECRET,
+    'PTP_Attendance_Secret_Key_2024_XYZ',
+    'gst-dev-secret',
+  ].filter(Boolean);
+  return [...new Set(secrets)].map(secret => crypto.createHash('sha256').update(secret).digest());
 }
 
 function encryptText(value) {
@@ -124,14 +134,17 @@ function decryptText(value) {
   const text = cleanText(value);
   if (!text) return '';
   if (!text.startsWith('v1:')) return text;
-  try {
-    const [, iv64, tag64, enc64] = text.split(':');
-    const decipher = crypto.createDecipheriv('aes-256-gcm', secretKey(), Buffer.from(iv64, 'base64'));
-    decipher.setAuthTag(Buffer.from(tag64, 'base64'));
-    return Buffer.concat([decipher.update(Buffer.from(enc64, 'base64')), decipher.final()]).toString('utf8');
-  } catch {
-    return '';
+  const [, iv64, tag64, enc64] = text.split(':');
+  for (const key of secretKeyCandidates()) {
+    try {
+      const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(iv64, 'base64'));
+      decipher.setAuthTag(Buffer.from(tag64, 'base64'));
+      return Buffer.concat([decipher.update(Buffer.from(enc64, 'base64')), decipher.final()]).toString('utf8');
+    } catch {
+      // Try the next configured/legacy key.
+    }
   }
+  return '';
 }
 
 function cellValue(sheet, row, col) {
