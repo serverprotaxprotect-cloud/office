@@ -121,6 +121,33 @@ const statements = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_chat_threads_followup ON chat_threads(organization_id, status, next_follow_up_at)`,
   `CREATE INDEX IF NOT EXISTS idx_chat_messages_client_seen ON chat_messages(organization_id, thread_id, client_visible, seen_by_client_at)`,
+  `UPDATE chat_messages m
+   SET organization_id=t.organization_id
+   FROM chat_threads t
+   WHERE m.thread_id=t.id AND t.organization_id IS NOT NULL
+     AND (m.organization_id IS NULL OR m.organization_id <> t.organization_id)`,
+  `UPDATE chat_participants p
+   SET organization_id=t.organization_id
+   FROM chat_threads t
+   WHERE p.thread_id=t.id AND t.organization_id IS NOT NULL
+     AND (p.organization_id IS NULL OR p.organization_id <> t.organization_id)`,
+  `UPDATE chat_mentions cm
+   SET organization_id=t.organization_id
+   FROM chat_threads t
+   WHERE cm.thread_id=t.id AND t.organization_id IS NOT NULL
+     AND (cm.organization_id IS NULL OR cm.organization_id <> t.organization_id)`,
+  `UPDATE chat_attachments a
+   SET organization_id=COALESCE(t.organization_id, m.organization_id, a.organization_id)
+   FROM chat_messages m
+   LEFT JOIN chat_threads t ON t.id=m.thread_id
+   WHERE a.message_id=m.id
+     AND COALESCE(t.organization_id, m.organization_id) IS NOT NULL
+     AND (a.organization_id IS NULL OR a.organization_id <> COALESCE(t.organization_id, m.organization_id))`,
+  `UPDATE chat_message_audit a
+   SET organization_id=m.organization_id
+   FROM chat_messages m
+   WHERE a.message_id=m.id AND m.organization_id IS NOT NULL
+     AND (a.organization_id IS NULL OR a.organization_id <> m.organization_id)`,
   `INSERT INTO chat_quick_templates (title, body, category)
    SELECT v.title, v.body, v.category
    FROM (VALUES
@@ -131,6 +158,104 @@ const statements = [
      ('KYC Documents Pending','PAN, Aadhaar and required KYC documents are pending. Please share clear copies.','KYC')
    ) AS v(title, body, category)
    WHERE NOT EXISTS (SELECT 1 FROM chat_quick_templates q WHERE q.organization_id=current_organization_id() AND q.title=v.title)`,
+  `INSERT INTO chat_quick_templates (organization_id, title, body, category)
+   SELECT o.id, v.title, v.body, v.category
+   FROM organizations o
+   CROSS JOIN (VALUES
+     ('Bank Statement Request','Please send bank statement for the required period so we can complete the work.','Documents'),
+     ('DSC OTP Request','Please share the DSC OTP when received.','MCA'),
+     ('ITR Documents Pending','ITR filing documents are pending. Please share Form 16, bank statement, investment proofs and AIS/TIS details.','Income Tax'),
+     ('GST Data Pending','GST data/invoices are pending. Please share purchase, sales and expense details.','GST'),
+     ('KYC Documents Pending','PAN, Aadhaar and required KYC documents are pending. Please share clear copies.','KYC')
+   ) AS v(title, body, category)
+   WHERE NOT EXISTS (
+     SELECT 1 FROM chat_quick_templates q
+     WHERE q.organization_id=o.id AND q.title=v.title
+   )`,
+  `ALTER TABLE chat_threads ENABLE ROW LEVEL SECURITY`,
+  `ALTER TABLE chat_threads FORCE ROW LEVEL SECURITY`,
+  `DROP POLICY IF EXISTS tenant_isolation_chat_threads ON chat_threads`,
+  `CREATE POLICY tenant_isolation_chat_threads ON chat_threads
+    USING (
+      current_setting('app.bypass_rls', true) = 'on'
+      OR organization_id::text = current_setting('app.organization_id', true)
+    )
+    WITH CHECK (
+      current_setting('app.bypass_rls', true) = 'on'
+      OR organization_id::text = current_setting('app.organization_id', true)
+    )`,
+  `ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY`,
+  `ALTER TABLE chat_messages FORCE ROW LEVEL SECURITY`,
+  `DROP POLICY IF EXISTS tenant_isolation_chat_messages ON chat_messages`,
+  `CREATE POLICY tenant_isolation_chat_messages ON chat_messages
+    USING (
+      current_setting('app.bypass_rls', true) = 'on'
+      OR organization_id::text = current_setting('app.organization_id', true)
+    )
+    WITH CHECK (
+      current_setting('app.bypass_rls', true) = 'on'
+      OR organization_id::text = current_setting('app.organization_id', true)
+    )`,
+  `ALTER TABLE chat_participants ENABLE ROW LEVEL SECURITY`,
+  `ALTER TABLE chat_participants FORCE ROW LEVEL SECURITY`,
+  `DROP POLICY IF EXISTS tenant_isolation_chat_participants ON chat_participants`,
+  `CREATE POLICY tenant_isolation_chat_participants ON chat_participants
+    USING (
+      current_setting('app.bypass_rls', true) = 'on'
+      OR organization_id::text = current_setting('app.organization_id', true)
+    )
+    WITH CHECK (
+      current_setting('app.bypass_rls', true) = 'on'
+      OR organization_id::text = current_setting('app.organization_id', true)
+    )`,
+  `ALTER TABLE chat_mentions ENABLE ROW LEVEL SECURITY`,
+  `ALTER TABLE chat_mentions FORCE ROW LEVEL SECURITY`,
+  `DROP POLICY IF EXISTS tenant_isolation_chat_mentions ON chat_mentions`,
+  `CREATE POLICY tenant_isolation_chat_mentions ON chat_mentions
+    USING (
+      current_setting('app.bypass_rls', true) = 'on'
+      OR organization_id::text = current_setting('app.organization_id', true)
+    )
+    WITH CHECK (
+      current_setting('app.bypass_rls', true) = 'on'
+      OR organization_id::text = current_setting('app.organization_id', true)
+    )`,
+  `ALTER TABLE chat_attachments ENABLE ROW LEVEL SECURITY`,
+  `ALTER TABLE chat_attachments FORCE ROW LEVEL SECURITY`,
+  `DROP POLICY IF EXISTS tenant_isolation_chat_attachments ON chat_attachments`,
+  `CREATE POLICY tenant_isolation_chat_attachments ON chat_attachments
+    USING (
+      current_setting('app.bypass_rls', true) = 'on'
+      OR organization_id::text = current_setting('app.organization_id', true)
+    )
+    WITH CHECK (
+      current_setting('app.bypass_rls', true) = 'on'
+      OR organization_id::text = current_setting('app.organization_id', true)
+    )`,
+  `ALTER TABLE chat_message_audit ENABLE ROW LEVEL SECURITY`,
+  `ALTER TABLE chat_message_audit FORCE ROW LEVEL SECURITY`,
+  `DROP POLICY IF EXISTS tenant_isolation_chat_message_audit ON chat_message_audit`,
+  `CREATE POLICY tenant_isolation_chat_message_audit ON chat_message_audit
+    USING (
+      current_setting('app.bypass_rls', true) = 'on'
+      OR organization_id::text = current_setting('app.organization_id', true)
+    )
+    WITH CHECK (
+      current_setting('app.bypass_rls', true) = 'on'
+      OR organization_id::text = current_setting('app.organization_id', true)
+    )`,
+  `ALTER TABLE chat_quick_templates ENABLE ROW LEVEL SECURITY`,
+  `ALTER TABLE chat_quick_templates FORCE ROW LEVEL SECURITY`,
+  `DROP POLICY IF EXISTS tenant_isolation_chat_quick_templates ON chat_quick_templates`,
+  `CREATE POLICY tenant_isolation_chat_quick_templates ON chat_quick_templates
+    USING (
+      current_setting('app.bypass_rls', true) = 'on'
+      OR organization_id::text = current_setting('app.organization_id', true)
+    )
+    WITH CHECK (
+      current_setting('app.bypass_rls', true) = 'on'
+      OR organization_id::text = current_setting('app.organization_id', true)
+    )`,
 ];
 
 async function main() {

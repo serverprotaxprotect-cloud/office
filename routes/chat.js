@@ -193,7 +193,7 @@ async function ensureTables() {
        ('GST Data Pending','GST data/invoices are pending. Please share purchase, sales and expense details.','GST'),
        ('KYC Documents Pending','PAN, Aadhaar and required KYC documents are pending. Please share clear copies.','KYC')
      ) AS v(title, body, category)
-     WHERE NOT EXISTS (SELECT 1 FROM chat_quick_templates q WHERE q.title=v.title)`
+     WHERE NOT EXISTS (SELECT 1 FROM chat_quick_templates q WHERE q.organization_id=current_organization_id() AND q.title=v.title)`
   );
 }
 
@@ -236,8 +236,8 @@ async function addAllTeamParticipants(conn, threadId) {
 async function createChatNotifications(conn, thread, message, actor, mentionedIds) {
   const participants = await conn.query(
     `SELECT participant_type, participant_id FROM chat_participants
-     WHERE thread_id=$1 AND participant_type IN ('employee','admin')`,
-    [thread.id]
+     WHERE organization_id=$2 AND thread_id=$1 AND participant_type IN ('employee','admin')`,
+    [thread.id, thread.organization_id]
   );
   const notifyIds = new Set(participants.rows.map(p => p.participant_id).filter(id => id && id !== actor.id));
   (mentionedIds || []).forEach(id => { if (id && id !== actor.id) notifyIds.add(id); });
@@ -248,7 +248,7 @@ async function createChatNotifications(conn, thread, message, actor, mentionedId
   }
 }
 
-async function updateThreadStatus(conn, threadId, status) {
+async function updateThreadStatus(conn, threadId, orgId, status) {
   if (!THREAD_STATUSES.has(status)) {
     const err = new Error('Invalid thread status');
     err.statusCode = 400;
@@ -261,9 +261,9 @@ async function updateThreadStatus(conn, threadId, status) {
          resolved_at=CASE WHEN $2::varchar='Resolved' THEN NOW() ELSE resolved_at END,
          closed_at=CASE WHEN $2::varchar='Closed' THEN NOW() ELSE closed_at END,
          updated_at=NOW()
-     WHERE id=$1
+     WHERE id=$1 AND organization_id=$3
      RETURNING *`,
-    [threadId, status]
+    [threadId, status, orgId]
   );
   return r.rows[0];
 }
@@ -273,29 +273,33 @@ async function notifyFollowups(conn, orgId) {
     `SELECT id, subject, next_follow_up_at, created_by_id
      FROM chat_threads
      WHERE status IN ('Open','Waiting for Client')
+       AND organization_id=$1
        AND next_follow_up_at IS NOT NULL
        AND next_follow_up_at <= NOW()
        AND (followup_notified_at IS NULL OR followup_notified_at < next_follow_up_at)
-     LIMIT 100`
+     LIMIT 100`,
+    [orgId]
   );
   for (const row of r.rows) {
     await createNotif(row.created_by_id, 'chat_followup', `Chat follow-up due: ${row.subject}`, `Follow-up date/time reached for chat #${row.id}`, `CHAT-${row.id}`);
   }
   if (r.rows.length) {
-    await conn.query(`UPDATE chat_threads SET followup_notified_at=NOW() WHERE id = ANY($1)`, [r.rows.map(x => x.id)]);
+    await conn.query(`UPDATE chat_threads SET followup_notified_at=NOW() WHERE organization_id=$1 AND id = ANY($2)`, [orgId, r.rows.map(x => x.id)]);
     emitChat(orgId, { type: 'thread_unread_changed' });
   }
 }
 
-async function applyEscalations(conn) {
+async function applyEscalations(conn, orgId) {
   const r = await conn.query(
     `UPDATE chat_threads
      SET escalated_at=NOW(), updated_at=NOW()
      WHERE status='Waiting for Client'
+       AND organization_id=$1
        AND waiting_since IS NOT NULL
        AND waiting_since <= NOW() - INTERVAL '3 days'
        AND escalated_at IS NULL
-     RETURNING id, subject, created_by_id`
+     RETURNING id, subject, created_by_id`,
+    [orgId]
   );
   for (const row of r.rows) {
     await createNotif(row.created_by_id, 'chat_escalation', `Client reply overdue: ${row.subject}`, 'Client response is pending for more than 3 days.', `CHAT-${row.id}`);
@@ -341,12 +345,14 @@ async function addMessage(conn, thread, actor, payload, portalMode = false) {
   }
   if (Array.isArray(payload.attachment_ids) && payload.attachment_ids.length) {
     await conn.query(
-      `UPDATE chat_attachments SET thread_id=$1, message_id=$2, category=COALESCE($4, category) WHERE id = ANY($3) AND message_id IS NULL`,
-      [thread.id, message.id, payload.attachment_ids.map(Number).filter(Boolean), ATTACHMENT_CATEGORIES.has(payload.attachment_category) ? payload.attachment_category : null]
+      `UPDATE chat_attachments
+       SET thread_id=$1, message_id=$2, category=COALESCE($4, category)
+       WHERE id = ANY($3) AND organization_id=$5 AND message_id IS NULL`,
+      [thread.id, message.id, payload.attachment_ids.map(Number).filter(Boolean), ATTACHMENT_CATEGORIES.has(payload.attachment_category) ? payload.attachment_category : null, thread.organization_id]
     );
   }
   await upsertParticipant(conn, thread.id, actor.type, actor.id, actor.name);
-  await conn.query(`UPDATE chat_threads SET last_message_at=NOW(), updated_at=NOW() WHERE id=$1`, [thread.id]);
+  await conn.query(`UPDATE chat_threads SET last_message_at=NOW(), updated_at=NOW() WHERE id=$1 AND organization_id=$2`, [thread.id, thread.organization_id]);
   if (clientVisible || messageType === 'call_log' || payload.follow_up_at || actor.type === 'client' || actor.type === 'agent') {
     await conn.query(
       `UPDATE chat_threads
@@ -356,14 +362,14 @@ async function addMessage(conn, thread, actor, payload, portalMode = false) {
            status=CASE WHEN $5 THEN 'Waiting for Client' WHEN $3 AND status='Waiting for Client' THEN 'Open' ELSE status END,
            waiting_since=CASE WHEN $5 THEN COALESCE(waiting_since, NOW()) WHEN $3 THEN NULL ELSE waiting_since END,
            updated_at=NOW()
-       WHERE id=$1`,
-      [thread.id, clientVisible, ['client', 'agent'].includes(actor.type), payload.follow_up_at || null, payload.call_status === 'Pending From Client' || payload.call_status === 'Client Will Send']
+       WHERE id=$1 AND organization_id=$6`,
+      [thread.id, clientVisible, ['client', 'agent'].includes(actor.type), payload.follow_up_at || null, payload.call_status === 'Pending From Client' || payload.call_status === 'Client Will Send', thread.organization_id]
     );
   }
   await conn.query(
     `UPDATE chat_participants SET unread_count=unread_count+1
-     WHERE thread_id=$1 AND NOT (participant_type=$2 AND participant_id=$3)`,
-    [thread.id, actor.type, actor.id]
+     WHERE thread_id=$1 AND organization_id=$4 AND NOT (participant_type=$2 AND participant_id=$3)`,
+    [thread.id, actor.type, actor.id, thread.organization_id]
   );
   if (!portalMode) {
     await createChatNotifications(conn, thread, message, actor, [...mentionNames.keys()]);
@@ -373,8 +379,8 @@ async function addMessage(conn, thread, actor, payload, portalMode = false) {
   return message;
 }
 
-async function getThreadForOffice(id) {
-  const r = await db.query(`SELECT * FROM chat_threads WHERE id=$1`, [id]);
+async function getThreadForOffice(id, orgId) {
+  const r = await db.query(`SELECT * FROM chat_threads WHERE id=$1 AND organization_id=$2`, [id, orgId]);
   return r.rows[0] || null;
 }
 
@@ -397,10 +403,10 @@ router.get('/threads', authMiddleware, async (req, res) => {
   try {
     await ensureTables();
     await notifyFollowups(db, req.user.organization_id).catch(() => {});
-    await applyEscalations(db).catch(() => {});
+    await applyEscalations(db, req.user.organization_id).catch(() => {});
     const actor = actorFromUser(req.user);
-    const params = [];
-    const conds = [`t.status <> 'Deleted'`];
+    const params = [req.user.organization_id];
+    const conds = [`t.organization_id=$1`, `t.status <> 'Deleted'`];
     if (req.query.client_id) { params.push(req.query.client_id); conds.push(`t.client_id=$${params.length}`); }
     if (req.query.module) { params.push(req.query.module); conds.push(`t.linked_module=$${params.length}`); }
     if (req.query.record_id) { params.push(req.query.record_id); conds.push(`t.linked_record_id=$${params.length}`); }
@@ -408,13 +414,13 @@ router.get('/threads', authMiddleware, async (req, res) => {
     if (req.query.inbox === 'unread') conds.push(`COALESCE(p2.unread_count,0) > 0`);
     if (req.query.inbox === 'pending_followup') conds.push(`t.next_follow_up_at IS NOT NULL AND t.next_follow_up_at <= NOW() AND t.status IN ('Open','Waiting for Client')`);
     if (req.query.inbox === 'client_replies') conds.push(`t.last_client_reply_at IS NOT NULL AND (p2.last_read_at IS NULL OR t.last_client_reply_at > p2.last_read_at)`);
-    if (req.query.inbox === 'mentioned') conds.push(`EXISTS (SELECT 1 FROM chat_mentions cm WHERE cm.thread_id=t.id AND cm.mentioned_id=$${params.length + 1})`);
+    if (req.query.inbox === 'mentioned') conds.push(`EXISTS (SELECT 1 FROM chat_mentions cm WHERE cm.organization_id=t.organization_id AND cm.thread_id=t.id AND cm.mentioned_id=$${params.length + 1})`);
     if (req.query.inbox === 'mentioned') params.push(actor.id);
     if (req.query.search) {
       params.push(escLike(req.query.search));
       conds.push(`(t.subject ILIKE $${params.length} OR t.client_id ILIKE $${params.length} OR t.linked_task_id ILIKE $${params.length})`);
     }
-    const participantJoin = actor.isAdmin ? '' : `LEFT JOIN chat_participants p ON p.thread_id=t.id AND p.participant_type=$${params.length + 1} AND p.participant_id=$${params.length + 2}`;
+    const participantJoin = actor.isAdmin ? '' : `LEFT JOIN chat_participants p ON p.organization_id=t.organization_id AND p.thread_id=t.id AND p.participant_type=$${params.length + 1} AND p.participant_id=$${params.length + 2}`;
     if (!actor.isAdmin) {
       params.push(actor.type, actor.id);
       conds.push(`(p.id IS NOT NULL OR t.created_by_id=$${params.length + 1})`);
@@ -423,11 +429,11 @@ router.get('/threads', authMiddleware, async (req, res) => {
     const r = await db.query(
       `SELECT t.*,
               COALESCE(p2.unread_count,0) AS unread_count,
-              (SELECT COUNT(*) FROM chat_messages cm WHERE cm.thread_id=t.id AND cm.client_visible=true AND cm.seen_by_client_at IS NULL AND cm.sender_type IN ('employee','admin')) AS client_unseen_count,
-              (SELECT body FROM chat_messages m WHERE m.thread_id=t.id AND m.deleted_at IS NULL ORDER BY m.created_at DESC LIMIT 1) AS last_message_body
+              (SELECT COUNT(*) FROM chat_messages cm WHERE cm.organization_id=t.organization_id AND cm.thread_id=t.id AND cm.client_visible=true AND cm.seen_by_client_at IS NULL AND cm.sender_type IN ('employee','admin')) AS client_unseen_count,
+              (SELECT body FROM chat_messages m WHERE m.organization_id=t.organization_id AND m.thread_id=t.id AND m.deleted_at IS NULL ORDER BY m.created_at DESC LIMIT 1) AS last_message_body
        FROM chat_threads t
        ${participantJoin}
-       LEFT JOIN chat_participants p2 ON p2.thread_id=t.id AND p2.participant_type=$${params.length + 1} AND p2.participant_id=$${params.length + 2}
+       LEFT JOIN chat_participants p2 ON p2.organization_id=t.organization_id AND p2.thread_id=t.id AND p2.participant_type=$${params.length + 1} AND p2.participant_id=$${params.length + 2}
        WHERE ${conds.join(' AND ')}
        ORDER BY t.last_message_at DESC LIMIT 200`,
       [...params, actor.type, actor.id]
@@ -442,7 +448,13 @@ router.get('/threads', authMiddleware, async (req, res) => {
 router.get('/templates', authMiddleware, async (req, res) => {
   try {
     await ensureTables();
-    const r = await db.query(`SELECT id, title, body, category FROM chat_quick_templates WHERE active=true ORDER BY category, title`);
+    const r = await db.query(
+      `SELECT id, title, body, category
+       FROM chat_quick_templates
+       WHERE organization_id=$1 AND active=true
+       ORDER BY category, title`,
+      [req.user.organization_id]
+    );
     res.json({ success: true, templates: r.rows, statuses: [...THREAD_STATUSES], attachment_categories: [...ATTACHMENT_CATEGORIES] });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Templates load failed' });
@@ -453,14 +465,16 @@ router.get('/followups', authMiddleware, async (req, res) => {
   try {
     await ensureTables();
     await notifyFollowups(db, req.user.organization_id).catch(() => {});
-    await applyEscalations(db).catch(() => {});
+    await applyEscalations(db, req.user.organization_id).catch(() => {});
     const r = await db.query(
       `SELECT id, subject, client_id, agent_id, status, next_follow_up_at, waiting_since, escalated_at, last_client_reply_at
        FROM chat_threads
        WHERE status IN ('Open','Waiting for Client')
+         AND organization_id=$1
          AND (next_follow_up_at <= NOW() OR status='Waiting for Client')
        ORDER BY COALESCE(next_follow_up_at, waiting_since, updated_at) ASC
-       LIMIT 200`
+       LIMIT 200`,
+      [req.user.organization_id]
     );
     res.json({ success: true, followups: r.rows });
   } catch (err) {
@@ -471,8 +485,8 @@ router.get('/followups', authMiddleware, async (req, res) => {
 router.get('/report', authMiddleware, async (req, res) => {
   try {
     await ensureTables();
-    const params = [];
-    const conds = [`t.status <> 'Deleted'`];
+    const params = [req.user.organization_id];
+    const conds = [`t.organization_id=$1`, `m.organization_id=$1`, `t.status <> 'Deleted'`];
     if (req.query.client_id) { params.push(req.query.client_id); conds.push(`t.client_id=$${params.length}`); }
     if (req.query.date_from) { params.push(req.query.date_from); conds.push(`m.created_at::date >= $${params.length}::date`); }
     if (req.query.date_to) { params.push(req.query.date_to); conds.push(`m.created_at::date <= $${params.length}::date`); }
@@ -482,7 +496,7 @@ router.get('/report', authMiddleware, async (req, res) => {
               m.id AS message_id, m.sender_type, m.sender_name, m.message_type, m.call_status, m.client_visible,
               m.body, m.follow_up_at, m.seen_by_client_at, m.created_at
        FROM chat_threads t
-       JOIN chat_messages m ON m.thread_id=t.id
+       JOIN chat_messages m ON m.organization_id=t.organization_id AND m.thread_id=t.id
        WHERE ${conds.join(' AND ')}
        ORDER BY m.created_at DESC
        LIMIT 1000`,
@@ -501,13 +515,13 @@ router.get('/timeline', authMiddleware, async (req, res) => {
     const recordId = req.query.record_id || '';
     if (!module || !recordId) return res.json({ success: true, threads: [] });
     const r = await db.query(
-      `SELECT t.*, (SELECT body FROM chat_messages m WHERE m.thread_id=t.id AND m.deleted_at IS NULL ORDER BY m.created_at DESC LIMIT 1) AS last_message_body
+      `SELECT t.*, (SELECT body FROM chat_messages m WHERE m.organization_id=t.organization_id AND m.thread_id=t.id AND m.deleted_at IS NULL ORDER BY m.created_at DESC LIMIT 1) AS last_message_body
        FROM chat_threads t
-       WHERE t.status <> 'Deleted'
+       WHERE t.organization_id=$3 AND t.status <> 'Deleted'
          AND (t.linked_module=$1 AND (t.linked_record_id=$2 OR t.linked_task_id=$2))
        ORDER BY t.last_message_at DESC
        LIMIT 50`,
-      [module, recordId]
+      [module, recordId, req.user.organization_id]
     );
     res.json({ success: true, threads: r.rows });
   } catch (err) {
@@ -566,9 +580,9 @@ router.put('/threads/:id/status', authMiddleware, async (req, res) => {
   try {
     await ensureTables();
     await conn.query('BEGIN');
-    const old = (await conn.query(`SELECT * FROM chat_threads WHERE id=$1 FOR UPDATE`, [req.params.id])).rows[0];
+    const old = (await conn.query(`SELECT * FROM chat_threads WHERE id=$1 AND organization_id=$2 FOR UPDATE`, [req.params.id, req.user.organization_id])).rows[0];
     if (!old) throw Object.assign(new Error('Thread not found'), { statusCode: 404 });
-    const thread = await updateThreadStatus(conn, old.id, req.body.status || 'Open');
+    const thread = await updateThreadStatus(conn, old.id, req.user.organization_id, req.body.status || 'Open');
     await conn.query(
       `INSERT INTO chat_message_audit (message_id, action, old_value, new_value, actor_type, actor_id, actor_name)
        VALUES (0,'thread_status',$1,$2,$3,$4,$5)`,
@@ -590,7 +604,8 @@ router.post('/threads/:id/resolve', authMiddleware, async (req, res) => {
   try {
     await ensureTables();
     await conn.query('BEGIN');
-    const thread = await updateThreadStatus(conn, req.params.id, 'Resolved');
+    const thread = await updateThreadStatus(conn, req.params.id, req.user.organization_id, 'Resolved');
+    if (!thread) throw Object.assign(new Error('Thread not found'), { statusCode: 404 });
     await conn.query('COMMIT');
     emitChat(req.user.organization_id, { type: 'thread_unread_changed', thread_id: thread.id });
     res.json({ success: true, message: 'Thread resolved', thread });
@@ -605,17 +620,17 @@ router.post('/threads/:id/resolve', authMiddleware, async (req, res) => {
 router.get('/threads/:id/messages', authMiddleware, async (req, res) => {
   try {
     await ensureTables();
-    const thread = await getThreadForOffice(req.params.id);
+    const thread = await getThreadForOffice(req.params.id, req.user.organization_id);
     if (!thread) return res.status(404).json({ success: false, message: 'Thread not found' });
     const r = await db.query(
       `SELECT m.*,
               COALESCE(json_agg(json_build_object('id',a.id,'url',a.url,'filename',a.filename,'mime_type',a.mime_type,'size_bytes',a.size_bytes,'category',a.category)) FILTER (WHERE a.id IS NOT NULL), '[]') AS attachments
        FROM chat_messages m
-       LEFT JOIN chat_attachments a ON a.message_id=m.id
-       WHERE m.thread_id=$1
+       LEFT JOIN chat_attachments a ON a.message_id=m.id AND a.organization_id=m.organization_id
+       WHERE m.thread_id=$1 AND m.organization_id=$2
        GROUP BY m.id
        ORDER BY m.created_at ASC`,
-      [thread.id]
+      [thread.id, req.user.organization_id]
     );
     res.json({ success: true, thread, messages: r.rows });
   } catch (err) {
@@ -630,7 +645,7 @@ router.post('/threads/:id/messages', authMiddleware, async (req, res) => {
   const conn = await db.pool.connect();
   try {
     await conn.query('BEGIN');
-    const thread = (await conn.query(`SELECT * FROM chat_threads WHERE id=$1 FOR UPDATE`, [req.params.id])).rows[0];
+    const thread = (await conn.query(`SELECT * FROM chat_threads WHERE id=$1 AND organization_id=$2 FOR UPDATE`, [req.params.id, req.user.organization_id])).rows[0];
     if (!thread) throw Object.assign(new Error('Thread not found'), { statusCode: 404 });
     const message = await addMessage(conn, thread, actor, req.body);
     await conn.query('COMMIT');
@@ -649,15 +664,15 @@ router.put('/messages/:id', authMiddleware, async (req, res) => {
   const actor = actorFromUser(req.user);
   try {
     await ensureTables();
-    const old = await db.query(`SELECT * FROM chat_messages WHERE id=$1`, [req.params.id]);
+    const old = await db.query(`SELECT * FROM chat_messages WHERE id=$1 AND organization_id=$2`, [req.params.id, req.user.organization_id]);
     const msg = old.rows[0];
     if (!msg) return res.status(404).json({ success: false, message: 'Message not found' });
     const created = new Date(msg.created_at).getTime();
     if (Date.now() - created > 24 * 60 * 60 * 1000 && !actor.isAdmin) return res.status(403).json({ success: false, message: 'Edit window expired' });
     if (!actor.isAdmin && (msg.sender_type !== actor.type || msg.sender_id !== actor.id)) return res.status(403).json({ success: false, message: 'Cannot edit this message' });
     const updated = await db.query(
-      `UPDATE chat_messages SET body=$1, edited_at=NOW(), edited_by_type=$2, edited_by_id=$3 WHERE id=$4 RETURNING *`,
-      [req.body.body || '', actor.type, actor.id, msg.id]
+      `UPDATE chat_messages SET body=$1, edited_at=NOW(), edited_by_type=$2, edited_by_id=$3 WHERE id=$4 AND organization_id=$5 RETURNING *`,
+      [req.body.body || '', actor.type, actor.id, msg.id, req.user.organization_id]
     );
     await db.query(
       `INSERT INTO chat_message_audit (message_id, action, old_value, new_value, actor_type, actor_id, actor_name)
@@ -677,10 +692,10 @@ router.delete('/messages/:id', authMiddleware, async (req, res) => {
   if (!actor.isAdmin) return res.status(403).json({ success: false, message: 'Only admin can delete messages' });
   try {
     await ensureTables();
-    const old = await db.query(`SELECT * FROM chat_messages WHERE id=$1`, [req.params.id]);
+    const old = await db.query(`SELECT * FROM chat_messages WHERE id=$1 AND organization_id=$2`, [req.params.id, req.user.organization_id]);
     const msg = old.rows[0];
     if (!msg) return res.status(404).json({ success: false, message: 'Message not found' });
-    await db.query(`UPDATE chat_messages SET deleted_at=NOW(), deleted_by_type=$1, deleted_by_id=$2 WHERE id=$3`, [actor.type, actor.id, msg.id]);
+    await db.query(`UPDATE chat_messages SET deleted_at=NOW(), deleted_by_type=$1, deleted_by_id=$2 WHERE id=$3 AND organization_id=$4`, [actor.type, actor.id, msg.id, req.user.organization_id]);
     await db.query(
       `INSERT INTO chat_message_audit (message_id, action, old_value, actor_type, actor_id, actor_name)
        VALUES ($1,'delete',$2,$3,$4,$5)`,
@@ -700,8 +715,8 @@ router.post('/threads/:id/read', authMiddleware, async (req, res) => {
     await ensureTables();
     await db.query(
       `UPDATE chat_participants SET unread_count=0, last_read_at=NOW()
-       WHERE thread_id=$1 AND participant_type=$2 AND participant_id=$3`,
-      [req.params.id, actor.type, actor.id]
+       WHERE thread_id=$1 AND organization_id=$4 AND participant_type=$2 AND participant_id=$3`,
+      [req.params.id, actor.type, actor.id, req.user.organization_id]
     );
     res.json({ success: true });
   } catch {
@@ -818,10 +833,10 @@ portalRouter.get('/threads', portalAuth, async (req, res) => {
     }
     const r = await db.runWithTenant({ bypassTenant: true }, () => db.query(
       `SELECT t.id, t.subject, t.client_id, t.agent_id, t.linked_module, t.linked_task_id, t.last_message_at,
-              (SELECT body FROM chat_messages m WHERE m.thread_id=t.id AND m.client_visible=true AND m.deleted_at IS NULL ORDER BY created_at DESC LIMIT 1) AS last_message_body
+              (SELECT body FROM chat_messages m WHERE m.organization_id=t.organization_id AND m.thread_id=t.id AND m.client_visible=true AND m.deleted_at IS NULL ORDER BY created_at DESC LIMIT 1) AS last_message_body
        FROM chat_threads t
        WHERE ${where}
-         AND EXISTS (SELECT 1 FROM chat_messages m WHERE m.thread_id=t.id AND m.client_visible=true)
+         AND EXISTS (SELECT 1 FROM chat_messages m WHERE m.organization_id=t.organization_id AND m.thread_id=t.id AND m.client_visible=true)
        ORDER BY t.last_message_at DESC LIMIT 100`,
       params
     ));
@@ -854,11 +869,11 @@ portalRouter.get('/threads/:id/messages', portalAuth, async (req, res) => {
               m.call_status, m.follow_up_at, m.created_at, m.deleted_at,
               COALESCE(json_agg(json_build_object('id',a.id,'url',a.url,'filename',a.filename,'mime_type',a.mime_type,'size_bytes',a.size_bytes,'category',a.category)) FILTER (WHERE a.id IS NOT NULL), '[]') AS attachments
        FROM chat_messages m
-       LEFT JOIN chat_attachments a ON a.message_id=m.id
-       WHERE m.thread_id=$1 AND m.client_visible=true
+       LEFT JOIN chat_attachments a ON a.organization_id=m.organization_id AND a.message_id=m.id
+       WHERE m.organization_id=$2 AND m.thread_id=$1 AND m.client_visible=true
        GROUP BY m.id
        ORDER BY m.created_at ASC`,
-      [thread.id]
+      [thread.id, req.portalUser.organization_id]
     ));
     res.json({ success: true, thread, messages: r.rows });
   } catch (err) {
