@@ -78,7 +78,7 @@
     .btn{border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;transition:.15s}
     .btn:hover{opacity:.88;transform:translateY(-1px)}
     .btn-primary{background:linear-gradient(135deg,var(--primary),var(--primary2));color:#fff;box-shadow:0 6px 16px rgba(33,85,243,.25)}
-    .btn-sm{padding:5px 12px;font-size:12px;border-radius:7px;border:none;cursor:pointer;font-weight:700;transition:.15s}
+    .btn-sm{padding:5px 12px;font-size:12px;border-radius:7px;border:none;cursor:pointer;font-weight:700;transition:.15s;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
     .btn-sm:hover{opacity:.85}
     .btn-view{background:#eff6ff;color:#1d4ed8}
     .btn-edit{background:#dbeafe;color:#1d4ed8}
@@ -868,6 +868,8 @@
         <button class="btn-sm" id="gst-tab-report" onclick="switchGSTTab('report')">Reports</button>
         <button class="btn-sm" id="gst-tab-inactive" onclick="switchGSTTab('inactive')">Inactive GST Clients</button>
         <button class="btn-sm" id="gst-tab-unassigned" onclick="switchGSTTab('unassigned')">Unassigned Clients</button>
+        <a class="btn-sm btn-green" href="/downloads/gst-autofill-extension.zip" download title="Download GeeBharat GST Autofill Chrome extension">&#11015; Download Extension</a>
+        <button class="btn-sm btn-view" onclick="openModal('gstExtensionGuideModal')" title="Read Chrome extension setup guide">&#128214; Setup Guide</button>
       </div>
 
       <div id="gst-panel-clients">
@@ -1527,6 +1529,35 @@
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeModal('gstGenerateModal')">Cancel</button>
       <button class="btn btn-primary" onclick="submitGSTGenerate()">Generate</button>
+    </div>
+  </div>
+</div>
+
+<!-- GST Autofill Extension Guide Modal -->
+<div class="modal-backdrop hidden" id="gstExtensionGuideModal" onclick="if(event.target===this)closeModal('gstExtensionGuideModal')">
+  <div class="modal modal-lg">
+    <div class="modal-title">GST Auto Login Extension Setup</div>
+    <div style="line-height:1.55;color:#0f172a;font-size:14px">
+      <p style="margin:0 0 10px;color:#475569">Chrome security ke karan internal extension one-click install nahi hota. Ek baar setup ke baad GST Clients me <strong>Login</strong> icon se ID/password auto-fill ho jayega.</p>
+      <ol style="margin:0 0 14px 20px;padding:0">
+        <li><strong>Download Extension</strong> button se ZIP download karein.</li>
+        <li>ZIP ko extract karein. Extracted folder ka naam <strong>gst-autofill</strong> ya similar rahega.</li>
+        <li>Chrome me <strong>chrome://extensions</strong> open karein.</li>
+        <li>Top-right me <strong>Developer mode</strong> ON karein.</li>
+        <li><strong>Load unpacked</strong> click karke extracted <strong>gst-autofill</strong> folder select karein.</li>
+        <li>GeeBharat me GST Clients list se kisi allowed client ke samne <strong>Login</strong> click karein.</li>
+        <li>GST portal open hoga, ID/password auto-fill hoga. Captcha aur final Login manual rahega.</li>
+      </ol>
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px;margin-bottom:10px">
+        <strong>Update ke baad:</strong> Agar extension already installed hai, to <strong>chrome://extensions</strong> me jaake GeeBharat GST Autofill par <strong>Reload</strong> click karein.
+      </div>
+      <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px">
+        Extension credential store nahi karta. Har Login click par 60 second ka one-time token banta hai.
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('gstExtensionGuideModal')">Close</button>
+      <a class="btn btn-primary" href="/downloads/gst-autofill-extension.zip" download>Download Extension</a>
     </div>
   </div>
 </div>

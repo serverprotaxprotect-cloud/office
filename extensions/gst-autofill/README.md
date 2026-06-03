@@ -4,10 +4,15 @@ Internal unpacked Chrome extension for GST portal autofill.
 
 ## Install
 
-1. Open Chrome and go to `chrome://extensions`.
-2. Enable `Developer mode`.
-3. Click `Load unpacked`.
-4. Select this folder: `extensions/gst-autofill`.
+1. If you downloaded the ZIP from GeeBharat, extract it first.
+2. Open Chrome and go to `chrome://extensions`.
+3. Enable `Developer mode`.
+4. Click `Load unpacked`.
+5. Select the extracted `gst-autofill` folder.
+
+## Update
+
+After downloading a new version, extract it and click `Reload` on the GeeBharat GST Autofill extension in `chrome://extensions`.
 
 ## Use
 
