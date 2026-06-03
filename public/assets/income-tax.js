@@ -261,8 +261,9 @@
            <button class="btn-sm btn-view itr-admin-only" onclick="openITRAssign('client',${c.id})">Assign</button>
            <button class="btn-sm btn-danger itr-admin-only" onclick="openITRClientStatus(${c.id},'Inactive')">Deactivate</button>`
         : (!c.default_assignee_id
-          ? `<button class="btn-sm btn-view" onclick="openITRAssign('client',${c.id})">Assign</button>`
-          : '<small style="color:#94a3b8">View only</small>');
+          ? `<button class="btn-sm btn-view" onclick="openITRClientModal(${c.id})">Edit</button>
+             <button class="btn-sm btn-view" onclick="openITRAssign('client',${c.id})">Assign</button>`
+          : `<button class="btn-sm btn-view" onclick="openITRClientModal(${c.id})">Edit</button>`);
       const loginAction = c.pan_number && c.password
         ? `<button class="btn-sm btn-green" title="Open Income Tax portal and auto-login" onclick="openITRPortalLogin(${c.id})">&#128272; Login</button>`
         : '';

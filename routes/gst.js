@@ -470,7 +470,6 @@ router.post('/clients', authMiddleware, async (req, res) => {
 });
 
 router.put('/clients/:id', authMiddleware, async (req, res) => {
-  if (!requireAdmin(req, res)) return;
   const id = parseInt(req.params.id, 10);
   const allowed = ['firm_name', 'gst_no', 'gst_login_id', 'filing_frequency', 'qrmp_gstr3b_due_day'];
   const sets = [];

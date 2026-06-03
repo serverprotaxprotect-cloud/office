@@ -432,7 +432,6 @@ router.post('/clients', authMiddleware, async (req, res) => {
 });
 
 router.put('/clients/:id', authMiddleware, async (req, res) => {
-  if (!requireAdmin(req, res)) return;
   const id = parseInt(req.params.id, 10);
   const allowed = ['taxpayer_name', 'contact_number', 'pan_number', 'reference_client_name'];
   const sets = [];

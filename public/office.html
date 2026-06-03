@@ -5078,8 +5078,9 @@ async function loadGSTClients() {
          <button class="btn-sm btn-view" onclick="openGSTAssign('client',${c.id})">Assign</button>
          <button class="btn-sm btn-red" onclick="openGSTClientStatus(${c.id},'Inactive')">Inactive</button>`
       : (!c.default_assignee_id
-        ? `<button class="btn-sm btn-view" onclick="openGSTAssign('client',${c.id})">Assign</button>`
-        : '<small style="color:#94a3b8">View only</small>');
+        ? `<button class="btn-sm btn-edit" onclick="openGSTClientModal(${c.id})">Edit</button>
+           <button class="btn-sm btn-view" onclick="openGSTAssign('client',${c.id})">Assign</button>`
+        : `<button class="btn-sm btn-edit" onclick="openGSTClientModal(${c.id})">Edit</button>`);
     const loginAction = c.can_autofill
       ? `<button class="btn-sm btn-green" title="Open GST portal and autofill login" onclick="openGSTPortalLogin(${c.id})">&#128272; Login</button>`
       : '';
@@ -5899,7 +5900,7 @@ async function initOfficeApp() {
 
 if (token) { initOfficeApp(); }
 </script>
-<script src="/assets/income-tax.js?v=20260603-itr-login-1"></script>
+<script src="/assets/income-tax.js?v=20260603-edit-all-1"></script>
 <script src="/assets/mca-filing.js?v=20260528-2"></script>
 </body>
 </html>
