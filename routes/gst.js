@@ -31,6 +31,12 @@ const {
   assignFiling,
   assignUnassignedFilingsForClient,
 } = require('../services/gstService');
+const {
+  providerConfigured,
+  gstinChecksumValid,
+  fetchGSTINProfile,
+  fetchGSTReturnStatus,
+} = require('../services/gstPortalProvider');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -68,6 +74,14 @@ function mapGSTClient(row) {
   return { ...rest, gst_password: decryptText(gst_password_enc) };
 }
 
+function providerErrorMessage(err) {
+  if (err.code === 'GST_PROVIDER_NOT_CONFIGURED') {
+    return 'GST API provider configure nahi hai. GST/GSP API endpoint aur token env me set karne ke baad live verification/sync chalega.';
+  }
+  if (err.code === 'GST_PROVIDER_REJECTED') return err.message;
+  return err.message || 'GST API request failed';
+}
+
 function canAutofillGSTClient(row, user) {
   return !!(user?.emp_id || user?.username || user?.id);
 }
@@ -103,6 +117,7 @@ router.get('/meta', authMiddleware, async (req, res) => {
       status_options: GST_STATUSES,
       return_types: RETURN_TYPES,
       fy_options: fyOptions(),
+      verification_provider_configured: providerConfigured(),
       employees: emps.rows,
       latest_period: latest.rows[0] ? {
         tax_year: latest.rows[0].tax_year,
@@ -244,6 +259,19 @@ router.post('/clients/:id/autofill-token', authMiddleware, async (req, res) => {
     handleError(res, err);
   } finally {
     conn.release();
+  }
+});
+
+router.post('/verify-gstin', authMiddleware, async (req, res) => {
+  const gstin = normalizeGstNo(req.body.gst_no || req.body.gstin || '').toUpperCase();
+  if (!gstinChecksumValid(gstin)) {
+    return res.status(400).json({ success: false, message: 'Invalid GSTIN format/checksum' });
+  }
+  try {
+    const profile = await fetchGSTINProfile(gstin);
+    res.json({ success: true, profile });
+  } catch (err) {
+    res.status(err.statusCode || 503).json({ success: false, message: providerErrorMessage(err), provider_configured: providerConfigured() });
   }
 });
 
@@ -394,6 +422,234 @@ router.get('/unassigned', authMiddleware, async (req, res) => {
   }
 });
 
+router.post('/clients/:id/verify', authMiddleware, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!id) return res.status(400).json({ success: false, message: 'Valid GST client required' });
+  const conn = await db.pool.connect();
+  try {
+    await conn.query('BEGIN');
+    const old = await conn.query('SELECT * FROM gst_clients WHERE id=$1 FOR UPDATE', [id]);
+    const row = old.rows[0];
+    if (!row) {
+      await conn.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'GST client not found' });
+    }
+    const profile = await fetchGSTINProfile(row.gst_no);
+    await conn.query(
+      `UPDATE gst_clients SET
+         legal_name=$1,
+         trade_name=$2,
+         taxpayer_type=$3,
+         gst_registration_date=$4,
+         gst_cancellation_date=$5,
+         gst_portal_status=$6,
+         gst_constitution=$7,
+         gst_last_verified_at=NOW(),
+         gst_verification_source=$8,
+         gst_verification_raw=$9,
+         firm_name=COALESCE(NULLIF($2,''), NULLIF($1,''), firm_name),
+         status=CASE WHEN UPPER(COALESCE($6,'')) IN ('CANCELLED','SUSPENDED','INACTIVE') THEN 'Inactive' ELSE status END,
+         updated_by_id=$10,
+         updated_by_name=$11,
+         updated_at=NOW()
+       WHERE id=$12`,
+      [
+        profile.legal_name,
+        profile.trade_name,
+        profile.taxpayer_type,
+        profile.registration_date,
+        profile.cancellation_date,
+        profile.status,
+        profile.constitution,
+        profile.source,
+        JSON.stringify(profile.raw || {}),
+        req.user.emp_id || req.user.username || req.user.id,
+        req.user.formal_name || req.user.name,
+        id,
+      ]
+    );
+    await logGST(conn, {
+      gst_client_id: id,
+      action: 'VerifyGSTIN',
+      old_value: { gst_no: row.gst_no, firm_name: row.firm_name, gst_portal_status: row.gst_portal_status },
+      new_value: profile,
+      actor: req.user,
+    });
+    await conn.query('COMMIT');
+    res.json({ success: true, message: 'GSTIN verified and client enriched', profile });
+  } catch (err) {
+    await conn.query('ROLLBACK').catch(() => {});
+    res.status(err.statusCode || 503).json({ success: false, message: providerErrorMessage(err), provider_configured: providerConfigured() });
+  } finally {
+    conn.release();
+  }
+});
+
+async function syncReturnRowsForClient(conn, gstClient, returnRows, actor, filters = {}) {
+  const summary = { checked: 0, updated: 0, created_missing: 0, no_match: 0 };
+  const rows = returnRows.filter((r) => {
+    if (filters.taxYear && Number(r.tax_year) !== Number(filters.taxYear)) return false;
+    if (filters.taxMonth && Number(r.tax_month) !== Number(filters.taxMonth)) return false;
+    if (filters.returnType && r.return_type !== filters.returnType) return false;
+    return true;
+  });
+  for (const item of rows) {
+    summary.checked += 1;
+    let filing = await conn.query(
+      `SELECT * FROM gst_filing_records
+       WHERE gst_client_id=$1 AND tax_year=$2 AND tax_month=$3 AND return_type=$4
+       FOR UPDATE`,
+      [gstClient.id, item.tax_year, item.tax_month, item.return_type]
+    );
+    if (!filing.rows.length) {
+      await conn.query(
+        `INSERT INTO gst_filing_records
+          (gst_client_id, client_id, firm_name, gst_no, return_type, tax_year, tax_month,
+           financial_year, period_label, due_date, assigned_to_id, assigned_to_name,
+           status, generated_from, created_by_id, created_by_name)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'Not Started','portal_sync',$13,$14)
+         ON CONFLICT (gst_client_id, tax_year, tax_month, return_type) DO NOTHING`,
+        [
+          gstClient.id,
+          gstClient.client_id,
+          gstClient.firm_name,
+          normalizeGstNo(gstClient.gst_no),
+          item.return_type,
+          item.tax_year,
+          item.tax_month,
+          financialYearForPeriod(item.tax_year, item.tax_month),
+          periodLabel(item.tax_year, item.tax_month),
+          getDueDate({
+            taxYear: item.tax_year,
+            taxMonth: item.tax_month,
+            returnType: item.return_type,
+            frequency: gstClient.filing_frequency || 'Monthly',
+            qrmpGstr3bDueDay: gstClient.qrmp_gstr3b_due_day || 22,
+          }),
+          gstClient.default_assignee_id || null,
+          gstClient.default_assignee_name || null,
+          actor.emp_id || actor.username || actor.id || 'SYSTEM',
+          actor.formal_name || actor.name || 'System',
+        ]
+      );
+      summary.created_missing += 1;
+      filing = await conn.query(
+        `SELECT * FROM gst_filing_records
+         WHERE gst_client_id=$1 AND tax_year=$2 AND tax_month=$3 AND return_type=$4
+         FOR UPDATE`,
+        [gstClient.id, item.tax_year, item.tax_month, item.return_type]
+      );
+    }
+    const old = filing.rows[0];
+    if (!old) {
+      summary.no_match += 1;
+      continue;
+    }
+    const filed = String(item.status || '').toLowerCase().includes('file') || !!item.filed_date || !!item.arn;
+    const nextStatus = filed ? 'Filed' : old.status;
+    await conn.query(
+      `UPDATE gst_filing_records SET
+         status=$1,
+         source_status=$2,
+         portal_filing_status=$2,
+         portal_filed_date=$3,
+         portal_arn=$4,
+         portal_last_synced_at=NOW(),
+         filed_date_ist=CASE WHEN $1='Filed' THEN COALESCE($3, filed_date_ist, CURRENT_DATE) ELSE filed_date_ist END,
+         filed_at=CASE WHEN $1='Filed' AND filed_at IS NULL THEN NOW() ELSE filed_at END,
+         status_updated_by_id=$5,
+         status_updated_by_name=$6,
+         last_status_at=NOW(),
+         updated_at=NOW()
+       WHERE id=$7`,
+      [
+        nextStatus,
+        item.status || null,
+        item.filed_date || null,
+        item.arn || null,
+        actor.emp_id || actor.username || actor.id || 'SYSTEM',
+        actor.formal_name || actor.name || 'System',
+        old.id,
+      ]
+    );
+    await logGST(conn, {
+      gst_client_id: gstClient.id,
+      filing_id: old.id,
+      action: 'SyncPortalReturnStatus',
+      old_value: { status: old.status, source_status: old.source_status },
+      new_value: item,
+      actor,
+    });
+    summary.updated += 1;
+  }
+  return summary;
+}
+
+router.post('/clients/:id/sync-returns', authMiddleware, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const conn = await db.pool.connect();
+  try {
+    const client = await conn.query('SELECT * FROM gst_clients WHERE id=$1', [id]);
+    const row = client.rows[0];
+    if (!row) return res.status(404).json({ success: false, message: 'GST client not found' });
+    const portal = await fetchGSTReturnStatus(row.gst_no);
+    await conn.query('BEGIN');
+    const summary = await syncReturnRowsForClient(conn, row, portal.returns, req.user, {
+      taxYear: req.body.tax_year || req.query.tax_year,
+      taxMonth: req.body.tax_month || req.query.tax_month,
+      returnType: req.body.return_type || req.query.return_type,
+    });
+    await conn.query('COMMIT');
+    res.json({ success: true, message: 'GST filing status synced', summary, source: portal.source });
+  } catch (err) {
+    await conn.query('ROLLBACK').catch(() => {});
+    res.status(err.statusCode || 503).json({ success: false, message: providerErrorMessage(err), provider_configured: providerConfigured() });
+  } finally {
+    conn.release();
+  }
+});
+
+router.post('/filings/sync-status', authMiddleware, async (req, res) => {
+  const taxYear = Number(req.body.tax_year || req.query.tax_year);
+  const taxMonth = Number(req.body.tax_month || req.query.tax_month);
+  const returnType = req.body.return_type || req.query.return_type || '';
+  if (!taxYear || !taxMonth || taxMonth < 1 || taxMonth > 12) {
+    return res.status(400).json({ success: false, message: 'Valid month and year required' });
+  }
+  const conn = await db.pool.connect();
+  const summary = { clients_seen: 0, clients_synced: 0, filings_checked: 0, filings_updated: 0, errors: [] };
+  try {
+    const clients = await db.query(
+      `SELECT * FROM gst_clients
+       WHERE status='Active' AND COALESCE(gst_no,'') <> ''
+       ORDER BY firm_name
+       LIMIT 500`
+    );
+    summary.clients_seen = clients.rows.length;
+    for (const gstClient of clients.rows) {
+      try {
+        const portal = await fetchGSTReturnStatus(gstClient.gst_no);
+        await conn.query('BEGIN');
+        const one = await syncReturnRowsForClient(conn, gstClient, portal.returns, req.user, { taxYear, taxMonth, returnType });
+        await conn.query('COMMIT');
+        summary.clients_synced += 1;
+        summary.filings_checked += one.checked;
+        summary.filings_updated += one.updated;
+      } catch (err) {
+        await conn.query('ROLLBACK').catch(() => {});
+        summary.errors.push({ gst_no: gstClient.gst_no, firm_name: gstClient.firm_name, message: providerErrorMessage(err) });
+        if (err.code === 'GST_PROVIDER_NOT_CONFIGURED' || err.code === 'GST_PROVIDER_REJECTED') break;
+      }
+    }
+    res.json({ success: !summary.errors.length, message: summary.errors.length ? summary.errors[0].message : 'GST monthly tracker synced', summary });
+  } catch (err) {
+    await conn.query('ROLLBACK').catch(() => {});
+    handleError(res, err);
+  } finally {
+    conn.release();
+  }
+});
+
 router.post('/clients', authMiddleware, async (req, res) => {
   const {
     client_id,
@@ -409,6 +665,7 @@ router.post('/clients', authMiddleware, async (req, res) => {
   if (!client_id) return res.status(400).json({ success: false, message: 'Client ID required' });
   if (!firm_name) return res.status(400).json({ success: false, message: 'Firm name required' });
   if (!gst_no) return res.status(400).json({ success: false, message: 'GST number required' });
+  if (!gstinChecksumValid(gst_no)) return res.status(400).json({ success: false, message: 'Valid GSTIN required' });
 
   const conn = await db.pool.connect();
   try {
@@ -483,6 +740,11 @@ router.put('/clients/:id', authMiddleware, async (req, res) => {
       if (Object.prototype.hasOwnProperty.call(req.body, field)) {
         let value = req.body[field];
         if (field === 'gst_no') value = normalizeGstNo(value);
+        if (field === 'gst_no' && value && !gstinChecksumValid(value)) {
+          const err = new Error('Valid GSTIN required');
+          err.statusCode = 400;
+          throw err;
+        }
         if (field === 'filing_frequency') value = value === 'QRMP' ? 'QRMP' : 'Monthly';
         if (field === 'qrmp_gstr3b_due_day') value = Number(value) === 24 ? 24 : 22;
         params.push(value || null);
