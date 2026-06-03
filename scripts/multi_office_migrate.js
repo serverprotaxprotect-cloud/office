@@ -130,6 +130,14 @@ async function setupCore(conn) {
       contact_person VARCHAR(150) NOT NULL,
       contact_email VARCHAR(150) NOT NULL,
       contact_mobile VARCHAR(40) NOT NULL,
+      contact_designation VARCHAR(80),
+      firm_type VARCHAR(80),
+      registration_no VARCHAR(80),
+      pan_no VARCHAR(20),
+      gstin VARCHAR(20),
+      whatsapp_mobile VARCHAR(40),
+      pincode VARCHAR(10),
+      district VARCHAR(100),
       address TEXT,
       city VARCHAR(100),
       state VARCHAR(100),
@@ -145,6 +153,15 @@ async function setupCore(conn) {
       CONSTRAINT org_signup_status_chk CHECK (status IN ('Pending','Approved','Rejected'))
     )
   `);
+
+  await exec(conn, `ALTER TABLE organization_signup_requests ADD COLUMN IF NOT EXISTS contact_designation VARCHAR(80)`);
+  await exec(conn, `ALTER TABLE organization_signup_requests ADD COLUMN IF NOT EXISTS firm_type VARCHAR(80)`);
+  await exec(conn, `ALTER TABLE organization_signup_requests ADD COLUMN IF NOT EXISTS registration_no VARCHAR(80)`);
+  await exec(conn, `ALTER TABLE organization_signup_requests ADD COLUMN IF NOT EXISTS pan_no VARCHAR(20)`);
+  await exec(conn, `ALTER TABLE organization_signup_requests ADD COLUMN IF NOT EXISTS gstin VARCHAR(20)`);
+  await exec(conn, `ALTER TABLE organization_signup_requests ADD COLUMN IF NOT EXISTS whatsapp_mobile VARCHAR(40)`);
+  await exec(conn, `ALTER TABLE organization_signup_requests ADD COLUMN IF NOT EXISTS pincode VARCHAR(10)`);
+  await exec(conn, `ALTER TABLE organization_signup_requests ADD COLUMN IF NOT EXISTS district VARCHAR(100)`);
 
   await exec(conn, `
     CREATE TABLE IF NOT EXISTS super_admins (

@@ -6,18 +6,28 @@
   <title>Organisation Signup</title>
   <link rel="stylesheet" href="/assets/style.css" />
   <style>
-    .signup-body { min-height:100vh;background:#f1f5f9;display:flex;align-items:center;justify-content:center;padding:24px; }
-    .signup-card { width:100%;max-width:760px;background:#fff;border-radius:14px;box-shadow:0 10px 40px rgba(15,23,42,.12);padding:28px; }
-    .signup-head { margin-bottom:22px; }
+    .signup-body { min-height:100vh;background:#eef3f8;display:flex;align-items:center;justify-content:center;padding:24px; }
+    .signup-card { width:100%;max-width:920px;background:#fff;border-radius:14px;box-shadow:0 10px 40px rgba(15,23,42,.12);padding:28px; }
+    .signup-head { margin-bottom:20px; }
     .signup-head h1 { font-size:24px;color:#0f172a;margin-bottom:6px; }
     .signup-head p { color:#64748b;font-size:14px;line-height:1.5; }
-    .grid { display:grid;grid-template-columns:1fr 1fr;gap:16px; }
+    .section-title { margin:18px 0 10px;padding-top:12px;border-top:1px solid #e2e8f0;color:#334155;font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.4px; }
+    .section-title:first-child { border-top:none;padding-top:0;margin-top:0; }
+    .grid { display:grid;grid-template-columns:1fr 1fr;gap:14px 16px; }
     .full { grid-column:1 / -1; }
     textarea { width:100%;min-height:82px;padding:12px 16px;border:1.5px solid #e2e8f0;border-radius:10px;font:inherit;background:#f8fafc;resize:vertical; }
     textarea:focus { outline:none;border-color:#2563eb;background:#fff; }
+    select { width:100%;height:40px;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:10px;background:#f8fafc;font:inherit; }
+    select:focus { outline:none;border-color:#2563eb;background:#fff; }
+    .inline-check { display:flex;gap:8px;align-items:center;font-size:13px;color:#475569;margin-top:6px; }
+    .inline-check input { width:16px;height:16px; }
+    .hint { font-size:12px;color:#64748b;margin-top:5px; }
+    .field-msg { font-size:12px;margin-top:5px;color:#dc2626;display:none; }
+    .field-msg.show { display:block; }
+    .lookup { color:#2563eb; }
     .actions { display:flex;gap:12px;align-items:center;margin-top:18px; }
     .secondary { color:#64748b;text-decoration:none;font-size:14px; }
-    #msg { margin-top:16px;display:none; }
+    #msg, #duplicateMsg { margin-top:16px;display:none; }
     @media (max-width:720px) { .grid { grid-template-columns:1fr; } .signup-card { padding:22px; } }
   </style>
 </head>
@@ -28,27 +38,97 @@
       <p>Submit office details for approval. Access starts only after super admin verification and credential sharing.</p>
     </div>
 
-    <form id="signupForm">
+    <form id="signupForm" novalidate>
+      <div class="section-title">Organisation</div>
       <div class="grid">
         <div class="form-group full">
           <label>Organisation / Office Name *</label>
-          <input id="organization_name" required placeholder="Example: Geebharat Office" />
+          <input id="organization_name" required placeholder="Example: GeeBharat Office" />
+          <div class="field-msg" id="organization_name_msg"></div>
         </div>
+        <div class="form-group">
+          <label>Firm Type *</label>
+          <select id="firm_type" required>
+            <option value="">Select firm type</option>
+            <option>CA Firm</option>
+            <option>CS Firm</option>
+            <option>CMA Firm</option>
+            <option>Advocate</option>
+            <option>Tax Consultant</option>
+            <option>Other Professional Firm</option>
+          </select>
+          <div class="field-msg" id="firm_type_msg"></div>
+        </div>
+        <div class="form-group">
+          <label>Registration / Membership No.</label>
+          <input id="registration_no" placeholder="ICAI / ICSI / ICMAI / firm registration no." />
+        </div>
+        <div class="form-group">
+          <label>PAN</label>
+          <input id="pan_no" maxlength="10" placeholder="ABCDE1234F" />
+          <div class="field-msg" id="pan_no_msg"></div>
+        </div>
+        <div class="form-group">
+          <label>GSTIN</label>
+          <input id="gstin" maxlength="15" placeholder="22AAAAA0000A1Z5" />
+          <div class="field-msg" id="gstin_msg"></div>
+        </div>
+      </div>
+
+      <div class="section-title">Contact</div>
+      <div class="grid">
         <div class="form-group">
           <label>Contact Person *</label>
           <input id="contact_person" required placeholder="Director or owner name" />
+          <div class="field-msg" id="contact_person_msg"></div>
+        </div>
+        <div class="form-group">
+          <label>Designation *</label>
+          <select id="contact_designation" required>
+            <option value="">Select designation</option>
+            <option>Director</option>
+            <option>Owner</option>
+            <option>Partner</option>
+            <option>Manager</option>
+            <option>HR</option>
+            <option>Other</option>
+          </select>
+          <div class="field-msg" id="contact_designation_msg"></div>
         </div>
         <div class="form-group">
           <label>Mobile *</label>
-          <input id="contact_mobile" required placeholder="10 digit mobile" />
+          <input id="contact_mobile" required inputmode="numeric" maxlength="10" placeholder="10 digit mobile" />
+          <div class="field-msg" id="contact_mobile_msg"></div>
         </div>
         <div class="form-group">
+          <label>WhatsApp Number</label>
+          <input id="whatsapp_mobile" inputmode="numeric" maxlength="10" placeholder="10 digit WhatsApp" />
+          <label class="inline-check"><input type="checkbox" id="same_whatsapp" checked /> Same as mobile</label>
+          <div class="field-msg" id="whatsapp_mobile_msg"></div>
+        </div>
+        <div class="form-group full">
           <label>Email *</label>
           <input id="contact_email" type="email" required placeholder="office@example.com" />
+          <div class="field-msg" id="contact_email_msg"></div>
+        </div>
+      </div>
+
+      <div class="section-title">Address</div>
+      <div class="grid">
+        <div class="form-group">
+          <label>Pincode</label>
+          <input id="pincode" inputmode="numeric" maxlength="6" placeholder="6 digit pincode" />
+          <div class="hint lookup" id="pincodeHint"></div>
+          <div class="field-msg" id="pincode_msg"></div>
         </div>
         <div class="form-group">
-          <label>City</label>
-          <input id="city" placeholder="City" />
+          <label>City / Post Office</label>
+          <input id="city" list="cityOptions" placeholder="Auto-filled after pincode" />
+          <datalist id="cityOptions"></datalist>
+        </div>
+        <div class="form-group">
+          <label>District</label>
+          <input id="district" placeholder="District" />
         </div>
         <div class="form-group">
           <label>State</label>
@@ -63,6 +143,8 @@
           <textarea id="notes" placeholder="Any additional information"></textarea>
         </div>
       </div>
+
+      <div id="duplicateMsg" class="alert alert-error"></div>
       <div class="actions">
         <button class="btn-primary" id="submitBtn" type="submit">Submit Signup Request</button>
         <a class="secondary" href="/">Back to portal</a>
@@ -71,18 +153,137 @@
     </form>
   </main>
 
-  <script src="/assets/address-autocomplete.js"></script>
   <script>
-    function value(id) { return document.getElementById(id).value.trim(); }
+    const timers = {};
+    const requiredFields = ['organization_name', 'firm_type', 'contact_person', 'contact_designation', 'contact_mobile', 'contact_email'];
+
+    function el(id) { return document.getElementById(id); }
+    function value(id) { return el(id).value.trim(); }
+    function digits(v) { return String(v || '').replace(/\D/g, ''); }
+    function upper(id) { el(id).value = value(id).toUpperCase(); }
+
     function showMsg(text, ok) {
-      const msg = document.getElementById('msg');
+      const msg = el('msg');
       msg.textContent = text;
       msg.className = 'alert ' + (ok ? 'alert-success' : 'alert-error');
       msg.style.display = 'block';
     }
-    document.getElementById('signupForm').addEventListener('submit', async (e) => {
+
+    function fieldMsg(id, text) {
+      const box = el(id + '_msg');
+      if (!box) return;
+      box.textContent = text || '';
+      box.classList.toggle('show', Boolean(text));
+    }
+
+    function validEmail(email) {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    }
+
+    function validateForm(showAll = false) {
+      let ok = true;
+      requiredFields.forEach((id) => {
+        const bad = !value(id);
+        if (bad) ok = false;
+        fieldMsg(id, showAll && bad ? 'Required' : '');
+      });
+      const mobile = digits(value('contact_mobile'));
+      if (value('contact_mobile') && mobile.length !== 10) { ok = false; fieldMsg('contact_mobile', 'Enter valid 10 digit mobile'); }
+      const whatsapp = digits(value('whatsapp_mobile'));
+      if (value('whatsapp_mobile') && whatsapp.length !== 10) { ok = false; fieldMsg('whatsapp_mobile', 'Enter valid 10 digit WhatsApp number'); }
+      const email = value('contact_email');
+      if (email && !validEmail(email)) { ok = false; fieldMsg('contact_email', 'Enter valid email'); }
+      const pin = digits(value('pincode'));
+      if (value('pincode') && pin.length !== 6) { ok = false; fieldMsg('pincode', 'Enter valid 6 digit pincode'); }
+      const pan = value('pan_no').toUpperCase();
+      if (pan && !/^[A-Z]{5}\d{4}[A-Z]$/.test(pan)) { ok = false; fieldMsg('pan_no', 'Enter valid PAN'); }
+      const gstin = value('gstin').toUpperCase();
+      if (gstin && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(gstin)) { ok = false; fieldMsg('gstin', 'Enter valid GSTIN'); }
+      el('submitBtn').disabled = !ok;
+      return ok;
+    }
+
+    function syncWhatsApp() {
+      if (el('same_whatsapp').checked) {
+        el('whatsapp_mobile').value = digits(value('contact_mobile')).slice(0, 10);
+        el('whatsapp_mobile').readOnly = true;
+      } else {
+        el('whatsapp_mobile').readOnly = false;
+      }
+      validateForm();
+    }
+
+    async function lookupPincode() {
+      const pin = digits(value('pincode'));
+      el('pincode').value = pin;
+      el('pincodeHint').textContent = '';
+      el('cityOptions').innerHTML = '';
+      if (pin.length !== 6) return validateForm();
+      el('pincodeHint').textContent = 'Looking up pincode...';
+      try {
+        const res = await fetch('/api/organizations/pincode/' + encodeURIComponent(pin));
+        const data = await res.json();
+        if (!data.success) {
+          el('pincodeHint').textContent = data.message || 'Pincode not found';
+          return;
+        }
+        el('district').value = data.district || '';
+        el('state').value = data.state || '';
+        const offices = data.offices || [];
+        const firstDelivery = offices.find((o) => String(o.delivery || '').toLowerCase() === 'delivery') || offices[0];
+        if (firstDelivery) el('city').value = firstDelivery.office_name || data.district || '';
+        el('cityOptions').innerHTML = offices.map((o) => `<option value="${String(o.office_name || '').replace(/"/g, '&quot;')}"></option>`).join('');
+        el('pincodeHint').textContent = `${data.district || ''}${data.state ? ', ' + data.state : ''}`;
+      } catch {
+        el('pincodeHint').textContent = 'Pincode lookup failed';
+      }
+    }
+
+    async function checkDuplicate() {
+      const duplicateBox = el('duplicateMsg');
+      duplicateBox.style.display = 'none';
+      const params = new URLSearchParams();
+      if (value('organization_name')) params.set('organization_name', value('organization_name'));
+      if (value('contact_email')) params.set('contact_email', value('contact_email'));
+      if (value('contact_mobile')) params.set('contact_mobile', digits(value('contact_mobile')));
+      if (!params.toString()) return;
+      try {
+        const res = await fetch('/api/organizations/signup/check?' + params.toString());
+        const data = await res.json();
+        if (data.success && data.duplicate) {
+          const first = data.matches[0];
+          duplicateBox.textContent = `Similar pending request exists. Tracking ID: GB-SIGNUP-${String(first.id).padStart(5, '0')}`;
+          duplicateBox.style.display = 'block';
+        }
+      } catch {}
+    }
+
+    function debounce(name, fn, ms = 350) {
+      clearTimeout(timers[name]);
+      timers[name] = setTimeout(fn, ms);
+    }
+
+    ['contact_mobile', 'whatsapp_mobile', 'pincode'].forEach((id) => {
+      el(id).addEventListener('input', () => {
+        el(id).value = digits(value(id)).slice(0, id === 'pincode' ? 6 : 10);
+        if (id === 'contact_mobile') syncWhatsApp();
+        if (id === 'pincode') debounce('pincode', lookupPincode, 450);
+        validateForm();
+      });
+    });
+    ['pan_no', 'gstin'].forEach((id) => el(id).addEventListener('input', () => { upper(id); validateForm(); }));
+    requiredFields.concat(['registration_no', 'city', 'district', 'state']).forEach((id) => {
+      el(id).addEventListener('input', () => { validateForm(); debounce('duplicate', checkDuplicate, 550); });
+      el(id).addEventListener('change', () => { validateForm(); debounce('duplicate', checkDuplicate, 550); });
+    });
+    el('same_whatsapp').addEventListener('change', syncWhatsApp);
+    syncWhatsApp();
+    validateForm();
+
+    el('signupForm').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const btn = document.getElementById('submitBtn');
+      if (!validateForm(true)) return showMsg('Please fix highlighted fields.', false);
+      const btn = el('submitBtn');
       btn.disabled = true;
       btn.textContent = 'Submitting...';
       try {
@@ -91,9 +292,17 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             organization_name: value('organization_name'),
+            firm_type: value('firm_type'),
+            registration_no: value('registration_no'),
+            pan_no: value('pan_no').toUpperCase(),
+            gstin: value('gstin').toUpperCase(),
             contact_person: value('contact_person'),
-            contact_mobile: value('contact_mobile'),
+            contact_designation: value('contact_designation'),
+            contact_mobile: digits(value('contact_mobile')),
+            whatsapp_mobile: digits(value('whatsapp_mobile')),
             contact_email: value('contact_email'),
+            pincode: digits(value('pincode')),
+            district: value('district'),
             city: value('city'),
             state: value('state'),
             address: value('address'),
@@ -102,11 +311,14 @@
         });
         const data = await res.json();
         showMsg(data.message || (data.success ? 'Signup submitted' : 'Signup failed'), !!data.success);
-        if (data.success) document.getElementById('signupForm').reset();
+        if (data.success) {
+          el('signupForm').reset();
+          syncWhatsApp();
+        }
       } catch {
         showMsg('Network error. Please try again.', false);
       } finally {
-        btn.disabled = false;
+        validateForm();
         btn.textContent = 'Submit Signup Request';
       }
     });

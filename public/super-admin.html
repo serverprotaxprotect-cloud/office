@@ -257,9 +257,9 @@
       body.innerHTML = lastRequests.map(r => `
         <tr>
           <td>${r.id}</td>
-          <td><strong>${esc(r.organization_name)}</strong><br><small>${esc(r.notes || '')}</small></td>
-          <td>${esc(r.contact_person)}<br><small>${esc(r.contact_email)} / ${esc(r.contact_mobile)}</small></td>
-          <td>${esc([r.city, r.state].filter(Boolean).join(', '))}<br><small>${esc(r.address || '')}</small></td>
+          <td><strong>${esc(r.organization_name)}</strong><br><small>${esc([r.firm_type, r.registration_no].filter(Boolean).join(' | '))}</small><br><small>${esc(r.notes || '')}</small></td>
+          <td>${esc(r.contact_person)}${r.contact_designation ? ' (' + esc(r.contact_designation) + ')' : ''}<br><small>${esc(r.contact_email)} / ${esc(r.contact_mobile)}</small><br><small>${r.whatsapp_mobile ? 'WA: ' + esc(r.whatsapp_mobile) : ''}</small></td>
+          <td>${esc([r.city, r.district, r.state].filter(Boolean).join(', '))}<br><small>${esc(r.pincode || '')}</small><br><small>${esc(r.address || '')}</small></td>
           <td><span class="status ${esc(r.status)}">${esc(r.status)}</span></td>
           <td>${fmtDate(r.created_at)}</td>
           <td>${r.status === 'Pending' ? `

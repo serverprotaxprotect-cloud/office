@@ -9,16 +9,102 @@ function cleanText(value) {
   return String(value || '').trim();
 }
 
+function onlyDigits(value) {
+  return cleanText(value).replace(/\D/g, '');
+}
+
+function normalizePan(value) {
+  return cleanText(value).toUpperCase();
+}
+
 function adminCanEdit(user) {
   return user?.user_type === 'admin' && ['Director', 'Office Manager', 'HR'].includes(user.role);
 }
+
+router.get('/pincode/:pincode', async (req, res) => {
+  const pincode = onlyDigits(req.params.pincode);
+  if (!/^\d{6}$/.test(pincode)) {
+    return res.status(400).json({ success: false, message: 'Valid 6 digit pincode required' });
+  }
+  try {
+    const apiKey = process.env.DATA_GOV_PINCODE_API_KEY || '579b464db66ec23bdd000001cdd3946e44ce4aad7209ff7b23ac571b';
+    const url = new URL('https://api.data.gov.in/resource/5c2f62fe-5afa-4119-a499-fec9d604d5bd');
+    url.searchParams.set('api-key', apiKey);
+    url.searchParams.set('format', 'json');
+    url.searchParams.set('limit', '25');
+    url.searchParams.set('filters[pincode]', pincode);
+    const response = await fetch(url, { headers: { accept: 'application/json' } });
+    const data = await response.json();
+    const records = Array.isArray(data.records) ? data.records : [];
+    if (!records.length) return res.status(404).json({ success: false, message: 'Pincode not found' });
+    const first = records[0];
+    res.json({
+      success: true,
+      pincode,
+      district: cleanText(first.district),
+      state: cleanText(first.statename),
+      offices: records.map((r) => ({
+        office_name: cleanText(r.officename),
+        district: cleanText(r.district),
+        state: cleanText(r.statename),
+        delivery: cleanText(r.delivery),
+      })),
+    });
+  } catch (err) {
+    console.error('[pincode]', err);
+    res.status(502).json({ success: false, message: 'Pincode lookup failed' });
+  }
+});
+
+router.get('/signup/check', async (req, res) => {
+  const organizationName = cleanText(req.query.organization_name);
+  const email = cleanText(req.query.contact_email).toLowerCase();
+  const mobile = onlyDigits(req.query.contact_mobile);
+  const conds = [];
+  const params = [];
+  if (organizationName) {
+    params.push(organizationName);
+    conds.push(`LOWER(organization_name)=LOWER($${params.length})`);
+  }
+  if (email) {
+    params.push(email);
+    conds.push(`LOWER(contact_email)=LOWER($${params.length})`);
+  }
+  if (mobile) {
+    params.push(mobile);
+    conds.push(`regexp_replace(contact_mobile, '\\D', '', 'g')=$${params.length}`);
+  }
+  if (!conds.length) return res.json({ success: true, duplicate: false, matches: [] });
+  try {
+    const found = await db.query(
+      `SELECT id, organization_name, contact_email, contact_mobile, status, created_at
+       FROM organization_signup_requests
+       WHERE status='Pending' AND (${conds.join(' OR ')})
+       ORDER BY created_at DESC
+       LIMIT 5`,
+      params
+    );
+    res.json({ success: true, duplicate: found.rows.length > 0, matches: found.rows });
+  } catch (err) {
+    console.error('[signup-check]', err);
+    res.status(500).json({ success: false, message: 'Duplicate check failed' });
+  }
+});
 
 router.post('/signup', async (req, res) => {
   const {
     organization_name,
     contact_person,
+    contact_designation,
     contact_email,
     contact_mobile,
+    firm_type,
+    registration_no,
+    pan_no,
+    gstin,
+    whatsapp_mobile,
+    pincode,
+    district,
     address,
     city,
     state,
@@ -28,18 +114,63 @@ router.post('/signup', async (req, res) => {
   if (!cleanText(organization_name) || !cleanText(contact_person) || !cleanText(contact_email) || !cleanText(contact_mobile)) {
     return res.status(400).json({ success: false, message: 'Organisation name, contact person, email and mobile are required' });
   }
+  if (!/^\d{10}$/.test(onlyDigits(contact_mobile))) {
+    return res.status(400).json({ success: false, message: 'Valid 10 digit mobile number required' });
+  }
+  if (whatsapp_mobile && !/^\d{10}$/.test(onlyDigits(whatsapp_mobile))) {
+    return res.status(400).json({ success: false, message: 'Valid 10 digit WhatsApp number required' });
+  }
+  if (pincode && !/^\d{6}$/.test(onlyDigits(pincode))) {
+    return res.status(400).json({ success: false, message: 'Valid 6 digit pincode required' });
+  }
+  if (pan_no && !/^[A-Z]{5}\d{4}[A-Z]$/.test(normalizePan(pan_no))) {
+    return res.status(400).json({ success: false, message: 'Valid PAN number required' });
+  }
+  if (gstin && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(normalizePan(gstin))) {
+    return res.status(400).json({ success: false, message: 'Valid GSTIN required' });
+  }
 
   try {
+    const duplicate = await db.query(
+      `SELECT id, organization_name, status
+       FROM organization_signup_requests
+       WHERE status='Pending'
+         AND (
+           LOWER(organization_name)=LOWER($1)
+           OR LOWER(contact_email)=LOWER($2)
+           OR regexp_replace(contact_mobile, '\\D', '', 'g')=$3
+         )
+       LIMIT 1`,
+      [cleanText(organization_name), cleanText(contact_email).toLowerCase(), onlyDigits(contact_mobile)]
+    );
+    if (duplicate.rows.length) {
+      return res.status(409).json({
+        success: false,
+        message: `A signup request is already pending. Tracking ID: GB-SIGNUP-${String(duplicate.rows[0].id).padStart(5, '0')}`,
+        request_id: duplicate.rows[0].id,
+      });
+    }
+
     const inserted = await db.query(
       `INSERT INTO organization_signup_requests
-        (organization_name, contact_person, contact_email, contact_mobile, address, city, state, notes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+        (organization_name, contact_person, contact_designation, contact_email, contact_mobile,
+         firm_type, registration_no, pan_no, gstin, whatsapp_mobile, pincode, district,
+         address, city, state, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
        RETURNING id`,
       [
         cleanText(organization_name),
         cleanText(contact_person),
+        cleanText(contact_designation) || null,
         cleanText(contact_email).toLowerCase(),
-        cleanText(contact_mobile),
+        onlyDigits(contact_mobile),
+        cleanText(firm_type) || null,
+        cleanText(registration_no) || null,
+        normalizePan(pan_no) || null,
+        normalizePan(gstin) || null,
+        whatsapp_mobile ? onlyDigits(whatsapp_mobile) : null,
+        pincode ? onlyDigits(pincode) : null,
+        cleanText(district) || null,
         cleanText(address) || null,
         cleanText(city) || null,
         cleanText(state) || null,
@@ -53,7 +184,12 @@ router.post('/signup', async (req, res) => {
       [`${cleanText(organization_name)} requested office access`, inserted.rows[0].id]
     ).catch(() => {});
 
-    res.json({ success: true, message: 'Signup request submitted. Super admin will verify it.', request_id: inserted.rows[0].id });
+    res.json({
+      success: true,
+      message: `Signup request submitted. Tracking ID: GB-SIGNUP-${String(inserted.rows[0].id).padStart(5, '0')}. Super admin will verify it.`,
+      request_id: inserted.rows[0].id,
+      tracking_id: `GB-SIGNUP-${String(inserted.rows[0].id).padStart(5, '0')}`,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Server error' });
