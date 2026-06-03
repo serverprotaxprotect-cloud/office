@@ -132,8 +132,8 @@
     ]);
   }
 
-  async function fillUserAndContinue() {
-    const input = await waitFor(userIdInput, 15000);
+  async function fillUserAndContinue(input) {
+    input = input || await waitFor(userIdInput, 15000);
     if (!input) throw new Error('User ID field not found');
     input.focus();
     setNativeValue(input, credentials.pan_number || '');
@@ -188,8 +188,14 @@
     started = true;
     try {
       showBadge('GeeBharat Income Tax login start ho raha hai...');
+      const initialInput = await waitFor(userIdInput, 30000);
+      if (!initialInput) {
+        started = false;
+        showBadge('Income Tax login page wait ho raha hai. Session Expire page ho to Login click karein.', 'error');
+        return;
+      }
       credentials = await fetchCredentials(token, origin);
-      await fillUserAndContinue();
+      await fillUserAndContinue(initialInput);
       showBadge('User ID submitted. Password step wait ho raha hai...');
       await fillPasswordAndContinue();
       showBadge('Income Tax login submitted. Agar OTP/warning aaye to manually complete karein.');
@@ -199,4 +205,7 @@
   }
 
   setTimeout(run, 700);
+  setInterval(() => {
+    if (!credentials && parseTokenParams().token) run();
+  }, 1500);
 }());

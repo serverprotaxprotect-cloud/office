@@ -34,6 +34,7 @@ const {
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 const INCOME_TAX_LOGIN_URL = 'https://eportal.incometax.gov.in/iec/foservices/#/login';
+const INCOME_TAX_LOGIN_BASE_URL = 'https://eportal.incometax.gov.in/iec/foservices/';
 
 function tokenHash(token) {
   return crypto.createHash('sha256').update(String(token || '')).digest('hex');
@@ -269,7 +270,7 @@ router.post('/clients/:id/autofill-token', authMiddleware, async (req, res) => {
       return res.status(400).json({ success: false, message: 'PAN/password missing for this client' });
     }
     const tokenSecret = randomToken();
-    const expiresAt = new Date(Date.now() + 60 * 1000);
+    const expiresAt = new Date(Date.now() + 3 * 60 * 1000);
     const tokenRow = await conn.query(
       `INSERT INTO income_tax_autofill_tokens
         (token_hash, income_tax_client_id, created_by_id, created_by_name, expires_at)
@@ -297,7 +298,7 @@ router.post('/clients/:id/autofill-token', authMiddleware, async (req, res) => {
       token,
       expires_at: expiresAt.toISOString(),
       login_url: INCOME_TAX_LOGIN_URL,
-      extension_url_hint: `${INCOME_TAX_LOGIN_URL}?gb_itr_autofill=${encodeURIComponent(token)}&gb_origin=${origin}`,
+      extension_url_hint: `${INCOME_TAX_LOGIN_BASE_URL}?gb_itr_autofill=${encodeURIComponent(token)}&gb_origin=${origin}#/login`,
     });
   } catch (err) {
     await conn.query('ROLLBACK').catch(() => {});
