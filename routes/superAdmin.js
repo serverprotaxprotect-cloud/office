@@ -251,6 +251,13 @@ router.post('/signup-requests/:id/approve', superAdminAuth, async (req, res) => 
     const requestedCode = clean(org_code) || orgCodeFromName(r.organization_name, r.id);
     const finalAdminEmail = clean(admin_email) || r.contact_email;
     const finalAdminMobile = clean(admin_mobile) || r.contact_mobile;
+    const finalAddress = [
+      clean(r.address),
+      clean(r.city),
+      clean(r.district),
+      clean(r.state),
+      clean(r.pincode) ? `PIN ${clean(r.pincode)}` : '',
+    ].filter(Boolean).join(', ');
     const org = await conn.query(
       `INSERT INTO organizations
         (org_code, office_name, contact_person, contact_email, contact_mobile, address, city, state,
@@ -263,7 +270,7 @@ router.post('/signup-requests/:id/approve', superAdminAuth, async (req, res) => 
         r.contact_person,
         r.contact_email,
         r.contact_mobile,
-        r.address,
+        finalAddress || r.address,
         r.city,
         r.state,
         valid_until || null,

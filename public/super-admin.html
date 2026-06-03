@@ -34,6 +34,12 @@
     .status.Pending { background:#fef3c7;color:#92400e; }
     .status.Inactive,.status.Rejected { background:#fee2e2;color:#991b1b; }
     .status.Expiring,.status.Soon { background:#ffedd5;color:#9a3412; }
+    .mini { color:#64748b;font-size:12px;line-height:1.45; }
+    .tracking { display:inline-flex;background:#eef2ff;color:#3730a3;border-radius:999px;padding:3px 8px;font-size:11px;font-weight:800;margin-top:4px; }
+    .detail-grid { display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0 14px; }
+    .detail-box { background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px; }
+    .detail-box small { display:block;color:#64748b;font-weight:800;text-transform:uppercase;font-size:10px;letter-spacing:.35px;margin-bottom:4px; }
+    .chip { display:inline-flex;border-radius:999px;background:#e0f2fe;color:#075985;padding:3px 8px;font-size:11px;font-weight:800;margin:2px 4px 2px 0; }
     #msg { display:none;margin-bottom:14px; }
     .modal { position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;padding:18px;z-index:50; }
     .modal-card { background:#fff;border-radius:14px;padding:22px;width:100%;max-width:560px;max-height:90vh;overflow:auto; }
@@ -132,6 +138,7 @@
   <div id="approveModal" class="modal">
     <div class="modal-card">
       <h2 style="margin-bottom:12px">Approve Organisation</h2>
+      <div id="approveRequestSummary"></div>
       <form id="approveForm">
         <input type="hidden" id="approveId" />
         <div class="grid">
@@ -149,6 +156,17 @@
           <button class="btn btn-blue" id="approveBtn" type="submit">Approve</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <div id="requestDetailModal" class="modal">
+    <div class="modal-card">
+      <h2 style="margin-bottom:12px">Signup Request Details</h2>
+      <div id="requestDetailContent"></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px">
+        <button type="button" class="btn btn-soft" onclick="closeRequestDetails()">Close</button>
+        <button type="button" class="btn btn-blue" id="detailApproveBtn">Approve</button>
+      </div>
     </div>
   </div>
 
@@ -193,6 +211,19 @@
     }
     function fmtDate(d) { return d ? new Date(d).toLocaleDateString('en-IN') : '--'; }
     function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    function trackingId(id) { return `GB-SIGNUP-${String(id).padStart(5, '0')}`; }
+    function requestSummaryHtml(r) {
+      if (!r) return '';
+      const verification = [r.firm_type, r.registration_no, r.pan_no ? 'PAN: ' + r.pan_no : '', r.gstin ? 'GSTIN: ' + r.gstin : ''].filter(Boolean);
+      return `
+        <div class="detail-grid">
+          <div class="detail-box"><small>Tracking</small><strong>${trackingId(r.id)}</strong><br><span class="status ${esc(r.status)}">${esc(r.status)}</span></div>
+          <div class="detail-box"><small>Organisation</small><strong>${esc(r.organization_name)}</strong><br>${verification.map(x => `<span class="chip">${esc(x)}</span>`).join('') || '<span class="mini">No verification data</span>'}</div>
+          <div class="detail-box"><small>Contact</small>${esc(r.contact_person)}${r.contact_designation ? ' (' + esc(r.contact_designation) + ')' : ''}<br><span class="mini">${esc(r.contact_email)}<br>Mobile: ${esc(r.contact_mobile)}${r.whatsapp_mobile ? '<br>WhatsApp: ' + esc(r.whatsapp_mobile) : ''}</span></div>
+          <div class="detail-box"><small>Location</small>${esc([r.city, r.district, r.state].filter(Boolean).join(', ') || '--')}<br><span class="mini">${r.pincode ? 'PIN: ' + esc(r.pincode) + '<br>' : ''}${esc(r.address || '')}</span></div>
+          ${r.notes ? `<div class="detail-box full"><small>Notes</small>${esc(r.notes)}</div>` : ''}
+        </div>`;
+    }
     async function api(path, opts = {}) {
       const res = await fetch('/api/super-admin' + path, {
         ...opts,
@@ -256,15 +287,16 @@
       if (!lastRequests.length) { body.innerHTML = '<tr><td colspan="7">No signup requests</td></tr>'; return; }
       body.innerHTML = lastRequests.map(r => `
         <tr>
-          <td>${r.id}</td>
-          <td><strong>${esc(r.organization_name)}</strong><br><small>${esc([r.firm_type, r.registration_no].filter(Boolean).join(' | '))}</small><br><small>${esc(r.notes || '')}</small></td>
-          <td>${esc(r.contact_person)}${r.contact_designation ? ' (' + esc(r.contact_designation) + ')' : ''}<br><small>${esc(r.contact_email)} / ${esc(r.contact_mobile)}</small><br><small>${r.whatsapp_mobile ? 'WA: ' + esc(r.whatsapp_mobile) : ''}</small></td>
-          <td>${esc([r.city, r.district, r.state].filter(Boolean).join(', '))}<br><small>${esc(r.pincode || '')}</small><br><small>${esc(r.address || '')}</small></td>
+          <td>${r.id}<br><span class="tracking">${trackingId(r.id)}</span></td>
+          <td><strong>${esc(r.organization_name)}</strong><br><span class="chip">${esc(r.firm_type || 'Firm type --')}</span>${r.registration_no ? `<span class="chip">${esc(r.registration_no)}</span>` : ''}<br><span class="mini">${esc([r.pan_no ? 'PAN ' + r.pan_no : '', r.gstin ? 'GSTIN ' + r.gstin : ''].filter(Boolean).join(' | ') || r.notes || '')}</span></td>
+          <td>${esc(r.contact_person)}${r.contact_designation ? ' (' + esc(r.contact_designation) + ')' : ''}<br><span class="mini">${esc(r.contact_email)}<br>${esc(r.contact_mobile)}${r.whatsapp_mobile ? ' / WA ' + esc(r.whatsapp_mobile) : ''}</span></td>
+          <td>${esc([r.city, r.district, r.state].filter(Boolean).join(', '))}<br><span class="mini">${esc(r.pincode || '')}<br>${esc(r.address || '')}</span></td>
           <td><span class="status ${esc(r.status)}">${esc(r.status)}</span></td>
           <td>${fmtDate(r.created_at)}</td>
-          <td>${r.status === 'Pending' ? `
+          <td><button class="btn btn-soft" onclick="openRequestDetails(${r.id})">View</button>
+          ${r.status === 'Pending' ? `
             <button class="btn btn-blue" onclick="openApprove(${r.id})">Approve & Send</button>
-            <button class="btn btn-red" onclick="rejectRequest(${r.id})">Reject</button>` : '--'}</td>
+            <button class="btn btn-red" onclick="rejectRequest(${r.id})">Reject</button>` : ''}</td>
         </tr>`).join('');
     }
     async function loadExpiring() {
@@ -311,6 +343,7 @@
       document.getElementById('approveForm').reset();
       document.getElementById('approveId').value = id;
       const req = lastRequests.find(r => String(r.id) === String(id));
+      document.getElementById('approveRequestSummary').innerHTML = requestSummaryHtml(req);
       if (req) {
         document.getElementById('org_code').value = requestCodeFromName(req.organization_name, req.id);
         document.getElementById('admin_username').value = document.getElementById('org_code').value;
@@ -322,6 +355,15 @@
       document.getElementById('approveModal').style.display = 'flex';
     }
     function closeApprove() { document.getElementById('approveModal').style.display = 'none'; }
+    function openRequestDetails(id) {
+      const req = lastRequests.find(r => String(r.id) === String(id));
+      document.getElementById('requestDetailContent').innerHTML = requestSummaryHtml(req);
+      const btn = document.getElementById('detailApproveBtn');
+      btn.style.display = req && req.status === 'Pending' ? '' : 'none';
+      btn.onclick = () => { closeRequestDetails(); openApprove(id); };
+      document.getElementById('requestDetailModal').style.display = 'flex';
+    }
+    function closeRequestDetails() { document.getElementById('requestDetailModal').style.display = 'none'; }
     document.getElementById('approveForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const id = document.getElementById('approveId').value;
