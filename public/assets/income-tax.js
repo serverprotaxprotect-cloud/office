@@ -239,7 +239,7 @@
       ITR_STATE.clientMap[c.id] = c;
       const pass = c.password ? `<span class="masked-pass">••••••</span> <button class="btn-sm btn-view" onclick="ITRRevealPassword(this,'${esc(c.password)}')">Show</button>` : '--';
       if (unassignedMode) {
-        const loginAction = c.can_autofill && c.pan_number && c.password
+        const loginAction = c.pan_number && c.password
           ? `<button class="btn-sm btn-green" title="Open Income Tax portal and auto-login" onclick="openITRPortalLogin(${c.id})">&#128272; Login</button>`
           : '';
         return `<tr>
@@ -263,7 +263,7 @@
         : (!c.default_assignee_id
           ? `<button class="btn-sm btn-view" onclick="openITRAssign('client',${c.id})">Assign</button>`
           : '<small style="color:#94a3b8">View only</small>');
-      const loginAction = c.can_autofill && c.pan_number && c.password
+      const loginAction = c.pan_number && c.password
         ? `<button class="btn-sm btn-green" title="Open Income Tax portal and auto-login" onclick="openITRPortalLogin(${c.id})">&#128272; Login</button>`
         : '';
       return `<tr>
