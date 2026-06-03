@@ -59,12 +59,13 @@
     return null;
   }
 
-  function setNativeValue(input, value) {
+  function setNativeValue(input, value, options = {}) {
     const proto = input instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
     const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
     if (setter) setter.call(input, value);
     else input.value = value;
     input.setAttribute('value', value);
+    if (options.silent) return;
     input.dispatchEvent(new Event('input', { bubbles: true }));
     input.dispatchEvent(new Event('change', { bubbles: true }));
   }
@@ -122,6 +123,52 @@
     }
   }
 
+  function restoreCredentials(usernameInput, passwordInput, username, password, silent = true) {
+    if (!usernameInput || !passwordInput) return;
+    if (usernameInput.value !== username) setNativeValue(usernameInput, username, { silent });
+    if (passwordInput.value !== password) setNativeValue(passwordInput, password, { silent });
+  }
+
+  function installCredentialGuard(usernameInput, passwordInput, username, password) {
+    const restoreSoon = () => {
+      restoreCredentials(usernameInput, passwordInput, username, password, true);
+      setTimeout(() => restoreCredentials(usernameInput, passwordInput, username, password, true), 30);
+      setTimeout(() => restoreCredentials(usernameInput, passwordInput, username, password, true), 150);
+      setTimeout(() => restoreCredentials(usernameInput, passwordInput, username, password, true), 400);
+    };
+
+    const captcha = firstVisible([
+      'input[name*="captcha" i]',
+      'input[id*="captcha" i]',
+      'input[formcontrolname*="captcha" i]',
+      'input[placeholder*="captcha" i]',
+      'input[aria-label*="captcha" i]'
+    ]);
+    const guardedEvents = ['focus', 'keydown', 'keyup', 'input', 'change', 'paste', 'click'];
+    guardedEvents.forEach((eventName) => {
+      document.addEventListener(eventName, restoreSoon, true);
+      if (captcha) captcha.addEventListener(eventName, restoreSoon, true);
+    });
+
+    const observer = new MutationObserver(restoreSoon);
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['value', 'class', 'disabled', 'readonly']
+    });
+
+    const interval = setInterval(restoreSoon, 1000);
+    setTimeout(() => {
+      guardedEvents.forEach((eventName) => {
+        document.removeEventListener(eventName, restoreSoon, true);
+        if (captcha) captcha.removeEventListener(eventName, restoreSoon, true);
+      });
+      observer.disconnect();
+      clearInterval(interval);
+    }, 2 * 60 * 1000);
+  }
+
   function removeTokenFromHash() {
     const hash = parseHash();
     delete hash.gb_autofill;
@@ -173,6 +220,7 @@
     await sleep(250);
     await fillLikeUser(passwordInput, password);
     await stabilizeCredentials(usernameInput, passwordInput, username, password);
+    installCredentialGuard(usernameInput, passwordInput, username, password);
     focusCaptchaOrNext(passwordInput);
     removeTokenFromHash();
     showBadge('GeeBharat autofilled. Captcha complete karke Login manually karein.', 'success');
