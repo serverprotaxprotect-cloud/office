@@ -857,7 +857,7 @@
         <span>GST Clients</span>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn-sm btn-view" onclick="reloadGSTPanel()" style="padding:8px 14px">&#8635; Refresh</button>
-          <button class="btn-sm btn-green" onclick="syncGSTTrackerStatus()" style="padding:8px 14px">Sync Filing Status</button>
+          <button class="btn-sm btn-green gst-provider-only" onclick="syncGSTTrackerStatus()" style="padding:8px 14px">Sync Filing Status</button>
           <button class="btn-sm btn-green gst-admin-only" onclick="openGSTGenerateModal()" style="padding:8px 14px">&#9889; Generate Tasks</button>
           <button class="btn btn-primary" onclick="openGSTClientModal()">+ Add GST Client</button>
         </div>
@@ -874,6 +874,7 @@
       </div>
 
       <div id="gst-panel-clients">
+        <div id="gstProviderNotice" class="alert-err hidden" style="margin:8px 0 12px;background:#fff7ed;color:#9a3412;border-color:#fed7aa"></div>
         <div class="filter-row">
           <input type="text" id="gstClientSearch" placeholder="Search client, firm, GSTIN, assignee..." oninput="debounceGST('clients')" style="max-width:360px;flex:1"/>
           <select id="gstFreqFilter" onchange="loadGSTClients()"><option value="">All Frequency</option><option>Monthly</option><option>QRMP</option></select>
@@ -1463,7 +1464,7 @@
       <div class="form-group full"><label>Default Assignee</label><select id="gst_default_assignee"></select></div>
     </div>
     <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
-      <button class="btn-sm btn-view" onclick="verifyGSTModalInput()">Verify GSTIN & Auto-fill</button>
+      <button class="btn-sm btn-view gst-provider-only" onclick="verifyGSTModalInput()">Verify GSTIN & Auto-fill</button>
       <span id="gstVerifyHint" style="font-size:12px;color:#64748b"></span>
     </div>
     <div id="gstClientErr" class="alert-err hidden"></div>
@@ -4952,6 +4953,16 @@ async function loadGSTMeta() {
   GST_META = data;
   GST_META_READY = true;
   document.querySelectorAll('.gst-admin-only').forEach(el => el.style.display = gstAdmin() ? '' : 'none');
+  document.querySelectorAll('.gst-provider-only').forEach(el => el.style.display = data.verification_provider_configured ? '' : 'none');
+  const notice = document.getElementById('gstProviderNotice');
+  if (notice) {
+    if (data.verification_provider_configured) {
+      notice.classList.add('hidden');
+    } else {
+      notice.textContent = 'GST live verification/sync ke liye official GST/GSP API provider abhi configure nahi hai. Existing tracker manual mode me chalega.';
+      notice.classList.remove('hidden');
+    }
+  }
   populateGSTControls();
   return true;
 }
@@ -5096,8 +5107,10 @@ async function loadGSTClients() {
     const loginAction = c.can_autofill
       ? `<button class="btn-sm btn-green" title="Open GST portal and autofill login" onclick="openGSTPortalLogin(${c.id})">&#128272; Login</button>`
       : '';
-    const syncAction = `<button class="btn-sm btn-view" title="Verify GSTIN from configured GST API" onclick="verifyGSTClient(${c.id})">Verify</button>
-      <button class="btn-sm btn-view" title="Sync return filing status" onclick="syncGSTClientReturns(${c.id})">Sync</button>`;
+    const syncAction = GST_META.verification_provider_configured
+      ? `<button class="btn-sm btn-view" title="Verify GSTIN from configured GST API" onclick="verifyGSTClient(${c.id})">Verify</button>
+         <button class="btn-sm btn-view" title="Sync return filing status" onclick="syncGSTClientReturns(${c.id})">Sync</button>`
+      : '';
     return `
     <tr>
       <td><strong>${h(c.client_id)}</strong><br><small style="color:#64748b">${h(c.agent_name || '--')}</small></td>
