@@ -64,8 +64,62 @@
     const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
     if (setter) setter.call(input, value);
     else input.value = value;
+    input.setAttribute('value', value);
     input.dispatchEvent(new Event('input', { bubbles: true }));
     input.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  function dispatchKey(input, key) {
+    input.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+    input.dispatchEvent(new KeyboardEvent('keyup', { key, bubbles: true, cancelable: true }));
+  }
+
+  async function fillLikeUser(input, value) {
+    input.focus();
+    input.click();
+    await sleep(80);
+    setNativeValue(input, '');
+    await sleep(40);
+    setNativeValue(input, value);
+    dispatchKey(input, value ? value.slice(-1) : ' ');
+    await sleep(120);
+    input.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
+  }
+
+  function focusCaptchaOrNext(passwordInput) {
+    const captcha = firstVisible([
+      'input[name*="captcha" i]',
+      'input[id*="captcha" i]',
+      'input[formcontrolname*="captcha" i]',
+      'input[placeholder*="captcha" i]',
+      'input[aria-label*="captcha" i]'
+    ]);
+    if (captcha) {
+      captcha.focus();
+      return;
+    }
+    dispatchKey(passwordInput, 'Tab');
+    passwordInput.blur();
+  }
+
+  async function stabilizeCredentials(usernameInput, passwordInput, username, password) {
+    for (let i = 0; i < 4; i += 1) {
+      await sleep(i === 0 ? 350 : 700);
+      let changed = false;
+      if (usernameInput.value !== username) {
+        setNativeValue(usernameInput, username);
+        changed = true;
+      }
+      if (passwordInput.value !== password) {
+        setNativeValue(passwordInput, password);
+        changed = true;
+      }
+      if (!changed) break;
+    }
   }
 
   function removeTokenFromHash() {
@@ -113,8 +167,13 @@
       return;
     }
 
-    setNativeValue(usernameInput, data.gst_login_id || '');
-    setNativeValue(passwordInput, data.gst_password || '');
+    const username = data.gst_login_id || '';
+    const password = data.gst_password || '';
+    await fillLikeUser(usernameInput, username);
+    await sleep(250);
+    await fillLikeUser(passwordInput, password);
+    await stabilizeCredentials(usernameInput, passwordInput, username, password);
+    focusCaptchaOrNext(passwordInput);
     removeTokenFromHash();
     showBadge('GeeBharat autofilled. Captcha complete karke Login manually karein.', 'success');
   }
