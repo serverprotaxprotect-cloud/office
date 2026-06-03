@@ -2,10 +2,12 @@
   "manifest_version": 3,
   "name": "GeeBharat Portal Autofill",
   "version": "1.0.0",
-  "description": "Autofills GST and Income Tax portal login from GeeBharat one-time tokens.",
+  "description": "Autofills GST, Income Tax, PF and ESIC portal login from GeeBharat one-time tokens.",
   "host_permissions": [
     "https://services.gst.gov.in/*",
     "https://eportal.incometax.gov.in/*",
+    "https://unifiedportal-emp.epfindia.gov.in/*",
+    "https://www.esic.in/*",
     "https://geebharat.com/*",
     "http://localhost:*/*"
   ],
@@ -18,6 +20,11 @@
     {
       "matches": ["https://eportal.incometax.gov.in/*"],
       "js": ["income-tax-content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://unifiedportal-emp.epfindia.gov.in/*", "https://www.esic.in/*"],
+      "js": ["pf-esic-content.js"],
       "run_at": "document_idle"
     }
   ]

@@ -11,6 +11,7 @@ const PRECACHE = [
   '/dashboard.html',
   '/client.html',
   '/assets/income-tax.js',
+  '/assets/pf-esic.js',
   '/assets/mca-filing.js',
   '/assets/style.css',
   '/icons/icon-192.png',

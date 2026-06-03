@@ -5,6 +5,8 @@ Internal unpacked Chrome extension for GeeBharat portal autofill.
 Supported portals:
 - GST: `https://services.gst.gov.in/services/login`
 - Income Tax: `https://eportal.incometax.gov.in/iec/foservices/#/login`
+- PF: `https://unifiedportal-emp.epfindia.gov.in/epfo/`
+- ESIC: `https://www.esic.in/EmployerPortal/ESICInsurancePortal/Portal_Loginnew.aspx`
 
 ## Install
 
@@ -35,5 +37,11 @@ Income Tax:
 2. Go to `Income Tax Clients`.
 3. Click `Login`.
 4. PAN/user ID, Continue, secure checkbox, password, and Continue flow automatic chalega.
+
+PF / ESIC:
+1. Open GeeBharat Office.
+2. Go to `PF / ESIC Clients`.
+3. Click `PF Login` or `ESIC Login`.
+4. ID/password autofill hoga. Captcha/OTP/final login manual rahega.
 
 The extension does not store credentials. Each token is one-time and short-lived.

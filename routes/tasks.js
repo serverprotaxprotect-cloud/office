@@ -8,6 +8,7 @@ const { createNotif } = require('./notifications');
 const { syncGSTForTaskStatus } = require('../services/gstService');
 const { syncIncomeTaxForTaskStatus } = require('../services/incomeTaxService');
 const { syncComplianceForTaskStatus } = require('../services/complianceService');
+const { syncPFESICForTaskStatus } = require('../services/pfEsicService');
 
 // ── IST helper (Asia/Kolkata = UTC+5:30) ─────────────────────
 function nowIST()   { return new Date(Date.now() + (5.5 * 60 * 60 * 1000)); }
@@ -403,6 +404,14 @@ router.put('/:id', authMiddleware, async (req, res) => {
           syncRemark
         );
         await syncComplianceForTaskStatus(
+          conn,
+          { ...old, assigned_to_id: assigned_to_id || old.assigned_to_id, status: old.status },
+          status,
+          req.user,
+          syncRemark,
+          srn_udin
+        );
+        await syncPFESICForTaskStatus(
           conn,
           { ...old, assigned_to_id: assigned_to_id || old.assigned_to_id, status: old.status },
           status,

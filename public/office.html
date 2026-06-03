@@ -95,7 +95,7 @@
     .metric{background:#fff;border-radius:8px;border:1px solid #e2e8f0;padding:10px 12px}
     .metric strong{display:block;font-size:20px;color:#1e293b;line-height:1}
     .metric span{font-size:11px;color:#64748b}
-    #panel-gstclients .tbl-wrap,#panel-incometax .tbl-wrap{max-height:calc(100vh - 355px);overflow:auto}
+    #panel-gstclients .tbl-wrap,#panel-incometax .tbl-wrap,#panel-pfesic .tbl-wrap{max-height:calc(100vh - 355px);overflow:auto}
     #panel-gstclients .gst-name{font-weight:800;color:#0f172a;max-width:420px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     #panel-gstclients .gst-client-id{font-size:11px;color:#64748b;margin-top:2px}
     #panel-incometax .itr-name{font-weight:800;color:#0f172a;max-width:420px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -155,8 +155,10 @@
     .form-group input.required-field{border-color:#fca5a5}
     #panel-incometax .filter-row select{min-width:165px}
     #panel-incometax .filter-row input{min-width:230px}
-    #itrClientModal select,#itrAssignModal select,#itrStatusModal select,#itrGenerateModal select,#itrImportModal select{min-width:100%;height:40px}
-    #itrClientModal .autocomplete-list,#itrAssignModal .autocomplete-list{max-height:310px;z-index:1200}
+    #panel-pfesic .filter-row select{min-width:165px}
+    #panel-pfesic .filter-row input{min-width:230px}
+    #itrClientModal select,#itrAssignModal select,#itrStatusModal select,#itrGenerateModal select,#itrImportModal select,#pfesicClientModal select,#pfesicAssignModal select,#pfesicStatusModal select,#pfesicGenerateModal select,#pfesicImportModal select{min-width:100%;height:40px}
+    #itrClientModal .autocomplete-list,#itrAssignModal .autocomplete-list,#pfesicClientModal .autocomplete-list{max-height:310px;z-index:1200}
     .modal-actions{display:flex;gap:8px;margin-top:18px;justify-content:flex-end}
     .btn-cancel{padding:9px 18px;background:#f1f5f9;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-weight:700}
 
@@ -384,6 +386,7 @@
     <div class="sb-item" id="sb-comptracking" onclick="showPanel('comptracking')"><span class="ic">&#9989;</span>Compliance Tracking</div>
     <div class="sb-item" id="sb-gstclients" onclick="showPanel('gstclients')"><span class="ic">&#128179;</span>GST Clients</div>
     <div class="sb-item" id="sb-incometax" onclick="showPanel('incometax')"><span class="ic">&#128188;</span>Income Tax Clients</div>
+    <div class="sb-item" id="sb-pfesic" onclick="showPanel('pfesic')"><span class="ic">&#127974;</span>PF / ESIC Clients</div>
     <div class="sb-section" id="sec-management">Management</div>
     <div class="sb-item" id="sb-dataimport" onclick="showPanel('dataimport')"><span class="ic">&#128229;</span>Data Import</div>
     <div class="sb-item" id="sb-empmanagement" onclick="openAdminPortal()"><span class="ic">&#128101;</span>Employee Management</div>
@@ -1028,6 +1031,91 @@
       </div>
     </div>
 
+    <!-- PF / ESIC CLIENTS -->
+    <div class="panel" id="panel-pfesic">
+      <div class="page-title">
+        <span>PF / ESIC Clients</span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-sm btn-view" onclick="reloadPFESICPanel()" style="padding:8px 14px">&#8635; Refresh</button>
+          <button class="btn-sm btn-green pfesic-admin-only" onclick="openPFESICGenerateModal()" style="padding:8px 14px">&#9889; Generate Monthly Tasks</button>
+          <button class="btn-sm pfesic-admin-only" onclick="openPFESICImportModal()" style="background:#0891b2;color:#fff;padding:8px 14px">&#128229; Bulk Import</button>
+          <button class="btn btn-primary" onclick="openPFESICClientModal()">+ Add PF/ESIC Client</button>
+        </div>
+      </div>
+
+      <div class="seg-tabs">
+        <button class="btn-sm active" id="pfesic-tab-clients" onclick="switchPFESICTab('clients')">Active PF/ESIC Clients</button>
+        <button class="btn-sm" id="pfesic-tab-tracker" onclick="switchPFESICTab('tracker')">Monthly Tracker</button>
+        <button class="btn-sm" id="pfesic-tab-report" onclick="switchPFESICTab('report')">Reports</button>
+        <button class="btn-sm" id="pfesic-tab-inactive" onclick="switchPFESICTab('inactive')">Inactive Clients</button>
+        <button class="btn-sm" id="pfesic-tab-unassigned" onclick="switchPFESICTab('unassigned')">Unassigned Clients</button>
+        <a class="btn-sm btn-green" href="/downloads/geebharat-autofill-extension.zip" download title="Download GeeBharat common autofill Chrome extension">&#11015; Download Autofill Extension</a>
+        <button class="btn-sm btn-view" onclick="openModal('commonAutofillGuideModal')" title="Read Chrome extension setup guide">&#128214; Setup Guide</button>
+      </div>
+
+      <div id="pfesic-panel-clients">
+        <div class="filter-row">
+          <input type="text" id="pfesicClientSearch" placeholder="Search client, firm, PF/ESIC code, assignee..." oninput="debouncePFESIC('clients')" style="max-width:390px;flex:1"/>
+          <select id="pfesicAssigneeFilter" onchange="loadPFESICClients()"><option value="">All Assignees</option></select>
+        </div>
+        <div class="card"><div class="tbl-wrap"><table>
+          <thead><tr><th>Client</th><th>Firm</th><th>PF Code</th><th>ESIC Code</th><th>PF Login</th><th>ESIC Login</th><th>Password</th><th>Default Assignee</th><th>Actions</th></tr></thead>
+          <tbody id="pfesicClientsTable"></tbody>
+        </table></div></div>
+      </div>
+
+      <div id="pfesic-panel-tracker" class="hidden">
+        <div class="filter-row">
+          <select id="pfesicTrackMonth" onchange="loadPFESICFilings()"></select>
+          <select id="pfesicTrackYear" onchange="loadPFESICFilings()"></select>
+          <select id="pfesicTrackType" onchange="loadPFESICFilings()"><option value="">All Types</option></select>
+          <select id="pfesicTrackStatus" onchange="loadPFESICFilings()"><option value="">All Status</option></select>
+          <select id="pfesicTrackEmployee" onchange="loadPFESICFilings()"><option value="">All Employees</option></select>
+          <input type="text" id="pfesicTrackSearch" placeholder="Search client, code..." oninput="debouncePFESIC('filings')" style="max-width:260px"/>
+        </div>
+        <div id="pfesicTrackerSummary" class="metric-strip"></div>
+        <div class="card"><div class="tbl-wrap"><table>
+          <thead><tr><th>Period</th><th>Client / Firm</th><th>Type</th><th>Due Date</th><th>Assigned To</th><th>Status</th><th>Challan/Ack</th><th>Amount</th><th>Task</th><th>Actions</th></tr></thead>
+          <tbody id="pfesicFilingsTable"></tbody>
+        </table></div></div>
+      </div>
+
+      <div id="pfesic-panel-report" class="hidden">
+        <div class="filter-row">
+          <select id="pfesicReportMonth" onchange="loadPFESICReport()"></select>
+          <select id="pfesicReportYear" onchange="loadPFESICReport()"></select>
+          <button class="btn-sm" style="background:#0891b2;color:#fff;padding:7px 12px" onclick="exportTable('pfesicReportTable','PF_ESIC_Report')">&#128229; Export</button>
+        </div>
+        <div id="pfesicReportSummary" class="metric-strip"></div>
+        <div class="card"><div class="tbl-wrap"><table>
+          <thead><tr><th>Period</th><th>Client / Firm</th><th>PF Code</th><th>ESIC Code</th><th>Type</th><th>Due Date</th><th>Assigned</th><th>Status</th><th>Challan/Ack</th><th>Amount</th><th>Payment Date</th><th>Task</th></tr></thead>
+          <tbody id="pfesicReportTable"></tbody>
+        </table></div></div>
+      </div>
+
+      <div id="pfesic-panel-inactive" class="hidden">
+        <div class="filter-row">
+          <input type="text" id="pfesicInactiveSearch" placeholder="Search inactive PF/ESIC clients..." oninput="debouncePFESIC('inactive')" style="max-width:390px;flex:1"/>
+        </div>
+        <div class="card"><div class="tbl-wrap"><table>
+          <thead><tr><th>Client</th><th>Firm</th><th>PF Code</th><th>ESIC Code</th><th>Inactive From</th><th>Reason</th><th>Actions</th></tr></thead>
+          <tbody id="pfesicInactiveTable"></tbody>
+        </table></div></div>
+      </div>
+
+      <div id="pfesic-panel-unassigned" class="hidden">
+        <div class="filter-row">
+          <select id="pfesicUnassignedMonth" onchange="loadPFESICUnassigned()"></select>
+          <select id="pfesicUnassignedYear" onchange="loadPFESICUnassigned()"></select>
+          <input type="text" id="pfesicUnassignedSearch" placeholder="Search unassigned PF/ESIC clients..." oninput="debouncePFESIC('unassigned')" style="max-width:390px;flex:1"/>
+        </div>
+        <div class="card"><div class="tbl-wrap"><table>
+          <thead><tr><th>Client</th><th>Firm</th><th>PF Code</th><th>ESIC Code</th><th>Default Assignee</th><th>Actions</th></tr></thead>
+          <tbody id="pfesicUnassignedTable"></tbody>
+        </table></div></div>
+      </div>
+    </div>
+
     <div class="panel" id="panel-mcafiling">
       <div class="page-title">MCA Filing <small>Company reports from GeeBharat data</small></div>
       <div id="mcaPanelContent" class="card">
@@ -1050,6 +1138,102 @@
 <div class="toast" id="toast"></div>
 
 <!-- ══════════════════ MODALS ══════════════════════════════════ -->
+
+<!-- PF / ESIC Client Modal -->
+<div class="modal-backdrop hidden" id="pfesicClientModal" onclick="if(event.target===this)closeModal('pfesicClientModal')">
+  <div class="modal modal-lg">
+    <div class="modal-title" id="pfesicClientTitle">Add PF/ESIC Client</div>
+    <input type="hidden" id="pfesic_client_row_id"/>
+    <div class="form-grid">
+      <div class="form-group full">
+        <label>Base Client *</label>
+        <div class="autocomplete-wrap">
+          <input id="pfesic_base_client_search" placeholder="Search existing client..." autocomplete="off" oninput="searchPFESICBaseClient(this.value)"/>
+          <div class="autocomplete-list hidden" id="pfesic_base_client_list"></div>
+        </div>
+        <input type="hidden" id="pfesic_client_id"/>
+      </div>
+      <div class="form-group full"><label>Firm / Establishment Name *</label><input id="pfesic_firm_name" placeholder="Firm name"/></div>
+      <div class="form-group"><label>PF Establishment Code</label><input id="pfesic_pf_code" placeholder="PF code"/></div>
+      <div class="form-group"><label>PF Login ID</label><input id="pfesic_pf_login" placeholder="PF portal user id"/></div>
+      <div class="form-group"><label>PF Password</label><input id="pfesic_pf_password" type="password" placeholder="Set / reset PF password"/></div>
+      <div class="form-group"><label>ESIC Code</label><input id="pfesic_esic_code" placeholder="ESIC code"/></div>
+      <div class="form-group"><label>ESIC Login ID</label><input id="pfesic_esic_login" placeholder="ESIC portal user id"/></div>
+      <div class="form-group"><label>ESIC Password</label><input id="pfesic_esic_password" type="password" placeholder="Set / reset ESIC password"/></div>
+      <div class="form-group full"><label>Default Assignee</label><select id="pfesic_default_assignee"><option value="">Unassigned</option></select></div>
+    </div>
+    <div id="pfesicClientErr" class="alert-err hidden"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('pfesicClientModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitPFESICClient()">Save PF/ESIC Client</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop hidden" id="pfesicAssignModal" onclick="if(event.target===this)closeModal('pfesicAssignModal')">
+  <div class="modal">
+    <div class="modal-title" id="pfesicAssignTitle">Assign PF/ESIC Work</div>
+    <input type="hidden" id="pfesic_assign_target_id"/>
+    <input type="hidden" id="pfesic_assign_target_kind"/>
+    <div class="form-group"><label>Assign To</label><select id="pfesic_assign_employee"></select></div>
+    <div class="form-group"><label>Remark</label><textarea id="pfesic_assign_remark" rows="2"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('pfesicAssignModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitPFESICAssign()">Assign</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop hidden" id="pfesicStatusModal" onclick="if(event.target===this)closeModal('pfesicStatusModal')">
+  <div class="modal">
+    <div class="modal-title" id="pfesicStatusTitle">Update PF/ESIC Status</div>
+    <input type="hidden" id="pfesic_status_filing_id"/>
+    <div class="form-grid">
+      <div class="form-group"><label>Status</label><select id="pfesic_status_select"></select></div>
+      <div class="form-group"><label>Due Date</label><input type="date" id="pfesic_status_due"/></div>
+      <div class="form-group full"><label>Challan / Ack No. <small style="color:#64748b">(Filed/Paid ke liye required)</small></label><input id="pfesic_status_ack" placeholder="Challan / acknowledgement number"/></div>
+      <div class="form-group"><label>Amount</label><input type="number" id="pfesic_status_amount" placeholder="0"/></div>
+      <div class="form-group"><label>Payment Date</label><input type="date" id="pfesic_status_payment_date"/></div>
+      <div class="form-group full"><label>Remark</label><textarea id="pfesic_status_remark" rows="2"></textarea></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('pfesicStatusModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitPFESICStatus()">Save Status</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop hidden" id="pfesicGenerateModal" onclick="if(event.target===this)closeModal('pfesicGenerateModal')">
+  <div class="modal">
+    <div class="modal-title">Generate PF/ESIC Monthly Tasks</div>
+    <div class="form-grid">
+      <div class="form-group"><label>Month</label><select id="pfesic_generate_month"></select></div>
+      <div class="form-group"><label>Year</label><select id="pfesic_generate_year"></select></div>
+    </div>
+    <div class="alert-info">Active PF/ESIC clients ke monthly records generate honge. Existing period/type duplicate nahi banega.</div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('pfesicGenerateModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitPFESICGenerate()">Generate</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop hidden" id="pfesicImportModal" onclick="if(event.target===this)closeModal('pfesicImportModal')">
+  <div class="modal">
+    <div class="modal-title">Bulk Import PF/ESIC Clients</div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+      <a class="btn-sm btn-view" href="/api/pf-esic/import/template" target="_blank">&#128229; Download Template</a>
+      <input type="file" id="pfesic_import_file" accept=".xlsx,.xls"/>
+    </div>
+    <div id="pfesicImportSummary" class="muted"></div>
+    <div id="pfesicImportErr" class="alert-err hidden"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('pfesicImportModal')">Cancel</button>
+      <button class="btn-sm btn-view" onclick="previewPFESICImport()">Preview</button>
+      <button class="btn btn-primary" onclick="submitPFESICImport()">Final Import</button>
+    </div>
+  </div>
+</div>
 
 <!-- Create / Edit Task -->
 <div class="modal-backdrop hidden" id="taskModal" onclick="if(event.target===this)closeModal('taskModal')">
@@ -1546,7 +1730,7 @@
   <div class="modal modal-lg">
     <div class="modal-title">GeeBharat Portal Autofill Extension Setup</div>
     <div style="line-height:1.55;color:#0f172a;font-size:14px">
-      <p style="margin:0 0 10px;color:#475569">Ye single Chrome extension GST aur Income Tax dono portal ke liye kaam karega. Chrome security ke karan one-click install allowed nahi hota, isliye ek baar manually load karna hoga.</p>
+      <p style="margin:0 0 10px;color:#475569">Ye single Chrome extension GST, Income Tax, PF aur ESIC portals ke liye kaam karega. Chrome security ke karan one-click install allowed nahi hota, isliye ek baar manually load karna hoga.</p>
       <ol style="margin:0 0 14px 20px;padding:0">
         <li><strong>Download Autofill Extension</strong> button se ZIP download karein.</li>
         <li>ZIP ko extract karein. Extracted folder ka naam <strong>geebharat-autofill</strong> rahega.</li>
@@ -1554,11 +1738,12 @@
         <li><strong>Developer mode</strong> ON karein.</li>
         <li><strong>Load unpacked</strong> click karke extracted <strong>geebharat-autofill</strong> folder select karein.</li>
         <li>Agar purani separate extensions installed hain, to <strong>GeeBharat GST Autofill</strong> aur <strong>GeeBharat Income Tax Autofill</strong> remove/disable kar dein.</li>
-        <li>GeeBharat me GST Clients ya Income Tax Clients list se <strong>Login</strong> click karein.</li>
+        <li>GeeBharat me GST, Income Tax, ya PF/ESIC Clients list se <strong>Login</strong> click karein.</li>
       </ol>
       <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px;margin-bottom:10px">
         <strong>GST:</strong> ID/password autofill hoga. Captcha aur final login manual rahega.<br>
-        <strong>Income Tax:</strong> PAN/user ID, Continue, secure checkbox, password, Continue flow automatic chalega.
+        <strong>Income Tax:</strong> PAN/user ID, Continue, secure checkbox, password, Continue flow automatic chalega.<br>
+        <strong>PF/ESIC:</strong> ID/password autofill hoga. Captcha/OTP/final login manual rahega.
       </div>
       <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px">
         Extension credential store nahi karta. Har Login click par short-lived one-time token banta hai.
@@ -1747,8 +1932,8 @@ const ROLE_PERMS = {
   'Director':       { panels: 'all', attendance_admin: true },
   'Office Manager': { panels: 'all', attendance_admin: true },
   'HR':             { panels: 'all', attendance_admin: true },
-  'Accountant':     { panels: ['dashboard','mytasks','assignedby','completed','notifications','chat','clients','companies','directors','comptracking','gstclients','incometax','mcafiling'], attendance_admin: false },
-  'employee':       { panels: ['dashboard','mytasks','assignedby','completed','notifications','chat','clients','companies','directors','comptracking','gstclients','incometax','mcafiling'], attendance_admin: false },
+  'Accountant':     { panels: ['dashboard','mytasks','assignedby','completed','notifications','chat','clients','companies','directors','comptracking','gstclients','incometax','pfesic','mcafiling'], attendance_admin: false },
+  'employee':       { panels: ['dashboard','mytasks','assignedby','completed','notifications','chat','clients','companies','directors','comptracking','gstclients','incometax','pfesic','mcafiling'], attendance_admin: false },
 };
 
 function getRolePerms() {
@@ -1775,9 +1960,10 @@ function applyPermissions() {
     'sb-clients':     'clients',
     'sb-companies':   'companies',
     'sb-comptracking':'comptracking',
-    'sb-gstclients':  'gstclients',
-    'sb-incometax':   'incometax',
-    'sb-dataimport':  'dataimport',
+  'sb-gstclients':  'gstclients',
+  'sb-incometax':   'incometax',
+  'sb-pfesic':      'pfesic',
+  'sb-dataimport':  'dataimport',
     'sb-mcafiling':   'mcafiling',
   };
 
@@ -1789,7 +1975,7 @@ function applyPermissions() {
 
   // Section headers: hide if all items below are hidden
   const clientItems = ['sb-clients'];
-  const compItems   = ['sb-companies','sb-comptracking','sb-gstclients','sb-incometax'];
+  const compItems   = ['sb-companies','sb-comptracking','sb-gstclients','sb-incometax','sb-pfesic'];
   const clientVisible = clientItems.some(id => document.getElementById(id)?.style.display !== 'none');
   const compVisible   = compItems.some(id => document.getElementById(id)?.style.display !== 'none');
   const secClients = document.getElementById('sec-clients');
@@ -2237,6 +2423,7 @@ function showPanel(name) {
       dataimport: initDataImportPanel,
       gstclients: initGSTPanel,
       incometax: () => window.initIncomeTaxPanel?.(),
+      pfesic: () => window.initPFESICPanel?.(),
       mcafiling: () => window.initMCAFilingPanel?.(),
     };
     loaders[name]?.();
@@ -5992,6 +6179,7 @@ async function initOfficeApp() {
 if (token) { initOfficeApp(); }
 </script>
 <script src="/assets/income-tax.js?v=20260603-edit-all-1"></script>
+<script src="/assets/pf-esic.js?v=20260603-1"></script>
 <script src="/assets/mca-filing.js?v=20260528-2"></script>
 </body>
 </html>
