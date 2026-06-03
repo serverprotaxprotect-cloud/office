@@ -69,10 +69,7 @@ function mapGSTClient(row) {
 }
 
 function canAutofillGSTClient(row, user) {
-  if (isGstAdmin(user)) return true;
-  const userId = user?.emp_id || user?.username || user?.id;
-  if (!userId) return false;
-  return row.default_assignee_id === userId || row.current_filing_assignee_id === userId;
+  return !!(user?.emp_id || user?.username || user?.id);
 }
 
 function fyOptions() {
@@ -208,9 +205,7 @@ router.post('/clients/:id/autofill-token', authMiddleware, async (req, res) => {
       await conn.query('ROLLBACK');
       return res.status(404).json({ success: false, message: 'GST client not found' });
     }
-    const allowed = isGstAdmin(req.user)
-      || row.default_assignee_id === (req.user.emp_id || req.user.username || req.user.id)
-      || row.assigned_current_period;
+    const allowed = !!(req.user.emp_id || req.user.username || req.user.id);
     if (!allowed) {
       await conn.query('ROLLBACK');
       return res.status(403).json({ success: false, message: 'GST credential autofill access denied' });
