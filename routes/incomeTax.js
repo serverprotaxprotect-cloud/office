@@ -1,6 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const XLSX = require('xlsx');
+const crypto = require('crypto');
 const db = require('../db');
 const authMiddleware = require('../middleware/auth');
 const {
@@ -32,6 +33,15 @@ const {
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const INCOME_TAX_LOGIN_URL = 'https://eportal.incometax.gov.in/iec/foservices/#/login';
+
+function tokenHash(token) {
+  return crypto.createHash('sha256').update(String(token || '')).digest('hex');
+}
+
+function randomToken() {
+  return crypto.randomBytes(32).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
 
 function handleError(res, err) {
   console.error('[income-tax]', err);
@@ -55,6 +65,7 @@ function mapIncomeTaxClient(row) {
     ...row,
     password: decryptText(row.password_enc),
     password_enc: undefined,
+    can_autofill: true,
   };
 }
 
@@ -228,6 +239,122 @@ router.get('/unassigned', authMiddleware, async (req, res) => {
     res.json({ success: true, clients, total: clients.length });
   } catch (err) {
     handleError(res, err);
+  }
+});
+
+router.post('/clients/:id/autofill-token', authMiddleware, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!id) return res.status(400).json({ success: false, message: 'Valid Income Tax client required' });
+  const conn = await db.pool.connect();
+  try {
+    await conn.query('BEGIN');
+    const found = await conn.query(
+      `SELECT * FROM income_tax_clients
+       WHERE id=$1 AND status='Active'
+       FOR UPDATE`,
+      [id]
+    );
+    const row = found.rows[0];
+    if (!row) {
+      await conn.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'Income Tax client not found' });
+    }
+    if (!(req.user?.emp_id || req.user?.username || req.user?.id)) {
+      await conn.query('ROLLBACK');
+      return res.status(403).json({ success: false, message: 'Income Tax autofill access denied' });
+    }
+    const password = decryptText(row.password_enc);
+    if (!row.pan_number || !password) {
+      await conn.query('ROLLBACK');
+      return res.status(400).json({ success: false, message: 'PAN/password missing for this client' });
+    }
+    const tokenSecret = randomToken();
+    const expiresAt = new Date(Date.now() + 60 * 1000);
+    const tokenRow = await conn.query(
+      `INSERT INTO income_tax_autofill_tokens
+        (token_hash, income_tax_client_id, created_by_id, created_by_name, expires_at)
+       VALUES ($1,$2,$3,$4,$5)
+       RETURNING id`,
+      [
+        tokenHash(tokenSecret),
+        row.id,
+        req.user.emp_id || req.user.username || req.user.id || null,
+        req.user.formal_name || req.user.name || null,
+        expiresAt,
+      ]
+    );
+    const token = `${tokenRow.rows[0].id}.${tokenSecret}`;
+    await logIncomeTax(conn, {
+      income_tax_client_id: row.id,
+      action: 'CreateIncomeTaxAutofillToken',
+      new_value: { pan_number: row.pan_number, expires_at: expiresAt.toISOString() },
+      actor: req.user,
+    });
+    await conn.query('COMMIT');
+    const origin = encodeURIComponent(req.body.origin || req.get('origin') || 'https://geebharat.com');
+    res.json({
+      success: true,
+      token,
+      expires_at: expiresAt.toISOString(),
+      login_url: INCOME_TAX_LOGIN_URL,
+      extension_url_hint: `${INCOME_TAX_LOGIN_URL}?gb_itr_autofill=${encodeURIComponent(token)}&gb_origin=${origin}`,
+    });
+  } catch (err) {
+    await conn.query('ROLLBACK').catch(() => {});
+    handleError(res, err);
+  } finally {
+    conn.release();
+  }
+});
+
+router.get('/autofill/:token', async (req, res) => {
+  const rawToken = String(req.params.token || '').trim();
+  if (!rawToken || rawToken.length > 160) return res.status(400).json({ success: false, message: 'Invalid autofill token' });
+  const tokenParts = rawToken.match(/^(\d+)\.([A-Za-z0-9_-]{20,})$/);
+  const tokenId = tokenParts ? Number(tokenParts[1]) : null;
+  const tokenSecret = tokenParts ? tokenParts[2] : rawToken;
+  const conn = await db.pool.connect();
+  try {
+    await db.runWithTenant({ bypassTenant: true }, () => conn.query('BEGIN'));
+    const sql = `SELECT t.*, itc.pan_number, itc.password_enc, itc.taxpayer_name
+       FROM income_tax_autofill_tokens t
+       JOIN income_tax_clients itc ON itc.id=t.income_tax_client_id AND itc.organization_id=t.organization_id
+       WHERE ${tokenId ? 't.id=$1' : 't.token_hash=$1'}
+       FOR UPDATE`;
+    const found = await db.runWithTenant({ bypassTenant: true }, () => conn.query(sql, [tokenId || tokenHash(rawToken)]));
+    const row = found.rows[0];
+    if (!row || row.token_hash !== tokenHash(tokenSecret)) {
+      await db.runWithTenant({ bypassTenant: true }, () => conn.query('ROLLBACK'));
+      return res.status(404).json({ success: false, message: 'Autofill token not found' });
+    }
+    if (row.used_at) {
+      await db.runWithTenant({ bypassTenant: true }, () => conn.query('ROLLBACK'));
+      return res.status(410).json({ success: false, message: 'Autofill token already used' });
+    }
+    if (new Date(row.expires_at).getTime() < Date.now()) {
+      await db.runWithTenant({ bypassTenant: true }, () => conn.query('ROLLBACK'));
+      return res.status(410).json({ success: false, message: 'Autofill token expired' });
+    }
+    const password = decryptText(row.password_enc);
+    if (!row.pan_number || !password) {
+      await db.runWithTenant({ bypassTenant: true }, () => conn.query('ROLLBACK'));
+      return res.status(400).json({ success: false, message: 'PAN/password missing' });
+    }
+    await db.runWithTenant({ bypassTenant: true }, () => conn.query(`UPDATE income_tax_autofill_tokens SET used_at=NOW() WHERE id=$1`, [row.id]));
+    await db.runWithTenant({ bypassTenant: true }, () => conn.query('COMMIT'));
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({
+      success: true,
+      pan_number: row.pan_number,
+      password,
+      taxpayer_name: row.taxpayer_name,
+      login_url: INCOME_TAX_LOGIN_URL,
+    });
+  } catch (err) {
+    await db.runWithTenant({ bypassTenant: true }, () => conn.query('ROLLBACK')).catch(() => {});
+    handleError(res, err);
+  } finally {
+    conn.release();
   }
 });
 

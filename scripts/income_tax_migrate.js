@@ -87,6 +87,33 @@ const statements = [
     updated_at TIMESTAMPTZ DEFAULT NOW()
   )`,
   `CREATE INDEX IF NOT EXISTS idx_income_tax_history_org_client ON income_tax_history_log (organization_id, income_tax_client_id, updated_at DESC)`,
+  `CREATE TABLE IF NOT EXISTS income_tax_autofill_tokens (
+    id SERIAL PRIMARY KEY,
+    organization_id INTEGER DEFAULT current_organization_id(),
+    token_hash TEXT NOT NULL UNIQUE,
+    income_tax_client_id INTEGER NOT NULL REFERENCES income_tax_clients(id) ON DELETE CASCADE,
+    created_by_id VARCHAR(50),
+    created_by_name VARCHAR(255),
+    expires_at TIMESTAMPTZ NOT NULL,
+    used_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_income_tax_autofill_tokens_org_client
+    ON income_tax_autofill_tokens (organization_id, income_tax_client_id, created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_income_tax_autofill_tokens_expiry
+    ON income_tax_autofill_tokens (expires_at, used_at)`,
+  `ALTER TABLE income_tax_autofill_tokens ENABLE ROW LEVEL SECURITY`,
+  `ALTER TABLE income_tax_autofill_tokens FORCE ROW LEVEL SECURITY`,
+  `DROP POLICY IF EXISTS tenant_isolation_income_tax_autofill_tokens ON income_tax_autofill_tokens`,
+  `CREATE POLICY tenant_isolation_income_tax_autofill_tokens ON income_tax_autofill_tokens
+    USING (
+      current_setting('app.bypass_rls', true) = 'on'
+      OR organization_id::text = current_setting('app.organization_id', true)
+    )
+    WITH CHECK (
+      current_setting('app.bypass_rls', true) = 'on'
+      OR organization_id::text = current_setting('app.organization_id', true)
+    )`,
   `ALTER TABLE income_tax_clients ENABLE ROW LEVEL SECURITY`,
   `ALTER TABLE income_tax_clients FORCE ROW LEVEL SECURITY`,
   `DROP POLICY IF EXISTS tenant_isolation_income_tax_clients ON income_tax_clients`,

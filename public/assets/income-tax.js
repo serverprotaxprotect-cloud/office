@@ -239,10 +239,13 @@
       ITR_STATE.clientMap[c.id] = c;
       const pass = c.password ? `<span class="masked-pass">••••••</span> <button class="btn-sm btn-view" onclick="ITRRevealPassword(this,'${esc(c.password)}')">Show</button>` : '--';
       if (unassignedMode) {
+        const loginAction = c.can_autofill && c.pan_number && c.password
+          ? `<button class="btn-sm btn-green" title="Open Income Tax portal and auto-login" onclick="openITRPortalLogin(${c.id})">&#128272; Login</button>`
+          : '';
         return `<tr>
           <td><div class="itr-name">${esc(c.taxpayer_name)}</div><div class="itr-client-id">${esc(c.client_id)} | AY ${esc(c.assessment_year || '')}</div></td>
           <td>${esc(c.pan_number || '--')}</td><td>${esc(c.contact_number || c.client_mobile || '--')}</td><td>${esc(c.agent_name || '--')}</td>
-          <td><button class="btn-sm btn-view" onclick="openITRAssign('client',${c.id})">Assign</button></td>
+          <td>${loginAction} <button class="btn-sm btn-view" onclick="openITRAssign('client',${c.id})">Assign</button></td>
         </tr>`;
       }
       if (inactiveMode) {
@@ -260,12 +263,16 @@
         : (!c.default_assignee_id
           ? `<button class="btn-sm btn-view" onclick="openITRAssign('client',${c.id})">Assign</button>`
           : '<small style="color:#94a3b8">View only</small>');
+      const loginAction = c.can_autofill && c.pan_number && c.password
+        ? `<button class="btn-sm btn-green" title="Open Income Tax portal and auto-login" onclick="openITRPortalLogin(${c.id})">&#128272; Login</button>`
+        : '';
       return `<tr>
         <td><div class="itr-name">${esc(c.taxpayer_name)}</div><div class="itr-client-id">${esc(c.client_id)}</div></td>
         <td>${esc(c.pan_number || '--')}</td><td>${esc(c.contact_number || c.client_mobile || '--')}</td>
         <td>${esc(c.reference_client_name || '--')}</td><td>${esc(c.agent_name || '--')}</td><td>${pass}</td>
         <td>${esc(c.default_assignee_name || '--')}<div class="itr-client-id">${esc(c.default_assignee_id || '')}</div></td>
         <td style="white-space:nowrap">
+          ${loginAction}
           ${actions}
         </td>
       </tr>`;
@@ -281,6 +288,22 @@
     if (a) q.set('assignee_id', a);
     const data = await api('/income-tax/clients?' + q.toString());
     clientRows(data.clients || [], 'itrClientsTable');
+  }
+
+  async function openITRPortalLogin(id) {
+    const row = ITR_STATE.clientMap[id];
+    if (!row) return showToast('Income Tax client not loaded', 'error');
+    if (!row.pan_number || !row.password) {
+      return showToast('PAN/password missing', 'error');
+    }
+    const data = await api('/income-tax/clients/' + id + '/autofill-token', {
+      method: 'POST',
+      body: JSON.stringify({ origin: window.location.origin }),
+    });
+    if (!data.success) return showToast(data.message || 'Income Tax autofill token failed', 'error');
+    const opened = window.open(data.extension_url_hint || data.login_url, '_blank', 'noopener');
+    if (!opened) return showToast('Popup blocked. Browser popup allow karke dobara Login click karein.', 'error');
+    showToast('Income Tax portal open ho gaya. Extension installed hoga to login steps auto-fill/click honge.', 'success');
   }
 
   async function loadITRInactive() {
@@ -727,4 +750,5 @@
   window.previewITRImport = previewITRImport;
   window.submitITRImport = submitITRImport;
   window.ITRRevealPassword = revealPassword;
+  window.openITRPortalLogin = openITRPortalLogin;
 }());

@@ -958,6 +958,8 @@
         <button class="btn-sm" id="itr-tab-report" onclick="switchITRTab('report')">Report</button>
         <button class="btn-sm" id="itr-tab-inactive" onclick="switchITRTab('inactive')">Inactive Clients</button>
         <button class="btn-sm" id="itr-tab-unassigned" onclick="switchITRTab('unassigned')">Unassigned Clients</button>
+        <a class="btn-sm btn-green" href="/downloads/income-tax-autofill-extension.zip" download title="Download Income Tax Autofill Chrome extension">&#11015; Download Extension</a>
+        <button class="btn-sm btn-view" onclick="openModal('itrExtensionGuideModal')" title="Read Income Tax auto-login setup guide">&#128214; Setup Guide</button>
       </div>
 
       <div id="itr-panel-clients">
@@ -1558,6 +1560,35 @@
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeModal('gstExtensionGuideModal')">Close</button>
       <a class="btn btn-primary" href="/downloads/gst-autofill-extension.zip" download>Download Extension</a>
+    </div>
+  </div>
+</div>
+
+<!-- Income Tax Autofill Extension Guide Modal -->
+<div class="modal-backdrop hidden" id="itrExtensionGuideModal" onclick="if(event.target===this)closeModal('itrExtensionGuideModal')">
+  <div class="modal modal-lg">
+    <div class="modal-title">Income Tax Auto Login Extension Setup</div>
+    <div style="line-height:1.55;color:#0f172a;font-size:14px">
+      <p style="margin:0 0 10px;color:#475569">Chrome security ke karan internal extension one-click install nahi hota. Ek baar setup ke baad Income Tax Clients me <strong>Login</strong> icon se portal login flow auto chalega.</p>
+      <ol style="margin:0 0 14px 20px;padding:0">
+        <li><strong>Download Extension</strong> button se ZIP download karein.</li>
+        <li>ZIP extract karein.</li>
+        <li>Chrome me <strong>chrome://extensions</strong> open karein.</li>
+        <li><strong>Developer mode</strong> ON karein.</li>
+        <li><strong>Load unpacked</strong> click karke extracted <strong>income-tax-autofill</strong> folder select karein.</li>
+        <li>GeeBharat me Income Tax Clients list se <strong>Login</strong> click karein.</li>
+        <li>Portal par User ID fill, Continue, secure checkbox, password fill, Continue automatic chalega.</li>
+      </ol>
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px;margin-bottom:10px">
+        Agar Income Tax portal OTP, extra warning, ya security prompt dikhaye, to final step manually complete karein.
+      </div>
+      <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px">
+        Extension credential store nahi karta. Har Login click par 60 second ka one-time token banta hai.
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('itrExtensionGuideModal')">Close</button>
+      <a class="btn btn-primary" href="/downloads/income-tax-autofill-extension.zip" download>Download Extension</a>
     </div>
   </div>
 </div>
