@@ -1,0 +1,39 @@
+# GeeBharat Portal Autofill Extension
+
+Internal unpacked Chrome extension for GeeBharat portal autofill.
+
+Supported portals:
+- GST: `https://services.gst.gov.in/services/login`
+- Income Tax: `https://eportal.incometax.gov.in/iec/foservices/#/login`
+
+## Install
+
+1. Download the ZIP from GeeBharat and extract it.
+2. Open Chrome and go to `chrome://extensions`.
+3. Enable `Developer mode`.
+4. Click `Load unpacked`.
+5. Select the extracted `geebharat-autofill` folder.
+
+## Important
+
+If old separate extensions are installed, remove or disable:
+- GeeBharat GST Autofill
+- GeeBharat Income Tax Autofill
+
+Keep only `GeeBharat Portal Autofill` enabled to avoid duplicate actions.
+
+## Use
+
+GST:
+1. Open GeeBharat Office.
+2. Go to `GST Clients`.
+3. Click `Login`.
+4. GST ID/password autofill hoga. Captcha and final login manual rahega.
+
+Income Tax:
+1. Open GeeBharat Office.
+2. Go to `Income Tax Clients`.
+3. Click `Login`.
+4. PAN/user ID, Continue, secure checkbox, password, and Continue flow automatic chalega.
+
+The extension does not store credentials. Each token is one-time and short-lived.

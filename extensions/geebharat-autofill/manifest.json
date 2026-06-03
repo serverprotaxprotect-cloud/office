@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "GeeBharat Portal Autofill",
+  "version": "1.0.0",
+  "description": "Autofills GST and Income Tax portal login from GeeBharat one-time tokens.",
+  "host_permissions": [
+    "https://services.gst.gov.in/*",
+    "https://eportal.incometax.gov.in/*",
+    "https://geebharat.com/*",
+    "http://localhost:*/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://services.gst.gov.in/*"],
+      "js": ["gst-content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://eportal.incometax.gov.in/*"],
+      "js": ["income-tax-content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
