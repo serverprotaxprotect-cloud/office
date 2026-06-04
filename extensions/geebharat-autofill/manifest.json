@@ -7,7 +7,7 @@
     "https://services.gst.gov.in/*",
     "https://eportal.incometax.gov.in/*",
     "https://unifiedportal-emp.epfindia.gov.in/*",
-    "https://www.esic.in/*",
+    "https://portal.esic.gov.in/*",
     "https://geebharat.com/*",
     "http://localhost:*/*"
   ],
@@ -23,7 +23,7 @@
       "run_at": "document_idle"
     },
     {
-      "matches": ["https://unifiedportal-emp.epfindia.gov.in/*", "https://www.esic.in/*"],
+      "matches": ["https://unifiedportal-emp.epfindia.gov.in/*", "https://portal.esic.gov.in/*"],
       "js": ["pf-esic-content.js"],
       "run_at": "document_idle"
     }

@@ -31,7 +31,7 @@ const {
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 const PF_LOGIN_URL = process.env.PF_LOGIN_URL || 'https://unifiedportal-emp.epfindia.gov.in/epfo/';
-const ESIC_LOGIN_URL = process.env.ESIC_LOGIN_URL || 'https://www.esic.in/EmployerPortal/ESICInsurancePortal/Portal_Loginnew.aspx';
+const ESIC_LOGIN_URL = process.env.ESIC_LOGIN_URL || 'https://portal.esic.gov.in/EmployerPortal/ESICInsurancePortal/Portal_Loginnew.aspx';
 
 function tokenHash(token) {
   return crypto.createHash('sha256').update(String(token || '')).digest('hex');

@@ -6,7 +6,7 @@ Supported portals:
 - GST: `https://services.gst.gov.in/services/login`
 - Income Tax: `https://eportal.incometax.gov.in/iec/foservices/#/login`
 - PF: `https://unifiedportal-emp.epfindia.gov.in/epfo/`
-- ESIC: `https://www.esic.in/EmployerPortal/ESICInsurancePortal/Portal_Loginnew.aspx`
+- ESIC: `https://portal.esic.gov.in/EmployerPortal/ESICInsurancePortal/Portal_Loginnew.aspx`
 
 ## Install
 
