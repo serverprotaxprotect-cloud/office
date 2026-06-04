@@ -56,6 +56,10 @@
   async function loadMeta() {
     const data = await api(apiPath('/meta'), { cache: false });
     if (!data.success) {
+      ['pfesic_default_assignee', 'pfesic_assign_employee'].forEach((id) => {
+        const el = qs(id);
+        if (el) el.innerHTML = '<option value="">Unassigned</option>';
+      });
       showToast(data.message || 'PF/ESIC setup pending', 'error');
       return false;
     }

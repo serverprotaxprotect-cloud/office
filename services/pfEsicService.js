@@ -47,11 +47,11 @@ async function logPFESIC(conn, payload) {
 async function findEmployee(conn, empId) {
   if (!empId) return null;
   const r = await conn.query(
-    `SELECT emp_id, formal_name, name, designation, photo_url
+    `SELECT emp_id, formal_name, name, designation, photo
        FROM (
-         SELECT emp_id, formal_name, name, designation, photo_url FROM emplist WHERE emp_id=$1 AND status='Active'
+         SELECT emp_id, formal_name, name, designation, photo FROM emplist WHERE emp_id=$1 AND status='Active'
          UNION ALL
-         SELECT username AS emp_id, name AS formal_name, name, role AS designation, photo_url FROM admins WHERE username=$1 AND status='Active'
+         SELECT username AS emp_id, name AS formal_name, name, role AS designation, NULL::text AS photo FROM admins WHERE username=$1 AND status='Active'
        ) x
       LIMIT 1`,
     [empId]

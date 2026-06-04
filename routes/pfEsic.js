@@ -161,11 +161,11 @@ router.get('/meta', async (req, res) => {
   try {
     const p = currentPeriod();
     const employees = await db.query(
-      `SELECT emp_id, formal_name, name, designation, photo_url
+      `SELECT emp_id, formal_name, name, designation, photo
          FROM (
-           SELECT emp_id, formal_name, name, designation, photo_url FROM emplist WHERE status='Active'
+           SELECT emp_id, formal_name, name, designation, photo FROM emplist WHERE status='Active'
            UNION ALL
-           SELECT username AS emp_id, name AS formal_name, name, role AS designation, photo_url FROM admins WHERE status='Active'
+           SELECT username AS emp_id, name AS formal_name, name, role AS designation, NULL::text AS photo FROM admins WHERE status='Active'
          ) x
         ORDER BY formal_name, name, emp_id`
     );
