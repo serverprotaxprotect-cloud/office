@@ -24,6 +24,7 @@
     .table-wrap{overflow:auto;background:#fff;border-radius:12px;padding:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);max-height:calc(100vh - 260px)}
     .table-wrap.tall{max-height:calc(100vh - 185px)}
     .scroll-card{overflow:auto;max-height:calc(100vh - 210px)}
+    .profile-bar{display:grid;grid-template-columns:repeat(2,minmax(260px,420px));gap:12px;margin-bottom:16px}.profile-card{background:#fff;border:2px solid var(--line);border-radius:10px;padding:12px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px}.profile-card.active{border-color:var(--primary);box-shadow:0 3px 12px rgba(33,85,243,.15)}.profile-card.missing{border-style:dashed;color:var(--muted)}.profile-card strong{display:block;font-size:14px}.profile-card small{color:var(--muted)}
     table{width:100%;border-collapse:collapse;min-width:980px;font-size:13px}th{position:sticky;top:0;z-index:4;background:#f8fafc;text-align:left;padding:9px 12px;font-size:11px;text-transform:uppercase;color:#475569;border-bottom:2px solid var(--line);font-weight:800;white-space:nowrap}td{padding:9px 12px;border-bottom:1px solid #f1f5f9;vertical-align:middle;color:#0f172a}tr:hover td{background:#f8fafc}
     .muted{color:var(--muted)}.badge{display:inline-block;padding:4px 9px;border-radius:20px;background:#eaf1ff;color:#1d4ed8;font-weight:800;font-size:11px}.badge.green{background:#dcfce7;color:#15803d}.badge.yellow{background:#fef3c7;color:#a16207}.badge.red{background:#fee2e2;color:#b91c1c}
     .split{display:grid;grid-template-columns:1.2fr .8fr;gap:14px}.selected-list{display:grid;gap:8px;max-height:220px;overflow:auto}.selected-item{border:1px solid var(--line);border-radius:8px;padding:8px;background:#f8fafc}
@@ -40,7 +41,6 @@
   <div class="layout">
     <aside class="side">
       <div class="nav active" data-tab="dashboard" onclick="showTab('dashboard')">Dashboard</div>
-      <div class="nav" data-tab="unbilled" onclick="showTab('unbilled')">Unbilled Work</div>
       <div class="nav" data-tab="client-unbilled" onclick="showTab('client-unbilled')">Client Wise Unbilled</div>
       <div class="nav" data-tab="proforma" onclick="showTab('proforma')">Proforma</div>
       <div class="nav" data-tab="invoices" onclick="showTab('invoices')">Tax Invoices</div>
@@ -51,6 +51,7 @@
     </aside>
     <main class="main">
       <div id="msg" class="card" style="display:none"></div>
+      <div class="profile-bar" id="profileBar"></div>
 
       <section class="panel active" id="tab-dashboard">
         <div class="title">Billing Dashboard <small id="accessText"></small></div>
@@ -76,7 +77,7 @@
       </section>
 
       <section class="panel" id="tab-unbilled">
-        <div class="title">Unbilled Work <small>Select tasks and create package/invoice</small></div>
+        <div class="title">Client Billing Workspace <small>Select, group and bill this client's pending work</small></div>
         <div class="split">
           <div>
             <div class="toolbar">
@@ -87,7 +88,7 @@
               <span class="muted" id="ubClientFilterText"></span>
             </div>
             <div class="table-wrap"><table>
-              <thead><tr><th></th><th>Client</th><th>Work</th><th>Status</th><th>Assignee</th><th>Amount</th></tr></thead>
+              <thead><tr><th></th><th>Client</th><th>Work</th><th>Status</th><th>Assignee</th><th>Amount</th><th>Action</th></tr></thead>
               <tbody id="unbilledBody"><tr><td colspan="6">Loading...</td></tr></tbody>
             </table></div>
           </div>
@@ -95,10 +96,26 @@
             <h3 style="margin-bottom:12px">Create Bill</h3>
             <div class="selected-list" id="selectedList"><div class="muted">No task selected</div></div>
             <div style="display:grid;gap:10px;margin-top:12px">
-              <div><label>Package / Line Description</label><input id="billDesc" placeholder="Company Compliance" /></div>
-              <div><label>Amount</label><input id="billAmount" type="number" step="0.01" /></div>
-              <div><label>Tax Rate %</label><input id="billTaxRate" type="number" step="0.01" value="18" /></div>
+              <div class="grid">
+                <div><label>Client Name</label><input id="billClientName"></div>
+                <div><label>GSTIN</label><input id="billClientGstin"></div>
+                <div><label>Contact</label><input id="billClientContact"></div>
+                <div><label>Client State</label><input id="billClientState"></div>
+                <div><label>Place of Supply</label><input id="billPlaceSupply"></div>
+                <div><label>Update Client Master</label><select id="billUpdateClient"><option value="false">No</option><option value="true">Yes</option></select></div>
+              </div>
+              <div><label>Client Address</label><textarea id="billClientAddress" rows="2"></textarea></div>
+              <div class="card" style="padding:10px">
+                <strong>Amount Breakup</strong>
+                <div class="grid" style="margin-top:8px">
+                  <div><label>Professional Fees</label><input id="billProfessionalTotal" readonly></div>
+                  <div><label>Challan Amount</label><input id="billChallanTotal" readonly></div>
+                  <div><label>Other Expenses</label><input id="billOtherTotal" readonly></div>
+                </div>
+              </div>
+              <div><label>Invoice Lines</label><div id="billLines"></div></div>
               <div><label>Tax Mode</label><select id="billTaxMode"><option>Auto</option><option value="CGST_SGST">CGST + SGST</option><option>IGST</option><option>None</option></select></div>
+              <div><label>Bank / UPI on Invoice</label><select id="billPaymentAccount"></select></div>
               <button class="btn green write-only" onclick="createBill('proforma')">Create Proforma</button>
               <button class="btn primary write-only" onclick="createBill('invoice')">Create Tax Invoice</button>
             </div>
@@ -113,8 +130,8 @@
       </section>
 
       <section class="panel" id="tab-invoices">
-        <div class="title">Tax Invoices</div>
-        <div class="toolbar"><input id="invoiceSearch" placeholder="Search invoice/client..." style="max-width:320px"><button class="btn" onclick="loadDocs('invoice')">Load</button></div>
+        <div class="title" id="invoiceRegisterTitle">Tax Invoices</div>
+        <div class="toolbar"><input id="invoiceSearch" placeholder="Search invoice/client..." style="max-width:320px"><button class="btn" onclick="loadDocs('invoice')">Load</button><button class="btn red" onclick="loadDeletedDocs()">Deleted History</button></div>
         <div class="table-wrap"><table><thead><tr><th>No</th><th>Date</th><th>Client</th><th>Amount</th><th>Received</th><th>Outstanding</th><th>Status</th><th>Actions</th></tr></thead><tbody id="invoiceBody"></tbody></table></div>
       </section>
 
@@ -145,6 +162,10 @@
       <section class="panel" id="tab-reports">
         <div class="title">Reports</div>
         <div class="toolbar">
+          <select id="reportScope" style="max-width:220px">
+            <option value="profile">Selected Profile</option>
+            <option value="combined">Combined Organisation</option>
+          </select>
           <button class="btn" onclick="loadReport('outstanding')">Outstanding</button>
           <button class="btn" onclick="loadReport('daybook')">Daybook</button>
           <button class="btn" onclick="loadReport('unbilled')">Unbilled</button>
@@ -159,6 +180,7 @@
           <div class="card">
             <h3 style="margin-bottom:12px">Invoice Series</h3>
             <div class="grid">
+              <div><label>Profile Display Name</label><input id="setProfileName"></div>
               <div><label>Invoice Prefix</label><input id="setInvoicePrefix"></div>
               <div><label>Proforma Prefix</label><input id="setProformaPrefix"></div>
             </div>
@@ -178,24 +200,20 @@
             <div style="margin-top:10px"><label>Terms</label><textarea id="setTerms" rows="3"></textarea></div>
           </div>
           <div class="card">
-            <h3 style="margin-bottom:12px">UPI Setup</h3>
+            <h3 style="margin-bottom:12px">Bank / Cash / UPI Accounts</h3>
             <div class="grid">
-              <div><label>UPI ID</label><input id="setUpiId" placeholder="name@bank"></div>
-              <div><label>UPI Payee Name</label><input id="setUpiName" placeholder="Name shown in QR"></div>
-            </div>
-          </div>
-          <div class="card">
-            <h3 style="margin-bottom:12px">Bank / Cash Accounts</h3>
-            <div class="grid">
-              <div><label>Account Name</label><input id="bankAccountName" placeholder="HDFC Bank / Cash"></div>
-              <div><label>Type</label><select id="bankAccountType"><option>Bank</option><option>Cash</option></select></div>
+              <div><label>Account Name</label><input id="bankAccountName" placeholder="HDFC Bank / UPI / Cash"></div>
+              <div><label>Type</label><select id="bankAccountType"><option>Bank</option><option>Cash</option><option>UPI</option></select></div>
               <div><label>Bank Name</label><input id="bankName"></div>
               <div><label>Account No.</label><input id="bankAccountNo"></div>
               <div><label>IFSC</label><input id="bankIfsc"></div>
+              <div><label>UPI ID</label><input id="bankUpiId" placeholder="name@bank"></div>
+              <div><label>UPI Payee Name</label><input id="bankUpiName"></div>
               <div><label>Opening Balance</label><input id="bankOpeningBalance" type="number" step="0.01" value="0"></div>
+              <div><label><input id="bankIsDefault" type="checkbox"> Default on invoice</label></div>
               <div style="display:flex;align-items:end"><button class="btn green write-only" onclick="addBankAccount()">Add Account</button></div>
             </div>
-            <div class="table-wrap" style="margin-top:12px;max-height:240px"><table><thead><tr><th>Name</th><th>Type</th><th>Bank</th><th>Account</th><th>IFSC</th><th>Status</th></tr></thead><tbody id="bankAccountsBody"><tr><td colspan="6">Loading...</td></tr></tbody></table></div>
+            <div class="table-wrap" style="margin-top:12px;max-height:240px"><table><thead><tr><th>Name</th><th>Type</th><th>Details</th><th>Default</th><th>Status</th><th>Action</th></tr></thead><tbody id="bankAccountsBody"><tr><td colspan="6">Loading...</td></tr></tbody></table></div>
           </div>
           <div class="card">
             <div><label>Printable Bank Details / Notes</label><textarea id="setBankDetails" rows="3"></textarea></div>
@@ -228,21 +246,44 @@
       </div>
       <div style="margin-top:10px"><label>Client Address</label><textarea id="editClientAddress" rows="3"></textarea></div>
       <h3 style="margin:14px 0 8px">Items</h3>
-      <div class="table-wrap" style="max-height:280px"><table><thead><tr><th>Item Name</th><th>HSN/SAC</th><th>Qty</th><th>Price / Unit</th><th>Tax %</th></tr></thead><tbody id="editLinesBody"></tbody></table></div>
+      <div class="toolbar" id="editTaskPickerWrap">
+        <select id="editAddTask" style="min-width:320px"><option value="">Add unbilled work...</option></select>
+        <button class="btn write-only" type="button" onclick="addTaskToEdit()">Add Work</button>
+      </div>
+      <div class="table-wrap" style="max-height:280px"><table><thead><tr><th>Item Name</th><th>Linked Work</th><th>HSN/SAC</th><th>Qty</th><th>Price / Unit</th><th>Tax %</th></tr></thead><tbody id="editLinesBody"></tbody></table></div>
       <div style="margin-top:10px"><label>Terms</label><textarea id="editTerms" rows="2"></textarea></div>
       <div style="margin-top:10px"><label>Edit Reason / Remarks</label><input id="editReason" placeholder="Reason for audit trail"></div>
       <button class="btn primary write-only" style="margin-top:12px;width:100%" onclick="saveEditedDoc()">Save Invoice</button>
     </div>
   </div>
 
+  <div class="modal" id="taskAmountModal">
+    <div class="modal-card" style="max-width:560px">
+      <div class="toolbar"><h2>Update Task Amount</h2><span class="spacer"></span><button class="btn red" onclick="closeTaskAmount()">Close</button></div>
+      <input id="amountTaskId" type="hidden">
+      <div><label>Task / Work</label><input id="amountTaskName" readonly></div>
+      <div class="grid" style="margin-top:10px">
+        <div><label>Professional Fees</label><input id="amountProfessional" type="number" step="0.01"></div>
+        <div><label>Challan Amount</label><input id="amountChallan" type="number" step="0.01"></div>
+        <div><label>Other Expenses</label><input id="amountOther" type="number" step="0.01"></div>
+      </div>
+      <button class="btn primary write-only" style="margin-top:14px;width:100%" onclick="saveTaskAmount()">Save Amount</button>
+    </div>
+  </div>
+
   <script>
     const token = localStorage.getItem('office_token');
     const selected = new Map();
+    const invoiceLines = new Map();
+    let paymentAccounts = [];
+    let billingParty = null;
     let billingAccess = { can_write:false };
     let currentSettings = {};
     let currentUnbilledClient = '';
     let currentUnbilledClientName = '';
     let currentDocPayload = null;
+    let billingProfiles = [];
+    let activeProfile = null;
 
     function h(v){return String(v ?? '').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
     function money(v){return Number(v||0).toLocaleString('en-IN',{style:'currency',currency:'INR'})}
@@ -253,6 +294,62 @@
       const data = await res.json().catch(()=>({success:false,message:'Invalid server response'}));
       if(!res.ok || !data.success) throw new Error(data.message || 'Request failed');
       return data;
+    }
+    function profileQuery(extra=''){
+      const join=extra.includes('?')?'&':'?';
+      return `${extra}${join}profile_id=${encodeURIComponent(activeProfile?.id||'')}`;
+    }
+    function renderProfiles(){
+      const byType=Object.fromEntries(billingProfiles.map(p=>[p.profile_type,p]));
+      profileBar.innerHTML=['gst','non_gst'].map(type=>{
+        const p=byType[type];
+        if(!p) return `<div class="profile-card missing write-only" onclick="createMissingProfile('${type}')"><div><strong>+ Add ${type==='gst'?'GST':'Without GST'} Profile</strong><small>Optional second billing identity</small></div></div>`;
+        return `<div class="profile-card ${Number(activeProfile?.id)===Number(p.id)?'active':''}" onclick="selectProfile(${p.id})">
+          <div><strong>${h(p.display_name)}</strong><small>${type==='gst'?'GST billing profile':'Non-GST ordinary invoice'}</small></div>
+          <span class="badge ${type==='gst'?'green':'yellow'}">${type==='gst'?'GST':'NO GST'}</span>
+        </div>`;
+      }).join('');
+      invoiceRegisterTitle.textContent=activeProfile?.profile_type==='non_gst'?'Invoices':'Tax Invoices';
+      document.querySelectorAll('button').forEach(btn=>{
+        if(btn.textContent.trim()==='Create Tax Invoice'||btn.dataset.invoiceCreate==='1'){
+          btn.dataset.invoiceCreate='1';
+          btn.textContent=activeProfile?.profile_type==='non_gst'?'Create Invoice':'Create Tax Invoice';
+        }
+      });
+      applyAccess();
+    }
+    async function loadProfiles(){
+      const d=await api('/profiles');
+      billingProfiles=d.profiles||[];
+      activeProfile=billingProfiles.find(p=>Number(p.id)===Number(activeProfile?.id))
+        || billingProfiles.find(p=>p.profile_type==='gst')
+        || billingProfiles[0] || null;
+      renderProfiles();
+    }
+    async function createMissingProfile(type){
+      if(!billingAccess.can_write) return;
+      try{
+        const base=billingProfiles[0];
+        const d=await api('/profiles',{method:'POST',body:JSON.stringify({
+          profile_type:type,
+          display_name:`${base?.legal_name||base?.display_name||'Organisation'} ${type==='gst'?'With GST':'Without GST'}`,
+          legal_name:base?.legal_name||'',
+          address:base?.address||'',
+          state:base?.state||'',
+          phone:base?.phone||'',
+          email:base?.email||''
+        })});
+        msg(d.message); await loadProfiles(); await selectProfile(d.profile.id);
+      }catch(e){msg(e.message,false)}
+    }
+    async function selectProfile(id){
+      activeProfile=billingProfiles.find(p=>Number(p.id)===Number(id))||activeProfile;
+      selected.clear(); invoiceLines.clear(); renderSelected(); renderProfiles();
+      await Promise.all([loadSettings(),loadDashboard(),loadBankAccounts()]);
+      const active=document.querySelector('.panel.active')?.id?.replace('tab-','');
+      if(active==='client-unbilled') loadClientUnbilled();
+      if(active==='invoices') loadDocs('invoice');
+      if(active==='proforma') loadDocs('proforma');
     }
     function showTab(tab){
       document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
@@ -277,6 +374,8 @@
         billingAccess=me.access||{};
         document.getElementById('orgChip').textContent=`${me.user.name} - ${me.user.organization_code || ''}`;
         applyAccess();
+        await loadProfiles();
+        if(!activeProfile) throw new Error('Billing profile setup required');
         await Promise.all([loadSettings(),loadDashboard(),loadBankAccounts()]);
       }catch(e){
         document.body.innerHTML=`<div style="max-width:520px;margin:80px auto;background:#fff;padding:24px;border-radius:14px;font-family:sans-serif"><h2>Billing access denied</h2><p style="margin:12px 0;color:#64748b">${h(e.message)}</p><button onclick="location.href='/office.html'" style="padding:10px 14px;border:0;border-radius:8px;background:#2563eb;color:white;font-weight:800">Back to Office</button></div>`;
@@ -284,7 +383,7 @@
     }
     async function loadDashboard(){
       try{
-        const d=await api('/dashboard');
+        const d=await api(profileQuery('/dashboard'));
         document.getElementById('mUnbilled').textContent=money(d.unbilled?.amount||0);
         document.getElementById('mOutstanding').textContent=money(d.outstanding||0);
         document.getElementById('mReceived').textContent=money(d.received_this_month||0);
@@ -293,6 +392,7 @@
     }
     async function loadUnbilled(){
       try{
+        if(!currentUnbilledClient){ showTab('client-unbilled'); return; }
         const qs=new URLSearchParams({search:document.getElementById('ubSearch').value,status:document.getElementById('ubStatus').value});
         if(currentUnbilledClient) qs.set('client_id', currentUnbilledClient);
         document.getElementById('clearClientFilterBtn').style.display = currentUnbilledClient ? 'inline-block' : 'none';
@@ -300,13 +400,14 @@
         const data=await api('/tasks/unbilled?'+qs.toString());
         document.getElementById('unbilledBody').innerHTML=(data.tasks||[]).map(t=>`
           <tr>
-            <td><input type="checkbox" ${selected.has(t.task_id)?'checked':''} onchange='toggleTask(${JSON.stringify(t).replace(/'/g,"&#39;")},this.checked)'></td>
-            <td><strong>${h(t.client_name||'--')}</strong><br><small>${h(t.client_id||'--')}</small></td>
+            <td><input type="checkbox" ${selected.has(t.task_id)?'checked':''} ${t.client_resolved?'':'disabled'} onchange='toggleTask(${JSON.stringify(t).replace(/'/g,"&#39;")},this.checked,this)'></td>
+            <td><strong>${h(t.client_name||'--')}</strong><br><small>${h(t.client_id||t.source_client_id||'--')}</small>${t.client_resolved?'':'<br><span class="badge red">Client mapping required</span>'}</td>
             <td>${h(t.work_name)}<br><small>${h(t.task_id)}</small></td>
             <td><span class="badge">${h(t.status)}</span></td>
             <td>${h(t.assigned_to_name||'--')}</td>
-            <td>${money(t.amount)}</td>
-          </tr>`).join('') || '<tr><td colspan="6">No unbilled work</td></tr>';
+            <td>${money(t.amount)}<br><small>Fees ${money(t.professional_fees)} | Challan ${money(t.challan_amount)} | Other ${money(t.other_expense)}</small></td>
+            <td><button class="btn write-only" onclick='openTaskAmount(${JSON.stringify(t).replace(/'/g,"&#39;")})'>Edit Amount</button></td>
+          </tr>`).join('') || '<tr><td colspan="7">No unbilled work</td></tr>';
       }catch(e){msg(e.message,false)}
     }
     async function loadClientUnbilled(){
@@ -327,6 +428,7 @@
       currentUnbilledClient = clientId || '';
       currentUnbilledClientName = clientName || clientId || '';
       selected.clear();
+      invoiceLines.clear();
       renderSelected();
       showTab('unbilled');
     }
@@ -334,23 +436,96 @@
       currentUnbilledClient = '';
       currentUnbilledClientName = '';
       selected.clear();
+      invoiceLines.clear();
       renderSelected();
-      loadUnbilled();
+      showTab('client-unbilled');
     }
-    function toggleTask(task, checked){
-      if(checked) selected.set(task.task_id,task); else selected.delete(task.task_id);
+    function toggleTask(task, checked, checkbox){
+      if(checked){
+        const existingClient=[...selected.values()][0]?.client_id;
+        if(existingClient && existingClient!==task.client_id){
+          if(checkbox) checkbox.checked=false;
+          return msg('One bill me sirf same client ke tasks select karein',false);
+        }
+        task.billing_name=task.billing_name||task.work_name;
+        task.line_id='line-'+task.task_id;
+        selected.set(task.task_id,task);
+        invoiceLines.set(task.line_id,{id:task.line_id,description:task.work_name||'Professional Services',hsn_sac:'',tax_rate:Number(currentSettings.default_tax_rate||18)});
+        if(selected.size===1) loadBillingParty(task);
+      }else{
+        const row=selected.get(task.task_id);
+        selected.delete(task.task_id);
+        if(row && ![...selected.values()].some(t=>t.line_id===row.line_id)) invoiceLines.delete(row.line_id);
+        if(!selected.size){ billingParty=null; clearBillingParty(); }
+      }
       renderSelected();
     }
     function renderSelected(){
       const rows=[...selected.values()];
-      const total=rows.reduce((s,t)=>s+Number(t.amount||0),0);
-      document.getElementById('billAmount').value=total.toFixed(2);
-      if(!document.getElementById('billDesc').value && rows.length) document.getElementById('billDesc').value = rows.length > 1 ? 'Professional Services Package' : rows[0].work_name;
-      document.getElementById('selectedList').innerHTML=rows.length ? rows.map(t=>`<div class="selected-item"><strong>${h(t.work_name)}</strong><br><small>${h(t.client_id)} - ${h(t.task_id)} - ${money(t.amount)}</small><label style="margin-top:8px">Billing Task Name</label><input value="${h(t.billing_name || t.work_name)}" oninput="updateSelectedTaskName('${h(t.task_id)}',this.value)"></div>`).join('') : '<div class="muted">No task selected</div>';
+      document.getElementById('billProfessionalTotal').value=rows.reduce((s,t)=>s+Number(t.professional_fees||0),0).toFixed(2);
+      document.getElementById('billChallanTotal').value=rows.reduce((s,t)=>s+Number(t.challan_amount||0),0).toFixed(2);
+      document.getElementById('billOtherTotal').value=rows.reduce((s,t)=>s+Number(t.other_expense||0),0).toFixed(2);
+      const lineOptions=[...invoiceLines.values()].map((line,index)=>`<option value="${h(line.id)}">Line ${index+1}: ${h(line.description)}</option>`).join('');
+      document.getElementById('selectedList').innerHTML=rows.length ? rows.map(t=>`
+        <div class="selected-item">
+          <strong>${h(t.work_name)}</strong><br><small>${h(t.client_id)} - ${h(t.task_id)} - ${money(t.amount)}</small>
+          <label style="margin-top:8px">Billing Task Name</label>
+          <input value="${h(t.billing_name || t.work_name)}" oninput="updateSelectedTaskName('${h(t.task_id)}',this.value)">
+          <label style="margin-top:8px">Invoice Line / Group</label>
+          <select onchange="moveTaskToLine('${h(t.task_id)}',this.value)">${lineOptions.replace(`value="${h(t.line_id)}"`,`value="${h(t.line_id)}" selected`)}<option value="__new">New Separate Line</option></select>
+        </div>`).join('') : '<div class="muted">No task selected</div>';
+      const groups=[...invoiceLines.values()].filter(line=>rows.some(t=>t.line_id===line.id));
+      document.getElementById('billLines').innerHTML=groups.length ? groups.map(line=>{
+        const tasks=rows.filter(t=>t.line_id===line.id);
+        const total=tasks.reduce((s,t)=>s+Number(t.amount||0),0);
+        return `<div class="selected-item" style="margin-bottom:8px">
+          <label>Line Description</label><input value="${h(line.description)}" oninput="updateLine('${h(line.id)}','description',this.value)">
+          <div class="grid" style="margin-top:8px">
+            <div><label>HSN/SAC</label><input value="${h(line.hsn_sac||'')}" oninput="updateLine('${h(line.id)}','hsn_sac',this.value)"></div>
+            <div><label>Tax %</label><input type="number" step="0.01" value="${Number(line.tax_rate||0)}" oninput="updateLine('${h(line.id)}','tax_rate',this.value)"></div>
+          </div>
+          <small>${tasks.map(t=>h(t.billing_name||t.work_name)).join(' + ')}</small>
+          <div style="text-align:right;font-weight:800">${money(total)}</div>
+        </div>`;
+      }).join('') : '<div class="muted">Select work to build invoice lines.</div>';
     }
     function updateSelectedTaskName(taskId, value){
       const row = selected.get(taskId);
       if(row){ row.billing_name = value; selected.set(taskId,row); }
+    }
+    function updateLine(lineId, key, value){
+      const line=invoiceLines.get(lineId);
+      if(!line) return;
+      line[key]=key==='tax_rate'?Number(value||0):value;
+      invoiceLines.set(lineId,line);
+    }
+    function moveTaskToLine(taskId,lineId){
+      const row=selected.get(taskId);
+      if(!row) return;
+      const oldLine=row.line_id;
+      if(lineId==='__new'){
+        lineId='line-'+taskId+'-'+Date.now();
+        invoiceLines.set(lineId,{id:lineId,description:row.billing_name||row.work_name,hsn_sac:'',tax_rate:Number(currentSettings.default_tax_rate||18)});
+      }
+      row.line_id=lineId;
+      selected.set(taskId,row);
+      if(![...selected.values()].some(t=>t.line_id===oldLine)) invoiceLines.delete(oldLine);
+      renderSelected();
+    }
+    async function loadBillingParty(task){
+      try{
+        const d=await api(`/clients/${encodeURIComponent(task.client_id)}?name=${encodeURIComponent(task.client_name||'')}`);
+        billingParty=d.client;
+        billClientName.value=billingParty.legal_name||billingParty.business_name||task.client_name||'';
+        billClientGstin.value=billingParty.gst_no||'';
+        billClientContact.value=billingParty.mobile_number||'';
+        billClientState.value=billingParty.state||'';
+        billPlaceSupply.value=billingParty.state||'';
+        billClientAddress.value=billingParty.address||'';
+      }catch(e){msg(e.message,false)}
+    }
+    function clearBillingParty(){
+      ['billClientName','billClientGstin','billClientContact','billClientState','billPlaceSupply','billClientAddress'].forEach(id=>document.getElementById(id).value='');
     }
     async function createBill(type){
       const rows=[...selected.values()];
@@ -358,28 +533,67 @@
       const clientId=rows[0].client_id;
       if(rows.some(t=>t.client_id!==clientId)) return msg('One bill me sirf same client ke tasks select karein',false);
       try{
-        const payload={
-          client_id:clientId,
-          tax_mode:document.getElementById('billTaxMode').value,
-          lines:[{
-            description:document.getElementById('billDesc').value || 'Professional Services',
+        const lines=[...invoiceLines.values()].filter(line=>rows.some(t=>t.line_id===line.id)).map(line=>{
+          const tasks=rows.filter(t=>t.line_id===line.id);
+          return {
+            description:line.description||'Professional Services',
+            hsn_sac:line.hsn_sac||'',
             quantity:1,
-            rate:Number(document.getElementById('billAmount').value||0),
-            tax_rate:Number(document.getElementById('billTaxRate').value||18),
-            task_ids:rows.map(t=>t.task_id),
-            task_names:Object.fromEntries(rows.map(t=>[t.task_id,t.billing_name || t.work_name]))
-          }]
+            rate:tasks.reduce((sum,t)=>sum+Number(t.amount||0),0),
+            tax_rate:Number(line.tax_rate||0),
+            task_ids:tasks.map(t=>t.task_id),
+            task_names:Object.fromEntries(tasks.map(t=>[t.task_id,t.billing_name||t.work_name]))
+          };
+        });
+        const payload={
+          profile_id:activeProfile.id,
+          client_id:clientId,
+          client_name:billClientName.value,
+          client_gstin:billClientGstin.value,
+          client_contact:billClientContact.value,
+          client_state:billClientState.value,
+          place_of_supply:billPlaceSupply.value,
+          client_address:billClientAddress.value,
+          update_client_master:billUpdateClient.value==='true',
+          tax_mode:document.getElementById('billTaxMode').value,
+          payment_account_id:Number(billPaymentAccount.value)||null,
+          lines
         };
         const data=await api(type==='invoice'?'/invoices':'/proformas',{method:'POST',body:JSON.stringify(payload)});
-        selected.clear(); renderSelected(); await loadUnbilled(); await loadDashboard();
+        selected.clear(); invoiceLines.clear(); billingParty=null; clearBillingParty(); renderSelected(); await loadUnbilled(); await loadDashboard();
         msg(data.message || 'Bill created');
         openDoc(data.document.id);
+      }catch(e){msg(e.message,false)}
+    }
+    function openTaskAmount(task){
+      amountTaskId.value=task.task_id;
+      amountTaskName.value=`${task.work_name} (${task.task_id})`;
+      amountProfessional.value=Number(task.professional_fees||0).toFixed(2);
+      amountChallan.value=Number(task.challan_amount||0).toFixed(2);
+      amountOther.value=Number(task.other_expense||0).toFixed(2);
+      taskAmountModal.classList.add('show');
+    }
+    function closeTaskAmount(){taskAmountModal.classList.remove('show')}
+    async function saveTaskAmount(){
+      try{
+        const d=await api(`/tasks/${encodeURIComponent(amountTaskId.value)}/amounts`,{method:'PUT',body:JSON.stringify({
+          professional_fees:amountProfessional.value,
+          challan_amount:amountChallan.value,
+          other_expense:amountOther.value
+        })});
+        const row=selected.get(amountTaskId.value);
+        if(row){
+          Object.assign(row,d.task,{amount:d.task.total_amount});
+          selected.set(row.task_id,row);
+          renderSelected();
+        }
+        closeTaskAmount(); msg(d.message); loadUnbilled();
       }catch(e){msg(e.message,false)}
     }
     async function loadDocs(type){
       try{
         const input=document.getElementById(type==='invoice'?'invoiceSearch':'proformaSearch');
-        const data=await api(`/documents?type=${type}&search=${encodeURIComponent(input?.value||'')}`);
+        const data=await api(profileQuery(`/documents?type=${type}&search=${encodeURIComponent(input?.value||'')}`));
         const body=document.getElementById(type==='invoice'?'invoiceBody':'proformaBody');
         body.innerHTML=(data.documents||[]).map(d=>`
           <tr>
@@ -388,26 +602,49 @@
             <td>${money(d.total_amount)}</td>
             ${type==='invoice'?`<td>${money(d.received_amount)}</td><td>${money(d.outstanding_amount)}</td>`:''}
             <td><span class="badge ${d.status==='Cancelled'?'red':'green'}">${h(d.status)}</span></td>
-            <td><button class="btn" onclick="openDoc(${d.id})">View</button> <button class="btn primary write-only" onclick="editDoc(${d.id})">Edit</button> ${type==='proforma'?`<button class="btn primary write-only" onclick="invoiceFromProforma(${d.id})">Make Invoice</button>`:''}</td>
+            <td><button class="btn" onclick="openDoc(${d.id})">View</button> <button class="btn primary write-only" onclick="editDoc(${d.id})">Edit</button> ${type==='proforma'?`<button class="btn primary write-only" onclick="invoiceFromProforma(${d.id})">Make Invoice</button>`:''} <button class="btn red write-only" onclick='deleteDoc(${d.id},${JSON.stringify(d.document_no)})'>Delete</button></td>
           </tr>`).join('') || `<tr><td colspan="${type==='invoice'?8:6}">No records</td></tr>`;
         applyAccess();
       }catch(e){msg(e.message,false)}
     }
+    async function loadDeletedDocs(){
+      try{
+        const data=await api(profileQuery('/documents?type=invoice&status=Deleted&include_deleted=true'));
+        invoiceBody.innerHTML=(data.documents||[]).map(d=>`<tr>
+          <td><strong>${h(d.document_no)}</strong></td><td>${date(d.document_date)}</td>
+          <td>${h(d.client_name)}<br><small>${h(d.delete_reason||'')}</small></td><td>${money(d.total_amount)}</td>
+          <td>--</td><td>--</td><td><span class="badge red">Deleted</span></td>
+          <td><button class="btn" onclick="openDoc(${d.id})">View History</button></td>
+        </tr>`).join('')||'<tr><td colspan="8">No deleted invoices</td></tr>';
+      }catch(e){msg(e.message,false)}
+    }
+    async function deleteDoc(id, documentNo){
+      const confirmed=prompt(`Are you sure? Type invoice number to delete:\n${documentNo}`,'');
+      if(confirmed===null) return;
+      const reason=prompt('Delete reason (required):','');
+      if(!reason?.trim()) return msg('Delete reason is required',false);
+      try{
+        const d=await api('/documents/'+id,{method:'DELETE',body:JSON.stringify({confirm_document_no:confirmed,reason})});
+        msg(d.message); closeDoc(); await Promise.all([loadDocs('invoice'),loadDocs('proforma'),loadClientUnbilled(),loadDashboard()]);
+      }catch(e){msg(e.message,false)}
+    }
     async function invoiceFromProforma(id){
-      try{const d=await api('/invoices/from-proforma',{method:'POST',body:JSON.stringify({proforma_id:id})});msg(d.message);loadDocs('proforma');loadDocs('invoice');openDoc(d.document.id)}catch(e){msg(e.message,false)}
+      try{const d=await api('/invoices/from-proforma',{method:'POST',body:JSON.stringify({proforma_id:id,profile_id:activeProfile.id})});msg(d.message);loadDocs('proforma');loadDocs('invoice');openDoc(d.document.id)}catch(e){msg(e.message,false)}
     }
     async function openDoc(id){
       try{
         const d=await api('/documents/'+id);
         const doc=d.document, lines=d.lines||[], tasks=d.tasks||[];
         currentDocPayload = d;
-        document.getElementById('docTitle').textContent=`${doc.document_type==='invoice'?'Tax Invoice':'Proforma'} ${doc.document_no}`;
+        const title=doc.document_type==='invoice'?(doc.profile_type==='non_gst'?'Invoice':'Tax Invoice'):'Proforma';
+        document.getElementById('docTitle').textContent=`${title} ${doc.document_no}`;
         document.getElementById('docPreview').innerHTML=renderInvoice(doc, lines, tasks);
         document.getElementById('docModal').classList.add('show');
       }catch(e){msg(e.message,false)}
     }
     function renderInvoice(doc, lines, tasks){
-      const useIgst = Number(doc.igst_amount || 0) > 0 || doc.tax_mode === 'IGST';
+      const useTax = doc.profile_type !== 'non_gst' && doc.tax_mode !== 'None';
+      const useIgst = useTax && (Number(doc.igst_amount || 0) > 0 || doc.tax_mode === 'IGST');
       const received = Number(doc.received_amount || 0);
       const balance = Number(doc.total_amount || 0) - received;
       const itemRows = lines.map((line, idx) => {
@@ -420,31 +657,30 @@
           <td>${h(line.quantity || 1)}</td>
           <td>${money(line.rate)}</td>
           <td>${money(line.amount)}</td>
-          ${useIgst ? `<td>${split.igst?`${money(split.igst)}<br><small>(${h(line.tax_rate)}%)</small>`:''}</td>` : `<td>${split.cgst?`${money(split.cgst)}<br><small>(${h(Number(line.tax_rate||0)/2)}%)</small>`:''}</td><td>${split.sgst?`${money(split.sgst)}<br><small>(${h(Number(line.tax_rate||0)/2)}%)</small>`:''}</td>`}
+          ${useTax ? (useIgst ? `<td>${split.igst?`${money(split.igst)}<br><small>(${h(line.tax_rate)}%)</small>`:''}</td>` : `<td>${split.cgst?`${money(split.cgst)}<br><small>(${h(Number(line.tax_rate||0)/2)}%)</small>`:''}</td><td>${split.sgst?`${money(split.sgst)}<br><small>(${h(Number(line.tax_rate||0)/2)}%)</small>`:''}</td>`) : ''}
           <td>${money(Number(line.amount||0)+split.cgst+split.sgst+split.igst)}</td>
         </tr>`;
       }).join('');
       const qtyTotal = lines.reduce((s,l)=>s+Number(l.quantity||0),0);
-      const colCount = useIgst ? 8 : 9;
-      return `<h2>${doc.document_type==='invoice'?'Tax Invoice':'Proforma Invoice'}</h2>
+      return `<h2>${doc.document_type==='invoice'?(doc.profile_type==='non_gst'?'Invoice':'Tax Invoice'):'Proforma Invoice'}</h2>
         <div class="inv-wrap">
           <div class="inv-top">
-            <div class="brand-box"><div class="brand-mark">TAX PROTECT</div><div class="muted">Accredited • Accurate • Affordable</div></div>
+            <div class="brand-box"><div class="brand-mark">TAX PROTECT</div><div class="muted">Accredited | Accurate | Affordable</div></div>
             <div class="org-box"><strong>${h(currentSettings.legal_name || 'GeeBharat')}</strong><br>${br(currentSettings.address)}${currentSettings.phone?`Phone no.: ${h(currentSettings.phone)} `:''}${currentSettings.email?`Email: ${h(currentSettings.email)}<br>`:''}${currentSettings.gst_applicable !== false && currentSettings.gstin ? `GSTIN: ${h(currentSettings.gstin)}` : ''}</div>
           </div>
           <div class="bill-grid">
             <div class="bill-left"><div class="blue-head">Bill To</div><div class="bill-body"><strong>${h(doc.client_name)}</strong><br>${br(doc.client_address)}${doc.client_contact?`Contact No.: ${h(doc.client_contact)}<br>`:''}${doc.client_gstin?`GSTIN : ${h(doc.client_gstin)}<br>`:''}${doc.client_state?`State: ${h(doc.client_state)}`:''}</div></div>
             <div class="bill-right"><div class="blue-head">Invoice Details</div><div class="bill-body">Invoice No. : ${h(doc.document_no)}<br>Date : ${date(doc.document_date)}<br>Place of supply: ${h(doc.place_of_supply || doc.client_state || '')}</div></div>
           </div>
-          <table class="inv-table"><thead><tr><th>#</th><th>Item name</th><th>HSN / SAC</th><th>Quantity</th><th>Price / Unit</th><th>Taxable amount</th>${useIgst?'<th>IGST</th>':'<th>CGST</th><th>SGST</th>'}<th>Amount</th></tr></thead><tbody>${itemRows}</tbody><tfoot><tr><td></td><td>Total</td><td></td><td>${qtyTotal || ''}</td><td></td><td>${money(doc.taxable_amount)}</td>${useIgst?`<td>${money(doc.igst_amount)}</td>`:`<td>${money(doc.cgst_amount)}</td><td>${money(doc.sgst_amount)}</td>`}<td>${money(doc.total_amount)}</td></tr></tfoot></table>
+          <table class="inv-table"><thead><tr><th>#</th><th>Item name</th><th>HSN / SAC</th><th>Quantity</th><th>Price / Unit</th><th>Taxable amount</th>${useTax?(useIgst?'<th>IGST</th>':'<th>CGST</th><th>SGST</th>'):''}<th>Amount</th></tr></thead><tbody>${itemRows}</tbody><tfoot><tr><td></td><td>Total</td><td></td><td>${qtyTotal || ''}</td><td></td><td>${money(doc.taxable_amount)}</td>${useTax?(useIgst?`<td>${money(doc.igst_amount)}</td>`:`<td>${money(doc.cgst_amount)}</td><td>${money(doc.sgst_amount)}</td>`):''}<td>${money(doc.total_amount)}</td></tr></tfoot></table>
           <div class="summary-grid">
-            <div><table class="summary-table"><thead><tr><th>Tax type</th><th>Taxable amount</th><th>Rate</th><th>Tax amount</th></tr></thead><tbody>${useIgst?`<tr><td>IGST</td><td>${money(doc.taxable_amount)}</td><td>${taxRateLabel(lines)}%</td><td>${money(doc.igst_amount)}</td></tr>`:`<tr><td>SGST</td><td>${money(doc.taxable_amount)}</td><td>${halfTaxRateLabel(lines)}%</td><td>${money(doc.sgst_amount)}</td></tr><tr><td>CGST</td><td>${money(doc.taxable_amount)}</td><td>${halfTaxRateLabel(lines)}%</td><td>${money(doc.cgst_amount)}</td></tr>`}</tbody></table></div>
+            <div>${useTax?`<table class="summary-table"><thead><tr><th>Tax type</th><th>Taxable amount</th><th>Rate</th><th>Tax amount</th></tr></thead><tbody>${useIgst?`<tr><td>IGST</td><td>${money(doc.taxable_amount)}</td><td>${taxRateLabel(lines)}%</td><td>${money(doc.igst_amount)}</td></tr>`:`<tr><td>SGST</td><td>${money(doc.taxable_amount)}</td><td>${halfTaxRateLabel(lines)}%</td><td>${money(doc.sgst_amount)}</td></tr><tr><td>CGST</td><td>${money(doc.taxable_amount)}</td><td>${halfTaxRateLabel(lines)}%</td><td>${money(doc.cgst_amount)}</td></tr>`}</tbody></table>`:'<div style="padding:18px"><strong>Non-GST Invoice</strong><br><span class="muted">No GST charged on this document.</span></div>'}</div>
             <div><table class="summary-table"><thead><tr><th>Amounts</th><th></th></tr></thead><tbody><tr><td>Sub Total</td><td style="text-align:right">${money(doc.total_amount)}</td></tr><tr><td><strong>Total</strong></td><td style="text-align:right"><strong>${money(doc.total_amount)}</strong></td></tr><tr><td>Received</td><td style="text-align:right">${money(received)}</td></tr><tr><td>Balance</td><td style="text-align:right">${money(balance)}</td></tr></tbody></table></div>
           </div>
           <div class="words-box"><div class="blue-head">Invoice Amount In Words</div><div style="padding:8px">${h(numberToWordsIndian(Math.round(Number(doc.total_amount||0))))} Rupees only</div></div>
-          <div class="pay-mode"><div class="blue-head">Payment mode</div><div style="padding:8px">${h(currentSettings.bank_details ? currentSettings.bank_details.split('\\n')[0] : 'Bank / UPI')}</div></div>
+          <div class="pay-mode"><div class="blue-head">Payment mode</div><div style="padding:8px">${h(paymentDetails(doc).account_type || 'Bank / UPI')}</div></div>
           <div class="footer-grid">
-            <div><div class="blue-head">Bank Details</div><div style="padding:8px">${upiQrHtml(doc)}${br(currentSettings.bank_details)}</div></div>
+            <div><div class="blue-head">Bank / UPI Details</div><div style="padding:8px">${upiQrHtml(doc)}${paymentAccountHtml(doc)}</div></div>
             <div><div class="blue-head">Terms and Conditions</div><div style="padding:8px">${h(doc.terms || currentSettings.terms || 'Thanks for doing business with us!')}</div></div>
             <div class="sign-box">For : ${h(currentSettings.legal_name || 'GeeBharat')}<strong>Authorized Signatory</strong></div>
           </div>
@@ -461,11 +697,23 @@
       return {cgst:Math.round((tax/2)*100)/100,sgst:Math.round((tax/2)*100)/100,igst:0};
     }
     function upiQrHtml(doc){
-      if(!currentSettings.upi_id || Number(doc.total_amount||0) <= 0) return '';
-      const payee = currentSettings.upi_name || currentSettings.legal_name || 'GeeBharat';
-      const upi = `upi://pay?pa=${encodeURIComponent(currentSettings.upi_id)}&pn=${encodeURIComponent(payee)}&am=${Number(doc.total_amount||0).toFixed(2)}&cu=INR&tn=${encodeURIComponent(doc.document_no)}`;
+      const payment=paymentDetails(doc);
+      if(!payment.upi_id || Number(doc.total_amount||0) <= 0) return '';
+      const payee = payment.upi_name || currentSettings.legal_name || 'GeeBharat';
+      const upi = `upi://pay?pa=${encodeURIComponent(payment.upi_id)}&pn=${encodeURIComponent(payee)}&am=${Number(doc.total_amount||0).toFixed(2)}&cu=INR&tn=${encodeURIComponent(doc.document_no)}`;
       const src = `https://api.qrserver.com/v1/create-qr-code/?size=128x128&data=${encodeURIComponent(upi)}`;
-      return `<img class="qr" src="${src}" alt="UPI QR"><div><strong>Pay ${money(doc.total_amount)}</strong><br><small>UPI: ${h(currentSettings.upi_id)}</small></div>`;
+      return `<img class="qr" src="${src}" alt="UPI QR"><div><strong>Pay ${money(doc.total_amount)}</strong><br><small>UPI: ${h(payment.upi_id)}</small></div>`;
+    }
+    function paymentDetails(doc){
+      if(doc?.payment_details && typeof doc.payment_details==='object') return doc.payment_details;
+      return paymentAccounts.find(row=>Number(row.id)===Number(doc?.payment_account_id)) || {};
+    }
+    function paymentAccountHtml(doc){
+      const p=paymentDetails(doc);
+      if(p.account_type==='UPI') return `<strong>${h(p.account_name||'UPI')}</strong><br>UPI: ${h(p.upi_id||'--')}<br>${h(p.upi_name||'')}`;
+      if(p.account_type==='Cash') return `<strong>${h(p.account_name||'Cash')}</strong>`;
+      if(p.account_name) return `<strong>${h(p.account_name)}</strong><br>${h(p.bank_name||'')}<br>A/c: ${h(p.account_no||'--')}<br>IFSC: ${h(p.ifsc||'--')}`;
+      return br(currentSettings.bank_details);
     }
     function closeDoc(){document.getElementById('docModal').classList.remove('show')}
     function printDoc(){const html=document.getElementById('docPreview').innerHTML;const styles=[...document.querySelectorAll('style')].map(s=>s.innerHTML).join('\n');const w=window.open('','_blank');w.document.write(`<html><head><title>Invoice</title><style>${styles} body{background:#fff!important;overflow:auto!important;padding:20px}.invoice-preview{max-width:920px;margin:auto}.top,.side,.main>.card{display:none}@page{size:A4;margin:10mm}</style></head><body><div class="invoice-preview">${html}</div></body></html>`);w.document.close();w.print()}
@@ -473,16 +721,17 @@
       try{
         const d=await api('/documents/'+id);
         currentDocPayload=d;
-        fillEditDoc(d.document,d.lines||[]);
+        fillEditDoc(d.document,d.lines||[],d.tasks||[]);
         document.getElementById('editDocModal').classList.add('show');
       }catch(e){msg(e.message,false)}
     }
     function editCurrentDoc(){
       if(!currentDocPayload) return;
-      fillEditDoc(currentDocPayload.document,currentDocPayload.lines||[]);
+      fillEditDoc(currentDocPayload.document,currentDocPayload.lines||[],currentDocPayload.tasks||[]);
       document.getElementById('editDocModal').classList.add('show');
     }
-    function fillEditDoc(doc, lines){
+    function fillEditDoc(doc, lines, tasks=[]){
+      const financialLocked=Number(doc.received_amount||0)>0;
       editDocDate.value=String(doc.document_date||'').slice(0,10);
       editClientName.value=doc.client_name||'';
       editClientGstin.value=doc.client_gstin||'';
@@ -494,17 +743,57 @@
       editTerms.value=doc.terms||currentSettings.terms||'';
       editReason.value='';
       editUpdateClient.value='false';
-      editLinesBody.innerHTML=lines.map((l,i)=>`<tr data-line-id="${h(l.id)}"><td><input data-k="description" value="${h(l.description)}"></td><td><input data-k="hsn_sac" value="${h(l.hsn_sac||'')}"></td><td><input data-k="quantity" type="number" step="0.01" value="${h(l.quantity||1)}"></td><td><input data-k="rate" type="number" step="0.01" value="${h(l.rate||0)}"></td><td><input data-k="tax_rate" type="number" step="0.01" value="${h(l.tax_rate||0)}"></td></tr>`).join('');
+      [editDocDate,editClientState,editPlaceSupply,editTaxMode].forEach(el=>el.disabled=financialLocked);
+      editLinesBody.innerHTML=lines.map(l=>{
+        const linked=tasks.filter(t=>Number(t.line_id)===Number(l.id)&&!t.released_at);
+        return `<tr data-line-id="${h(l.id)}"><td><input data-k="description" value="${h(l.description)}" ${financialLocked?'disabled':''}></td>
+          <td>${linked.map(t=>`<label style="text-transform:none;white-space:nowrap"><input class="edit-task-link" type="checkbox" checked value="${h(t.task_id)}" data-name="${h(t.task_work_name||'')}" ${financialLocked?'disabled':''}> ${h(t.task_work_name||t.task_id)}</label>`).join('')||'--'}</td>
+          <td><input data-k="hsn_sac" value="${h(l.hsn_sac||'')}" ${financialLocked?'disabled':''}></td><td><input data-k="quantity" type="number" step="0.01" value="${h(l.quantity||1)}" ${financialLocked?'disabled':''}></td><td><input data-k="rate" type="number" step="0.01" value="${h(l.rate||0)}" ${financialLocked?'disabled':''}></td><td><input data-k="tax_rate" type="number" step="0.01" value="${h(l.tax_rate||0)}" ${doc.profile_type==='non_gst'||financialLocked?'disabled':''}></td></tr>`;
+      }).join('');
+      editTaskPickerWrap.style.display=financialLocked?'none':'flex';
+      loadEditUnbilledTasks(doc.client_id, tasks.map(t=>t.task_id));
+    }
+    async function loadEditUnbilledTasks(clientId, linkedIds=[]){
+      try{
+        const data=await api(`/tasks/unbilled?client_id=${encodeURIComponent(clientId)}`);
+        const linked=new Set(linkedIds.map(String));
+        editAddTask.innerHTML='<option value="">Add unbilled work...</option>'+(data.tasks||[])
+          .filter(task=>!linked.has(String(task.task_id)))
+          .map(task=>`<option value="${h(task.task_id)}" data-name="${h(task.billing_task_name||task.work_name||task.task_id)}" data-amount="${h(task.total_amount||task.amount||0)}">${h(task.billing_task_name||task.work_name||task.task_id)} - ${money(task.total_amount||task.amount||0)}</option>`)
+          .join('');
+      }catch(e){
+        editAddTask.innerHTML='<option value="">Unbilled work load failed</option>';
+      }
+    }
+    function addTaskToEdit(){
+      const option=editAddTask.selectedOptions[0];
+      if(!option?.value) return;
+      const taskId=option.value;
+      const taskName=option.dataset.name||taskId;
+      const taskAmount=Number(option.dataset.amount||0);
+      editLinesBody.insertAdjacentHTML('beforeend',`<tr data-line-id="">
+        <td><input data-k="description" value="${h(taskName)}"></td>
+        <td><label style="text-transform:none;white-space:nowrap"><input class="edit-task-link" type="checkbox" checked value="${h(taskId)}" data-name="${h(taskName)}"> ${h(taskName)}</label></td>
+        <td><input data-k="hsn_sac" value=""></td>
+        <td><input data-k="quantity" type="number" step="0.01" value="1"></td>
+        <td><input data-k="rate" type="number" step="0.01" value="${h(taskAmount)}"></td>
+        <td><input data-k="tax_rate" type="number" step="0.01" value="${h(activeProfile?.profile_type==='non_gst'?0:(currentSettings.default_tax_rate||18))}" ${activeProfile?.profile_type==='non_gst'?'disabled':''}></td>
+      </tr>`);
+      option.remove();
+      editAddTask.value='';
     }
     function closeEditDoc(){document.getElementById('editDocModal').classList.remove('show')}
     async function saveEditedDoc(){
       if(!currentDocPayload?.document) return;
       const rows=[...editLinesBody.querySelectorAll('tr')].map(tr=>{
         const get=k=>tr.querySelector(`[data-k="${k}"]`)?.value || '';
-        return {id:tr.dataset.lineId,description:get('description'),hsn_sac:get('hsn_sac'),quantity:get('quantity'),rate:get('rate'),tax_rate:get('tax_rate')};
+        const links=[...tr.querySelectorAll('.edit-task-link:checked')];
+        return {id:tr.dataset.lineId,description:get('description'),hsn_sac:get('hsn_sac'),quantity:get('quantity'),rate:get('rate'),tax_rate:get('tax_rate'),task_ids:links.map(el=>el.value),task_names:Object.fromEntries(links.map(el=>[el.value,el.dataset.name]))};
       });
       try{
-        const payload={document_date:editDocDate.value,client_name:editClientName.value,client_gstin:editClientGstin.value,client_contact:editClientContact.value,client_state:editClientState.value,place_of_supply:editPlaceSupply.value,client_address:editClientAddress.value,tax_mode:editTaxMode.value,terms:editTerms.value,edit_reason:editReason.value,update_client_master:editUpdateClient.value==='true',lines:rows};
+        const locked=Number(currentDocPayload.document.received_amount||0)>0;
+        const payload={client_name:editClientName.value,client_gstin:editClientGstin.value,client_contact:editClientContact.value,client_address:editClientAddress.value,terms:editTerms.value,edit_reason:editReason.value,update_client_master:editUpdateClient.value==='true'};
+        if(!locked) Object.assign(payload,{document_date:editDocDate.value,client_state:editClientState.value,place_of_supply:editPlaceSupply.value,tax_mode:editTaxMode.value,lines:rows});
         const d=await api('/documents/'+currentDocPayload.document.id,{method:'PUT',body:JSON.stringify(payload)});
         msg(d.message);
         closeEditDoc();
@@ -531,41 +820,59 @@
     }
     async function loadBankAccounts(){
       try{
-        const d=await api('/bank-accounts');
+        const d=await api(profileQuery('/bank-accounts'));
         const accounts=d.bank_accounts||[];
+        paymentAccounts=accounts;
         document.getElementById('rcBank').innerHTML=accounts.map(b=>`<option value="${b.id}">${h(b.account_name)} (${h(b.account_type)})</option>`).join('');
+        document.getElementById('billPaymentAccount').innerHTML=accounts.filter(b=>b.status==='Active').map(b=>`<option value="${b.id}" ${b.is_default?'selected':''}>${h(b.account_name)} (${h(b.account_type)})${b.is_default?' - Default':''}</option>`).join('');
         const body=document.getElementById('bankAccountsBody');
         if(body){
-          body.innerHTML=accounts.map(b=>`<tr><td><strong>${h(b.account_name)}</strong></td><td>${h(b.account_type)}</td><td>${h(b.bank_name||'--')}</td><td>${h(b.account_no||'--')}</td><td>${h(b.ifsc||'--')}</td><td><span class="badge ${b.status==='Active'?'green':'red'}">${h(b.status)}</span></td></tr>`).join('') || '<tr><td colspan="6">No accounts</td></tr>';
+          body.innerHTML=accounts.map(b=>`<tr>
+            <td><strong>${h(b.account_name)}</strong></td><td>${h(b.account_type)}</td>
+            <td>${b.account_type==='UPI'?`${h(b.upi_id||'--')}<br><small>${h(b.upi_name||'')}</small>`:`${h(b.bank_name||'--')}<br><small>${h(b.account_no||'')} ${h(b.ifsc||'')}</small>`}</td>
+            <td>${b.is_default?'<span class="badge green">Default</span>':'--'}</td>
+            <td><span class="badge ${b.status==='Active'?'green':'red'}">${h(b.status)}</span></td>
+            <td>${b.is_default?'':`<button class="btn write-only" onclick="setDefaultAccount(${b.id})">Set Default</button>`}</td>
+          </tr>`).join('') || '<tr><td colspan="6">No accounts</td></tr>';
         }
       }catch(e){}
       document.getElementById('rcDate').value ||= new Date().toISOString().slice(0,10);
     }
     async function addBankAccount(){
       try{
-        const payload={account_name:bankAccountName.value,account_type:bankAccountType.value,bank_name:bankName.value,account_no:bankAccountNo.value,ifsc:bankIfsc.value,opening_balance:bankOpeningBalance.value};
+        const payload={profile_id:activeProfile.id,account_name:bankAccountName.value,account_type:bankAccountType.value,bank_name:bankName.value,account_no:bankAccountNo.value,ifsc:bankIfsc.value,upi_id:bankUpiId.value,upi_name:bankUpiName.value,opening_balance:bankOpeningBalance.value,is_default:bankIsDefault.checked};
         const d=await api('/bank-accounts',{method:'POST',body:JSON.stringify(payload)});
         msg(d.message);
-        bankAccountName.value=''; bankName.value=''; bankAccountNo.value=''; bankIfsc.value=''; bankOpeningBalance.value='0';
+        bankAccountName.value=''; bankName.value=''; bankAccountNo.value=''; bankIfsc.value=''; bankUpiId.value=''; bankUpiName.value=''; bankOpeningBalance.value='0'; bankIsDefault.checked=false;
         loadBankAccounts();
+      }catch(e){msg(e.message,false)}
+    }
+    async function setDefaultAccount(id){
+      try{
+        const account=paymentAccounts.find(row=>Number(row.id)===Number(id));
+        const d=await api('/bank-accounts/'+id,{method:'PUT',body:JSON.stringify({...account,profile_id:activeProfile.id,is_default:true})});
+        msg(d.message); loadBankAccounts();
       }catch(e){msg(e.message,false)}
     }
     async function saveReceipt(){
       try{
-        const payload={client_id:rcClient.value,receipt_date:rcDate.value,bank_account_id:rcBank.value,amount:rcAmount.value,reference_no:rcRef.value,remarks:rcRemarks.value};
+        const payload={profile_id:activeProfile.id,client_id:rcClient.value,receipt_date:rcDate.value,bank_account_id:rcBank.value,amount:rcAmount.value,reference_no:rcRef.value,remarks:rcRemarks.value};
         const d=await api('/receipts',{method:'POST',body:JSON.stringify(payload)});
         msg(d.message); rcAmount.value=''; rcRef.value=''; rcRemarks.value=''; loadDashboard();
       }catch(e){msg(e.message,false)}
     }
     async function loadLedger(){
       try{
-        const d=await api('/clients/'+encodeURIComponent(ledgerClient.value)+'/ledger');
+        const d=await api(profileQuery('/clients/'+encodeURIComponent(ledgerClient.value)+'/ledger'));
         ledgerBody.innerHTML=(d.ledger||[]).map(r=>`<tr><td>${date(r.entry_date)}</td><td>${h(r.entry_type)}</td><td>${h(r.document_no||r.receipt_no||'--')}</td><td>${h(r.narration||'')}</td><td>${money(r.debit)}</td><td>${money(r.credit)}</td><td>${money(r.running_balance)}</td></tr>`).join('') || '<tr><td colspan="7">No ledger entries</td></tr>';
       }catch(e){msg(e.message,false)}
     }
     async function loadReport(name){
       try{
-        const d=await api('/reports/'+name);
+        const reportPath=name==='unbilled'
+          ? '/reports/unbilled'
+          : (reportScope.value==='combined' ? `/reports/${name}?scope=combined` : profileQuery('/reports/'+name));
+        const d=await api(reportPath);
         const rows=d.rows||[];
         const cols=rows.length?Object.keys(rows[0]):['message'];
         reportHead.innerHTML='<tr>'+cols.map(c=>`<th>${h(c.replaceAll('_',' '))}</th>`).join('')+'</tr>';
@@ -574,7 +881,8 @@
     }
     async function loadSettings(){
       try{
-        const d=await api('/settings'); currentSettings=d.settings||{};
+        const d=await api(profileQuery('/settings')); currentSettings=d.settings||{};
+        setProfileName.value=d.profile?.display_name||activeProfile?.display_name||'';
         setInvoicePrefix.value=currentSettings.invoice_prefix||'INV';
         setProformaPrefix.value=currentSettings.proforma_prefix||'PRO';
         setGstApplicable.value=String(currentSettings.gst_applicable !== false);
@@ -585,8 +893,6 @@
         setState.value=currentSettings.state||'';
         setAddress.value=currentSettings.address||'';
         setTaxRate.value=currentSettings.default_tax_rate||18;
-        setUpiId.value=currentSettings.upi_id||'';
-        setUpiName.value=currentSettings.upi_name||'';
         setTerms.value=currentSettings.terms||'';
         setBankDetails.value=currentSettings.bank_details||'';
         applyGstApplicability();
@@ -595,6 +901,8 @@
     async function saveSettings(){
       try{
         const payload={
+          profile_id:activeProfile.id,
+          display_name:setProfileName.value,
           invoice_prefix:setInvoicePrefix.value,
           proforma_prefix:setProformaPrefix.value,
           gst_applicable:setGstApplicable.value === 'true',
@@ -605,22 +913,23 @@
           state:setState.value,
           address:setAddress.value,
           default_tax_rate:setTaxRate.value,
-          upi_id:setUpiId.value,
-          upi_name:setUpiName.value,
           terms:setTerms.value,
           bank_details:setBankDetails.value
         };
         const d=await api('/settings',{method:'PUT',body:JSON.stringify(payload)});
         msg(d.message); currentSettings=d.settings;
+        await loadProfiles();
         applyGstApplicability();
       }catch(e){msg(e.message,false)}
     }
     function applyGstApplicability(){
-      const applicable = currentSettings.gst_applicable !== false && setGstApplicable?.value !== 'false';
-      billTaxRate.value = applicable ? (currentSettings.default_tax_rate || 18) : 0;
+      const applicable = activeProfile?.profile_type==='gst' && currentSettings.gst_applicable !== false && setGstApplicable?.value !== 'false';
       billTaxMode.value = applicable ? 'Auto' : 'None';
-      billTaxRate.disabled = !applicable;
       billTaxMode.disabled = !applicable;
+      setGstApplicable.disabled = activeProfile?.profile_type==='non_gst';
+      setGstin.disabled = activeProfile?.profile_type==='non_gst';
+      invoiceLines.forEach(line=>{line.tax_rate=applicable?(currentSettings.default_tax_rate||18):0});
+      if(selected.size) renderSelected();
     }
     document.addEventListener('change', e => {
       if(e.target && e.target.id === 'setGstApplicable'){
