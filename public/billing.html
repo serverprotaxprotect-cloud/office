@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GeeBharat Billing</title>
+  <style>
+    :root{--primary:#2155f3;--primary2:#5b82ff;--sidebar:#13203a;--sidebar2:#1d2f57;--page:#f1f5f9;--text:#0f172a;--muted:#64748b;--line:#e2e8f0}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:Inter,Segoe UI,Arial,sans-serif;background:var(--page);color:var(--text);font-size:13px;overflow:hidden}
+    .top{height:56px;background:linear-gradient(90deg,var(--sidebar),var(--sidebar2));color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 20px;box-shadow:0 2px 12px rgba(0,0,0,.2);position:sticky;top:0;z-index:10}
+    .brand{font-weight:800;font-size:16px}.brand small{font-size:12px;color:rgba(255,255,255,.6);margin-left:8px;font-weight:500}
+    .user{display:flex;align-items:center;gap:10px;font-size:12px}.pill{background:rgba(255,255,255,.12);padding:7px 12px;border-radius:20px;font-weight:800;color:#fff}
+    .btn{border:0;border-radius:8px;padding:8px 12px;font-weight:800;cursor:pointer;background:#eaf1ff;color:#1d4ed8;font-size:12px}
+    .btn:hover{filter:brightness(.98)}.btn.primary{background:var(--primary);color:#fff}.btn.green{background:#dcfce7;color:#166534}.btn.red{background:#fee2e2;color:#b91c1c}.btn.dark{background:rgba(255,255,255,.12);color:#fff}.btn:disabled{opacity:.55;cursor:not-allowed}
+    .layout{display:grid;grid-template-columns:220px 1fr;height:calc(100vh - 56px);overflow:hidden}
+    .side{background:var(--sidebar);color:#94a3b8;padding:16px 0;overflow:auto}.nav{padding:10px 18px;border-left:3px solid transparent;cursor:pointer;font-weight:700;display:flex;gap:10px;align-items:center;color:#94a3b8}.nav:hover{background:rgba(255,255,255,.05);color:#e2e8f0}.nav.active{background:rgba(33,85,243,.15);color:#7ba2ff;border-left-color:var(--primary)}
+    .main{padding:20px;overflow:auto;min-width:0}.title{font-size:22px;font-weight:900;margin-bottom:14px;color:#0b1f3a}.title small{font-size:13px;color:var(--muted);font-weight:500}
+    .panel{display:none}.panel.active{display:block}
+    .card{background:#fff;border-radius:12px;padding:16px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+    .grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:12px}.metric{background:#fff;border-radius:10px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.06);border-left:4px solid var(--primary)}.metric strong{font-size:28px;color:var(--primary);display:block;line-height:1}.metric span{font-size:12px;color:var(--muted);font-weight:500;margin-top:4px;display:block;text-transform:none}
+    .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}.toolbar .spacer{flex:1}
+    input,select,textarea{width:100%;border:1.5px solid var(--line);border-radius:8px;padding:9px 11px;font:inherit;background:#f8fafc;outline:none;color:#0f172a}input:focus,select:focus,textarea:focus{border-color:var(--primary)}label{font-size:11px;text-transform:uppercase;font-weight:800;color:#475569;margin-bottom:5px;display:block}.field{min-width:160px}
+    .table-wrap{overflow:auto;background:#fff;border-radius:12px;padding:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);max-height:calc(100vh - 260px)}
+    .table-wrap.tall{max-height:calc(100vh - 185px)}
+    .scroll-card{overflow:auto;max-height:calc(100vh - 210px)}
+    table{width:100%;border-collapse:collapse;min-width:980px;font-size:13px}th{position:sticky;top:0;z-index:4;background:#f8fafc;text-align:left;padding:9px 12px;font-size:11px;text-transform:uppercase;color:#475569;border-bottom:2px solid var(--line);font-weight:800;white-space:nowrap}td{padding:9px 12px;border-bottom:1px solid #f1f5f9;vertical-align:middle;color:#0f172a}tr:hover td{background:#f8fafc}
+    .muted{color:var(--muted)}.badge{display:inline-block;padding:4px 9px;border-radius:20px;background:#eaf1ff;color:#1d4ed8;font-weight:800;font-size:11px}.badge.green{background:#dcfce7;color:#15803d}.badge.yellow{background:#fef3c7;color:#a16207}.badge.red{background:#fee2e2;color:#b91c1c}
+    .split{display:grid;grid-template-columns:1.2fr .8fr;gap:14px}.selected-list{display:grid;gap:8px;max-height:220px;overflow:auto}.selected-item{border:1px solid var(--line);border-radius:8px;padding:8px;background:#f8fafc}
+    .modal{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}.modal.show{display:flex}.modal-card{background:#fff;border-radius:14px;max-width:900px;width:100%;max-height:88vh;overflow:auto;padding:18px;box-shadow:0 20px 60px rgba(15,23,42,.28)}
+    .invoice-preview{font-family:Arial,sans-serif;color:#111;background:#fff}.invoice-preview h2{text-align:center;font-size:16px;margin:0 0 6px}.invoice-preview .inv-wrap{border:1px solid #777}.invoice-preview .inv-top{display:grid;grid-template-columns:1fr 1.25fr;border-bottom:1px solid #777}.invoice-preview .brand-box{padding:20px 10px}.invoice-preview .brand-mark{font-size:36px;font-weight:900;color:#0f7fa3;letter-spacing:-1px}.invoice-preview .org-box{text-align:right;padding:12px 10px;line-height:1.35}.invoice-preview .org-box strong{font-size:18px}.invoice-preview .blue-head{background:#0f7fa3;color:#fff;font-weight:800;padding:6px 8px}.invoice-preview .bill-grid{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #777}.invoice-preview .bill-left,.invoice-preview .bill-right{min-height:145px}.invoice-preview .bill-left{border-right:1px solid #777}.invoice-preview .bill-body{padding:8px;line-height:1.55}.invoice-preview .bill-right{text-align:right}.inv-table{width:100%;min-width:0;border-collapse:collapse;font-size:12px}.inv-table th{position:static;background:#0f7fa3;color:#fff;border:1px solid #777;padding:7px 6px;text-align:right}.inv-table th:nth-child(1),.inv-table th:nth-child(2),.inv-table th:nth-child(3){text-align:left}.inv-table td{border-left:1px solid #777;border-right:1px solid #777;border-bottom:0;padding:7px 6px;text-align:right;vertical-align:top}.inv-table td:nth-child(1),.inv-table td:nth-child(2),.inv-table td:nth-child(3){text-align:left}.inv-table tfoot td{border-top:1px solid #777;border-bottom:1px solid #777;font-weight:800}.summary-grid{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #777}.summary-grid>div:first-child{border-right:1px solid #777}.summary-table{width:100%;min-width:0;border-collapse:collapse}.summary-table td,.summary-table th{padding:6px 8px;border-bottom:1px solid #ddd}.summary-table th{position:static;background:#0f7fa3;color:#fff}.words-box,.pay-mode{border-bottom:1px solid #777;text-align:center}.footer-grid{display:grid;grid-template-columns:1fr 1fr 1fr}.footer-grid>div{min-height:150px;border-right:1px solid #777}.footer-grid>div:last-child{border-right:0}.qr{width:110px;height:110px;border:1px solid #ddd;padding:4px;background:#fff;float:left;margin-right:10px}.sign-box{text-align:center;padding-top:25px}.sign-box strong{display:block;margin-top:58px}
+    @media(max-width:900px){.layout{grid-template-columns:1fr}.side{display:flex;overflow:auto;padding:0}.nav{white-space:nowrap}.grid,.split{grid-template-columns:1fr}.main{padding:12px}}
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div class="brand">GeeBharat <small>Billing</small></div>
+    <div class="user"><span class="pill" id="orgChip">Loading...</span><button class="btn dark" onclick="window.close()">Close</button></div>
+  </header>
+  <div class="layout">
+    <aside class="side">
+      <div class="nav active" data-tab="dashboard" onclick="showTab('dashboard')">Dashboard</div>
+      <div class="nav" data-tab="unbilled" onclick="showTab('unbilled')">Unbilled Work</div>
+      <div class="nav" data-tab="client-unbilled" onclick="showTab('client-unbilled')">Client Wise Unbilled</div>
+      <div class="nav" data-tab="proforma" onclick="showTab('proforma')">Proforma</div>
+      <div class="nav" data-tab="invoices" onclick="showTab('invoices')">Tax Invoices</div>
+      <div class="nav" data-tab="receipts" onclick="showTab('receipts')">Receipts</div>
+      <div class="nav" data-tab="ledger" onclick="showTab('ledger')">Client Ledger</div>
+      <div class="nav" data-tab="reports" onclick="showTab('reports')">Reports</div>
+      <div class="nav" data-tab="settings" onclick="showTab('settings')">Settings</div>
+    </aside>
+    <main class="main">
+      <div id="msg" class="card" style="display:none"></div>
+
+      <section class="panel active" id="tab-dashboard">
+        <div class="title">Billing Dashboard <small id="accessText"></small></div>
+        <div class="grid">
+          <div class="metric"><strong id="mUnbilled">--</strong><span>Unbilled Work</span></div>
+          <div class="metric"><strong id="mOutstanding">--</strong><span>Outstanding</span></div>
+          <div class="metric"><strong id="mReceived">--</strong><span>Received This Month</span></div>
+          <div class="metric"><strong id="mDrafts">--</strong><span>Drafts</span></div>
+        </div>
+      </section>
+
+      <section class="panel" id="tab-client-unbilled">
+        <div class="title">Client Wise Unbilled Work <small>Open client and prepare bill from pending work</small></div>
+        <div class="toolbar">
+          <input id="cwSearch" placeholder="Search client..." style="max-width:360px" />
+          <select id="cwStatus" style="max-width:190px"><option value="">All Status</option><option>Completed</option><option>Pending</option><option>In Progress</option><option>Filed</option></select>
+          <button class="btn" onclick="loadClientUnbilled()">Load</button>
+        </div>
+        <div class="table-wrap tall"><table>
+          <thead><tr><th>Client</th><th>Unbilled Tasks</th><th>Unbilled Amount</th><th>Oldest Work</th><th>Action</th></tr></thead>
+          <tbody id="clientUnbilledBody"><tr><td colspan="5">Loading...</td></tr></tbody>
+        </table></div>
+      </section>
+
+      <section class="panel" id="tab-unbilled">
+        <div class="title">Unbilled Work <small>Select tasks and create package/invoice</small></div>
+        <div class="split">
+          <div>
+            <div class="toolbar">
+              <input id="ubSearch" placeholder="Search client, task, work..." style="max-width:320px" />
+              <select id="ubStatus" style="max-width:190px"><option value="">All Status</option><option>Completed</option><option>Pending</option><option>In Progress</option><option>Filed</option></select>
+              <button class="btn" onclick="loadUnbilled()">Load</button>
+              <button class="btn red" id="clearClientFilterBtn" style="display:none" onclick="clearClientFilter()">Clear Client</button>
+              <span class="muted" id="ubClientFilterText"></span>
+            </div>
+            <div class="table-wrap"><table>
+              <thead><tr><th></th><th>Client</th><th>Work</th><th>Status</th><th>Assignee</th><th>Amount</th></tr></thead>
+              <tbody id="unbilledBody"><tr><td colspan="6">Loading...</td></tr></tbody>
+            </table></div>
+          </div>
+          <div class="card">
+            <h3 style="margin-bottom:12px">Create Bill</h3>
+            <div class="selected-list" id="selectedList"><div class="muted">No task selected</div></div>
+            <div style="display:grid;gap:10px;margin-top:12px">
+              <div><label>Package / Line Description</label><input id="billDesc" placeholder="Company Compliance" /></div>
+              <div><label>Amount</label><input id="billAmount" type="number" step="0.01" /></div>
+              <div><label>Tax Rate %</label><input id="billTaxRate" type="number" step="0.01" value="18" /></div>
+              <div><label>Tax Mode</label><select id="billTaxMode"><option>Auto</option><option value="CGST_SGST">CGST + SGST</option><option>IGST</option><option>None</option></select></div>
+              <button class="btn green write-only" onclick="createBill('proforma')">Create Proforma</button>
+              <button class="btn primary write-only" onclick="createBill('invoice')">Create Tax Invoice</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" id="tab-proforma">
+        <div class="title">Proforma</div>
+        <div class="toolbar"><input id="proformaSearch" placeholder="Search proforma/client..." style="max-width:320px"><button class="btn" onclick="loadDocs('proforma')">Load</button></div>
+        <div class="table-wrap"><table><thead><tr><th>No</th><th>Date</th><th>Client</th><th>Amount</th><th>Status</th><th>Actions</th></tr></thead><tbody id="proformaBody"></tbody></table></div>
+      </section>
+
+      <section class="panel" id="tab-invoices">
+        <div class="title">Tax Invoices</div>
+        <div class="toolbar"><input id="invoiceSearch" placeholder="Search invoice/client..." style="max-width:320px"><button class="btn" onclick="loadDocs('invoice')">Load</button></div>
+        <div class="table-wrap"><table><thead><tr><th>No</th><th>Date</th><th>Client</th><th>Amount</th><th>Received</th><th>Outstanding</th><th>Status</th><th>Actions</th></tr></thead><tbody id="invoiceBody"></tbody></table></div>
+      </section>
+
+      <section class="panel" id="tab-receipts">
+        <div class="title">Receipts</div>
+        <div class="card">
+          <div class="grid">
+            <div><label>Client ID</label><input id="rcClient" placeholder="PTPCL0001"></div>
+            <div><label>Date</label><input id="rcDate" type="date"></div>
+            <div><label>Bank/Cash</label><select id="rcBank"></select></div>
+            <div><label>Amount</label><input id="rcAmount" type="number" step="0.01"></div>
+          </div>
+          <div class="grid" style="margin-top:10px">
+            <div><label>Reference No.</label><input id="rcRef"></div>
+            <div style="grid-column:span 2"><label>Remarks</label><input id="rcRemarks"></div>
+            <div style="display:flex;align-items:end"><button class="btn primary write-only" onclick="saveReceipt()">Save Receipt</button></div>
+          </div>
+          <p class="muted" style="margin-top:8px">Receipt ledger me credit hoga. Invoice-wise allocation next step me same client ledger se adjust kiya ja sakta hai.</p>
+        </div>
+      </section>
+
+      <section class="panel" id="tab-ledger">
+        <div class="title">Client Ledger</div>
+        <div class="toolbar"><input id="ledgerClient" placeholder="Client ID" style="max-width:220px"><button class="btn" onclick="loadLedger()">Load Ledger</button></div>
+        <div class="table-wrap"><table><thead><tr><th>Date</th><th>Type</th><th>No</th><th>Narration</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead><tbody id="ledgerBody"><tr><td colspan="7">Enter client ID</td></tr></tbody></table></div>
+      </section>
+
+      <section class="panel" id="tab-reports">
+        <div class="title">Reports</div>
+        <div class="toolbar">
+          <button class="btn" onclick="loadReport('outstanding')">Outstanding</button>
+          <button class="btn" onclick="loadReport('daybook')">Daybook</button>
+          <button class="btn" onclick="loadReport('unbilled')">Unbilled</button>
+          <button class="btn" onclick="loadReport('client-revenue')">Client Revenue</button>
+        </div>
+        <div class="table-wrap"><table id="reportTable"><thead id="reportHead"></thead><tbody id="reportBody"><tr><td>Select report</td></tr></tbody></table></div>
+      </section>
+
+      <section class="panel" id="tab-settings">
+        <div class="title">Settings</div>
+        <div class="scroll-card">
+          <div class="card">
+            <h3 style="margin-bottom:12px">Invoice Series</h3>
+            <div class="grid">
+              <div><label>Invoice Prefix</label><input id="setInvoicePrefix"></div>
+              <div><label>Proforma Prefix</label><input id="setProformaPrefix"></div>
+            </div>
+          </div>
+          <div class="card">
+            <h3 style="margin-bottom:12px">GST Settings</h3>
+            <div class="grid">
+              <div><label>GST Applicable</label><select id="setGstApplicable"><option value="true">Yes</option><option value="false">No</option></select></div>
+              <div><label>Legal Name</label><input id="setLegalName" placeholder="Firm legal name"></div>
+              <div><label>Phone</label><input id="setPhone" placeholder="Office phone"></div>
+              <div><label>Email</label><input id="setEmail" placeholder="Office email"></div>
+              <div><label>Organisation GSTIN</label><input id="setGstin"></div>
+              <div><label>Organisation State</label><input id="setState"></div>
+              <div><label>Default Tax Rate</label><input id="setTaxRate" type="number" step="0.01"></div>
+            </div>
+            <div style="margin-top:10px"><label>Billing Address</label><textarea id="setAddress" rows="3" placeholder="Address printed on invoice"></textarea></div>
+            <div style="margin-top:10px"><label>Terms</label><textarea id="setTerms" rows="3"></textarea></div>
+          </div>
+          <div class="card">
+            <h3 style="margin-bottom:12px">UPI Setup</h3>
+            <div class="grid">
+              <div><label>UPI ID</label><input id="setUpiId" placeholder="name@bank"></div>
+              <div><label>UPI Payee Name</label><input id="setUpiName" placeholder="Name shown in QR"></div>
+            </div>
+          </div>
+          <div class="card">
+            <h3 style="margin-bottom:12px">Bank / Cash Accounts</h3>
+            <div class="grid">
+              <div><label>Account Name</label><input id="bankAccountName" placeholder="HDFC Bank / Cash"></div>
+              <div><label>Type</label><select id="bankAccountType"><option>Bank</option><option>Cash</option></select></div>
+              <div><label>Bank Name</label><input id="bankName"></div>
+              <div><label>Account No.</label><input id="bankAccountNo"></div>
+              <div><label>IFSC</label><input id="bankIfsc"></div>
+              <div><label>Opening Balance</label><input id="bankOpeningBalance" type="number" step="0.01" value="0"></div>
+              <div style="display:flex;align-items:end"><button class="btn green write-only" onclick="addBankAccount()">Add Account</button></div>
+            </div>
+            <div class="table-wrap" style="margin-top:12px;max-height:240px"><table><thead><tr><th>Name</th><th>Type</th><th>Bank</th><th>Account</th><th>IFSC</th><th>Status</th></tr></thead><tbody id="bankAccountsBody"><tr><td colspan="6">Loading...</td></tr></tbody></table></div>
+          </div>
+          <div class="card">
+            <div><label>Printable Bank Details / Notes</label><textarea id="setBankDetails" rows="3"></textarea></div>
+            <button class="btn primary write-only" style="margin-top:12px" onclick="saveSettings()">Save Settings</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal" id="docModal">
+    <div class="modal-card">
+      <div class="toolbar"><h2 id="docTitle">Document</h2><span class="spacer"></span><button class="btn primary write-only" onclick="editCurrentDoc()">Edit</button><button class="btn" onclick="printDoc()">Print / Save PDF</button><button class="btn red" onclick="closeDoc()">Close</button></div>
+      <div id="docPreview" class="invoice-preview"></div>
+    </div>
+  </div>
+
+  <div class="modal" id="editDocModal">
+    <div class="modal-card">
+      <div class="toolbar"><h2>Edit Invoice</h2><span class="spacer"></span><button class="btn red" onclick="closeEditDoc()">Close</button></div>
+      <div class="grid">
+        <div><label>Date</label><input id="editDocDate" type="date"></div>
+        <div><label>Client Name</label><input id="editClientName"></div>
+        <div><label>Client GSTIN</label><input id="editClientGstin"></div>
+        <div><label>Contact No.</label><input id="editClientContact"></div>
+        <div><label>Client State</label><input id="editClientState" placeholder="10-Bihar"></div>
+        <div><label>Place of Supply</label><input id="editPlaceSupply" placeholder="10-Bihar"></div>
+        <div><label>Tax Mode</label><select id="editTaxMode"><option>Auto</option><option value="CGST_SGST">CGST + SGST</option><option>IGST</option><option>None</option></select></div>
+        <div><label>Update Client Master</label><select id="editUpdateClient"><option value="false">No</option><option value="true">Yes</option></select></div>
+      </div>
+      <div style="margin-top:10px"><label>Client Address</label><textarea id="editClientAddress" rows="3"></textarea></div>
+      <h3 style="margin:14px 0 8px">Items</h3>
+      <div class="table-wrap" style="max-height:280px"><table><thead><tr><th>Item Name</th><th>HSN/SAC</th><th>Qty</th><th>Price / Unit</th><th>Tax %</th></tr></thead><tbody id="editLinesBody"></tbody></table></div>
+      <div style="margin-top:10px"><label>Terms</label><textarea id="editTerms" rows="2"></textarea></div>
+      <div style="margin-top:10px"><label>Edit Reason / Remarks</label><input id="editReason" placeholder="Reason for audit trail"></div>
+      <button class="btn primary write-only" style="margin-top:12px;width:100%" onclick="saveEditedDoc()">Save Invoice</button>
+    </div>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('office_token');
+    const selected = new Map();
+    let billingAccess = { can_write:false };
+    let currentSettings = {};
+    let currentUnbilledClient = '';
+    let currentUnbilledClientName = '';
+    let currentDocPayload = null;
+
+    function h(v){return String(v ?? '').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+    function money(v){return Number(v||0).toLocaleString('en-IN',{style:'currency',currency:'INR'})}
+    function date(v){return v ? new Date(v).toLocaleDateString('en-IN') : '--'}
+    function msg(text, ok=true){const el=document.getElementById('msg');el.style.display='block';el.className='card';el.style.borderLeft='4px solid '+(ok?'#16a34a':'#dc2626');el.textContent=text;setTimeout(()=>el.style.display='none',3500)}
+    async function api(path, options={}){
+      const res = await fetch('/api/billing'+path,{...options,headers:{'Content-Type':'application/json','Authorization':'Bearer '+token,...(options.headers||{})}});
+      const data = await res.json().catch(()=>({success:false,message:'Invalid server response'}));
+      if(!res.ok || !data.success) throw new Error(data.message || 'Request failed');
+      return data;
+    }
+    function showTab(tab){
+      document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+      document.querySelectorAll('.nav').forEach(n=>n.classList.toggle('active',n.dataset.tab===tab));
+      document.getElementById('tab-'+tab).classList.add('active');
+      if(tab==='dashboard') loadDashboard();
+      if(tab==='unbilled') loadUnbilled();
+      if(tab==='client-unbilled') loadClientUnbilled();
+      if(tab==='proforma') loadDocs('proforma');
+      if(tab==='invoices') loadDocs('invoice');
+      if(tab==='receipts') loadBankAccounts();
+      if(tab==='settings') loadSettings();
+    }
+    function applyAccess(){
+      document.querySelectorAll('.write-only').forEach(el=>el.disabled=!billingAccess.can_write);
+      document.getElementById('accessText').textContent = billingAccess.can_write ? 'Full Access' : 'View Only';
+    }
+    async function boot(){
+      if(!token){location.href='/office.html';return}
+      try{
+        const me=await api('/me');
+        billingAccess=me.access||{};
+        document.getElementById('orgChip').textContent=`${me.user.name} - ${me.user.organization_code || ''}`;
+        applyAccess();
+        await Promise.all([loadSettings(),loadDashboard(),loadBankAccounts()]);
+      }catch(e){
+        document.body.innerHTML=`<div style="max-width:520px;margin:80px auto;background:#fff;padding:24px;border-radius:14px;font-family:sans-serif"><h2>Billing access denied</h2><p style="margin:12px 0;color:#64748b">${h(e.message)}</p><button onclick="location.href='/office.html'" style="padding:10px 14px;border:0;border-radius:8px;background:#2563eb;color:white;font-weight:800">Back to Office</button></div>`;
+      }
+    }
+    async function loadDashboard(){
+      try{
+        const d=await api('/dashboard');
+        document.getElementById('mUnbilled').textContent=money(d.unbilled?.amount||0);
+        document.getElementById('mOutstanding').textContent=money(d.outstanding||0);
+        document.getElementById('mReceived').textContent=money(d.received_this_month||0);
+        document.getElementById('mDrafts').textContent=d.drafts||0;
+      }catch(e){msg(e.message,false)}
+    }
+    async function loadUnbilled(){
+      try{
+        const qs=new URLSearchParams({search:document.getElementById('ubSearch').value,status:document.getElementById('ubStatus').value});
+        if(currentUnbilledClient) qs.set('client_id', currentUnbilledClient);
+        document.getElementById('clearClientFilterBtn').style.display = currentUnbilledClient ? 'inline-block' : 'none';
+        document.getElementById('ubClientFilterText').textContent = currentUnbilledClient ? `Showing: ${currentUnbilledClientName || currentUnbilledClient}` : '';
+        const data=await api('/tasks/unbilled?'+qs.toString());
+        document.getElementById('unbilledBody').innerHTML=(data.tasks||[]).map(t=>`
+          <tr>
+            <td><input type="checkbox" ${selected.has(t.task_id)?'checked':''} onchange='toggleTask(${JSON.stringify(t).replace(/'/g,"&#39;")},this.checked)'></td>
+            <td><strong>${h(t.client_name||'--')}</strong><br><small>${h(t.client_id||'--')}</small></td>
+            <td>${h(t.work_name)}<br><small>${h(t.task_id)}</small></td>
+            <td><span class="badge">${h(t.status)}</span></td>
+            <td>${h(t.assigned_to_name||'--')}</td>
+            <td>${money(t.amount)}</td>
+          </tr>`).join('') || '<tr><td colspan="6">No unbilled work</td></tr>';
+      }catch(e){msg(e.message,false)}
+    }
+    async function loadClientUnbilled(){
+      try{
+        const qs=new URLSearchParams({search:document.getElementById('cwSearch').value,status:document.getElementById('cwStatus').value});
+        const data=await api('/tasks/unbilled-clients?'+qs.toString());
+        document.getElementById('clientUnbilledBody').innerHTML=(data.clients||[]).map(c=>`
+          <tr>
+            <td><strong>${h(c.client_name||'--')}</strong><br><small>${h(c.client_id)}</small></td>
+            <td><span class="badge">${h(c.task_count)}</span></td>
+            <td>${money(c.amount)}</td>
+            <td>${date(c.oldest_date)}</td>
+            <td><button class="btn primary" onclick='openClientUnbilled(${JSON.stringify(c.client_id)},${JSON.stringify(c.client_name||c.client_id)})'>Open Work</button></td>
+          </tr>`).join('') || '<tr><td colspan="5">No unbilled work</td></tr>';
+      }catch(e){msg(e.message,false)}
+    }
+    function openClientUnbilled(clientId, clientName){
+      currentUnbilledClient = clientId || '';
+      currentUnbilledClientName = clientName || clientId || '';
+      selected.clear();
+      renderSelected();
+      showTab('unbilled');
+    }
+    function clearClientFilter(){
+      currentUnbilledClient = '';
+      currentUnbilledClientName = '';
+      selected.clear();
+      renderSelected();
+      loadUnbilled();
+    }
+    function toggleTask(task, checked){
+      if(checked) selected.set(task.task_id,task); else selected.delete(task.task_id);
+      renderSelected();
+    }
+    function renderSelected(){
+      const rows=[...selected.values()];
+      const total=rows.reduce((s,t)=>s+Number(t.amount||0),0);
+      document.getElementById('billAmount').value=total.toFixed(2);
+      if(!document.getElementById('billDesc').value && rows.length) document.getElementById('billDesc').value = rows.length > 1 ? 'Professional Services Package' : rows[0].work_name;
+      document.getElementById('selectedList').innerHTML=rows.length ? rows.map(t=>`<div class="selected-item"><strong>${h(t.work_name)}</strong><br><small>${h(t.client_id)} - ${h(t.task_id)} - ${money(t.amount)}</small><label style="margin-top:8px">Billing Task Name</label><input value="${h(t.billing_name || t.work_name)}" oninput="updateSelectedTaskName('${h(t.task_id)}',this.value)"></div>`).join('') : '<div class="muted">No task selected</div>';
+    }
+    function updateSelectedTaskName(taskId, value){
+      const row = selected.get(taskId);
+      if(row){ row.billing_name = value; selected.set(taskId,row); }
+    }
+    async function createBill(type){
+      const rows=[...selected.values()];
+      if(!rows.length) return msg('Select at least one task',false);
+      const clientId=rows[0].client_id;
+      if(rows.some(t=>t.client_id!==clientId)) return msg('One bill me sirf same client ke tasks select karein',false);
+      try{
+        const payload={
+          client_id:clientId,
+          tax_mode:document.getElementById('billTaxMode').value,
+          lines:[{
+            description:document.getElementById('billDesc').value || 'Professional Services',
+            quantity:1,
+            rate:Number(document.getElementById('billAmount').value||0),
+            tax_rate:Number(document.getElementById('billTaxRate').value||18),
+            task_ids:rows.map(t=>t.task_id),
+            task_names:Object.fromEntries(rows.map(t=>[t.task_id,t.billing_name || t.work_name]))
+          }]
+        };
+        const data=await api(type==='invoice'?'/invoices':'/proformas',{method:'POST',body:JSON.stringify(payload)});
+        selected.clear(); renderSelected(); await loadUnbilled(); await loadDashboard();
+        msg(data.message || 'Bill created');
+        openDoc(data.document.id);
+      }catch(e){msg(e.message,false)}
+    }
+    async function loadDocs(type){
+      try{
+        const input=document.getElementById(type==='invoice'?'invoiceSearch':'proformaSearch');
+        const data=await api(`/documents?type=${type}&search=${encodeURIComponent(input?.value||'')}`);
+        const body=document.getElementById(type==='invoice'?'invoiceBody':'proformaBody');
+        body.innerHTML=(data.documents||[]).map(d=>`
+          <tr>
+            <td><strong>${h(d.document_no)}</strong></td><td>${date(d.document_date)}</td>
+            <td>${h(d.client_name)}<br><small>${h(d.client_id)}</small></td>
+            <td>${money(d.total_amount)}</td>
+            ${type==='invoice'?`<td>${money(d.received_amount)}</td><td>${money(d.outstanding_amount)}</td>`:''}
+            <td><span class="badge ${d.status==='Cancelled'?'red':'green'}">${h(d.status)}</span></td>
+            <td><button class="btn" onclick="openDoc(${d.id})">View</button> <button class="btn primary write-only" onclick="editDoc(${d.id})">Edit</button> ${type==='proforma'?`<button class="btn primary write-only" onclick="invoiceFromProforma(${d.id})">Make Invoice</button>`:''}</td>
+          </tr>`).join('') || `<tr><td colspan="${type==='invoice'?8:6}">No records</td></tr>`;
+        applyAccess();
+      }catch(e){msg(e.message,false)}
+    }
+    async function invoiceFromProforma(id){
+      try{const d=await api('/invoices/from-proforma',{method:'POST',body:JSON.stringify({proforma_id:id})});msg(d.message);loadDocs('proforma');loadDocs('invoice');openDoc(d.document.id)}catch(e){msg(e.message,false)}
+    }
+    async function openDoc(id){
+      try{
+        const d=await api('/documents/'+id);
+        const doc=d.document, lines=d.lines||[], tasks=d.tasks||[];
+        currentDocPayload = d;
+        document.getElementById('docTitle').textContent=`${doc.document_type==='invoice'?'Tax Invoice':'Proforma'} ${doc.document_no}`;
+        document.getElementById('docPreview').innerHTML=renderInvoice(doc, lines, tasks);
+        document.getElementById('docModal').classList.add('show');
+      }catch(e){msg(e.message,false)}
+    }
+    function renderInvoice(doc, lines, tasks){
+      const useIgst = Number(doc.igst_amount || 0) > 0 || doc.tax_mode === 'IGST';
+      const received = Number(doc.received_amount || 0);
+      const balance = Number(doc.total_amount || 0) - received;
+      const itemRows = lines.map((line, idx) => {
+        const split = calcLineTax(line, doc);
+        const taskNames = tasks.filter(t=>t.line_id===line.id).map(t=>t.task_work_name || t.task_id).filter(Boolean).join(', ');
+        return `<tr>
+          <td>${idx+1}</td>
+          <td><strong>${h(line.description)}</strong>${taskNames?`<br><small>${h(taskNames)}</small>`:''}</td>
+          <td>${h(line.hsn_sac || '')}</td>
+          <td>${h(line.quantity || 1)}</td>
+          <td>${money(line.rate)}</td>
+          <td>${money(line.amount)}</td>
+          ${useIgst ? `<td>${split.igst?`${money(split.igst)}<br><small>(${h(line.tax_rate)}%)</small>`:''}</td>` : `<td>${split.cgst?`${money(split.cgst)}<br><small>(${h(Number(line.tax_rate||0)/2)}%)</small>`:''}</td><td>${split.sgst?`${money(split.sgst)}<br><small>(${h(Number(line.tax_rate||0)/2)}%)</small>`:''}</td>`}
+          <td>${money(Number(line.amount||0)+split.cgst+split.sgst+split.igst)}</td>
+        </tr>`;
+      }).join('');
+      const qtyTotal = lines.reduce((s,l)=>s+Number(l.quantity||0),0);
+      const colCount = useIgst ? 8 : 9;
+      return `<h2>${doc.document_type==='invoice'?'Tax Invoice':'Proforma Invoice'}</h2>
+        <div class="inv-wrap">
+          <div class="inv-top">
+            <div class="brand-box"><div class="brand-mark">TAX PROTECT</div><div class="muted">Accredited • Accurate • Affordable</div></div>
+            <div class="org-box"><strong>${h(currentSettings.legal_name || 'GeeBharat')}</strong><br>${br(currentSettings.address)}${currentSettings.phone?`Phone no.: ${h(currentSettings.phone)} `:''}${currentSettings.email?`Email: ${h(currentSettings.email)}<br>`:''}${currentSettings.gst_applicable !== false && currentSettings.gstin ? `GSTIN: ${h(currentSettings.gstin)}` : ''}</div>
+          </div>
+          <div class="bill-grid">
+            <div class="bill-left"><div class="blue-head">Bill To</div><div class="bill-body"><strong>${h(doc.client_name)}</strong><br>${br(doc.client_address)}${doc.client_contact?`Contact No.: ${h(doc.client_contact)}<br>`:''}${doc.client_gstin?`GSTIN : ${h(doc.client_gstin)}<br>`:''}${doc.client_state?`State: ${h(doc.client_state)}`:''}</div></div>
+            <div class="bill-right"><div class="blue-head">Invoice Details</div><div class="bill-body">Invoice No. : ${h(doc.document_no)}<br>Date : ${date(doc.document_date)}<br>Place of supply: ${h(doc.place_of_supply || doc.client_state || '')}</div></div>
+          </div>
+          <table class="inv-table"><thead><tr><th>#</th><th>Item name</th><th>HSN / SAC</th><th>Quantity</th><th>Price / Unit</th><th>Taxable amount</th>${useIgst?'<th>IGST</th>':'<th>CGST</th><th>SGST</th>'}<th>Amount</th></tr></thead><tbody>${itemRows}</tbody><tfoot><tr><td></td><td>Total</td><td></td><td>${qtyTotal || ''}</td><td></td><td>${money(doc.taxable_amount)}</td>${useIgst?`<td>${money(doc.igst_amount)}</td>`:`<td>${money(doc.cgst_amount)}</td><td>${money(doc.sgst_amount)}</td>`}<td>${money(doc.total_amount)}</td></tr></tfoot></table>
+          <div class="summary-grid">
+            <div><table class="summary-table"><thead><tr><th>Tax type</th><th>Taxable amount</th><th>Rate</th><th>Tax amount</th></tr></thead><tbody>${useIgst?`<tr><td>IGST</td><td>${money(doc.taxable_amount)}</td><td>${taxRateLabel(lines)}%</td><td>${money(doc.igst_amount)}</td></tr>`:`<tr><td>SGST</td><td>${money(doc.taxable_amount)}</td><td>${halfTaxRateLabel(lines)}%</td><td>${money(doc.sgst_amount)}</td></tr><tr><td>CGST</td><td>${money(doc.taxable_amount)}</td><td>${halfTaxRateLabel(lines)}%</td><td>${money(doc.cgst_amount)}</td></tr>`}</tbody></table></div>
+            <div><table class="summary-table"><thead><tr><th>Amounts</th><th></th></tr></thead><tbody><tr><td>Sub Total</td><td style="text-align:right">${money(doc.total_amount)}</td></tr><tr><td><strong>Total</strong></td><td style="text-align:right"><strong>${money(doc.total_amount)}</strong></td></tr><tr><td>Received</td><td style="text-align:right">${money(received)}</td></tr><tr><td>Balance</td><td style="text-align:right">${money(balance)}</td></tr></tbody></table></div>
+          </div>
+          <div class="words-box"><div class="blue-head">Invoice Amount In Words</div><div style="padding:8px">${h(numberToWordsIndian(Math.round(Number(doc.total_amount||0))))} Rupees only</div></div>
+          <div class="pay-mode"><div class="blue-head">Payment mode</div><div style="padding:8px">${h(currentSettings.bank_details ? currentSettings.bank_details.split('\\n')[0] : 'Bank / UPI')}</div></div>
+          <div class="footer-grid">
+            <div><div class="blue-head">Bank Details</div><div style="padding:8px">${upiQrHtml(doc)}${br(currentSettings.bank_details)}</div></div>
+            <div><div class="blue-head">Terms and Conditions</div><div style="padding:8px">${h(doc.terms || currentSettings.terms || 'Thanks for doing business with us!')}</div></div>
+            <div class="sign-box">For : ${h(currentSettings.legal_name || 'GeeBharat')}<strong>Authorized Signatory</strong></div>
+          </div>
+        </div>`;
+    }
+    function br(v){return v ? h(v).replaceAll('\n','<br>') + '<br>' : ''}
+    function taxRateLabel(lines){return [...new Set(lines.map(l=>Number(l.tax_rate||0)).filter(Boolean))].join(', ') || '0'}
+    function halfTaxRateLabel(lines){return [...new Set(lines.map(l=>Number(l.tax_rate||0)/2).filter(Boolean))].join(', ') || '0'}
+    function calcLineTax(line, doc){
+      const taxable = Number(line.amount||0), rate = Number(line.tax_rate||0);
+      if(!rate || doc.tax_mode === 'None') return {cgst:0,sgst:0,igst:0};
+      const tax = Math.round((taxable * rate / 100) * 100) / 100;
+      if(Number(doc.igst_amount||0)>0 || doc.tax_mode === 'IGST') return {cgst:0,sgst:0,igst:tax};
+      return {cgst:Math.round((tax/2)*100)/100,sgst:Math.round((tax/2)*100)/100,igst:0};
+    }
+    function upiQrHtml(doc){
+      if(!currentSettings.upi_id || Number(doc.total_amount||0) <= 0) return '';
+      const payee = currentSettings.upi_name || currentSettings.legal_name || 'GeeBharat';
+      const upi = `upi://pay?pa=${encodeURIComponent(currentSettings.upi_id)}&pn=${encodeURIComponent(payee)}&am=${Number(doc.total_amount||0).toFixed(2)}&cu=INR&tn=${encodeURIComponent(doc.document_no)}`;
+      const src = `https://api.qrserver.com/v1/create-qr-code/?size=128x128&data=${encodeURIComponent(upi)}`;
+      return `<img class="qr" src="${src}" alt="UPI QR"><div><strong>Pay ${money(doc.total_amount)}</strong><br><small>UPI: ${h(currentSettings.upi_id)}</small></div>`;
+    }
+    function closeDoc(){document.getElementById('docModal').classList.remove('show')}
+    function printDoc(){const html=document.getElementById('docPreview').innerHTML;const styles=[...document.querySelectorAll('style')].map(s=>s.innerHTML).join('\n');const w=window.open('','_blank');w.document.write(`<html><head><title>Invoice</title><style>${styles} body{background:#fff!important;overflow:auto!important;padding:20px}.invoice-preview{max-width:920px;margin:auto}.top,.side,.main>.card{display:none}@page{size:A4;margin:10mm}</style></head><body><div class="invoice-preview">${html}</div></body></html>`);w.document.close();w.print()}
+    async function editDoc(id){
+      try{
+        const d=await api('/documents/'+id);
+        currentDocPayload=d;
+        fillEditDoc(d.document,d.lines||[]);
+        document.getElementById('editDocModal').classList.add('show');
+      }catch(e){msg(e.message,false)}
+    }
+    function editCurrentDoc(){
+      if(!currentDocPayload) return;
+      fillEditDoc(currentDocPayload.document,currentDocPayload.lines||[]);
+      document.getElementById('editDocModal').classList.add('show');
+    }
+    function fillEditDoc(doc, lines){
+      editDocDate.value=String(doc.document_date||'').slice(0,10);
+      editClientName.value=doc.client_name||'';
+      editClientGstin.value=doc.client_gstin||'';
+      editClientContact.value=doc.client_contact||'';
+      editClientState.value=doc.client_state||'';
+      editPlaceSupply.value=doc.place_of_supply||doc.client_state||'';
+      editTaxMode.value=doc.tax_mode||'Auto';
+      editClientAddress.value=doc.client_address||'';
+      editTerms.value=doc.terms||currentSettings.terms||'';
+      editReason.value='';
+      editUpdateClient.value='false';
+      editLinesBody.innerHTML=lines.map((l,i)=>`<tr data-line-id="${h(l.id)}"><td><input data-k="description" value="${h(l.description)}"></td><td><input data-k="hsn_sac" value="${h(l.hsn_sac||'')}"></td><td><input data-k="quantity" type="number" step="0.01" value="${h(l.quantity||1)}"></td><td><input data-k="rate" type="number" step="0.01" value="${h(l.rate||0)}"></td><td><input data-k="tax_rate" type="number" step="0.01" value="${h(l.tax_rate||0)}"></td></tr>`).join('');
+    }
+    function closeEditDoc(){document.getElementById('editDocModal').classList.remove('show')}
+    async function saveEditedDoc(){
+      if(!currentDocPayload?.document) return;
+      const rows=[...editLinesBody.querySelectorAll('tr')].map(tr=>{
+        const get=k=>tr.querySelector(`[data-k="${k}"]`)?.value || '';
+        return {id:tr.dataset.lineId,description:get('description'),hsn_sac:get('hsn_sac'),quantity:get('quantity'),rate:get('rate'),tax_rate:get('tax_rate')};
+      });
+      try{
+        const payload={document_date:editDocDate.value,client_name:editClientName.value,client_gstin:editClientGstin.value,client_contact:editClientContact.value,client_state:editClientState.value,place_of_supply:editPlaceSupply.value,client_address:editClientAddress.value,tax_mode:editTaxMode.value,terms:editTerms.value,edit_reason:editReason.value,update_client_master:editUpdateClient.value==='true',lines:rows};
+        const d=await api('/documents/'+currentDocPayload.document.id,{method:'PUT',body:JSON.stringify(payload)});
+        msg(d.message);
+        closeEditDoc();
+        await openDoc(currentDocPayload.document.id);
+        loadDocs(currentDocPayload.document.document_type);
+        loadDashboard();
+      }catch(e){msg(e.message,false)}
+    }
+    function numberToWordsIndian(num){
+      if(!num) return 'Zero';
+      const ones=['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+      const tens=['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+      const two=n=>n<20?ones[n]:tens[Math.floor(n/10)]+(n%10?' '+ones[n%10]:'');
+      const three=n=>Math.floor(n/100)?ones[Math.floor(n/100)]+' Hundred'+(n%100?' '+two(n%100):''):two(n);
+      const parts=[];
+      const crore=Math.floor(num/10000000); num%=10000000;
+      const lakh=Math.floor(num/100000); num%=100000;
+      const thousand=Math.floor(num/1000); num%=1000;
+      if(crore) parts.push(three(crore)+' Crore');
+      if(lakh) parts.push(three(lakh)+' Lakh');
+      if(thousand) parts.push(three(thousand)+' Thousand');
+      if(num) parts.push(three(num));
+      return parts.join(' ');
+    }
+    async function loadBankAccounts(){
+      try{
+        const d=await api('/bank-accounts');
+        const accounts=d.bank_accounts||[];
+        document.getElementById('rcBank').innerHTML=accounts.map(b=>`<option value="${b.id}">${h(b.account_name)} (${h(b.account_type)})</option>`).join('');
+        const body=document.getElementById('bankAccountsBody');
+        if(body){
+          body.innerHTML=accounts.map(b=>`<tr><td><strong>${h(b.account_name)}</strong></td><td>${h(b.account_type)}</td><td>${h(b.bank_name||'--')}</td><td>${h(b.account_no||'--')}</td><td>${h(b.ifsc||'--')}</td><td><span class="badge ${b.status==='Active'?'green':'red'}">${h(b.status)}</span></td></tr>`).join('') || '<tr><td colspan="6">No accounts</td></tr>';
+        }
+      }catch(e){}
+      document.getElementById('rcDate').value ||= new Date().toISOString().slice(0,10);
+    }
+    async function addBankAccount(){
+      try{
+        const payload={account_name:bankAccountName.value,account_type:bankAccountType.value,bank_name:bankName.value,account_no:bankAccountNo.value,ifsc:bankIfsc.value,opening_balance:bankOpeningBalance.value};
+        const d=await api('/bank-accounts',{method:'POST',body:JSON.stringify(payload)});
+        msg(d.message);
+        bankAccountName.value=''; bankName.value=''; bankAccountNo.value=''; bankIfsc.value=''; bankOpeningBalance.value='0';
+        loadBankAccounts();
+      }catch(e){msg(e.message,false)}
+    }
+    async function saveReceipt(){
+      try{
+        const payload={client_id:rcClient.value,receipt_date:rcDate.value,bank_account_id:rcBank.value,amount:rcAmount.value,reference_no:rcRef.value,remarks:rcRemarks.value};
+        const d=await api('/receipts',{method:'POST',body:JSON.stringify(payload)});
+        msg(d.message); rcAmount.value=''; rcRef.value=''; rcRemarks.value=''; loadDashboard();
+      }catch(e){msg(e.message,false)}
+    }
+    async function loadLedger(){
+      try{
+        const d=await api('/clients/'+encodeURIComponent(ledgerClient.value)+'/ledger');
+        ledgerBody.innerHTML=(d.ledger||[]).map(r=>`<tr><td>${date(r.entry_date)}</td><td>${h(r.entry_type)}</td><td>${h(r.document_no||r.receipt_no||'--')}</td><td>${h(r.narration||'')}</td><td>${money(r.debit)}</td><td>${money(r.credit)}</td><td>${money(r.running_balance)}</td></tr>`).join('') || '<tr><td colspan="7">No ledger entries</td></tr>';
+      }catch(e){msg(e.message,false)}
+    }
+    async function loadReport(name){
+      try{
+        const d=await api('/reports/'+name);
+        const rows=d.rows||[];
+        const cols=rows.length?Object.keys(rows[0]):['message'];
+        reportHead.innerHTML='<tr>'+cols.map(c=>`<th>${h(c.replaceAll('_',' '))}</th>`).join('')+'</tr>';
+        reportBody.innerHTML=rows.length?rows.map(r=>'<tr>'+cols.map(c=>`<td>${typeof r[c]==='number'?money(r[c]):h(r[c]??'--')}</td>`).join('')+'</tr>').join(''):'<tr><td>No records</td></tr>';
+      }catch(e){msg(e.message,false)}
+    }
+    async function loadSettings(){
+      try{
+        const d=await api('/settings'); currentSettings=d.settings||{};
+        setInvoicePrefix.value=currentSettings.invoice_prefix||'INV';
+        setProformaPrefix.value=currentSettings.proforma_prefix||'PRO';
+        setGstApplicable.value=String(currentSettings.gst_applicable !== false);
+        setLegalName.value=currentSettings.legal_name||'';
+        setPhone.value=currentSettings.phone||'';
+        setEmail.value=currentSettings.email||'';
+        setGstin.value=currentSettings.gstin||'';
+        setState.value=currentSettings.state||'';
+        setAddress.value=currentSettings.address||'';
+        setTaxRate.value=currentSettings.default_tax_rate||18;
+        setUpiId.value=currentSettings.upi_id||'';
+        setUpiName.value=currentSettings.upi_name||'';
+        setTerms.value=currentSettings.terms||'';
+        setBankDetails.value=currentSettings.bank_details||'';
+        applyGstApplicability();
+      }catch(e){msg(e.message,false)}
+    }
+    async function saveSettings(){
+      try{
+        const payload={
+          invoice_prefix:setInvoicePrefix.value,
+          proforma_prefix:setProformaPrefix.value,
+          gst_applicable:setGstApplicable.value === 'true',
+          legal_name:setLegalName.value,
+          phone:setPhone.value,
+          email:setEmail.value,
+          gstin:setGstin.value,
+          state:setState.value,
+          address:setAddress.value,
+          default_tax_rate:setTaxRate.value,
+          upi_id:setUpiId.value,
+          upi_name:setUpiName.value,
+          terms:setTerms.value,
+          bank_details:setBankDetails.value
+        };
+        const d=await api('/settings',{method:'PUT',body:JSON.stringify(payload)});
+        msg(d.message); currentSettings=d.settings;
+        applyGstApplicability();
+      }catch(e){msg(e.message,false)}
+    }
+    function applyGstApplicability(){
+      const applicable = currentSettings.gst_applicable !== false && setGstApplicable?.value !== 'false';
+      billTaxRate.value = applicable ? (currentSettings.default_tax_rate || 18) : 0;
+      billTaxMode.value = applicable ? 'Auto' : 'None';
+      billTaxRate.disabled = !applicable;
+      billTaxMode.disabled = !applicable;
+    }
+    document.addEventListener('change', e => {
+      if(e.target && e.target.id === 'setGstApplicable'){
+        currentSettings.gst_applicable = e.target.value === 'true';
+        applyGstApplicability();
+      }
+    });
+    boot();
+  </script>
+</body>
+</html>

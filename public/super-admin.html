@@ -115,8 +115,8 @@
           <button class="btn btn-soft" onclick="loadOrganizations()">Reload</button>
         </div>
         <div class="table-wrap"><table>
-          <thead><tr><th>Code</th><th>Name</th><th>Contact</th><th>Validity</th><th>Subscription</th><th>Status</th><th>Counts</th><th>Actions</th></tr></thead>
-          <tbody id="orgsBody"><tr><td colspan="7">Loading...</td></tr></tbody>
+          <thead><tr><th>Code</th><th>Name</th><th>Contact</th><th>Validity</th><th>Subscription</th><th>Status</th><th>Counts</th><th>Billing</th><th>Actions</th></tr></thead>
+          <tbody id="orgsBody"><tr><td colspan="9">Loading...</td></tr></tbody>
         </table></div>
       </section>
       <section class="panel">
@@ -320,9 +320,9 @@
     async function loadOrganizations() {
       const data = await api('/organizations');
       const body = document.getElementById('orgsBody');
-      if (!data.success) { body.innerHTML = '<tr><td colspan="7">Load failed</td></tr>'; return; }
+      if (!data.success) { body.innerHTML = '<tr><td colspan="9">Load failed</td></tr>'; return; }
       orgCache = data.organizations || [];
-      if (!data.organizations.length) { body.innerHTML = '<tr><td colspan="7">No organisations</td></tr>'; return; }
+      if (!data.organizations.length) { body.innerHTML = '<tr><td colspan="9">No organisations</td></tr>'; return; }
       body.innerHTML = data.organizations.map(o => `
         <tr>
           <td><strong>${esc(o.org_code)}</strong></td>
@@ -332,6 +332,13 @@
           <td><span class="status ${String(o.subscription_state || '').split(' ')[0]}">${esc(o.subscription_state || '--')}</span><br><small>${o.force_read_only ? 'Read only forced' : ''}</small></td>
           <td><span class="status ${esc(o.status)}">${esc(o.status)}</span></td>
           <td>${o.employees || 0} employees<br>${o.clients || 0} clients<br>${o.tasks || 0} tasks</td>
+          <td>
+            <select onchange="updateBillingAccess(${o.id}, this.value)" style="padding:7px 8px;border:1px solid #d8e0ec;border-radius:8px;font-weight:700">
+              <option value="none" ${o.billing_access === 'none' ? 'selected' : ''}>No Access</option>
+              <option value="view" ${o.billing_access === 'view' ? 'selected' : ''}>View Only</option>
+              <option value="full" ${o.billing_access === 'full' ? 'selected' : ''}>Full Access</option>
+            </select>
+          </td>
           <td><button class="btn btn-dark" onclick="updateSubscription(${o.id})">Subscription</button></td>
         </tr>`).join('');
     }
@@ -423,6 +430,14 @@
       });
       showMsg(data.message || (data.success ? 'Updated' : 'Update failed'), !!data.success);
       if (data.success) loadAll();
+    }
+    async function updateBillingAccess(id, accessLevel) {
+      const data = await api('/organizations/' + id + '/features/billing', {
+        method: 'PUT',
+        body: JSON.stringify({ access_level: accessLevel })
+      });
+      showMsg(data.message || (data.success ? 'Billing access updated' : 'Billing access update failed'), !!data.success);
+      if (data.success) loadOrganizations();
     }
     async function loadMcaFormats() {
       const data = await api('/mca-formats');

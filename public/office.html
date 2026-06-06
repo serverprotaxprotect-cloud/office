@@ -390,6 +390,7 @@
     <div class="sb-section" id="sec-management">Management</div>
     <div class="sb-item" id="sb-dataimport" onclick="showPanel('dataimport')"><span class="ic">&#128229;</span>Data Import</div>
     <div class="sb-item" id="sb-empmanagement" onclick="openAdminPortal()"><span class="ic">&#128101;</span>Employee Management</div>
+    <div class="sb-item" id="sb-billing" onclick="openBillingPortal()"><span class="ic">&#128181;</span>Billing</div>
     <div class="sb-item" id="sb-mcafiling" onclick="showPanel('mcafiling')"><span class="ic">&#128196;</span>MCA Filing</div>
   </aside>
 
@@ -1932,7 +1933,7 @@ const ROLE_PERMS = {
   'Director':       { panels: 'all', attendance_admin: true },
   'Office Manager': { panels: 'all', attendance_admin: true },
   'HR':             { panels: 'all', attendance_admin: true },
-  'Accountant':     { panels: ['dashboard','mytasks','assignedby','completed','notifications','chat','clients','companies','directors','comptracking','gstclients','incometax','pfesic','mcafiling'], attendance_admin: false },
+  'Accountant':     { panels: ['dashboard','mytasks','assignedby','completed','notifications','chat','clients','companies','directors','comptracking','gstclients','incometax','pfesic','billing','mcafiling'], attendance_admin: false },
   'employee':       { panels: ['dashboard','mytasks','assignedby','completed','notifications','chat','clients','companies','directors','comptracking','gstclients','incometax','pfesic','mcafiling'], attendance_admin: false },
 };
 
@@ -1990,12 +1991,14 @@ function applyPermissions() {
   if (orgProfileBtn) orgProfileBtn.style.display = perms.attendance_admin ? '' : 'none';
   const dataImport = document.getElementById('sb-dataimport');
   const empMgmt    = document.getElementById('sb-empmanagement');
+  const billing    = document.getElementById('sb-billing');
   const mcaFiling  = document.getElementById('sb-mcafiling');
   const secMgmt    = document.getElementById('sec-management');
   if (dataImport) dataImport.style.display = perms.attendance_admin ? '' : 'none';
   if (empMgmt) empMgmt.style.display = perms.attendance_admin ? '' : 'none';
+  if (billing) billing.style.display = (all || perms.panels.includes('billing')) ? '' : 'none';
   if (mcaFiling) mcaFiling.style.display = (all || perms.panels.includes('mcafiling')) ? '' : 'none';
-  if (secMgmt) secMgmt.style.display = [dataImport, empMgmt, mcaFiling].some(el => el && el.style.display !== 'none') ? '' : 'none';
+  if (secMgmt) secMgmt.style.display = [dataImport, empMgmt, billing, mcaFiling].some(el => el && el.style.display !== 'none') ? '' : 'none';
 
   // Create Task button — hide for employee
   const isEmployee = user.user_type === 'employee';
@@ -2009,6 +2012,7 @@ function showOfficeApp() {
   if (brand) brand.textContent = user.organization_name || 'Office';
   applyPermissions();
   setTimeout(refreshOfficeUserPhoto, 0);
+  setTimeout(refreshBillingLauncher, 0);
 }
 
 function renderUserChip() {
@@ -2304,6 +2308,35 @@ function getCurrentFY() {
   const now = new Date(); const y = now.getFullYear(); const m = now.getMonth();
   const sy = m >= 3 ? y : y-1;
   return `${sy}-${String(sy+1).slice(-2)}`;
+}
+
+async function refreshBillingLauncher() {
+  const el = document.getElementById('sb-billing');
+  if (!el || el.style.display === 'none') return;
+  try {
+    const data = await api('/billing/me', { cache: false });
+    el.style.display = data.success ? '' : 'none';
+  } catch (e) {
+    el.style.display = 'none';
+  }
+  const secMgmt = document.getElementById('sec-management');
+  if (secMgmt) {
+    const ids = ['sb-dataimport','sb-empmanagement','sb-billing','sb-mcafiling'];
+    secMgmt.style.display = ids.some(id => document.getElementById(id)?.style.display !== 'none') ? '' : 'none';
+  }
+}
+
+async function openBillingPortal() {
+  try {
+    const data = await api('/billing/me', { cache: false });
+    if (!data.success) {
+      showToast(data.message || 'Billing access not allowed', 'error');
+      return;
+    }
+    window.open('/billing.html', '_blank');
+  } catch (e) {
+    showToast('Billing access not allowed', 'error');
+  }
 }
 
 function getComplianceDefaultFY() {

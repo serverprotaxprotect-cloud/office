@@ -21,6 +21,8 @@
     "chat:migrate:apply": "node scripts/chat_migrate.js --apply",
     "pf-esic:migrate": "node scripts/pf_esic_migrate.js",
     "pf-esic:migrate:apply": "node scripts/pf_esic_migrate.js --apply",
+    "billing:migrate": "node scripts/billing_migrate.js",
+    "billing:migrate:apply": "node scripts/billing_migrate.js --apply",
     "perf:migrate": "node scripts/performance_migrate.js",
     "perf:migrate:apply": "node scripts/performance_migrate.js --apply",
     "gst:import:preview": "node scripts/gst_import.js C:/Users/HP/Downloads/GST_CLIENTS.xlsx",

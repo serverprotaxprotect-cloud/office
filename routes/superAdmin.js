@@ -156,6 +156,7 @@ router.get('/organizations', superAdminAuth, async (req, res) => {
                 ELSE 'Active'
               END AS subscription_state,
               GREATEST(0, (o.valid_until::date - CURRENT_DATE))::int AS days_left,
+              COALESCE((SELECT access_level FROM organization_feature_access fa WHERE fa.organization_id=o.id AND fa.feature_key='billing'), 'none') AS billing_access,
               (SELECT COUNT(*)::int FROM emplist e WHERE e.organization_id=o.id) AS employees,
               (SELECT COUNT(*)::int FROM clients c WHERE c.organization_id=o.id) AS clients,
               (SELECT COUNT(*)::int FROM tasks t WHERE t.organization_id=o.id) AS tasks
@@ -166,6 +167,47 @@ router.get('/organizations', superAdminAuth, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+router.get('/organizations/:id/features', superAdminAuth, async (req, res) => {
+  try {
+    const org = await db.query(`SELECT id, org_code, office_name FROM organizations WHERE id=$1`, [req.params.id]);
+    if (!org.rows.length) return res.status(404).json({ success: false, message: 'Organisation not found' });
+    const features = await db.query(
+      `SELECT feature_key, access_level, updated_at
+         FROM organization_feature_access
+        WHERE organization_id=$1
+        ORDER BY feature_key`,
+      [req.params.id]
+    );
+    res.json({ success: true, organization: org.rows[0], features: features.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Feature access load failed' });
+  }
+});
+
+router.put('/organizations/:id/features/billing', superAdminAuth, async (req, res) => {
+  const accessLevel = clean(req.body.access_level).toLowerCase();
+  if (!['none', 'view', 'full'].includes(accessLevel)) {
+    return res.status(400).json({ success: false, message: 'Billing access must be none, view or full' });
+  }
+  try {
+    const org = await db.query(`SELECT id FROM organizations WHERE id=$1`, [req.params.id]);
+    if (!org.rows.length) return res.status(404).json({ success: false, message: 'Organisation not found' });
+    const feature = await db.query(
+      `INSERT INTO organization_feature_access
+        (organization_id, feature_key, access_level, updated_by)
+       VALUES ($1,'billing',$2,$3)
+       ON CONFLICT (organization_id, feature_key)
+       DO UPDATE SET access_level=EXCLUDED.access_level, updated_by=EXCLUDED.updated_by, updated_at=NOW()
+       RETURNING *`,
+      [req.params.id, accessLevel, req.superAdmin.id]
+    );
+    res.json({ success: true, message: 'Billing access updated', feature: feature.rows[0] });
+  } catch (err) {
+    console.error('[super-admin billing access]', err);
+    res.status(500).json({ success: false, message: 'Billing access update failed' });
   }
 });
 
