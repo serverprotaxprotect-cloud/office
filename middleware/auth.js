@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const db = require('../db');
 const { organizationReadOnly } = require('../services/authService');
+const { validateSession } = require('../services/sessionService');
 
 const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
@@ -14,6 +15,23 @@ module.exports = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     if (!decoded.organization_id) {
       return res.status(401).json({ success: false, message: 'Organisation context missing. Please login again.' });
+    }
+    const sessionState = await validateSession(decoded);
+    if (!sessionState.valid) {
+      return res.status(401).json({ success: false, message: 'Session expired or logged out. Please login again.' });
+    }
+
+    const userResult = decoded.user_type === 'admin'
+      ? await db.runWithTenant({ organizationId: decoded.organization_id }, () => db.query(
+        `SELECT status FROM admins WHERE id=$1 AND organization_id=$2`,
+        [decoded.id, decoded.organization_id]
+      ))
+      : await db.runWithTenant({ organizationId: decoded.organization_id }, () => db.query(
+        `SELECT status FROM emplist WHERE id=$1 AND organization_id=$2`,
+        [decoded.id, decoded.organization_id]
+      ));
+    if (!userResult.rows.length || userResult.rows[0].status !== 'Active') {
+      return res.status(403).json({ success: false, message: 'User account is not active.' });
     }
 
     const orgRes = await db.query(

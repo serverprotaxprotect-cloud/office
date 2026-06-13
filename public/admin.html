@@ -839,10 +839,11 @@
 </div>
 
 <script src="/assets/address-autocomplete.js"></script>
+<script src="/assets/auth-session.js"></script>
 <script>
 // ── Auth guard ───────────────────────────────────────────────
-const token = localStorage.getItem('admin_token');
-const admin = JSON.parse(localStorage.getItem('admin_info') || '{}');
+let token = GBSession.tokenFor('admin');
+let admin = GBSession.userFor('admin');
 if (!token) window.location.href = '/admin-login.html';
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -850,10 +851,15 @@ const api = async (path, opts = {}) => {
   const isFormData = opts.body instanceof FormData;
   const headers = { 'Authorization': 'Bearer ' + token, ...(opts.headers || {}) };
   if (!isFormData) headers['Content-Type'] = 'application/json';
-  const res = await fetch('/api' + path, {
+  const res = await GBSession.fetch('/api' + path, {
     ...opts,
     headers
-  });
+  }, 'admin');
+  token = GBSession.tokenFor('admin');
+  if (res.status === 401) {
+    showToast('Session expired. Please login again.', 'error');
+    setTimeout(() => window.location.href = '/admin-login.html', 700);
+  }
   return res.json();
 };
 
@@ -2090,10 +2096,8 @@ async function importAttendance() {
   }
 }
 
-function adminLogout() {
-  localStorage.removeItem('admin_token');
-  localStorage.removeItem('admin_info');
-  window.location.href = '/admin-login.html';
+async function adminLogout() {
+  await GBSession.logout('/admin-login.html');
 }
 
 // ── Init ─────────────────────────────────────────────────────

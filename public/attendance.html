@@ -84,10 +84,15 @@
     <p class="login-footer"><a href="/forgot-password.html?from=attendance">Forgot password?</a></p>
   </div>
 
+  <script src="/assets/auth-session.js"></script>
   <script>
-    if (localStorage.getItem('att_token')) {
-      window.location.href = '/dashboard.html';
-    }
+    GBSession.restore('attendance').then(ok => {
+      const savedUser = GBSession.userFor('attendance');
+      const tokenUser = GBSession.decode(GBSession.tokenFor('attendance'));
+      if (ok && (savedUser.user_type === 'employee' || tokenUser.user_type === 'employee')) {
+        window.location.href = '/dashboard.html';
+      }
+    });
 
     function togglePass() {
       const p = document.getElementById('password');
@@ -122,8 +127,7 @@
           txt.textContent = 'Login';
           spin.style.display = 'none';
         } else if (data.success) {
-          localStorage.setItem('att_token', data.token);
-          localStorage.setItem('att_emp', JSON.stringify(data.employee));
+          GBSession.save(data.token, data.user || data.employee, 'attendance');
           window.location.href = '/dashboard.html';
         } else {
           err.textContent = data.message;
@@ -161,8 +165,7 @@
         });
         const data = await res.json();
         if (!data.success) throw new Error(data.message || 'Selection failed');
-        localStorage.setItem('att_token', data.token);
-        localStorage.setItem('att_emp', JSON.stringify(data.user));
+        GBSession.save(data.token, data.user, 'attendance');
         window.location.href = '/dashboard.html';
       } catch (e) {
         err.textContent = e.message || 'Selection failed';

@@ -5,6 +5,7 @@ const XLSX   = require('xlsx');
 const db = require('../db');
 const adminAuth = require('../middleware/adminAuth');
 const { buildLoginResponse, hashForStorage } = require('../services/authService');
+const { setRefreshCookie, revokeUserSessions } = require('../services/sessionService');
 const { ensureOrgSetupComplete, requireOrgSetup } = require('../services/organizationSetupGuard');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -143,8 +144,9 @@ router.post('/login', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Login ID and password required' });
 
   try {
-    const result = await buildLoginResponse(loginId, password, 'admin');
+    const result = await buildLoginResponse(loginId, password, 'admin', req);
     if (result.requires_selection) return res.json({ success: true, ...result });
+    setRefreshCookie(res, result.refresh_token);
     res.json({ success: true, token: result.token, admin: result.user, user: result.user });
   } catch (err) {
     console.error(err);
@@ -290,6 +292,14 @@ router.put('/admin-users/:id', adminAuth, async (req, res) => {
       ]
     );
     if (!updated.rows.length) return res.status(404).json({ success: false, message: 'Admin user not found' });
+    if (password || status === 'Inactive') {
+      await revokeUserSessions(
+        req.user.organization_id,
+        'admin',
+        Number(req.params.id),
+        status === 'Inactive' ? 'Admin account deactivated' : 'Admin password changed'
+      );
+    }
     res.json({ success: true, message: 'Admin user updated', admin: updated.rows[0] });
   } catch (err) {
     console.error(err);
@@ -467,10 +477,18 @@ router.put('/employees/:id', adminAuth, upload.fields(EMPLOYEE_UPLOAD_FIELDS), a
        SET ${setParts.join(', ')}
        WHERE organization_id=$${values.length}
          AND (lower(emp_id)=lower($${values.length - 2}) OR id=$${values.length - 1})
-       RETURNING emp_id`,
+       RETURNING id, emp_id, status`,
       values
     );
     if (!updated.rows.length) return res.status(404).json({ success: false, message: 'Employee not found' });
+    if (body.login_password || body.status === 'Inactive' || body.status === 'Resigned') {
+      await revokeUserSessions(
+        req.user.organization_id,
+        'employee',
+        updated.rows[0].id,
+        body.login_password ? 'Employee password changed' : 'Employee account deactivated'
+      );
+    }
     res.json({ success: true, message: 'Employee updated' });
   } catch (err) {
     console.error(err);

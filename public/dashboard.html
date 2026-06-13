@@ -408,6 +408,16 @@
       </div>
     </div>
 
+    <div class="card">
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+        <span>Active Login Sessions</span>
+        <button class="btn-sm" onclick="logoutAllDevices()" style="font-size:11px;color:#b91c1c;">Logout All Devices</button>
+      </div>
+      <div id="activeSessionsList">
+        <p style="color:#94a3b8;font-size:13px;text-align:center;padding:12px 0;">Loading sessions...</p>
+      </div>
+    </div>
+
     <!-- PWA Install Card -->
     <div class="card" id="pwaCard" style="display:none;">
       <div class="card-title">&#128640; App Install Karein</div>
@@ -536,17 +546,13 @@
   </div>
 </div>
 
+<script src="/assets/auth-session.js"></script>
 <script>
 // ── Auth guard ──────────────────────────────────────────
-const token = localStorage.getItem('att_token');
-const emp   = JSON.parse(localStorage.getItem('att_emp') || '{}');
+let token = GBSession.tokenFor('attendance');
+let emp   = GBSession.userFor('attendance');
 if (!token) { window.location.href = '/'; }
-if (token.length > 8000) {
-  localStorage.removeItem('att_token');
-  localStorage.removeItem('att_emp');
-  alert('Session refresh required. Please login again.');
-  window.location.href = '/attendance.html';
-}
+if (emp.user_type && emp.user_type !== 'employee') { window.location.href = '/attendance.html'; }
 document.getElementById('attBrandName').textContent = emp.organization_name || 'Office';
 
 // ── Helpers ─────────────────────────────────────────────
@@ -554,10 +560,15 @@ const api = async (path, opts = {}) => {
   const isFormData = opts.body instanceof FormData;
   const headers = { 'Authorization': 'Bearer ' + token, ...(opts.headers || {}) };
   if (!isFormData) headers['Content-Type'] = 'application/json';
-  const res = await fetch('/api' + path, {
+  const res = await GBSession.fetch('/api' + path, {
     ...opts,
     headers
-  });
+  }, 'attendance');
+  token = GBSession.tokenFor('attendance');
+  if (res.status === 401) {
+    showToast('Session expired. Please login again.', 'error');
+    setTimeout(() => window.location.href = '/attendance.html', 700);
+  }
   return res.json();
 };
 
@@ -1096,7 +1107,7 @@ function switchTab(tab) {
   document.getElementById('nav' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('active');
 
   if (tab === 'history' && document.getElementById('calGrid').innerHTML.includes('Select month')) loadHistory();
-  if (tab === 'profile') { loadProfile(); initPWA(); }
+  if (tab === 'profile') { loadProfile(); loadActiveSessions(); initPWA(); }
   if (tab === 'leave')   loadLeaveHistory();
   if (tab === 'salary')  loadMySalary();
   if (tab === 'notif')   { loadNotifications(true); }
@@ -1474,14 +1485,37 @@ async function loadLeaveHistory() {
 
 // ── Logout ───────────────────────────────────────────────
 async function logout() {
+  await GBSession.logout('/');
+}
+
+async function loadActiveSessions() {
+  const box = document.getElementById('activeSessionsList');
+  if (!box) return;
   try {
-    await fetch('/api/auth/logout', {
-      method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + token }
-    });
+    const data = await api('/auth/sessions');
+    if (!data.success || !data.sessions?.length) {
+      box.innerHTML = '<p style="color:#94a3b8;font-size:13px;text-align:center;padding:12px 0;">No active sessions</p>';
+      return;
+    }
+    box.innerHTML = data.sessions.map(session => {
+      const device = String(session.user_agent || 'Unknown browser').replace(/\s+/g, ' ').slice(0, 90);
+      const seen = session.last_seen_at ? new Date(session.last_seen_at).toLocaleString('en-IN') : '--';
+      return `<div class="info-row" style="align-items:flex-start;">
+        <span class="info-lbl">${session.current_session ? 'Current Device' : 'Other Device'}</span>
+        <span class="info-val" style="max-width:68%;text-align:right;">${esc(device)}<br><small style="color:#64748b;">Last active: ${esc(seen)}</small></span>
+      </div>`;
+    }).join('');
+  } catch {
+    box.innerHTML = '<p style="color:#dc2626;font-size:13px;text-align:center;padding:12px 0;">Unable to load sessions</p>';
+  }
+}
+
+async function logoutAllDevices() {
+  if (!confirm('Logout from all devices? You will need to login again everywhere.')) return;
+  try {
+    await api('/auth/logout-all', { method: 'POST' });
   } catch {}
-  localStorage.removeItem('att_token');
-  localStorage.removeItem('att_emp');
+  GBSession.clear();
   window.location.href = '/';
 }
 

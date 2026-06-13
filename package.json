@@ -25,6 +25,8 @@
     "billing:migrate:apply": "node scripts/billing_migrate.js --apply",
     "perf:migrate": "node scripts/performance_migrate.js",
     "perf:migrate:apply": "node scripts/performance_migrate.js --apply",
+    "auth-sessions:migrate": "node scripts/auth_sessions_migrate.js",
+    "auth-sessions:migrate:apply": "node scripts/auth_sessions_migrate.js --apply",
     "gst:import:preview": "node scripts/gst_import.js C:/Users/HP/Downloads/GST_CLIENTS.xlsx",
     "gst:import": "node scripts/gst_import.js C:/Users/HP/Downloads/GST_CLIENTS.xlsx --apply"
   },

@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const db = require('../db');
 const { verifyPassword, hashPassword } = require('../utils/passwords');
+const { createSession } = require('./sessionService');
 
 function normalizeIdentifier(value) {
   return String(value || '').trim();
@@ -83,10 +84,15 @@ function userPayload(candidate) {
   };
 }
 
-function signUser(candidate) {
+async function signUser(candidate, req) {
   const payload = userPayload(candidate);
-  const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '12h' });
-  return { token, payload };
+  const session = await createSession(payload, req);
+  return {
+    token: session.access_token,
+    refresh_token: session.refresh_token,
+    session_id: session.session_id,
+    payload,
+  };
 }
 
 function signSelection(candidates, mode) {
@@ -193,7 +199,7 @@ async function matchingCandidates(identifier, password, mode = 'all') {
   return matches;
 }
 
-async function buildLoginResponse(identifier, password, mode = 'all') {
+async function buildLoginResponse(identifier, password, mode = 'all', req = null) {
   const matches = await matchingCandidates(identifier, password, mode);
   if (!matches.length) {
     const err = new Error('Incorrect login ID or password');
@@ -209,12 +215,12 @@ async function buildLoginResponse(identifier, password, mode = 'all') {
     };
   }
 
-  const { token, payload } = signUser(matches[0]);
+  const { token, refresh_token, session_id, payload } = await signUser(matches[0], req);
   await recordSession(token, payload);
-  return { requires_selection: false, token, user: payload };
+  return { requires_selection: false, token, refresh_token, session_id, user: payload };
 }
 
-async function selectOrganization(selectionToken, accountKey) {
+async function selectOrganization(selectionToken, accountKey, req = null) {
   let decoded;
   try {
     decoded = jwt.verify(selectionToken, process.env.JWT_SECRET);
@@ -270,9 +276,9 @@ async function selectOrganization(selectionToken, accountKey) {
     throw err;
   }
 
-  const { token, payload } = signUser(candidate);
+  const { token, refresh_token, session_id, payload } = await signUser(candidate, req);
   await recordSession(token, payload);
-  return { token, user: payload };
+  return { token, refresh_token, session_id, user: payload };
 }
 
 async function recordSession(token, payload) {

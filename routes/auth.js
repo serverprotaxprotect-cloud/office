@@ -9,6 +9,15 @@ const {
 } = require('../services/authService');
 const { verifyPassword } = require('../utils/passwords');
 const { sendEmail } = require('../utils/email');
+const {
+  refreshSession,
+  validateSession,
+  revokeSession,
+  revokeUserSessions,
+  parseCookies,
+  setRefreshCookie,
+  clearRefreshCookie,
+} = require('../services/sessionService');
 
 const router = express.Router();
 
@@ -22,6 +31,7 @@ function sendLoginResponse(res, result, mode) {
     });
   }
 
+  setRefreshCookie(res, result.refresh_token);
   if (mode === 'employee') {
     return res.json({
       success: true,
@@ -147,7 +157,7 @@ router.post('/login', async (req, res) => {
   }
 
   try {
-    const result = await buildLoginResponse(loginId, password, 'employee');
+    const result = await buildLoginResponse(loginId, password, 'employee', req);
     return sendLoginResponse(res, result, 'employee');
   } catch (err) {
     return handleLoginError(res, err);
@@ -164,7 +174,7 @@ router.post('/office-login', async (req, res) => {
   }
 
   try {
-    const result = await buildLoginResponse(loginId, password, 'all');
+    const result = await buildLoginResponse(loginId, password, 'all', req);
     return sendLoginResponse(res, result, 'all');
   } catch (err) {
     return handleLoginError(res, err);
@@ -179,7 +189,8 @@ router.post('/select-organization', async (req, res) => {
   }
 
   try {
-    const result = await selectOrganization(selection_token, account_key);
+    const result = await selectOrganization(selection_token, account_key, req);
+    setRefreshCookie(res, result.refresh_token);
     return res.json({ success: true, token: result.token, user: result.user });
   } catch (err) {
     return handleLoginError(res, err);
@@ -260,6 +271,7 @@ router.post('/reset-password', async (req, res) => {
           } else {
             await db.query(`UPDATE emplist SET login_password=$1 WHERE id=$2 AND organization_id=$3`, [passwordHash, account.id, account.organization_id]);
           }
+          await revokeUserSessions(account.organization_id, account.user_type, account.id, 'Password reset');
         }
       });
       return res.json({ success: true, message: 'Password reset successful. Please login again.' });
@@ -284,6 +296,7 @@ router.post('/reset-password', async (req, res) => {
       } else {
         await db.query(`UPDATE emplist SET login_password=$1 WHERE id=$2 AND organization_id=$3`, [passwordHash, tokenRow.user_ref_id, tokenRow.organization_id]);
       }
+      await revokeUserSessions(tokenRow.organization_id, tokenRow.user_type, tokenRow.user_ref_id, 'Password reset');
       await db.query(`UPDATE password_reset_tokens SET used_at=NOW() WHERE id=$1`, [tokenRow.id]);
     });
     res.json({ success: true, message: 'Password reset successful. Please login again.' });
@@ -293,12 +306,76 @@ router.post('/reset-password', async (req, res) => {
   }
 });
 
+router.post('/refresh', async (req, res) => {
+  try {
+    const result = await refreshSession(req);
+    setRefreshCookie(res, result.refresh_token);
+    return res.json({ success: true, token: result.token, user: result.user });
+  } catch (err) {
+    clearRefreshCookie(res);
+    return res.status(err.statusCode || 401).json({
+      success: false,
+      message: err.message || 'Session expired. Please login again.',
+    });
+  }
+});
+
+router.get('/sessions', async (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  let decoded;
+  try {
+    decoded = jwt.verify(token, process.env.JWT_SECRET);
+  } catch {
+    return res.status(401).json({ success: false, message: 'Login required' });
+  }
+  if (!decoded.organization_id || !decoded.id || !decoded.user_type) {
+    return res.status(401).json({ success: false, message: 'Invalid session' });
+  }
+  if (!(await validateSession(decoded)).valid) {
+    return res.status(401).json({ success: false, message: 'Session expired or logged out' });
+  }
+  const sessions = await db.runWithTenant({ bypassTenant: true }, () => db.query(
+    `SELECT id, user_agent, ip_address, created_at, last_seen_at, expires_at,
+            CASE WHEN id=$4 THEN TRUE ELSE FALSE END AS current_session
+       FROM auth_sessions
+      WHERE organization_id=$1 AND user_type=$2 AND user_ref_id=$3 AND revoked_at IS NULL
+        AND expires_at > NOW()
+      ORDER BY last_seen_at DESC`,
+    [decoded.organization_id, decoded.user_type, decoded.id, decoded.sid || null]
+  ));
+  return res.json({ success: true, sessions: sessions.rows });
+});
+
+router.post('/logout-all', async (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  let decoded;
+  try {
+    decoded = jwt.verify(token, process.env.JWT_SECRET);
+  } catch {
+    clearRefreshCookie(res);
+    return res.status(401).json({ success: false, message: 'Login required' });
+  }
+  if (!(await validateSession(decoded)).valid) {
+    clearRefreshCookie(res);
+    return res.status(401).json({ success: false, message: 'Session expired or logged out' });
+  }
+  await revokeUserSessions(
+    decoded.organization_id,
+    decoded.user_type,
+    decoded.id,
+    'Logout from all devices'
+  );
+  clearRefreshCookie(res);
+  return res.json({ success: true, message: 'Logged out from all devices' });
+});
+
 // POST /api/auth/logout
 router.post('/logout', async (req, res) => {
   const authHeader = req.headers.authorization;
   const token = authHeader && authHeader.split(' ')[1];
+  const refreshToken = parseCookies(req).gb_refresh_token;
+  let decoded = {};
   if (token) {
-    let decoded = {};
     try { decoded = jwt.verify(token, process.env.JWT_SECRET); } catch {}
     const runner = decoded.organization_id
       ? db.runWithTenant({ organizationId: decoded.organization_id }, () => db.query(
@@ -308,6 +385,12 @@ router.post('/logout', async (req, res) => {
       : Promise.resolve();
     await runner.catch(() => {});
   }
+  await revokeSession({
+    sessionId: decoded.sid || null,
+    refreshToken,
+    reason: 'User logout',
+  }).catch(() => {});
+  clearRefreshCookie(res);
   res.json({ success: true, message: 'Logged out' });
 });
 

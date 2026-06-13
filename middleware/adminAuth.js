@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const db = require('../db');
 const { organizationReadOnly } = require('../services/authService');
+const { validateSession } = require('../services/sessionService');
 
 const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
@@ -12,6 +13,10 @@ module.exports = async (req, res, next) => {
     if (!decoded.is_admin) return res.status(403).json({ success: false, message: 'Admin access required' });
     if (!decoded.organization_id) {
       return res.status(401).json({ success: false, message: 'Organisation context missing. Please login again.' });
+    }
+    const sessionState = await validateSession(decoded);
+    if (!sessionState.valid) {
+      return res.status(401).json({ success: false, message: 'Session expired or logged out. Please login again.' });
     }
 
     if (decoded.id) {

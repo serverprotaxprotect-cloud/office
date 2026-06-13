@@ -1898,10 +1898,11 @@
 </div>
 
 <script src="/assets/address-autocomplete.js"></script>
+<script src="/assets/auth-session.js"></script>
 <script>
 // ── Auth & RBAC ───────────────────────────────────────────────
-let token = localStorage.getItem('office_token');
-let user  = JSON.parse(localStorage.getItem('office_user') || '{}');
+let token = GBSession.tokenFor('office');
+let user  = GBSession.userFor('office');
 
 // Auto-SSO: if employee came from Attendance portal, reuse att_token
 if (!token) {
@@ -2092,8 +2093,7 @@ async function doOfficeLogin() {
       renderOrgChoices('olChoices', data.selection_token, data.choices || [], 'selectOfficeOrg');
       btn.disabled = false; btn.textContent = 'Login to Office Management';
     } else if (data.success) {
-      localStorage.setItem('office_token', data.token);
-      localStorage.setItem('office_user', JSON.stringify(data.user));
+      GBSession.save(data.token, data.user, 'office');
       token = data.token;
       user  = data.user;
       showOfficeApp();
@@ -2122,8 +2122,7 @@ async function selectOfficeOrg(selectionToken, accountKey) {
     });
     const data = await res.json();
     if (!data.success) throw new Error(data.message || 'Selection failed');
-    localStorage.setItem('office_token', data.token);
-    localStorage.setItem('office_user', JSON.stringify(data.user));
+    GBSession.save(data.token, data.user, 'office');
     token = data.token;
     user = data.user;
     showOfficeApp();
@@ -2170,15 +2169,20 @@ const api = async (path, opts = {}) => {
   delete fetchOpts.cacheTtl;
   delete fetchOpts.force;
 
-  const request = fetch('/api' + path, {
+  const request = GBSession.fetch('/api' + path, {
     ...fetchOpts,
     headers: {
       'Authorization': 'Bearer ' + token,
       ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...(fetchOpts.headers||{})
     }
-  }).then(async (r) => {
+  }, 'office').then(async (r) => {
+    token = GBSession.tokenFor('office');
     const data = await r.json().catch(() => ({ success: false, message: 'Invalid server response' }));
+    if (r.status === 401) {
+      showToast(data.message || 'Session expired. Please login again.', 'error');
+      setTimeout(() => window.location.href = '/', 700);
+    }
     if (useCache && r.ok && data.success !== false) {
       API_CACHE.set(cacheKey, { data, expiresAt: Date.now() + ttl });
     }
@@ -2192,16 +2196,24 @@ const api = async (path, opts = {}) => {
   return request;
 };
 
-function logout() {
-  localStorage.removeItem('office_token'); localStorage.removeItem('office_user');
-  window.location.href = '/';
+async function logout() {
+  await GBSession.logout('/');
 }
 
 async function openAdminPortal() {
-  if (localStorage.getItem('admin_token')) {
-    window.open('/admin.html', '_blank');
-    return;
+  const storedAdmin = GBSession.userFor('admin');
+  const storedAdminToken = localStorage.getItem('admin_token');
+  if (
+    storedAdminToken &&
+    storedAdmin?.is_admin &&
+    String(storedAdmin.organization_id || storedAdmin.organization_code) === String(user.organization_id || user.organization_code) &&
+    !GBSession.expiresSoon(storedAdminToken)
+  ) {
+      window.open('/admin.html', '_blank');
+      return;
   }
+  localStorage.removeItem('admin_token');
+  localStorage.removeItem('admin_info');
   if (token && user?.user_type === 'admin' && ['Director', 'Office Manager', 'HR'].includes(user.role)) {
     try {
       const res = await fetch('/api/admin/session-from-office', {
@@ -2209,8 +2221,7 @@ async function openAdminPortal() {
       });
       const data = await res.json();
       if (res.ok && data.success && data.token) {
-        localStorage.setItem('admin_token', data.token);
-        localStorage.setItem('admin_info', JSON.stringify(data.admin || user));
+        GBSession.save(data.token, data.admin || user, 'admin');
         window.open('/admin.html', '_blank');
         return;
       }
@@ -2250,8 +2261,7 @@ async function submitAdminLogin() {
       btn.disabled = false;
       btn.textContent = 'Login & Open Admin Panel';
     } else if (data.success) {
-      localStorage.setItem('admin_token', data.token);
-      localStorage.setItem('admin_info', JSON.stringify(data.admin));
+      GBSession.save(data.token, data.admin, 'admin');
       document.getElementById('adminPortalModal').classList.add('hidden');
       window.open('/admin.html', '_blank');
     } else {
@@ -2278,8 +2288,7 @@ async function selectAdminOrg(selectionToken, accountKey) {
     });
     const data = await res.json();
     if (!data.success) throw new Error(data.message || 'Selection failed');
-    localStorage.setItem('admin_token', data.token);
-    localStorage.setItem('admin_info', JSON.stringify(data.user));
+    GBSession.save(data.token, data.user, 'admin');
     document.getElementById('adminPortalModal').classList.add('hidden');
     window.open('/admin.html', '_blank');
   } catch (e) {

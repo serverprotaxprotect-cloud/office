@@ -44,8 +44,13 @@
     <p class="login-footer"><a href="/forgot-password.html?from=admin" style="color:#94a3b8;">Forgot password?</a></p>
   </div>
 
+  <script src="/assets/auth-session.js"></script>
   <script>
-    if (localStorage.getItem('admin_token')) window.location.href = '/admin.html';
+    GBSession.restore('admin').then(ok => {
+      const currentUser = GBSession.userFor('admin');
+      const tokenUser = GBSession.decode(GBSession.tokenFor('admin'));
+      if (ok && (currentUser.is_admin || tokenUser.is_admin)) window.location.href = '/admin.html';
+    });
 
     function togglePass() {
       const p = document.getElementById('password');
@@ -78,8 +83,7 @@
         });
         const data = await res.json();
         if (!data.success) throw new Error(data.message || 'Selection failed');
-        localStorage.setItem('admin_token', data.token);
-        localStorage.setItem('admin_info', JSON.stringify(data.user));
+        GBSession.save(data.token, data.user, 'admin');
         window.location.href = '/admin.html';
       } catch (e) {
         err.textContent = e.message || 'Selection failed';
@@ -113,8 +117,7 @@
           btn.disabled = false; txt.textContent = 'Admin Login';
           spin.style.display = 'none';
         } else if (data.success) {
-          localStorage.setItem('admin_token', data.token);
-          localStorage.setItem('admin_info', JSON.stringify(data.admin));
+          GBSession.save(data.token, data.admin, 'admin');
           window.location.href = '/admin.html';
         } else {
           err.textContent = data.message;
