@@ -1241,6 +1241,7 @@
   <div class="modal modal-lg">
     <div class="modal-title">
       <span id="taskModalTitle">Create Task</span>
+      <button type="button" class="btn-sm btn-primary" onclick="openAddClientFromTask()" style="margin-left:auto">+ Add Client</button>
     </div>
     <input type="hidden" id="tm_task_id"/>
 
@@ -1362,7 +1363,7 @@
 </div>
 
 <!-- Add Client Modal -->
-<div class="modal-backdrop hidden" id="addClientModal" onclick="if(event.target===this)closeModal('addClientModal')">
+<div class="modal-backdrop hidden" id="addClientModal" onclick="if(event.target===this)cancelAddClient()">
   <div class="modal">
     <div class="modal-title" id="addClientTitle">Add Client</div>
     <input type="hidden" id="ac_mode"/><!-- add / edit -->
@@ -1397,7 +1398,7 @@
     </div>
     <div id="addClientErr" class="alert-err hidden"></div>
     <div class="modal-actions">
-      <button class="btn-cancel" onclick="closeModal('addClientModal')">Cancel</button>
+      <button class="btn-cancel" onclick="cancelAddClient()">Cancel</button>
       <button class="btn btn-primary" onclick="submitClient()">Save Client</button>
     </div>
   </div>
@@ -3195,8 +3196,10 @@ async function submitUpdateTask() {
 
 // ── CREATE TASK ──────────────────────────────────────────────
 let _taskClientSelected = false;
+let _addClientReturnToTask = false;
 
 function openCreateTask() {
+  _addClientReturnToTask = false;
   _taskClientSelected = false;
   document.getElementById('tm_task_id').value = '';
   document.getElementById('tm_client_id').value = '';
@@ -3555,6 +3558,7 @@ async function autoFillClientId() {
 }
 
 function openAddClient() {
+  _addClientReturnToTask = false;
   document.getElementById('ac_mode').value = 'add';
   document.getElementById('addClientTitle').textContent = 'Add New Client';
   ['ac_id','ac_legal','ac_biz','ac_mobile','ac_email','ac_gst','ac_pan','ac_city','ac_state','ac_address'].forEach(id => {
@@ -3572,7 +3576,18 @@ function openAddClient() {
   openModal('addClientModal');
 }
 
+function openAddClientFromTask() {
+  openAddClient();
+  _addClientReturnToTask = true;
+}
+
+function cancelAddClient() {
+  closeModal('addClientModal');
+  _addClientReturnToTask = false;
+}
+
 function editClient(c) {
+  _addClientReturnToTask = false;
   document.getElementById('ac_mode').value = 'edit';
   document.getElementById('addClientTitle').textContent = `Edit Client — ${c.client_id}`;
   document.getElementById('ac_id').value = c.client_id;
@@ -3637,11 +3652,24 @@ async function submitClient() {
   }
 
   if (data.success) {
+    const returnToTask = mode === 'add' && _addClientReturnToTask;
+    const createdClient = returnToTask ? {
+      client_id: clientId,
+      agent_id: body.agent_id,
+      agent_name: body.agent_name,
+      legal_name: body.legal_name,
+      business_name: body.business_name,
+      mobile_number: body.mobile_number,
+    } : null;
+    _addClientReturnToTask = false;
     closeModal('addClientModal');
+    if (createdClient) selectTaskClient(createdClient);
     showToast(data.message, 'success');
     panelLoaded['clients'] = false;
-    searchClients(true);
-    panelLoaded['clients'] = true;
+    if (!returnToTask) {
+      searchClients(true);
+      panelLoaded['clients'] = true;
+    }
   } else {
     err.textContent = data.message; err.classList.remove('hidden');
   }
