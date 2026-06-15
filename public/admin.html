@@ -144,6 +144,16 @@
     }
     .admin-tab-btn.active { color:#e94560; }
     .admin-tab-btn .ti { font-size:20px; }
+    .protocol-pulse {
+      margin-left:auto; min-width:20px; height:20px; padding:0 6px; border-radius:999px;
+      display:none; place-items:center; background:#dc2626; color:#fff; font-size:10px; font-weight:900;
+      animation:protocolPulse 1.4s infinite;
+    }
+    @keyframes protocolPulse { 50% { box-shadow:0 0 0 7px rgba(220,38,38,0); } 0%,100% { box-shadow:0 0 0 0 rgba(220,38,38,.35); } }
+    .protocol-status { display:inline-block; padding:3px 8px; border-radius:999px; font-size:10px; font-weight:800; }
+    .protocol-status.open,.protocol-status.rejected { background:#fee2e2;color:#b91c1c; }
+    .protocol-status.explanation-submitted { background:#dbeafe;color:#1d4ed8; }
+    .protocol-status.justified,.protocol-status.auto-resolved { background:#dcfce7;color:#15803d; }
   </style>
 </head>
 <body class="admin-body">
@@ -175,6 +185,10 @@
     </div>
     <div class="sidebar-item" id="s-employees" onclick="showPanel('employees')">
       <span class="s-icon">&#128100;</span> Employees
+    </div>
+    <div class="sidebar-item" id="s-protocol" onclick="showPanel('protocol')">
+      <span class="s-icon">&#9888;</span> Work Protocol
+      <span class="protocol-pulse" id="protocolBadge">0</span>
     </div>
     <div class="sidebar-item" id="s-admin-users" onclick="showPanel('admin-users')">
       <span class="s-icon">&#128272;</span> Admin Users
@@ -229,6 +243,11 @@
           <div class="s-num" id="ovAbsent">-</div>
           <div class="s-lbl">Absent Today</div>
         </div>
+        <div class="stat-card" style="--clr:#be123c;cursor:pointer" onclick="showPanel('protocol')">
+          <span class="s-icon">&#9888;</span>
+          <div class="s-num" id="ovProtocol">-</div>
+          <div class="s-lbl">Open Protocol Alerts</div>
+        </div>
       </div>
 
       <div class="today-table-wrap">
@@ -248,6 +267,35 @@
     <!-- ═══════════════════════════════════════════════════════ -->
     <!-- ATTENDANCE PANEL                                        -->
     <!-- ═══════════════════════════════════════════════════════ -->
+    <div class="admin-panel" id="panel-protocol">
+      <div class="page-title">Employee Work Protocol</div>
+      <div class="filter-row">
+        <select id="protocolStatusFilter" onchange="loadProtocolAlerts()">
+          <option value="unresolved">Unresolved Alerts</option>
+          <option value="">All Status</option>
+          <option>Open</option><option>Explanation Submitted</option><option>Rejected</option>
+          <option>Justified</option><option>Auto Resolved</option>
+        </select>
+        <input type="date" id="protocolDateFrom" onchange="loadProtocolAlerts()">
+        <input type="date" id="protocolDateTo" onchange="loadProtocolAlerts()">
+        <button class="btn-sm" onclick="loadProtocolAlerts();loadProtocolReport()">Refresh</button>
+      </div>
+      <div class="today-table-wrap" style="margin-bottom:18px">
+        <div class="today-table-head"><h3>Protocol Alerts</h3></div>
+        <div class="hist-table-wrap"><table>
+          <thead><tr><th>Date</th><th>Employee</th><th>Status</th><th>Explanation / Review</th><th>Overdue</th><th>Action</th></tr></thead>
+          <tbody id="protocolAlertsTable"><tr><td colspan="6" style="text-align:center">Loading...</td></tr></tbody>
+        </table></div>
+      </div>
+      <div class="today-table-wrap">
+        <div class="today-table-head"><h3>30-Day Protocol Report</h3><span style="font-size:11px;color:#64748b">Attendance working days vs meaningful task activity</span></div>
+        <div class="hist-table-wrap"><table>
+          <thead><tr><th>Employee</th><th>Present</th><th>Compliant</th><th>Zero Activity</th><th>Late Resolved</th><th>Justified</th><th>Created</th><th>Updated</th><th>Completed</th><th>Overdue</th><th>Adherence</th></tr></thead>
+          <tbody id="protocolReportTable"><tr><td colspan="11" style="text-align:center">Loading...</td></tr></tbody>
+        </table></div>
+      </div>
+    </div>
+
     <div class="admin-panel" id="panel-attendance">
       <div class="page-title">Attendance Management</div>
 
@@ -618,6 +666,23 @@
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
+<div class="modal-backdrop" id="protocolReviewModal" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal">
+    <div class="modal-title">Review Protocol Alert</div>
+    <div id="protocolReviewSummary" style="font-size:13px;line-height:1.6;background:#f8fafc;border-radius:8px;padding:12px;margin-bottom:12px"></div>
+    <input type="hidden" id="protocolReviewId">
+    <div class="modal-grid">
+      <div><label>Decision *</label><select id="protocolReviewStatus"><option>Justified</option><option>Rejected</option></select></div>
+      <div style="grid-column:1/-1"><label>Review Remark *</label><textarea id="protocolReviewRemark" rows="4" placeholder="Decision ka clear reason..."></textarea></div>
+    </div>
+    <div id="protocolReviewError" class="alert alert-error" style="display:none;margin-top:12px"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="document.getElementById('protocolReviewModal').style.display='none'">Cancel</button>
+      <button class="btn-sm" onclick="submitProtocolReview()">Save Review</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Modals ─────────────────────────────────────── -->
 
 <div class="modal-backdrop" id="addAdminUserModal" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
@@ -890,6 +955,10 @@ function fmtDate(d) {
 function money(n) { return '₹' + (parseFloat(n)||0).toLocaleString('en-IN'); }
 
 // ── Panel switching ──────────────────────────────────────────
+function escHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
 function showPanel(name) {
   document.querySelectorAll('.admin-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.sidebar-item').forEach(s => s.classList.remove('active'));
@@ -900,6 +969,7 @@ function showPanel(name) {
 
   if (name === 'attendance'    && !document.getElementById('attSummaryTable').children.length) loadAttendance();
   if (name === 'employees'     && !document.getElementById('empTable').children.length)       loadEmployees();
+  if (name === 'protocol')      { loadProtocolAlerts(); loadProtocolReport(); }
   if (name === 'admin-users')   loadAdminUsers();
   if (name === 'leave')         loadLeaves();
   if (name === 'salary')        loadSalaryStructure();
@@ -967,6 +1037,7 @@ async function loadOverview() {
     document.getElementById('ovPresent').textContent = data.stats.present;
     document.getElementById('ovLeave').textContent   = data.stats.on_leave;
     document.getElementById('ovAbsent').textContent  = data.stats.absent;
+    loadProtocolAlertCount();
     document.getElementById('todayDateLbl').textContent = new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' });
 
     const tb = document.getElementById('overviewTable');
@@ -987,6 +1058,112 @@ async function loadOverview() {
 // ── ATTENDANCE ───────────────────────────────────────────────
 let allAttRecords = [];
 let attLocationMap = {};
+
+async function loadProtocolAlertCount() {
+  try {
+    const data = await api('/performance/admin/alerts?status=unresolved');
+    if (!data.success) return;
+    const count = data.unresolved || 0;
+    document.getElementById('ovProtocol').textContent = count;
+    const badge = document.getElementById('protocolBadge');
+    badge.textContent = count;
+    badge.style.display = count ? 'grid' : 'none';
+  } catch {}
+}
+
+function protocolStatusClass(status) {
+  return String(status || '').toLowerCase().replace(/\s+/g, '-');
+}
+
+async function loadProtocolAlerts() {
+  const status = document.getElementById('protocolStatusFilter')?.value ?? 'unresolved';
+  const from = document.getElementById('protocolDateFrom')?.value || '';
+  const to = document.getElementById('protocolDateTo')?.value || '';
+  const qs = new URLSearchParams();
+  if (status !== '') qs.set('status', status);
+  if (from) qs.set('date_from', from);
+  if (to) qs.set('date_to', to);
+  const data = await api('/performance/admin/alerts?' + qs.toString());
+  const tb = document.getElementById('protocolAlertsTable');
+  if (!data.success) {
+    tb.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#dc2626">${escHtml(data.message || 'Unable to load')}</td></tr>`;
+    return;
+  }
+  tb.innerHTML = data.alerts.length ? data.alerts.map(a => `
+    <tr>
+      <td>${fmtDate(a.alert_date)}</td>
+      <td><strong>${escHtml(a.employee_name || a.emp_id)}</strong><br><small>${escHtml(a.emp_id)} | ${escHtml(a.designation || '--')}</small></td>
+      <td><span class="protocol-status ${protocolStatusClass(a.status)}">${escHtml(a.status)}</span></td>
+      <td style="max-width:320px;white-space:normal">${a.explanation ? `<strong>Employee:</strong> ${escHtml(a.explanation)}<br>` : ''}${a.review_remark ? `<strong>Management:</strong> ${escHtml(a.review_remark)}` : '--'}</td>
+      <td>${a.overdue_tasks || 0}</td>
+      <td>${['Open','Explanation Submitted','Rejected'].includes(a.status) ? `<button class="btn-edit" onclick="openProtocolReviewEncoded('${encodeURIComponent(JSON.stringify(a))}')">Review</button>` : '--'}</td>
+    </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:20px">No protocol alerts</td></tr>';
+  loadProtocolAlertCount();
+}
+
+async function loadProtocolReport() {
+  const from = document.getElementById('protocolDateFrom')?.value || '';
+  const to = document.getElementById('protocolDateTo')?.value || '';
+  const qs = new URLSearchParams();
+  if (from) qs.set('date_from', from);
+  if (to) qs.set('date_to', to);
+  const data = await api('/performance/admin/report?' + qs.toString());
+  const tb = document.getElementById('protocolReportTable');
+  if (!data.success) {
+    tb.innerHTML = `<tr><td colspan="11" style="text-align:center;color:#dc2626">${escHtml(data.message || 'Unable to load')}</td></tr>`;
+    return;
+  }
+  tb.innerHTML = data.report.length ? data.report.map(r => `
+    <tr>
+      <td><strong>${escHtml(r.employee_name)}</strong><br><small>${escHtml(r.emp_id)} | ${escHtml(r.designation || '--')}</small></td>
+      <td>${r.present_working_days}</td><td>${r.activity_compliant_days}</td>
+      <td style="color:${r.zero_activity_days ? '#dc2626' : '#15803d'};font-weight:800">${r.zero_activity_days}</td>
+      <td>${r.late_resolved}</td><td>${r.justified}</td><td>${r.tasks_created}</td>
+      <td>${r.tasks_updated}</td><td>${r.tasks_completed}</td><td>${r.overdue_tasks}</td>
+      <td><strong style="color:${Number(r.adherence_percentage) < 80 ? '#dc2626' : '#15803d'}">${r.adherence_percentage}%</strong></td>
+    </tr>`).join('') : '<tr><td colspan="11" style="text-align:center;color:#94a3b8;padding:20px">No employee data</td></tr>';
+}
+
+function openProtocolReview(alert) {
+  document.getElementById('protocolReviewId').value = alert.id;
+  document.getElementById('protocolReviewSummary').innerHTML = `
+    <strong>${escHtml(alert.employee_name || alert.emp_id)}</strong> (${escHtml(alert.emp_id)})<br>
+    Date: ${fmtDate(alert.alert_date)}<br>
+    Employee explanation: ${escHtml(alert.explanation || 'Not submitted')}`;
+  document.getElementById('protocolReviewStatus').value = alert.status === 'Rejected' ? 'Rejected' : 'Justified';
+  document.getElementById('protocolReviewRemark').value = alert.review_remark || '';
+  document.getElementById('protocolReviewError').style.display = 'none';
+  document.getElementById('protocolReviewModal').style.display = 'flex';
+}
+
+function openProtocolReviewEncoded(value) {
+  openProtocolReview(JSON.parse(decodeURIComponent(value)));
+}
+
+async function submitProtocolReview() {
+  const id = document.getElementById('protocolReviewId').value;
+  const status = document.getElementById('protocolReviewStatus').value;
+  const remark = document.getElementById('protocolReviewRemark').value.trim();
+  const err = document.getElementById('protocolReviewError');
+  if (!remark) {
+    err.textContent = 'Review remark required';
+    err.style.display = 'block';
+    return;
+  }
+  const data = await api(`/performance/admin/alerts/${id}/review`, {
+    method: 'PUT',
+    body: JSON.stringify({ status, remark })
+  });
+  if (!data.success) {
+    err.textContent = data.message || 'Unable to save';
+    err.style.display = 'block';
+    return;
+  }
+  document.getElementById('protocolReviewModal').style.display = 'none';
+  showToast(data.message, 'success');
+  loadProtocolAlerts();
+  loadProtocolReport();
+}
 
 async function loadAttendance() {
   const month = document.getElementById('attMonth').value;

@@ -113,6 +113,22 @@
     .work-progress-bar { height:8px; background:#e2e8f0; border-radius:999px; overflow:hidden; margin-top:9px; }
     .work-progress-fill { height:100%; width:0%; background:#ef4444; transition:width .25s, background .25s; }
     .work-progress-card.ok .work-progress-fill { background:#16a34a; }
+    .protocol-alert {
+      display:none; border-radius:12px; padding:14px 16px; margin:0 0 14px;
+      border:1px solid; box-shadow:0 4px 14px rgba(15,23,42,.06);
+    }
+    .protocol-alert.amber { display:block; background:#fffbeb; border-color:#fbbf24; color:#92400e; }
+    .protocol-alert.red { display:block; background:#fef2f2; border-color:#f87171; color:#991b1b; }
+    .protocol-alert.submitted { display:block; background:#eff6ff; border-color:#60a5fa; color:#1e40af; }
+    .protocol-alert-title { font-size:14px; font-weight:800; }
+    .protocol-alert-text { font-size:12px; line-height:1.5; margin-top:4px; }
+    .protocol-alert-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+    .protocol-alert-actions a,.protocol-alert-actions button {
+      border:0; border-radius:8px; padding:8px 12px; font:inherit; font-size:12px;
+      font-weight:800; cursor:pointer; text-decoration:none;
+    }
+    .protocol-primary { background:#dc2626; color:#fff; }
+    .protocol-secondary { background:#fff; color:inherit; border:1px solid currentColor !important; }
 
     /* My Requests list */
     .req-item { padding:12px 0; border-bottom:1px solid #f1f5f9; }
@@ -183,6 +199,7 @@
 
   <!-- ── TAB: HOME ──────────────────────────────────────── -->
   <div class="tab-panel active" id="tab-home">
+    <div class="protocol-alert" id="protocolAlert"></div>
 
     <!-- Clock Card -->
     <div class="clock-card">
@@ -546,6 +563,24 @@
   </div>
 </div>
 
+<div class="req-modal-backdrop" id="protocolReasonModal" style="display:none;" onclick="if(event.target===this)closeProtocolReason()">
+  <div class="req-modal">
+    <div class="req-modal-title">Submit Work Protocol Explanation</div>
+    <div style="font-size:13px;color:#64748b;line-height:1.5;margin-bottom:14px;">
+      Batayein ki aaj task activity system me kyon record nahi hui. HR/Director is explanation ko review karenge.
+    </div>
+    <div class="req-input-group">
+      <label>Explanation *</label>
+      <textarea id="protocolExplanation" rows="5" placeholder="Work details aur reason clearly likhein..."></textarea>
+    </div>
+    <div id="protocolReasonMsg" class="alert" style="display:none;margin-bottom:10px;"></div>
+    <div class="req-actions">
+      <button class="req-cancel" onclick="closeProtocolReason()">Cancel</button>
+      <button class="req-submit" onclick="submitProtocolReason()">Submit Explanation</button>
+    </div>
+  </div>
+</div>
+
 <script src="/assets/auth-session.js"></script>
 <script>
 // ── Auth guard ──────────────────────────────────────────
@@ -712,9 +747,87 @@ async function loadToday() {
         </li>
       `).join('');
     }
+    await loadProtocolToday();
   } catch(e) {
     console.error(e);
   }
+}
+
+let currentProtocolAlert = null;
+async function loadProtocolToday() {
+  const box = document.getElementById('protocolAlert');
+  if (!box) return;
+  try {
+    const data = await api('/performance/me/today');
+    if (!data.success) return;
+    currentProtocolAlert = data.alert || null;
+    box.className = 'protocol-alert';
+    box.innerHTML = '';
+
+    if (data.alert && ['Open','Rejected'].includes(data.alert.status)) {
+      box.classList.add('red');
+      box.innerHTML = `
+        <div class="protocol-alert-title">Work Protocol Alert</div>
+        <div class="protocol-alert-text">Punch OUT tak aaj koi meaningful task create/update/complete activity record nahi hui.${data.alert.status === 'Rejected' && data.alert.review_remark ? ` Management remark: ${esc(data.alert.review_remark)}` : ''}</div>
+        <div class="protocol-alert-actions">
+          <a class="protocol-primary" href="/office.html">Update / Create Task</a>
+          <button class="protocol-secondary" onclick="openProtocolReason()">Submit Reason</button>
+        </div>`;
+      return;
+    }
+    if (data.alert?.status === 'Explanation Submitted') {
+      box.classList.add('submitted');
+      box.innerHTML = `
+        <div class="protocol-alert-title">Explanation Submitted</div>
+        <div class="protocol-alert-text">Aapka reason HR/Director review ke liye pending hai. Meaningful task activity add karne par alert same day auto-resolve ho jayega.</div>
+        <div class="protocol-alert-actions"><a class="protocol-secondary" href="/office.html">Open Tasks</a></div>`;
+      return;
+    }
+    if (data.punched_in && !data.punched_out && data.activity_count === 0) {
+      box.classList.add('amber');
+      box.innerHTML = `
+        <div class="protocol-alert-title">Today's Task Activity Pending</div>
+        <div class="protocol-alert-text">Aaj abhi tak koi meaningful task activity record nahi hui. Punch OUT se pehle task create, progress update, reassign ya complete karein.</div>
+        <div class="protocol-alert-actions"><a class="protocol-secondary" href="/office.html">Open Office Tasks</a></div>`;
+    }
+  } catch (err) {
+    console.error('[Performance] today UI', err);
+  }
+}
+
+function openProtocolReason() {
+  if (!currentProtocolAlert) return;
+  document.getElementById('protocolExplanation').value = currentProtocolAlert.explanation || '';
+  document.getElementById('protocolReasonMsg').style.display = 'none';
+  document.getElementById('protocolReasonModal').style.display = 'flex';
+}
+
+function closeProtocolReason() {
+  document.getElementById('protocolReasonModal').style.display = 'none';
+}
+
+async function submitProtocolReason() {
+  const explanation = document.getElementById('protocolExplanation').value.trim();
+  const msg = document.getElementById('protocolReasonMsg');
+  if (!explanation) {
+    msg.className = 'alert alert-error';
+    msg.textContent = 'Explanation required';
+    msg.style.display = 'block';
+    return;
+  }
+  const data = await api(`/performance/me/alerts/${currentProtocolAlert.id}/explanation`, {
+    method: 'POST',
+    body: JSON.stringify({ explanation })
+  });
+  if (!data.success) {
+    msg.className = 'alert alert-error';
+    msg.textContent = data.message || 'Unable to submit';
+    msg.style.display = 'block';
+    return;
+  }
+  closeProtocolReason();
+  showToast(data.message, 'success');
+  await loadProtocolToday();
 }
 
 // ── Mark Attendance ──────────────────────────────────────

@@ -9,6 +9,10 @@ const { syncGSTForTaskStatus } = require('../services/gstService');
 const { syncIncomeTaxForTaskStatus } = require('../services/incomeTaxService');
 const { syncComplianceForTaskStatus } = require('../services/complianceService');
 const { syncPFESICForTaskStatus } = require('../services/pfEsicService');
+const {
+  meaningfulTaskChange,
+  recordWorkActivity,
+} = require('../services/performanceService');
 
 // ── IST helper (Asia/Kolkata = UTC+5:30) ─────────────────────
 function nowIST()   { return new Date(Date.now() + (5.5 * 60 * 60 * 1000)); }
@@ -313,6 +317,17 @@ router.post('/', authMiddleware, async (req, res) => {
        VALUES ($1,$2,'Created','Pending',$3,$4,$5,$6,NOW(),$7)`,
       ['LOG_' + uuidv4().replace(/-/g,'').slice(0,10), taskId, toName, due_date||null, emp_id, formal_name||name, internal_remark||null]
     );
+    try {
+      await recordWorkActivity({
+        user: req.user,
+        taskId,
+        activityType: 'task_created',
+        description: `Task created: ${work_name}`,
+        metadata: { assigned_to_id: toId, self_assigned: isSelf, due_date },
+      });
+    } catch (activityErr) {
+      console.error('[Performance] task create activity:', activityErr.message);
+    }
     // ── Notification: task assigned ──────────────────────────
     if (!isSelf) {
       await createNotif(
@@ -335,6 +350,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
   const taskId = req.params.id;
   const { status, priority, due_date, assigned_to_id, assigned_to_name, internal_remark, client_pending_remark, completion_remark, next_followup_date, drive_link, professional_fees, challan_amount, other_expense, fees_applicable, srn_udin } = req.body;
   let old;
+  let meaningfulChange = null;
   try {
     const conn = await db.pool.connect();
     try {
@@ -346,6 +362,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
         throw err;
       }
       old = existing.rows[0];
+      meaningfulChange = meaningfulTaskChange(old, req.body);
       if (assigned_to_id && assigned_to_id !== old.assigned_to_id && !due_date && !old.due_date) {
         const err = new Error('Due date required before reassigning task');
         err.statusCode = 400;
@@ -431,6 +448,23 @@ router.put('/:id', authMiddleware, async (req, res) => {
     const newAssigneeName = assigned_to_name || old.assigned_to_name;
     const taskLabel = `"${old.work_name || old.task_id}"`;
     const byName = formal_name || name;
+    if (meaningfulChange) {
+      try {
+        await recordWorkActivity({
+          user: req.user,
+          taskId,
+          activityType: meaningfulChange.activityType,
+          description: `${old.work_name || taskId}: ${meaningfulChange.changedFields.join(', ')} updated`,
+          metadata: {
+            changed_fields: meaningfulChange.changedFields,
+            old_status: old.status,
+            new_status: status || old.status,
+          },
+        });
+      } catch (activityErr) {
+        console.error('[Performance] task update activity:', activityErr.message);
+      }
+    }
 
     // ── Notification: reassigned ──────────────────────────────
     if (assigned_to_id && assigned_to_id !== old.assigned_to_id) {

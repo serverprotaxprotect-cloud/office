@@ -60,6 +60,8 @@
     #panel-mytasks .tbl-wrap,#panel-assignedby .tbl-wrap,#panel-alltasks .tbl-wrap,#panel-completed .tbl-wrap,
     #panel-clients .tbl-wrap,#panel-companies .tbl-wrap,#panel-directors .tbl-wrap,#panel-comptracking .tbl-wrap,
     #panel-notifications .tbl-wrap{max-height:calc(100vh - 260px)}
+    .protocol-pulse{margin-left:auto;min-width:20px;height:20px;padding:0 6px;border-radius:999px;display:none;place-items:center;background:#dc2626;color:#fff;font-size:10px;font-weight:900;animation:protocolPulse 1.4s infinite}
+    @keyframes protocolPulse{50%{box-shadow:0 0 0 7px rgba(220,38,38,0)}0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.35)}}
     #notifContent{overflow:auto;max-height:calc(100vh - 160px);padding-bottom:12px}
     .overdue-row td{background:#fff5f5!important}
 
@@ -379,6 +381,7 @@
     <div class="sb-item" id="sb-completed" onclick="showPanel('completed')"><span class="ic">&#9745;</span>Completed</div>
     <div class="sb-item" id="sb-notifications" onclick="showPanel('notifications')"><span class="ic">&#128276;</span>Notifications<span class="sb-badge hidden" id="notifBadge">0</span></div>
     <div class="sb-item" id="sb-chat" onclick="showPanel('chat')"><span class="ic">&#128172;</span>Smart Chat<span class="sb-badge hidden" id="chatBadge">0</span></div>
+    <div class="sb-item" id="sb-protocol" onclick="showPanel('protocol')"><span class="ic">&#9888;</span>Work Protocol<span class="protocol-pulse" id="officeProtocolBadge">0</span></div>
     <div class="sb-section" id="sec-clients">Clients</div>
     <div class="sb-item" id="sb-clients" onclick="showPanel('clients')"><span class="ic">&#128100;</span>Client/Agent Search</div>
     <div class="sb-section" id="sec-compliance">Compliance</div>
@@ -414,6 +417,9 @@
         </div>
         <div class="dash-chip" style="--c:#7c3aed" onclick="showPanel('alltasks')">
           <div class="num" id="d-all">-</div><div class="lbl" id="d-all-lbl">All Active Tasks</div>
+        </div>
+        <div class="dash-chip hidden" style="--c:#be123c" id="protocolDashChip" onclick="showPanel('protocol')">
+          <div class="num" id="d-protocol">0</div><div class="lbl">Open Protocol Alerts</div>
         </div>
       </div>
       <div class="card">
@@ -633,6 +639,18 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <div class="panel" id="panel-protocol">
+      <div class="page-title"><span>Employee Work Protocol <small>Attendance + meaningful task activity</small></span><button class="btn-sm btn-view" onclick="loadOfficeProtocol()">Refresh</button></div>
+      <div class="card" style="margin-bottom:16px"><div class="card-head"><h3>Unresolved Alerts</h3></div><div class="tbl-wrap"><table>
+        <thead><tr><th>Date</th><th>Employee</th><th>Status</th><th>Explanation</th><th>Overdue</th><th>Action</th></tr></thead>
+        <tbody id="officeProtocolAlerts"><tr><td colspan="6" class="empty-msg">Loading...</td></tr></tbody>
+      </table></div></div>
+      <div class="card"><div class="card-head"><h3>30-Day Protocol Report</h3></div><div class="tbl-wrap"><table>
+        <thead><tr><th>Employee</th><th>Present</th><th>Compliant</th><th>Zero Activity</th><th>Late Resolved</th><th>Justified</th><th>Created</th><th>Updated</th><th>Completed</th><th>Overdue</th><th>Adherence</th></tr></thead>
+        <tbody id="officeProtocolReport"><tr><td colspan="11" class="empty-msg">Loading...</td></tr></tbody>
+      </table></div></div>
     </div>
 
     <div class="panel" id="panel-dataimport">
@@ -1960,6 +1978,7 @@ function applyPermissions() {
     'sb-completed':   'completed',
     'sb-notifications':'notifications',
     'sb-chat':        'chat',
+    'sb-protocol':    'protocol',
     'sb-clients':     'clients',
     'sb-companies':   'companies',
     'sb-comptracking':'comptracking',
@@ -2458,6 +2477,7 @@ function showPanel(name) {
       completed: loadCompletedTasks,
       notifications: loadNotifications,
       chat: initChatPanel,
+      protocol: loadOfficeProtocol,
       clients: searchClients,
       companies: loadCompanies,
       directors: loadDirectors,
@@ -4370,6 +4390,67 @@ async function submitCompUpdate() {
     if (storeKey === '_ctRows') loadCompanyTracking();
     else loadAllCompliance();
   }
+  if (data.is_admin_view) loadOfficeProtocolCount();
+}
+
+async function loadOfficeProtocolCount() {
+  try {
+    const data = await api('/performance/admin/alerts?status=unresolved');
+    if (!data.success) return;
+    const count = data.unresolved || 0;
+    const badge = document.getElementById('officeProtocolBadge');
+    badge.textContent = count;
+    badge.style.display = count ? 'grid' : 'none';
+    document.getElementById('d-protocol').textContent = count;
+    document.getElementById('protocolDashChip').classList.toggle('hidden', !count);
+  } catch {}
+}
+
+async function loadOfficeProtocol() {
+  const [alerts, report] = await Promise.all([
+    api('/performance/admin/alerts?status=unresolved'),
+    api('/performance/admin/report')
+  ]);
+  const alertsBody = document.getElementById('officeProtocolAlerts');
+  const reportBody = document.getElementById('officeProtocolReport');
+  if (!alerts.success) {
+    alertsBody.innerHTML = `<tr><td colspan="6" class="empty-msg">${h(alerts.message || 'Unable to load')}</td></tr>`;
+  } else {
+    alertsBody.innerHTML = alerts.alerts.length ? alerts.alerts.map(a => `
+      <tr>
+        <td>${fmtDate(a.alert_date)}</td>
+        <td><strong>${h(a.employee_name || a.emp_id)}</strong><br><small>${h(a.emp_id)} | ${h(a.designation || '--')}</small></td>
+        <td>${statusBadge(a.status)}</td>
+        <td style="max-width:340px;white-space:normal">${h(a.explanation || 'Not submitted')}${a.review_remark ? `<br><strong>Review:</strong> ${h(a.review_remark)}` : ''}</td>
+        <td>${a.overdue_tasks || 0}</td>
+        <td><button class="btn-sm btn-view" onclick="reviewOfficeProtocol('${a.id}','Justified')">Justify</button> <button class="btn-sm btn-danger" onclick="reviewOfficeProtocol('${a.id}','Rejected')">Reject</button></td>
+      </tr>`).join('') : '<tr><td colspan="6" class="empty-msg">No unresolved protocol alerts</td></tr>';
+    loadOfficeProtocolCount();
+  }
+  if (!report.success) {
+    reportBody.innerHTML = `<tr><td colspan="11" class="empty-msg">${h(report.message || 'Unable to load')}</td></tr>`;
+  } else {
+    reportBody.innerHTML = report.report.length ? report.report.map(r => `
+      <tr>
+        <td><strong>${h(r.employee_name)}</strong><br><small>${h(r.emp_id)} | ${h(r.designation || '--')}</small></td>
+        <td>${r.present_working_days}</td><td>${r.activity_compliant_days}</td>
+        <td style="color:${r.zero_activity_days ? '#dc2626' : '#15803d'};font-weight:800">${r.zero_activity_days}</td>
+        <td>${r.late_resolved}</td><td>${r.justified}</td><td>${r.tasks_created}</td>
+        <td>${r.tasks_updated}</td><td>${r.tasks_completed}</td><td>${r.overdue_tasks}</td>
+        <td><strong style="color:${Number(r.adherence_percentage) < 80 ? '#dc2626' : '#15803d'}">${r.adherence_percentage}%</strong></td>
+      </tr>`).join('') : '<tr><td colspan="11" class="empty-msg">No employee data</td></tr>';
+  }
+}
+
+async function reviewOfficeProtocol(id, status) {
+  const remark = prompt(`${status} review remark required:`);
+  if (!remark || !remark.trim()) return;
+  const data = await api(`/performance/admin/alerts/${id}/review`, {
+    method: 'PUT',
+    body: JSON.stringify({ status, remark: remark.trim() })
+  });
+  showToast(data.message || (data.success ? 'Review saved' : 'Unable to save'), data.success ? 'success' : 'error');
+  if (data.success) loadOfficeProtocol();
 }
 
 async function loadComplianceDashboard() {
