@@ -187,7 +187,7 @@
       <span class="s-icon">&#128100;</span> Employees
     </div>
     <div class="sidebar-item" id="s-protocol" onclick="showPanel('protocol')">
-      <span class="s-icon">&#9888;</span> Work Protocol
+      <span class="s-icon">&#9888;</span> Employee Monitor
       <span class="protocol-pulse" id="protocolBadge">0</span>
     </div>
     <div class="sidebar-item" id="s-admin-users" onclick="showPanel('admin-users')">
@@ -268,27 +268,38 @@
     <!-- ATTENDANCE PANEL                                        -->
     <!-- ═══════════════════════════════════════════════════════ -->
     <div class="admin-panel" id="panel-protocol">
-      <div class="page-title">Employee Work Protocol</div>
+      <div class="page-title">Employee Monitor</div>
+      <div id="monitorSummaryCards" class="stats-grid" style="margin-bottom:16px"></div>
       <div class="filter-row">
         <select id="protocolStatusFilter" onchange="loadProtocolAlerts()">
           <option value="unresolved">Unresolved Alerts</option>
-          <option value="">All Status</option>
-          <option>Open</option><option>Explanation Submitted</option><option>Rejected</option>
-          <option>Justified</option><option>Auto Resolved</option>
+          <option value="all">All Statuses</option>
+          <option>Open</option><option>Acknowledged</option><option>Explanation Submitted</option>
+          <option>Rejected</option><option>Justified</option><option>Auto Resolved</option><option>Resolved</option>
+        </select>
+        <select id="monitorTypeFilter" onchange="loadProtocolAlerts()">
+          <option value="">All Alert Types</option>
+          <option value="late_arrival">Late Arrival</option>
+          <option value="early_departure">Early Departure</option>
+          <option value="incomplete_hours">Incomplete Working Hours</option>
+          <option value="no_active_task">No Active Task</option>
+          <option value="no_activity">No Meaningful Activity</option>
+          <option value="overdue_work">Overdue Work</option>
         </select>
         <input type="date" id="protocolDateFrom" onchange="loadProtocolAlerts()">
         <input type="date" id="protocolDateTo" onchange="loadProtocolAlerts()">
         <button class="btn-sm" onclick="loadProtocolAlerts();loadProtocolReport()">Refresh</button>
+        <button class="btn-sm" onclick="openMonitorSettings()">Settings</button>
       </div>
       <div class="today-table-wrap" style="margin-bottom:18px">
-        <div class="today-table-head"><h3>Protocol Alerts</h3></div>
+        <div class="today-table-head"><h3>Monitor Alerts</h3></div>
         <div class="hist-table-wrap"><table>
-          <thead><tr><th>Date</th><th>Employee</th><th>Status</th><th>Explanation / Review</th><th>Overdue</th><th>Action</th></tr></thead>
-          <tbody id="protocolAlertsTable"><tr><td colspan="6" style="text-align:center">Loading...</td></tr></tbody>
+          <thead><tr><th>Date</th><th>Employee</th><th>Alert</th><th>Status</th><th>Explanation / Review</th><th>Escalation</th><th>Action</th></tr></thead>
+          <tbody id="protocolAlertsTable"><tr><td colspan="7" style="text-align:center">Loading...</td></tr></tbody>
         </table></div>
       </div>
       <div class="today-table-wrap">
-        <div class="today-table-head"><h3>30-Day Protocol Report</h3><span style="font-size:11px;color:#64748b">Attendance working days vs meaningful task activity</span></div>
+        <div class="today-table-head"><h3>30-Day Activity Report</h3><span style="font-size:11px;color:#64748b">Attendance working days vs meaningful task activity</span></div>
         <div class="hist-table-wrap"><table>
           <thead><tr><th>Employee</th><th>Present</th><th>Compliant</th><th>Zero Activity</th><th>Late Resolved</th><th>Justified</th><th>Created</th><th>Updated</th><th>Completed</th><th>Overdue</th><th>Adherence</th></tr></thead>
           <tbody id="protocolReportTable"><tr><td colspan="11" style="text-align:center">Loading...</td></tr></tbody>
@@ -673,7 +684,7 @@
     <input type="hidden" id="protocolReviewId">
     <div class="modal-grid">
       <div><label>Decision *</label><select id="protocolReviewStatus"><option>Justified</option><option>Rejected</option></select></div>
-      <div style="grid-column:1/-1"><label>Review Remark *</label><textarea id="protocolReviewRemark" rows="4" placeholder="Decision ka clear reason..."></textarea></div>
+      <div style="grid-column:1/-1"><label>Review Remark *</label><textarea id="protocolReviewRemark" rows="4" placeholder="Enter a clear reason for the decision"></textarea></div>
     </div>
     <div id="protocolReviewError" class="alert alert-error" style="display:none;margin-top:12px"></div>
     <div class="modal-actions">
@@ -1061,9 +1072,9 @@ let attLocationMap = {};
 
 async function loadProtocolAlertCount() {
   try {
-    const data = await api('/performance/admin/alerts?status=unresolved');
+    const data = await api('/performance/monitor/admin/summary');
     if (!data.success) return;
-    const count = data.unresolved || 0;
+    const count = Number(data.summary?.unresolved || 0);
     document.getElementById('ovProtocol').textContent = count;
     const badge = document.getElementById('protocolBadge');
     badge.textContent = count;
@@ -1077,27 +1088,42 @@ function protocolStatusClass(status) {
 
 async function loadProtocolAlerts() {
   const status = document.getElementById('protocolStatusFilter')?.value ?? 'unresolved';
+  const alertType = document.getElementById('monitorTypeFilter')?.value || '';
   const from = document.getElementById('protocolDateFrom')?.value || '';
   const to = document.getElementById('protocolDateTo')?.value || '';
   const qs = new URLSearchParams();
-  if (status !== '') qs.set('status', status);
+  qs.set('status', status);
+  if (alertType) qs.set('alert_type', alertType);
   if (from) qs.set('date_from', from);
   if (to) qs.set('date_to', to);
-  const data = await api('/performance/admin/alerts?' + qs.toString());
+  const [summary, data] = await Promise.all([
+    api('/performance/monitor/admin/summary'),
+    api('/performance/monitor/admin/alerts?' + qs.toString())
+  ]);
+  if (summary.success) {
+    const s = summary.summary || {};
+    document.getElementById('monitorSummaryCards').innerHTML = [
+      ['Unresolved',s.unresolved,'#dc2626'],['Critical',s.critical,'#be123c'],
+      ['Explanations',s.explanations,'#2563eb'],['Escalated',s.escalated,'#7c3aed'],
+      ['Late Today',s.late_today,'#d97706'],['Attendance Issues',s.attendance_issues_today,'#ea580c'],
+      ['Overdue Work',s.overdue_alerts,'#b91c1c']
+    ].map(item => `<div class="stat-card" style="--clr:${item[2]}"><div class="stat-num">${Number(item[1] || 0)}</div><div class="stat-label">${item[0]}</div></div>`).join('');
+  }
   const tb = document.getElementById('protocolAlertsTable');
   if (!data.success) {
-    tb.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#dc2626">${escHtml(data.message || 'Unable to load')}</td></tr>`;
+    tb.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#dc2626">${escHtml(data.message || 'Unable to load')}</td></tr>`;
     return;
   }
   tb.innerHTML = data.alerts.length ? data.alerts.map(a => `
     <tr>
       <td>${fmtDate(a.alert_date)}</td>
       <td><strong>${escHtml(a.employee_name || a.emp_id)}</strong><br><small>${escHtml(a.emp_id)} | ${escHtml(a.designation || '--')}</small></td>
+      <td><strong>${escHtml(a.title)}</strong><br><small>${escHtml(a.message)}</small></td>
       <td><span class="protocol-status ${protocolStatusClass(a.status)}">${escHtml(a.status)}</span></td>
       <td style="max-width:320px;white-space:normal">${a.explanation ? `<strong>Employee:</strong> ${escHtml(a.explanation)}<br>` : ''}${a.review_remark ? `<strong>Management:</strong> ${escHtml(a.review_remark)}` : '--'}</td>
-      <td>${a.overdue_tasks || 0}</td>
-      <td>${['Open','Explanation Submitted','Rejected'].includes(a.status) ? `<button class="btn-edit" onclick="openProtocolReviewEncoded('${encodeURIComponent(JSON.stringify(a))}')">Review</button>` : '--'}</td>
-    </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:20px">No protocol alerts</td></tr>';
+      <td>Level ${Number(a.escalation_level || 0)}<br><small>Occurrence ${Number(a.occurrence_count || 1)}</small></td>
+      <td><button class="btn-edit" onclick="openMonitorTimeline('${escHtml(a.emp_id)}')">Timeline</button> ${['Director','HR'].includes(admin?.role) && ['Open','Acknowledged','Explanation Submitted','Rejected'].includes(a.status) ? `<button class="btn-edit" onclick="openProtocolReviewEncoded('${encodeURIComponent(JSON.stringify(a))}')">Review</button>` : ''}</td>
+    </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:20px">No monitor alerts found</td></tr>';
   loadProtocolAlertCount();
 }
 
@@ -1150,7 +1176,7 @@ async function submitProtocolReview() {
     err.style.display = 'block';
     return;
   }
-  const data = await api(`/performance/admin/alerts/${id}/review`, {
+  const data = await api(`/performance/monitor/admin/alerts/${id}/review`, {
     method: 'PUT',
     body: JSON.stringify({ status, remark })
   });
@@ -1163,6 +1189,74 @@ async function submitProtocolReview() {
   showToast(data.message, 'success');
   loadProtocolAlerts();
   loadProtocolReport();
+}
+
+async function openMonitorTimeline(empId) {
+  const data = await api(`/performance/monitor/admin/employees/${encodeURIComponent(empId)}/timeline?days=30`);
+  if (!data.success) return showToast(data.message || 'Unable to load employee timeline', 'error');
+  const old = document.getElementById('monitorTimelineModal');
+  if (old) old.remove();
+  const modal = document.createElement('div');
+  modal.id = 'monitorTimelineModal';
+  modal.className = 'modal-backdrop';
+  modal.style.display = 'flex';
+  modal.innerHTML = `<div class="modal" style="max-width:920px">
+    <div class="modal-title">${escHtml(data.employee.employee_name)} - 30-Day Monitor Timeline</div>
+    <div class="stats-grid" style="margin-bottom:14px">
+      <div class="stat-card" style="--clr:#dc2626"><div class="stat-num">${(data.alerts || []).length}</div><div class="stat-label">Alerts</div></div>
+      <div class="stat-card" style="--clr:#2563eb"><div class="stat-num">${(data.activity || []).length}</div><div class="stat-label">Task Activities</div></div>
+      <div class="stat-card" style="--clr:#d97706"><div class="stat-num">${(data.active_tasks || []).length}</div><div class="stat-label">Active Tasks</div></div>
+    </div>
+    <div class="hist-table-wrap" style="max-height:430px"><table><thead><tr><th>Date</th><th>Type</th><th>Title</th><th>Status</th><th>Explanation / Review</th></tr></thead><tbody>
+      ${(data.alerts || []).length ? data.alerts.map(a => `<tr><td>${fmtDate(a.alert_date)}</td><td>${escHtml(String(a.alert_type).replaceAll('_',' '))}</td><td>${escHtml(a.title)}</td><td><span class="protocol-status ${protocolStatusClass(a.status)}">${escHtml(a.status)}</span></td><td>${escHtml(a.explanation || a.review_remark || '--')}</td></tr>`).join('') : '<tr><td colspan="5" style="text-align:center">No monitor alerts in this period</td></tr>'}
+    </tbody></table></div>
+    <div class="modal-actions"><button class="btn-cancel" onclick="this.closest('.modal-backdrop').remove()">Close</button></div>
+  </div>`;
+  document.body.appendChild(modal);
+}
+
+async function openMonitorSettings() {
+  const data = await api('/performance/monitor/settings');
+  if (!data.success) return showToast(data.message || 'Unable to load monitor settings', 'error');
+  const s = data.settings || {};
+  const old = document.getElementById('monitorSettingsModal');
+  if (old) old.remove();
+  const modal = document.createElement('div');
+  modal.id = 'monitorSettingsModal';
+  modal.className = 'modal-backdrop';
+  modal.style.display = 'flex';
+  modal.innerHTML = `<div class="modal" style="max-width:720px">
+    <div class="modal-title">Employee Monitor Settings</div>
+    <div class="form-grid">
+      <div><label>Monitoring</label><select id="msEnabled"><option value="true">Enabled</option><option value="false">Disabled</option></select></div>
+      <div><label>Active Task Checkpoint</label><input id="msActive" type="time" value="${String(s.active_task_checkpoint || '12:00').slice(0,5)}"></div>
+      <div><label>Activity Checkpoint</label><input id="msActivity" type="time" value="${String(s.activity_checkpoint || '15:00').slice(0,5)}"></div>
+      <div><label>Overdue Reminder</label><input id="msOverdue" type="time" value="${String(s.overdue_reminder_time || '10:00').slice(0,5)}"></div>
+      <div><label>Popup Repeat (minutes)</label><input id="msPopup" type="number" min="1" value="${Number(s.popup_repeat_minutes || 60)}"></div>
+      <div><label>Repeat Window (days)</label><input id="msWindow" type="number" min="1" value="${Number(s.repeat_window_days || 30)}"></div>
+      <div><label>HR Escalation Day</label><input id="msHr" type="number" min="1" value="${Number(s.hr_escalation_day || 2)}"></div>
+      <div><label>Director Escalation Day</label><input id="msDirector" type="number" min="2" value="${Number(s.director_escalation_day || 3)}"></div>
+    </div>
+    <div class="modal-actions"><button class="btn-cancel" onclick="this.closest('.modal-backdrop').remove()">Close</button>${['Director','Office Manager'].includes(admin?.role) ? '<button class="btn-primary" onclick="saveMonitorSettings()">Save Settings</button>' : '<span style="font-size:12px;color:#64748b">Settings are read-only for your role.</span>'}</div>
+  </div>`;
+  document.body.appendChild(modal);
+  document.getElementById('msEnabled').value = String(s.enabled !== false);
+}
+
+async function saveMonitorSettings() {
+  const payload = {
+    enabled: document.getElementById('msEnabled').value === 'true',
+    active_task_checkpoint: document.getElementById('msActive').value,
+    activity_checkpoint: document.getElementById('msActivity').value,
+    overdue_reminder_time: document.getElementById('msOverdue').value,
+    popup_repeat_minutes: Number(document.getElementById('msPopup').value),
+    repeat_window_days: Number(document.getElementById('msWindow').value),
+    hr_escalation_day: Number(document.getElementById('msHr').value),
+    director_escalation_day: Number(document.getElementById('msDirector').value)
+  };
+  const data = await api('/performance/monitor/settings', { method:'PUT', body:JSON.stringify(payload) });
+  showToast(data.message || (data.success ? 'Monitor settings saved' : 'Unable to save settings'), data.success ? 'success' : 'error');
+  if (data.success) document.getElementById('monitorSettingsModal')?.remove();
 }
 
 async function loadAttendance() {

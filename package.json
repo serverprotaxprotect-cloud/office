@@ -29,6 +29,8 @@
     "auth-sessions:migrate:apply": "node scripts/auth_sessions_migrate.js --apply",
     "work-protocol:migrate": "node scripts/work_protocol_migrate.js",
     "work-protocol:migrate:apply": "node scripts/work_protocol_migrate.js --apply",
+    "employee-monitor:migrate": "node scripts/employee_monitor_migrate.js",
+    "employee-monitor:migrate:apply": "node scripts/employee_monitor_migrate.js --apply",
     "gst:import:preview": "node scripts/gst_import.js C:/Users/HP/Downloads/GST_CLIENTS.xlsx",
     "gst:import": "node scripts/gst_import.js C:/Users/HP/Downloads/GST_CLIENTS.xlsx --apply"
   },

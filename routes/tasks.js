@@ -12,6 +12,7 @@ const { syncPFESICForTaskStatus } = require('../services/pfEsicService');
 const {
   meaningfulTaskChange,
   recordWorkActivity,
+  evaluateEmployee,
 } = require('../services/performanceService');
 
 // ── IST helper (Asia/Kolkata = UTC+5:30) ─────────────────────
@@ -328,6 +329,9 @@ router.post('/', authMiddleware, async (req, res) => {
     } catch (activityErr) {
       console.error('[Performance] task create activity:', activityErr.message);
     }
+    evaluateEmployee(toId).catch(error => {
+      console.error('[Employee Monitor] task assignment evaluation:', error.message);
+    });
     // ── Notification: task assigned ──────────────────────────
     if (!isSelf) {
       await createNotif(
@@ -464,6 +468,12 @@ router.put('/:id', authMiddleware, async (req, res) => {
       } catch (activityErr) {
         console.error('[Performance] task update activity:', activityErr.message);
       }
+    }
+    const affectedEmployees = new Set([old.assigned_to_id, assigned_to_id].filter(Boolean));
+    for (const affectedEmpId of affectedEmployees) {
+      evaluateEmployee(affectedEmpId).catch(error => {
+        console.error('[Employee Monitor] task update evaluation:', error.message);
+      });
     }
 
     // ── Notification: reassigned ──────────────────────────────

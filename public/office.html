@@ -381,7 +381,7 @@
     <div class="sb-item" id="sb-completed" onclick="showPanel('completed')"><span class="ic">&#9745;</span>Completed</div>
     <div class="sb-item" id="sb-notifications" onclick="showPanel('notifications')"><span class="ic">&#128276;</span>Notifications<span class="sb-badge hidden" id="notifBadge">0</span></div>
     <div class="sb-item" id="sb-chat" onclick="showPanel('chat')"><span class="ic">&#128172;</span>Smart Chat<span class="sb-badge hidden" id="chatBadge">0</span></div>
-    <div class="sb-item" id="sb-protocol" onclick="showPanel('protocol')"><span class="ic">&#9888;</span>Work Protocol<span class="protocol-pulse" id="officeProtocolBadge">0</span></div>
+    <div class="sb-item" id="sb-protocol" onclick="showPanel('protocol')"><span class="ic">&#9888;</span>Employee Monitor<span class="protocol-pulse" id="officeProtocolBadge">0</span></div>
     <div class="sb-section" id="sec-clients">Clients</div>
     <div class="sb-item" id="sb-clients" onclick="showPanel('clients')"><span class="ic">&#128100;</span>Client/Agent Search</div>
     <div class="sb-section" id="sec-compliance">Compliance</div>
@@ -419,7 +419,7 @@
           <div class="num" id="d-all">-</div><div class="lbl" id="d-all-lbl">All Active Tasks</div>
         </div>
         <div class="dash-chip hidden" style="--c:#be123c" id="protocolDashChip" onclick="showPanel('protocol')">
-          <div class="num" id="d-protocol">0</div><div class="lbl">Open Protocol Alerts</div>
+          <div class="num" id="d-protocol">0</div><div class="lbl">Open Monitor Alerts</div>
         </div>
       </div>
       <div class="card">
@@ -642,12 +642,33 @@
     </div>
 
     <div class="panel" id="panel-protocol">
-      <div class="page-title"><span>Employee Work Protocol <small>Attendance + meaningful task activity</small></span><button class="btn-sm btn-view" onclick="loadOfficeProtocol()">Refresh</button></div>
-      <div class="card" style="margin-bottom:16px"><div class="card-head"><h3>Unresolved Alerts</h3></div><div class="tbl-wrap"><table>
-        <thead><tr><th>Date</th><th>Employee</th><th>Status</th><th>Explanation</th><th>Overdue</th><th>Action</th></tr></thead>
-        <tbody id="officeProtocolAlerts"><tr><td colspan="6" class="empty-msg">Loading...</td></tr></tbody>
+      <div class="page-title"><span>Employee Monitor <small>Attendance, daily activity, workload and overdue work</small></span><button class="btn-sm btn-view" onclick="loadOfficeProtocol()">Refresh</button></div>
+      <div id="officeMonitorSummary" class="dash-chips" style="margin-bottom:16px"></div>
+      <div class="card" style="margin-bottom:16px;padding:14px">
+        <div class="filter-row" style="margin:0">
+          <select id="officeMonitorType" onchange="loadOfficeProtocol()">
+            <option value="">All Alert Types</option>
+            <option value="late_arrival">Late Arrival</option>
+            <option value="early_departure">Early Departure</option>
+            <option value="incomplete_hours">Incomplete Working Hours</option>
+            <option value="no_active_task">No Active Task</option>
+            <option value="no_activity">No Meaningful Activity</option>
+            <option value="overdue_work">Overdue Work</option>
+          </select>
+          <select id="officeMonitorStatus" onchange="loadOfficeProtocol()">
+            <option value="unresolved">Unresolved</option>
+            <option value="all">All Statuses</option>
+            <option>Open</option><option>Acknowledged</option><option>Explanation Submitted</option>
+            <option>Rejected</option><option>Justified</option><option>Auto Resolved</option><option>Resolved</option>
+          </select>
+          <button class="btn-sm btn-view" onclick="openOfficeMonitorSettings()">Settings</button>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:16px"><div class="card-head"><h3>Monitor Alerts</h3></div><div class="tbl-wrap"><table>
+        <thead><tr><th>Date</th><th>Employee</th><th>Alert</th><th>Status</th><th>Explanation / Review</th><th>Escalation</th><th>Action</th></tr></thead>
+        <tbody id="officeProtocolAlerts"><tr><td colspan="7" class="empty-msg">Loading...</td></tr></tbody>
       </table></div></div>
-      <div class="card"><div class="card-head"><h3>30-Day Protocol Report</h3></div><div class="tbl-wrap"><table>
+      <div class="card"><div class="card-head"><h3>30-Day Activity Report</h3></div><div class="tbl-wrap"><table>
         <thead><tr><th>Employee</th><th>Present</th><th>Compliant</th><th>Zero Activity</th><th>Late Resolved</th><th>Justified</th><th>Created</th><th>Updated</th><th>Completed</th><th>Overdue</th><th>Adherence</th></tr></thead>
         <tbody id="officeProtocolReport"><tr><td colspan="11" class="empty-msg">Loading...</td></tr></tbody>
       </table></div></div>
@@ -4395,9 +4416,9 @@ async function submitCompUpdate() {
 
 async function loadOfficeProtocolCount() {
   try {
-    const data = await api('/performance/admin/alerts?status=unresolved');
+    const data = await api('/performance/monitor/admin/summary');
     if (!data.success) return;
-    const count = data.unresolved || 0;
+    const count = Number(data.summary?.unresolved || 0);
     const badge = document.getElementById('officeProtocolBadge');
     badge.textContent = count;
     badge.style.display = count ? 'grid' : 'none';
@@ -4407,24 +4428,43 @@ async function loadOfficeProtocolCount() {
 }
 
 async function loadOfficeProtocol() {
-  const [alerts, report] = await Promise.all([
-    api('/performance/admin/alerts?status=unresolved'),
+  const type = document.getElementById('officeMonitorType')?.value || '';
+  const status = document.getElementById('officeMonitorStatus')?.value || 'unresolved';
+  const qs = new URLSearchParams({ status });
+  if (type) qs.set('alert_type', type);
+  const [summary, alerts, report] = await Promise.all([
+    api('/performance/monitor/admin/summary'),
+    api('/performance/monitor/admin/alerts?' + qs.toString()),
     api('/performance/admin/report')
   ]);
+  const summaryEl = document.getElementById('officeMonitorSummary');
   const alertsBody = document.getElementById('officeProtocolAlerts');
   const reportBody = document.getElementById('officeProtocolReport');
+  if (summary.success) {
+    const s = summary.summary || {};
+    summaryEl.innerHTML = [
+      ['Unresolved', s.unresolved, '#dc2626'],
+      ['Critical', s.critical, '#be123c'],
+      ['Explanations', s.explanations, '#2563eb'],
+      ['Escalated', s.escalated, '#7c3aed'],
+      ['Late Today', s.late_today, '#d97706'],
+      ['Attendance Issues', s.attendance_issues_today, '#ea580c'],
+      ['Overdue Work', s.overdue_alerts, '#b91c1c']
+    ].map(item => `<div class="dash-chip" style="--c:${item[2]}"><div class="num">${Number(item[1] || 0)}</div><div class="lbl">${item[0]}</div></div>`).join('');
+  }
   if (!alerts.success) {
-    alertsBody.innerHTML = `<tr><td colspan="6" class="empty-msg">${h(alerts.message || 'Unable to load')}</td></tr>`;
+    alertsBody.innerHTML = `<tr><td colspan="7" class="empty-msg">${h(alerts.message || 'Unable to load')}</td></tr>`;
   } else {
     alertsBody.innerHTML = alerts.alerts.length ? alerts.alerts.map(a => `
       <tr>
         <td>${fmtDate(a.alert_date)}</td>
         <td><strong>${h(a.employee_name || a.emp_id)}</strong><br><small>${h(a.emp_id)} | ${h(a.designation || '--')}</small></td>
+        <td><strong>${h(a.title)}</strong><br><small>${h(a.message)}</small></td>
         <td>${statusBadge(a.status)}</td>
         <td style="max-width:340px;white-space:normal">${h(a.explanation || 'Not submitted')}${a.review_remark ? `<br><strong>Review:</strong> ${h(a.review_remark)}` : ''}</td>
-        <td>${a.overdue_tasks || 0}</td>
-        <td><button class="btn-sm btn-view" onclick="reviewOfficeProtocol('${a.id}','Justified')">Justify</button> <button class="btn-sm btn-danger" onclick="reviewOfficeProtocol('${a.id}','Rejected')">Reject</button></td>
-      </tr>`).join('') : '<tr><td colspan="6" class="empty-msg">No unresolved protocol alerts</td></tr>';
+        <td>Level ${Number(a.escalation_level || 0)}<br><small>Occurrence ${Number(a.occurrence_count || 1)}</small></td>
+        <td><button class="btn-sm btn-view" onclick="openOfficeMonitorTimeline('${h(a.emp_id)}')">Timeline</button> ${['Director','HR'].includes(user?.role) && ['Open','Acknowledged','Explanation Submitted','Rejected'].includes(a.status) ? `<button class="btn-sm btn-green" onclick="reviewOfficeProtocol('${a.id}','Justified')">Justify</button> <button class="btn-sm btn-danger" onclick="reviewOfficeProtocol('${a.id}','Rejected')">Reject</button>` : ''}</td>
+      </tr>`).join('') : '<tr><td colspan="7" class="empty-msg">No monitor alerts found</td></tr>';
     loadOfficeProtocolCount();
   }
   if (!report.success) {
@@ -4445,12 +4485,82 @@ async function loadOfficeProtocol() {
 async function reviewOfficeProtocol(id, status) {
   const remark = prompt(`${status} review remark required:`);
   if (!remark || !remark.trim()) return;
-  const data = await api(`/performance/admin/alerts/${id}/review`, {
+  const data = await api(`/performance/monitor/admin/alerts/${id}/review`, {
     method: 'PUT',
     body: JSON.stringify({ status, remark: remark.trim() })
   });
   showToast(data.message || (data.success ? 'Review saved' : 'Unable to save'), data.success ? 'success' : 'error');
   if (data.success) loadOfficeProtocol();
+}
+
+async function openOfficeMonitorTimeline(empId) {
+  const data = await api(`/performance/monitor/admin/employees/${encodeURIComponent(empId)}/timeline?days=30`);
+  if (!data.success) return showToast(data.message || 'Unable to load employee timeline', 'error');
+  const old = document.getElementById('officeMonitorTimelineModal');
+  if (old) old.remove();
+  const alerts = data.alerts || [];
+  const activity = data.activity || [];
+  const tasks = data.active_tasks || [];
+  const modal = document.createElement('div');
+  modal.id = 'officeMonitorTimelineModal';
+  modal.className = 'modal-backdrop';
+  modal.style.display = 'flex';
+  modal.innerHTML = `<div class="modal" style="max-width:920px">
+    <div class="modal-title"><span>${h(data.employee.employee_name)} - 30-Day Monitor Timeline</span><button class="modal-close" onclick="this.closest('.modal-backdrop').remove()">&times;</button></div>
+    <div class="dash-chips" style="margin-bottom:14px">
+      <div class="dash-chip" style="--c:#dc2626"><div class="num">${alerts.length}</div><div class="lbl">Alerts</div></div>
+      <div class="dash-chip" style="--c:#2563eb"><div class="num">${activity.length}</div><div class="lbl">Task Activities</div></div>
+      <div class="dash-chip" style="--c:#d97706"><div class="num">${tasks.length}</div><div class="lbl">Active Tasks</div></div>
+    </div>
+    <div class="tbl-wrap" style="max-height:420px"><table><thead><tr><th>Date</th><th>Type</th><th>Title</th><th>Status</th><th>Explanation</th></tr></thead><tbody>
+      ${alerts.length ? alerts.map(a => `<tr><td>${fmtDate(a.alert_date)}</td><td>${h(String(a.alert_type).replaceAll('_',' '))}</td><td>${h(a.title)}</td><td>${statusBadge(a.status)}</td><td>${h(a.explanation || a.review_remark || '--')}</td></tr>`).join('') : '<tr><td colspan="5" class="empty-msg">No monitor alerts in this period</td></tr>'}
+    </tbody></table></div>
+  </div>`;
+  document.body.appendChild(modal);
+}
+
+async function openOfficeMonitorSettings() {
+  const data = await api('/performance/monitor/settings');
+  if (!data.success) return showToast(data.message || 'Unable to load monitor settings', 'error');
+  const s = data.settings || {};
+  const old = document.getElementById('officeMonitorSettingsModal');
+  if (old) old.remove();
+  const modal = document.createElement('div');
+  modal.id = 'officeMonitorSettingsModal';
+  modal.className = 'modal-backdrop';
+  modal.style.display = 'flex';
+  modal.innerHTML = `<div class="modal" style="max-width:720px">
+    <div class="modal-title"><span>Employee Monitor Settings</span><button class="modal-close" onclick="this.closest('.modal-backdrop').remove()">&times;</button></div>
+    <div class="form-grid">
+      <div class="form-group"><label>Monitoring</label><select id="omsEnabled"><option value="true">Enabled</option><option value="false">Disabled</option></select></div>
+      <div class="form-group"><label>Active Task Checkpoint</label><input id="omsActive" type="time" value="${String(s.active_task_checkpoint || '12:00').slice(0,5)}"></div>
+      <div class="form-group"><label>Activity Checkpoint</label><input id="omsActivity" type="time" value="${String(s.activity_checkpoint || '15:00').slice(0,5)}"></div>
+      <div class="form-group"><label>Overdue Reminder</label><input id="omsOverdue" type="time" value="${String(s.overdue_reminder_time || '10:00').slice(0,5)}"></div>
+      <div class="form-group"><label>Popup Repeat (minutes)</label><input id="omsPopup" type="number" min="1" value="${Number(s.popup_repeat_minutes || 60)}"></div>
+      <div class="form-group"><label>Repeat Window (days)</label><input id="omsWindow" type="number" min="1" value="${Number(s.repeat_window_days || 30)}"></div>
+      <div class="form-group"><label>HR Escalation Day</label><input id="omsHr" type="number" min="1" value="${Number(s.hr_escalation_day || 2)}"></div>
+      <div class="form-group"><label>Director Escalation Day</label><input id="omsDirector" type="number" min="2" value="${Number(s.director_escalation_day || 3)}"></div>
+    </div>
+    ${['Director','Office Manager'].includes(user?.role) ? '<button class="btn btn-primary" style="width:100%;margin-top:14px" onclick="saveOfficeMonitorSettings()">Save Settings</button>' : '<div class="empty-msg" style="margin-top:14px">Settings are read-only for your role.</div>'}
+  </div>`;
+  document.body.appendChild(modal);
+  document.getElementById('omsEnabled').value = String(s.enabled !== false);
+}
+
+async function saveOfficeMonitorSettings() {
+  const payload = {
+    enabled: document.getElementById('omsEnabled').value === 'true',
+    active_task_checkpoint: document.getElementById('omsActive').value,
+    activity_checkpoint: document.getElementById('omsActivity').value,
+    overdue_reminder_time: document.getElementById('omsOverdue').value,
+    popup_repeat_minutes: Number(document.getElementById('omsPopup').value),
+    repeat_window_days: Number(document.getElementById('omsWindow').value),
+    hr_escalation_day: Number(document.getElementById('omsHr').value),
+    director_escalation_day: Number(document.getElementById('omsDirector').value)
+  };
+  const data = await api('/performance/monitor/settings', { method:'PUT', body:JSON.stringify(payload) });
+  showToast(data.message || (data.success ? 'Monitor settings saved' : 'Unable to save settings'), data.success ? 'success' : 'error');
+  if (data.success) document.getElementById('officeMonitorSettingsModal')?.remove();
 }
 
 async function loadComplianceDashboard() {

@@ -7,6 +7,7 @@ const adminAuth = require('../middleware/adminAuth');
 const { buildLoginResponse, hashForStorage } = require('../services/authService');
 const { setRefreshCookie, revokeUserSessions } = require('../services/sessionService');
 const { ensureOrgSetupComplete, requireOrgSetup } = require('../services/organizationSetupGuard');
+const { reconcileAttendanceAlerts } = require('../services/performanceService');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -371,6 +372,9 @@ router.post('/attendance/update', adminAuth, async (req, res) => {
        WHERE emp_id=$5 AND date::date=$6`,
       [final_status, grace_minutes || null, remark || null, req.admin.name, emp_id, date]
     );
+    await reconcileAttendanceAlerts(emp_id, date).catch(error => {
+      console.error('[Employee Monitor] attendance reconciliation failed:', error.message);
+    });
     res.json({ success: true, message: 'Attendance updated' });
   } catch (err) {
     console.error(err);
@@ -971,6 +975,9 @@ router.post('/attendance/modify-time', adminAuth, async (req, res) => {
       `UPDATE daily_attendance SET ${sets.join(',')} WHERE emp_id=$${idx++} AND date::date=$${idx}`,
       vals
     );
+    await reconcileAttendanceAlerts(emp_id, date).catch(error => {
+      console.error('[Employee Monitor] attendance reconciliation failed:', error.message);
+    });
     res.json({ success: true, message: 'Attendance time updated' });
   } catch (err) {
     console.error(err);

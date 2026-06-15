@@ -553,7 +553,7 @@
     </div>
     <div class="req-input-group">
       <label>Reason *</label>
-      <textarea id="req_reason" rows="3" placeholder="Kyu aap attendance mark nahi kar sake? (e.g. Office mein tha, system issue tha)"></textarea>
+      <textarea id="req_reason" rows="3" placeholder="Explain why attendance could not be marked (for example, a system issue)."></textarea>
     </div>
     <div id="reqModalMsg" class="alert" style="display:none;margin-bottom:10px;"></div>
     <div class="req-actions">
@@ -565,13 +565,13 @@
 
 <div class="req-modal-backdrop" id="protocolReasonModal" style="display:none;" onclick="if(event.target===this)closeProtocolReason()">
   <div class="req-modal">
-    <div class="req-modal-title">Submit Work Protocol Explanation</div>
+    <div class="req-modal-title">Submit Monitor Explanation</div>
     <div style="font-size:13px;color:#64748b;line-height:1.5;margin-bottom:14px;">
-      Batayein ki aaj task activity system me kyon record nahi hui. HR/Director is explanation ko review karenge.
+      Explain why the required work activity was not recorded. HR or a Director will review this submission.
     </div>
     <div class="req-input-group">
       <label>Explanation *</label>
-      <textarea id="protocolExplanation" rows="5" placeholder="Work details aur reason clearly likhein..."></textarea>
+      <textarea id="protocolExplanation" rows="5" placeholder="Provide clear work details and a factual explanation."></textarea>
     </div>
     <div id="protocolReasonMsg" class="alert" style="display:none;margin-bottom:10px;"></div>
     <div class="req-actions">
@@ -710,19 +710,19 @@ async function loadToday() {
       stxt.textContent = 'Day complete - IN & OUT done';
       btnIn.disabled  = true;
       btnOut.disabled = true;
-      hint.textContent = 'Aaj ki attendance complete ho gayi. Kal phir aayein!';
+      hint.textContent = 'Attendance is complete for today.';
     } else if (data.is_currently_in) {
       dot.className  = 'status-dot in';
       stxt.textContent = 'Currently IN the office';
       btnIn.disabled  = true;
       btnOut.disabled = false;
-      hint.textContent = 'Aap IN hain. Office se jaate waqt OUT punch karo.';
+      hint.textContent = 'You are currently punched in. Punch out before leaving the office.';
     } else {
       dot.className  = 'status-dot none';
       stxt.textContent = 'Not punched in yet';
       btnIn.disabled  = false;
       btnOut.disabled = true;
-      hint.textContent = 'Din shuru karne ke liye Punch IN karo.';
+      hint.textContent = 'Punch in to begin your working day.';
     }
 
     // Summary chips
@@ -758,37 +758,30 @@ async function loadProtocolToday() {
   const box = document.getElementById('protocolAlert');
   if (!box) return;
   try {
-    const data = await api('/performance/me/today');
+    const data = await api('/performance/monitor/me');
     if (!data.success) return;
-    currentProtocolAlert = data.alert || null;
+    currentProtocolAlert = (data.alerts || []).find(alert => alert.alert_type === 'no_activity') || null;
     box.className = 'protocol-alert';
     box.innerHTML = '';
 
-    if (data.alert && ['Open','Rejected'].includes(data.alert.status)) {
+    if (currentProtocolAlert && ['Open','Rejected'].includes(currentProtocolAlert.status)) {
       box.classList.add('red');
       box.innerHTML = `
-        <div class="protocol-alert-title">Work Protocol Alert</div>
-        <div class="protocol-alert-text">Punch OUT tak aaj koi meaningful task create/update/complete activity record nahi hui.${data.alert.status === 'Rejected' && data.alert.review_remark ? ` Management remark: ${esc(data.alert.review_remark)}` : ''}</div>
+        <div class="protocol-alert-title">Work Activity Alert</div>
+        <div class="protocol-alert-text">No meaningful task create, update or completion activity was recorded before Punch OUT.${currentProtocolAlert.status === 'Rejected' && currentProtocolAlert.review_remark ? ` Management remarks: ${esc(currentProtocolAlert.review_remark)}` : ''}</div>
         <div class="protocol-alert-actions">
           <a class="protocol-primary" href="/office.html">Update / Create Task</a>
           <button class="protocol-secondary" onclick="openProtocolReason()">Submit Reason</button>
         </div>`;
       return;
     }
-    if (data.alert?.status === 'Explanation Submitted') {
+    if (currentProtocolAlert?.status === 'Explanation Submitted') {
       box.classList.add('submitted');
       box.innerHTML = `
         <div class="protocol-alert-title">Explanation Submitted</div>
-        <div class="protocol-alert-text">Aapka reason HR/Director review ke liye pending hai. Meaningful task activity add karne par alert same day auto-resolve ho jayega.</div>
+        <div class="protocol-alert-text">Your explanation is pending review by HR or a Director. A meaningful task update on the same date will automatically resolve the activity alert.</div>
         <div class="protocol-alert-actions"><a class="protocol-secondary" href="/office.html">Open Tasks</a></div>`;
       return;
-    }
-    if (data.punched_in && !data.punched_out && data.activity_count === 0) {
-      box.classList.add('amber');
-      box.innerHTML = `
-        <div class="protocol-alert-title">Today's Task Activity Pending</div>
-        <div class="protocol-alert-text">Aaj abhi tak koi meaningful task activity record nahi hui. Punch OUT se pehle task create, progress update, reassign ya complete karein.</div>
-        <div class="protocol-alert-actions"><a class="protocol-secondary" href="/office.html">Open Office Tasks</a></div>`;
     }
   } catch (err) {
     console.error('[Performance] today UI', err);
@@ -815,7 +808,7 @@ async function submitProtocolReason() {
     msg.style.display = 'block';
     return;
   }
-  const data = await api(`/performance/me/alerts/${currentProtocolAlert.id}/explanation`, {
+  const data = await api(`/performance/monitor/alerts/${currentProtocolAlert.id}/explanation`, {
     method: 'POST',
     body: JSON.stringify({ explanation })
   });

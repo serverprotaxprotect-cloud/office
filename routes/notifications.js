@@ -8,6 +8,8 @@ const router = express.Router();
 function nowIST() { return new Date(Date.now() + (5.5 * 60 * 60 * 1000)); }
 
 async function ensureTable() {
+  const existing = await db.query(`SELECT to_regclass('public.notifications') AS table_name`);
+  if (existing.rows[0]?.table_name) return;
   await db.query(`
     CREATE TABLE IF NOT EXISTS notifications (
       id          SERIAL PRIMARY KEY,
@@ -20,10 +22,6 @@ async function ensureTable() {
       is_read     BOOLEAN      DEFAULT FALSE,
       created_at  TIMESTAMPTZ  DEFAULT NOW()
     )
-  `);
-  await db.query(`
-    CREATE INDEX IF NOT EXISTS notif_emp_unread_idx
-      ON notifications(organization_id, emp_id, is_read, created_at DESC)
   `);
 }
 

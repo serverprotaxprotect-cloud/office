@@ -3,7 +3,7 @@ const { v4: uuidv4 } = require('uuid');
 const multer = require('multer');
 const db = require('../db');
 const authMiddleware = require('../middleware/auth');
-const { evaluatePunchOut } = require('../services/performanceService');
+const { evaluateEmployee } = require('../services/performanceService');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
@@ -318,12 +318,10 @@ router.post('/mark', authMiddleware, async (req, res) => {
       ? 'Attendance IN marked!'
       : 'Attendance OUT marked!';
 
-    if (upperAction === 'OUT') {
-      try {
-        await evaluatePunchOut({ user: req.user, punchOutTime: timeStr });
-      } catch (performanceErr) {
-        console.error('[Performance] Punch OUT evaluation failed:', performanceErr.message);
-      }
+    try {
+      await evaluateEmployee(req.user.emp_id);
+    } catch (performanceErr) {
+      console.error('[Employee Monitor] attendance evaluation failed:', performanceErr.message);
     }
 
     res.json({
