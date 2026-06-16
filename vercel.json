@@ -13,7 +13,7 @@
     },
     {
       "path": "/api/performance/cron/monitor",
-      "schedule": "0 * * * *"
+      "schedule": "30 4 * * *"
     }
   ],
   "routes": [
