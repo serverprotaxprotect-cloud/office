@@ -591,10 +591,61 @@ router.get('/admin/report', authMiddleware, requireReviewer, async (req, res) =>
             AND EXTRACT(DOW FROM d.date::date) <> 0
             AND NOT EXISTS (SELECT 1 FROM holidays h WHERE h.holiday_date::date=d.date::date)
        ),
-       activity_days AS (
-         SELECT emp_id, activity_date, COUNT(*)::int AS cnt
+       activity_events AS (
+         SELECT emp_id, activity_date::date AS activity_date, activity_type
            FROM employee_work_activity
           WHERE activity_date BETWEEN $1::date AND $2::date
+         UNION ALL
+         SELECT updated_by_id AS emp_id,
+                ((updated_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Kolkata')::date AS activity_date,
+                CASE
+                  WHEN action='Created' THEN 'task_created'
+                  WHEN new_status='Completed' THEN 'task_completed'
+                  WHEN action ILIKE '%Reassigned%' THEN 'task_reassigned'
+                  ELSE 'task_updated'
+                END AS activity_type
+           FROM task_history
+          WHERE updated_by_id IS NOT NULL
+            AND ((updated_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Kolkata')::date BETWEEN $1::date AND $2::date
+            AND action IN ('Created','Updated','GST Status Sync','GST Reassigned')
+            AND (
+              action <> 'Updated'
+              OR COALESCE(old_status,'') <> COALESCE(new_status,'')
+              OR COALESCE(old_assigned_to,'') <> COALESCE(new_assigned_to,'')
+              OR old_due_date IS DISTINCT FROM new_due_date
+              OR NULLIF(BTRIM(COALESCE(remark,'')), '') IS NOT NULL
+            )
+         UNION ALL
+         SELECT created_by_id AS emp_id,
+                ((created_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Kolkata')::date AS activity_date,
+                'task_created' AS activity_type
+           FROM tasks
+          WHERE created_by_id IS NOT NULL
+            AND ((created_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Kolkata')::date BETWEEN $1::date AND $2::date
+            AND NOT EXISTS (
+              SELECT 1 FROM task_history th
+               WHERE th.task_id=tasks.task_id
+                 AND th.action='Created'
+            )
+         UNION ALL
+         SELECT last_updated_by_id AS emp_id,
+                ((last_updated_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Kolkata')::date AS activity_date,
+                CASE WHEN status='Completed' THEN 'task_completed' ELSE 'task_updated' END AS activity_type
+           FROM tasks
+          WHERE last_updated_by_id IS NOT NULL
+            AND ((last_updated_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Kolkata')::date BETWEEN $1::date AND $2::date
+            AND NOT EXISTS (
+              SELECT 1 FROM task_history th
+               WHERE th.task_id=tasks.task_id
+                 AND th.updated_by_id=tasks.last_updated_by_id
+                 AND ((th.updated_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Kolkata')::date =
+                     ((tasks.last_updated_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Kolkata')::date
+            )
+       ),
+       activity_days AS (
+         SELECT emp_id, activity_date, COUNT(*)::int AS cnt
+           FROM activity_events
+          WHERE emp_id IS NOT NULL
           GROUP BY emp_id, activity_date
        ),
        activity_totals AS (
@@ -602,17 +653,22 @@ router.get('/admin/report', authMiddleware, requireReviewer, async (req, res) =>
                 COUNT(*) FILTER (WHERE activity_type='task_created')::int AS tasks_created,
                 COUNT(*) FILTER (WHERE activity_type NOT IN ('task_created','task_completed'))::int AS tasks_updated,
                 COUNT(*) FILTER (WHERE activity_type='task_completed')::int AS tasks_completed
-           FROM employee_work_activity
-          WHERE activity_date BETWEEN $1::date AND $2::date
+           FROM activity_events
+          WHERE emp_id IS NOT NULL
           GROUP BY emp_id
        ),
        alert_totals AS (
          SELECT emp_id,
                 COUNT(*) FILTER (WHERE status='Auto Resolved')::int AS late_resolved,
                 COUNT(*) FILTER (WHERE status='Justified')::int AS justified,
-                COUNT(*) FILTER (WHERE status IN ('Open','Explanation Submitted','Rejected'))::int AS unresolved
-           FROM employee_protocol_alerts
-          WHERE alert_date BETWEEN $1::date AND $2::date
+                COUNT(*) FILTER (WHERE status IN ('Open','Acknowledged','Explanation Submitted','Rejected'))::int AS unresolved
+           FROM (
+             SELECT emp_id, status, alert_date FROM employee_monitor_alerts
+              WHERE alert_date BETWEEN $1::date AND $2::date
+             UNION ALL
+             SELECT emp_id, status, alert_date FROM employee_protocol_alerts
+              WHERE alert_date BETWEEN $1::date AND $2::date
+           ) alerts
           GROUP BY emp_id
        ),
        overdue AS (
