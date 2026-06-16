@@ -55,6 +55,14 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use('/api', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, private, max-age=0, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Vary', 'Authorization, Cookie');
+  next();
+});
+
 // Static files
 app.use(express.static(path.join(__dirname, 'public'), {
   etag: true,

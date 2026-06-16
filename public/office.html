@@ -2134,6 +2134,7 @@ async function doOfficeLogin() {
       renderOrgChoices('olChoices', data.selection_token, data.choices || [], 'selectOfficeOrg');
       btn.disabled = false; btn.textContent = 'Login to Office Management';
     } else if (data.success) {
+      clearApiCache();
       GBSession.save(data.token, data.user, 'office');
       token = data.token;
       user  = data.user;
@@ -2163,6 +2164,7 @@ async function selectOfficeOrg(selectionToken, accountKey) {
     });
     const data = await res.json();
     if (!data.success) throw new Error(data.message || 'Selection failed');
+    clearApiCache();
     GBSession.save(data.token, data.user, 'office');
     token = data.token;
     user = data.user;
@@ -2190,12 +2192,41 @@ function clearApiCache(prefix = '') {
   for (const key of API_CACHE.keys()) {
     if (!prefix || key.includes(prefix)) API_CACHE.delete(key);
   }
+  for (const key of API_INFLIGHT.keys()) {
+    if (!prefix || key.includes(prefix)) API_INFLIGHT.delete(key);
+  }
+}
+
+function apiScopeKey() {
+  const activeUser = GBSession.userFor('office') || user || {};
+  const activeToken = GBSession.tokenFor('office') || token || '';
+  const tokenPayload = GBSession.decode(activeToken) || {};
+  const orgId = activeUser.organization_id || tokenPayload.organization_id || activeUser.organization_code || 'no-org';
+  const userId = activeUser.id || activeUser.emp_id || activeUser.employee_id || activeUser.admin_id || activeUser.username || tokenPayload.sub || 'no-user';
+  const userType = activeUser.user_type || (activeUser.is_admin ? 'admin' : '') || tokenPayload.user_type || 'unknown';
+  return `${orgId}:${userType}:${userId}`;
+}
+
+window.addEventListener('storage', event => {
+  if (['gb_access_token', 'office_token', 'office_user', 'gb_user', 'gb_logout_event'].includes(event.key)) {
+    clearApiCache();
+  }
+});
+
+if ('BroadcastChannel' in window) {
+  try {
+    const apiCacheChannel = new BroadcastChannel('geebharat-auth');
+    apiCacheChannel.addEventListener('message', event => {
+      if (['logout', 'session-change'].includes(event.data?.type)) clearApiCache();
+    });
+  } catch {}
 }
 
 const api = async (path, opts = {}) => {
   const method = (opts.method || 'GET').toUpperCase();
   const isFormData = opts.body instanceof FormData;
-  const cacheKey = method + ':' + path;
+  const requestScopeKey = apiScopeKey();
+  const cacheKey = requestScopeKey + ':' + method + ':' + path;
   const useCache = method === 'GET' && opts.cache !== false;
   const ttl = opts.cacheTtl ?? ((path.includes('/meta') || path.includes('/templates')) ? API_META_TTL : API_DEFAULT_TTL);
 
@@ -2220,6 +2251,9 @@ const api = async (path, opts = {}) => {
   }, 'office').then(async (r) => {
     token = GBSession.tokenFor('office');
     const data = await r.json().catch(() => ({ success: false, message: 'Invalid server response' }));
+    if (requestScopeKey !== apiScopeKey()) {
+      return { success: false, stale: true, message: 'Session changed. Please reload this view.' };
+    }
     if (r.status === 401) {
       showToast(data.message || 'Session expired. Please login again.', 'error');
       setTimeout(() => window.location.href = '/', 700);

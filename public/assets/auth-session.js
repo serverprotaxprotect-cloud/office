@@ -54,6 +54,15 @@
       localStorage.removeItem('att_token');
       localStorage.removeItem('att_emp');
     }
+    try {
+      channel?.postMessage({
+        type: 'session-change',
+        scope,
+        organization_id: user.organization_id || user.organization_code || '',
+        user_type: user.user_type || (user.is_admin ? 'admin' : ''),
+        user_id: user.id || user.emp_id || user.employee_id || user.admin_id || user.username || '',
+      });
+    } catch {}
   }
 
   function clear(notify = true) {
