@@ -1595,6 +1595,7 @@ async function openMonitorSettings() {
     <div class="modal-title">Employee Monitor Settings</div>
     <div class="form-grid">
       <div style="grid-column:1/-1"><label>Applicable on this Organisation</label><select id="msEnabled"><option value="true">Yes, apply Employee Monitor</option><option value="false">No, disable Employee Monitor</option></select><small style="display:block;color:#64748b;margin-top:6px">When disabled, this organisation will not receive employee monitor popups, new monitor alerts, or active monitor badges.</small></div>
+      <div style="grid-column:1/-1"><label>Block Attendance Punch OUT on Monitor Violation</label><select id="msBlockOut"><option value="false">No, warning only</option><option value="true">Yes, block Punch OUT until resolved</option></select><small style="display:block;color:#64748b;margin-top:6px">When enabled, employees cannot Punch OUT after the configured checkpoints until active-task and meaningful-activity alerts are resolved or justified.</small></div>
       <div><label>Active Task Checkpoint</label><input id="msActive" type="time" value="${String(s.active_task_checkpoint || '12:00').slice(0,5)}"></div>
       <div><label>Activity Checkpoint</label><input id="msActivity" type="time" value="${String(s.activity_checkpoint || '15:00').slice(0,5)}"></div>
       <div><label>Overdue Reminder</label><input id="msOverdue" type="time" value="${String(s.overdue_reminder_time || '10:00').slice(0,5)}"></div>
@@ -1607,11 +1608,13 @@ async function openMonitorSettings() {
   </div>`;
   document.body.appendChild(modal);
   document.getElementById('msEnabled').value = String(s.enabled !== false);
+  document.getElementById('msBlockOut').value = String(s.block_punch_out_on_violation === true);
 }
 
 async function saveMonitorSettings() {
   const payload = {
     enabled: document.getElementById('msEnabled').value === 'true',
+    block_punch_out_on_violation: document.getElementById('msBlockOut').value === 'true',
     active_task_checkpoint: document.getElementById('msActive').value,
     activity_checkpoint: document.getElementById('msActivity').value,
     overdue_reminder_time: document.getElementById('msOverdue').value,

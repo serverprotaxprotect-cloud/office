@@ -10,6 +10,7 @@ const statements = [
     enabled BOOLEAN NOT NULL DEFAULT TRUE,
     active_task_checkpoint TIME NOT NULL DEFAULT '12:00',
     activity_checkpoint TIME NOT NULL DEFAULT '15:00',
+    block_punch_out_on_violation BOOLEAN NOT NULL DEFAULT FALSE,
     overdue_reminder_time TIME NOT NULL DEFAULT '10:00',
     popup_repeat_minutes INTEGER NOT NULL DEFAULT 60,
     repeat_window_days INTEGER NOT NULL DEFAULT 30,
@@ -19,6 +20,7 @@ const statements = [
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`,
   `ALTER TABLE employee_monitor_settings ADD COLUMN IF NOT EXISTS enabled BOOLEAN NOT NULL DEFAULT TRUE`,
+  `ALTER TABLE employee_monitor_settings ADD COLUMN IF NOT EXISTS block_punch_out_on_violation BOOLEAN NOT NULL DEFAULT FALSE`,
   `CREATE TABLE IF NOT EXISTS employee_monitor_alerts (
     id BIGSERIAL PRIMARY KEY,
     organization_id INTEGER NOT NULL DEFAULT current_organization_id(),

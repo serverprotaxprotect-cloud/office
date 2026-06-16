@@ -8,6 +8,7 @@ const UNRESOLVED_STATUSES = ['Open', 'Acknowledged', 'Explanation Submitted', 'R
 const CORRECTABLE_STATUSES = ['Open', 'Acknowledged', 'Explanation Submitted', 'Rejected'];
 const DEFAULT_SETTINGS = {
   enabled: true,
+  block_punch_out_on_violation: false,
   active_task_checkpoint: '12:00:00',
   activity_checkpoint: '15:00:00',
   overdue_reminder_time: '10:00:00',
@@ -543,6 +544,64 @@ async function getMonitorState(user, { evaluate = true } = {}) {
   };
 }
 
+async function checkPunchOutBlock(user) {
+  const settings = await getMonitorSettings();
+  if (!isEmployeeActor(user) || !settings.enabled || !settings.block_punch_out_on_violation) {
+    return { blocked: false, settings };
+  }
+
+  const alertDate = todayIST();
+  await evaluateEmployee(user.emp_id, { settings, date: alertDate });
+
+  const result = await db.query(
+    `SELECT id, alert_date, alert_type, severity, status, title, message,
+            reference_key, metadata, explanation, review_remark
+       FROM employee_monitor_alerts
+      WHERE emp_id=$1
+        AND alert_date=$2::date
+        AND alert_type=ANY($3::varchar[])
+        AND status=ANY($4::varchar[])
+      ORDER BY CASE alert_type WHEN 'no_active_task' THEN 0 ELSE 1 END, created_at ASC`,
+    [user.emp_id, alertDate, ['no_active_task', 'no_activity'], UNRESOLVED_STATUSES]
+  );
+
+  if (!result.rows.length) return { blocked: false, settings };
+
+  const actorName = user.formal_name || user.name || user.emp_id;
+  for (const alert of result.rows) {
+    await addMonitorEvent(db, {
+      alertId: alert.id,
+      organizationId: Number(user.organization_id),
+      eventType: 'Punch OUT Blocked',
+      oldStatus: alert.status,
+      newStatus: alert.status,
+      actorType: 'employee',
+      actorId: user.emp_id,
+      actorName,
+      remarks: 'Punch OUT was blocked because required task activity was not completed.',
+      metadata: {
+        alert_type: alert.alert_type,
+        required_actions: [
+          'Create or self-assign an active task',
+          'Record a meaningful task update',
+          'Submit an explanation for HR or Director review',
+        ],
+      },
+    });
+  }
+
+  return {
+    blocked: true,
+    settings,
+    blocking_alerts: result.rows,
+    required_actions: [
+      'Create or self-assign an active task',
+      'Record a meaningful task update',
+      'Submit an explanation for HR or Director approval',
+    ],
+  };
+}
+
 async function recordWorkActivity({
   user, taskId, activityType, description, metadata, client,
 }) {
@@ -640,6 +699,7 @@ module.exports = {
   evaluateOrganization,
   evaluateAllOrganizations,
   evaluatePunchOut,
+  checkPunchOutBlock,
   getMonitorState,
   getMonitorSettings,
   getTodayState,

@@ -3,7 +3,7 @@ const { v4: uuidv4 } = require('uuid');
 const multer = require('multer');
 const db = require('../db');
 const authMiddleware = require('../middleware/auth');
-const { evaluateEmployee } = require('../services/performanceService');
+const { evaluateEmployee, checkPunchOutBlock } = require('../services/performanceService');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
@@ -209,6 +209,17 @@ router.post('/mark', authMiddleware, async (req, res) => {
     } else {
       if (!hasIN)  return res.status(400).json({ success: false, message: 'Pehle IN punch karo, tab OUT kar sakte hain.' });
       if (hasOUT)  return res.status(400).json({ success: false, message: 'Aaj aap OUT pehle se mark kar chuke hain. Ek din mein sirf ek baar OUT allowed hai.' });
+
+      const punchOutBlock = await checkPunchOutBlock(req.user);
+      if (punchOutBlock.blocked) {
+        return res.status(403).json({
+          success: false,
+          code: 'MONITOR_PUNCH_OUT_BLOCKED',
+          message: 'Punch OUT is blocked because the Employee Monitor found unresolved task activity requirements for today. Please create or self-assign a task, record a meaningful task update, or submit an explanation for HR or Director approval.',
+          blocking_alerts: punchOutBlock.blocking_alerts,
+          required_actions: punchOutBlock.required_actions,
+        });
+      }
     }
 
     // ── Load settings ────────────────────────────────────────

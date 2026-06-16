@@ -607,12 +607,13 @@ router.put('/monitor/settings', authMiddleware, requireMonitorSettingsAccess, as
   try {
     const result = await db.query(
       `INSERT INTO employee_monitor_settings
-         (organization_id, enabled, active_task_checkpoint, activity_checkpoint,
+         (organization_id, enabled, block_punch_out_on_violation, active_task_checkpoint, activity_checkpoint,
           overdue_reminder_time, popup_repeat_minutes, repeat_window_days,
           hr_escalation_day, director_escalation_day, updated_by, updated_at)
-       VALUES (current_organization_id(),$1,$2::time,$3::time,$4::time,$5,$6,$7,$8,$9,NOW())
+       VALUES (current_organization_id(),$1,$2,$3::time,$4::time,$5::time,$6,$7,$8,$9,$10,NOW())
        ON CONFLICT (organization_id) DO UPDATE SET
          enabled=EXCLUDED.enabled,
+         block_punch_out_on_violation=EXCLUDED.block_punch_out_on_violation,
          active_task_checkpoint=EXCLUDED.active_task_checkpoint,
          activity_checkpoint=EXCLUDED.activity_checkpoint,
          overdue_reminder_time=EXCLUDED.overdue_reminder_time,
@@ -625,6 +626,7 @@ router.put('/monitor/settings', authMiddleware, requireMonitorSettingsAccess, as
        RETURNING *`,
       [
         req.body.enabled !== false,
+        req.body.block_punch_out_on_violation === true,
         req.body.active_task_checkpoint,
         req.body.activity_checkpoint,
         req.body.overdue_reminder_time,

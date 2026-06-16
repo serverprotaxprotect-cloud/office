@@ -760,15 +760,16 @@ async function loadProtocolToday() {
   try {
     const data = await api('/performance/monitor/me');
     if (!data.success) return;
-    currentProtocolAlert = (data.alerts || []).find(alert => alert.alert_type === 'no_activity') || null;
+    currentProtocolAlert = (data.alerts || []).find(alert => ['no_active_task','no_activity'].includes(alert.alert_type)) || null;
     box.className = 'protocol-alert';
     box.innerHTML = '';
 
     if (currentProtocolAlert && ['Open','Rejected'].includes(currentProtocolAlert.status)) {
+      const isNoTask = currentProtocolAlert.alert_type === 'no_active_task';
       box.classList.add('red');
       box.innerHTML = `
-        <div class="protocol-alert-title">Work Activity Alert</div>
-        <div class="protocol-alert-text">No meaningful task create, update or completion activity was recorded before Punch OUT.${currentProtocolAlert.status === 'Rejected' && currentProtocolAlert.review_remark ? ` Management remarks: ${esc(currentProtocolAlert.review_remark)}` : ''}</div>
+        <div class="protocol-alert-title">${isNoTask ? 'Active Task Required' : 'Work Activity Alert'}</div>
+        <div class="protocol-alert-text">${isNoTask ? 'No active task is assigned to you. Create a self-assigned task or request an assignment.' : 'No meaningful task creation, update or completion activity has been recorded today.'}${currentProtocolAlert.status === 'Rejected' && currentProtocolAlert.review_remark ? ` Management remarks: ${esc(currentProtocolAlert.review_remark)}` : ''}</div>
         <div class="protocol-alert-actions">
           <a class="protocol-primary" href="/office.html">Update / Create Task</a>
           <button class="protocol-secondary" onclick="openProtocolReason()">Submit Reason</button>
@@ -779,7 +780,7 @@ async function loadProtocolToday() {
       box.classList.add('submitted');
       box.innerHTML = `
         <div class="protocol-alert-title">Explanation Submitted</div>
-        <div class="protocol-alert-text">Your explanation is pending review by HR or a Director. A meaningful task update on the same date will automatically resolve the activity alert.</div>
+        <div class="protocol-alert-text">Your explanation is pending review by HR or a Director. Completing the required task action on the same date will automatically resolve this monitor alert where applicable.</div>
         <div class="protocol-alert-actions"><a class="protocol-secondary" href="/office.html">Open Tasks</a></div>`;
       return;
     }
@@ -868,7 +869,11 @@ async function markAttendance(action) {
       showToast(data.message, 'success');
       await loadToday();
     } else {
-      showToast(data.message, 'error');
+      if (data.code === 'MONITOR_PUNCH_OUT_BLOCKED') {
+        showToast('Punch OUT blocked by Employee Monitor. Please complete the required action or submit an explanation for review.', 'error');
+      } else {
+        showToast(data.message, 'error');
+      }
       await loadToday(); // re-sync button states
     }
   } catch {
