@@ -43,6 +43,17 @@ function requireMonitorSettingsAccess(req, res, next) {
   next();
 }
 
+function reportDateRange(query) {
+  const dateTo = query.date_to || todayIST();
+  const dateFrom = query.date_from || new Date(`${dateTo}T00:00:00Z`).toISOString().slice(0, 10);
+  return {
+    dateTo,
+    dateFrom: query.date_from
+      ? dateFrom
+      : new Date(new Date(`${dateTo}T00:00:00Z`).getTime() - (29 * 86400000)).toISOString().slice(0, 10),
+  };
+}
+
 router.get('/cron/monitor', async (req, res) => {
   if (!process.env.CRON_SECRET) {
     return res.status(401).json({ success: false, message: 'CRON_SECRET is not configured' });
@@ -342,6 +353,219 @@ router.get('/monitor/settings', authMiddleware, requireReviewer, async (req, res
     res.json({ success: true, settings: await getMonitorSettings() });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Unable to load monitor settings' });
+  }
+});
+
+router.get('/admin/report/:emp_id/detail', authMiddleware, requireReviewer, async (req, res) => {
+  const { dateFrom, dateTo } = reportDateRange(req.query);
+  const empId = req.params.emp_id;
+  try {
+    const [employee, daily, alerts, activities, overdue] = await Promise.all([
+      db.query(
+        `SELECT emp_id, COALESCE(formal_name,name) AS employee_name, designation, mobile_no, email_id AS email
+           FROM emplist
+          WHERE emp_id=$1 AND status='Active'
+          LIMIT 1`,
+        [empId]
+      ),
+      db.query(
+        `WITH calendar AS (
+           SELECT gs::date AS work_date
+             FROM generate_series($2::date, $3::date, INTERVAL '1 day') gs
+            WHERE EXTRACT(DOW FROM gs::date) <> 0
+              AND NOT EXISTS (SELECT 1 FROM holidays h WHERE h.holiday_date::date=gs::date)
+         ),
+         activity_events AS (
+           SELECT emp_id, activity_date::date AS activity_date, activity_type
+             FROM employee_work_activity
+            WHERE emp_id=$1 AND activity_date BETWEEN $2::date AND $3::date
+           UNION ALL
+           SELECT updated_by_id AS emp_id,
+                  ((updated_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Kolkata')::date AS activity_date,
+                  CASE
+                    WHEN action='Created' THEN 'task_created'
+                    WHEN new_status='Completed' THEN 'task_completed'
+                    WHEN action ILIKE '%Reassigned%' THEN 'task_reassigned'
+                    ELSE 'task_updated'
+                  END AS activity_type
+             FROM task_history
+            WHERE updated_by_id=$1
+              AND ((updated_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Kolkata')::date BETWEEN $2::date AND $3::date
+              AND action IN ('Created','Updated','GST Status Sync','GST Reassigned')
+              AND (
+                action <> 'Updated'
+                OR COALESCE(old_status,'') <> COALESCE(new_status,'')
+                OR COALESCE(old_assigned_to,'') <> COALESCE(new_assigned_to,'')
+                OR old_due_date IS DISTINCT FROM new_due_date
+                OR NULLIF(BTRIM(COALESCE(remark,'')), '') IS NOT NULL
+              )
+           UNION ALL
+           SELECT created_by_id AS emp_id,
+                  ((created_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Kolkata')::date AS activity_date,
+                  'task_created' AS activity_type
+             FROM tasks
+            WHERE created_by_id=$1
+              AND ((created_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Kolkata')::date BETWEEN $2::date AND $3::date
+              AND NOT EXISTS (SELECT 1 FROM task_history th WHERE th.task_id=tasks.task_id AND th.action='Created')
+           UNION ALL
+           SELECT last_updated_by_id AS emp_id,
+                  ((last_updated_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Kolkata')::date AS activity_date,
+                  CASE WHEN status='Completed' THEN 'task_completed' ELSE 'task_updated' END AS activity_type
+             FROM tasks
+            WHERE last_updated_by_id=$1
+              AND ((last_updated_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Kolkata')::date BETWEEN $2::date AND $3::date
+              AND NOT EXISTS (
+                SELECT 1 FROM task_history th
+                 WHERE th.task_id=tasks.task_id
+                   AND th.updated_by_id=tasks.last_updated_by_id
+                   AND ((th.updated_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Kolkata')::date =
+                       ((tasks.last_updated_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Kolkata')::date
+              )
+         ),
+         activity_by_day AS (
+           SELECT activity_date,
+                  COUNT(*)::int AS activity_count,
+                  COUNT(*) FILTER (WHERE activity_type='task_created')::int AS tasks_created,
+                  COUNT(*) FILTER (WHERE activity_type NOT IN ('task_created','task_completed'))::int AS tasks_updated,
+                  COUNT(*) FILTER (WHERE activity_type='task_completed')::int AS tasks_completed
+             FROM activity_events
+            GROUP BY activity_date
+         ),
+         alert_by_day AS (
+           SELECT alert_date, COUNT(*)::int AS alert_count
+             FROM (
+               SELECT alert_date FROM employee_monitor_alerts WHERE emp_id=$1 AND alert_date BETWEEN $2::date AND $3::date
+               UNION ALL
+               SELECT alert_date FROM employee_protocol_alerts WHERE emp_id=$1 AND alert_date BETWEEN $2::date AND $3::date
+             ) a
+            GROUP BY alert_date
+         )
+         SELECT c.work_date,
+                da.first_in, da.last_out, da.working_hours, da.final_status AS attendance_status,
+                COALESCE(abd.activity_count,0)::int AS activity_count,
+                COALESCE(abd.tasks_created,0)::int AS tasks_created,
+                COALESCE(abd.tasks_updated,0)::int AS tasks_updated,
+                COALESCE(abd.tasks_completed,0)::int AS tasks_completed,
+                COALESCE(alert_by_day.alert_count,0)::int AS alert_count,
+                CASE
+                  WHEN da.first_in IS NULL THEN 'No Attendance'
+                  WHEN COALESCE(abd.activity_count,0)>0 THEN 'Compliant'
+                  ELSE 'Zero Activity'
+                END AS result
+           FROM calendar c
+           LEFT JOIN daily_attendance da ON da.emp_id=$1 AND da.date::date=c.work_date
+           LEFT JOIN activity_by_day abd ON abd.activity_date=c.work_date
+           LEFT JOIN alert_by_day ON alert_by_day.alert_date=c.work_date
+          ORDER BY c.work_date DESC`,
+        [empId, dateFrom, dateTo]
+      ),
+      db.query(
+        `SELECT * FROM (
+           SELECT id, alert_date, alert_type, severity, status, title, message,
+                  escalation_level, occurrence_count, explanation, review_remark,
+                  created_at, updated_at, 'monitor' AS source
+             FROM employee_monitor_alerts
+            WHERE emp_id=$1 AND alert_date BETWEEN $2::date AND $3::date
+           UNION ALL
+           SELECT id, alert_date, 'no_activity' AS alert_type, 'critical' AS severity, status,
+                  'No Meaningful Activity' AS title,
+                  'No meaningful task activity was recorded for this working day.' AS message,
+                  0 AS escalation_level, 1 AS occurrence_count, explanation, review_remark,
+                  triggered_at AS created_at, updated_at, 'legacy' AS source
+             FROM employee_protocol_alerts
+            WHERE emp_id=$1 AND alert_date BETWEEN $2::date AND $3::date
+         ) alerts
+         ORDER BY alert_date DESC, created_at DESC`,
+        [empId, dateFrom, dateTo]
+      ),
+      db.query(
+        `SELECT * FROM (
+           SELECT e.created_at AS activity_at,
+                  e.activity_date,
+                  e.activity_type,
+                  e.task_id,
+                  t.client_id,
+                  COALESCE(t.business_name,t.legal_name) AS client_name,
+                  t.work_name,
+                  NULL::varchar AS old_status,
+                  NULL::varchar AS new_status,
+                  e.description AS remark,
+                  'monitor' AS source
+             FROM employee_work_activity e
+             LEFT JOIN tasks t ON t.task_id=e.task_id
+            WHERE e.emp_id=$1 AND e.activity_date BETWEEN $2::date AND $3::date
+           UNION ALL
+           SELECT th.updated_at AS activity_at,
+                  ((th.updated_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Kolkata')::date AS activity_date,
+                  CASE
+                    WHEN th.action='Created' THEN 'task_created'
+                    WHEN th.new_status='Completed' THEN 'task_completed'
+                    WHEN th.action ILIKE '%Reassigned%' THEN 'task_reassigned'
+                    ELSE 'task_updated'
+                  END AS activity_type,
+                  th.task_id,
+                  t.client_id,
+                  COALESCE(t.business_name,t.legal_name) AS client_name,
+                  t.work_name,
+                  th.old_status,
+                  th.new_status,
+                  th.remark,
+                  'history' AS source
+             FROM task_history th
+             LEFT JOIN tasks t ON t.task_id=th.task_id
+            WHERE th.updated_by_id=$1
+              AND ((th.updated_at AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Kolkata')::date BETWEEN $2::date AND $3::date
+              AND th.action IN ('Created','Updated','GST Status Sync','GST Reassigned')
+              AND (
+                th.action <> 'Updated'
+                OR COALESCE(th.old_status,'') <> COALESCE(th.new_status,'')
+                OR COALESCE(th.old_assigned_to,'') <> COALESCE(th.new_assigned_to,'')
+                OR th.old_due_date IS DISTINCT FROM th.new_due_date
+                OR NULLIF(BTRIM(COALESCE(th.remark,'')), '') IS NOT NULL
+              )
+         ) activity
+         ORDER BY activity_at DESC
+         LIMIT 500`,
+        [empId, dateFrom, dateTo]
+      ),
+      db.query(
+        `SELECT task_id, client_id, COALESCE(business_name,legal_name) AS client_name,
+                work_name, status, due_date, (CURRENT_DATE-due_date)::int AS overdue_days
+           FROM tasks
+          WHERE assigned_to_id=$1 AND active_flag=true
+            AND due_date<CURRENT_DATE
+            AND status NOT IN ('Completed','Cancelled')
+          ORDER BY due_date ASC
+          LIMIT 200`,
+        [empId]
+      ),
+    ]);
+    if (!employee.rows.length) return res.status(404).json({ success: false, message: 'Employee not found' });
+    const presentDays = daily.rows.filter(row => row.first_in).length;
+    const compliantDays = daily.rows.filter(row => row.first_in && Number(row.activity_count || 0) > 0).length;
+    res.json({
+      success: true,
+      date_from: dateFrom,
+      date_to: dateTo,
+      employee: employee.rows[0],
+      summary: {
+        present_working_days: presentDays,
+        activity_compliant_days: compliantDays,
+        zero_activity_days: daily.rows.filter(row => row.first_in && Number(row.activity_count || 0) === 0).length,
+        attendance_missing_days: daily.rows.filter(row => !row.first_in).length,
+        alert_count: alerts.rows.length,
+        alerts_count: alerts.rows.length,
+        overdue_tasks: overdue.rows.length,
+        adherence_percentage: presentDays ? Number(((compliantDays / presentDays) * 100).toFixed(1)) : 100,
+      },
+      daily: daily.rows,
+      alerts: alerts.rows,
+      activities: activities.rows,
+      overdue: overdue.rows,
+    });
+  } catch (error) {
+    console.error('[Performance] report detail:', error);
+    res.status(500).json({ success: false, message: 'Unable to load employee monitor detail' });
   }
 });
 
