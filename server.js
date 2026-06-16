@@ -68,7 +68,7 @@ app.use(express.static(path.join(__dirname, 'public'), {
   etag: true,
   maxAge: '7d',
   setHeaders(res, filePath) {
-    if (filePath.endsWith('.html') || filePath.endsWith('sw.js')) {
+    if (filePath.endsWith('.html') || filePath.endsWith('sw.js') || filePath.endsWith(`${path.sep}auth-session.js`)) {
       res.setHeader('Cache-Control', 'no-cache');
       return;
     }
