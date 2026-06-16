@@ -1137,16 +1137,26 @@ async function loadProtocolAlerts() {
   ]);
   if (summary.success) {
     const s = summary.summary || {};
-    document.getElementById('monitorSummaryCards').innerHTML = [
-      ['Unresolved',s.unresolved,'#dc2626'],['Critical',s.critical,'#be123c'],
-      ['Explanations',s.explanations,'#2563eb'],['Escalated',s.escalated,'#7c3aed'],
-      ['Late Today',s.late_today,'#d97706'],['Attendance Issues',s.attendance_issues_today,'#ea580c'],
-      ['Overdue Work',s.overdue_alerts,'#b91c1c']
-    ].map(item => `<div class="stat-card" style="--clr:${item[2]}"><div class="stat-num">${Number(item[1] || 0)}</div><div class="stat-label">${item[0]}</div></div>`).join('');
+    document.getElementById('monitorSummaryCards').innerHTML = summary.enabled === false
+      ? `<div class="stat-card" style="--clr:#64748b;grid-column:1/-1">
+          <div class="stat-num" style="font-size:18px">Employee Monitor is not applicable for this organisation</div>
+          <div class="stat-label">Enable it from Settings when this organisation wants Employee Monitor rules to apply.</div>
+        </div>`
+      : [
+        ['Unresolved',s.unresolved,'#dc2626'],['Critical',s.critical,'#be123c'],
+        ['Explanations',s.explanations,'#2563eb'],['Escalated',s.escalated,'#7c3aed'],
+        ['Late Today',s.late_today,'#d97706'],['Attendance Issues',s.attendance_issues_today,'#ea580c'],
+        ['Overdue Work',s.overdue_alerts,'#b91c1c']
+      ].map(item => `<div class="stat-card" style="--clr:${item[2]}"><div class="stat-num">${Number(item[1] || 0)}</div><div class="stat-label">${item[0]}</div></div>`).join('');
   }
   const tb = document.getElementById('protocolAlertsTable');
   if (!data.success) {
     tb.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#dc2626">${escHtml(data.message || 'Unable to load')}</td></tr>`;
+    return;
+  }
+  if (data.enabled === false) {
+    tb.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#64748b;padding:22px">Employee Monitor is currently not applicable for this organisation.</td></tr>';
+    loadProtocolAlertCount();
     return;
   }
   tb.innerHTML = data.alerts.length ? data.alerts.map(a => `
@@ -1584,7 +1594,7 @@ async function openMonitorSettings() {
   modal.innerHTML = `<div class="modal" style="max-width:720px">
     <div class="modal-title">Employee Monitor Settings</div>
     <div class="form-grid">
-      <div><label>Monitoring</label><select id="msEnabled"><option value="true">Enabled</option><option value="false">Disabled</option></select></div>
+      <div style="grid-column:1/-1"><label>Applicable on this Organisation</label><select id="msEnabled"><option value="true">Yes, apply Employee Monitor</option><option value="false">No, disable Employee Monitor</option></select><small style="display:block;color:#64748b;margin-top:6px">When disabled, this organisation will not receive employee monitor popups, new monitor alerts, or active monitor badges.</small></div>
       <div><label>Active Task Checkpoint</label><input id="msActive" type="time" value="${String(s.active_task_checkpoint || '12:00').slice(0,5)}"></div>
       <div><label>Activity Checkpoint</label><input id="msActivity" type="time" value="${String(s.activity_checkpoint || '15:00').slice(0,5)}"></div>
       <div><label>Overdue Reminder</label><input id="msOverdue" type="time" value="${String(s.overdue_reminder_time || '10:00').slice(0,5)}"></div>

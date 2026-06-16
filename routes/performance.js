@@ -191,6 +191,23 @@ router.post('/monitor/alerts/:id/explanation', authMiddleware, requireEmployee, 
 
 router.get('/monitor/admin/summary', authMiddleware, requireReviewer, async (req, res) => {
   try {
+    const settings = await getMonitorSettings();
+    if (!settings.enabled) {
+      return res.json({
+        success: true,
+        enabled: false,
+        settings,
+        summary: {
+          unresolved: 0,
+          critical: 0,
+          explanations: 0,
+          escalated: 0,
+          late_today: 0,
+          attendance_issues_today: 0,
+          overdue_alerts: 0,
+        },
+      });
+    }
     const result = await db.query(
       `SELECT
          COUNT(*) FILTER (WHERE status=ANY($1::varchar[]))::int AS unresolved,
@@ -203,7 +220,7 @@ router.get('/monitor/admin/summary', authMiddleware, requireReviewer, async (req
        FROM employee_monitor_alerts`,
       [UNRESOLVED_STATUSES]
     );
-    res.json({ success: true, summary: result.rows[0] });
+    res.json({ success: true, enabled: true, settings, summary: result.rows[0] });
   } catch (error) {
     console.error('[Employee Monitor] summary:', error);
     res.status(500).json({ success: false, message: 'Unable to load monitor summary' });
@@ -223,6 +240,10 @@ router.get('/monitor/admin/alerts', authMiddleware, requireReviewer, async (req,
   if (req.query.date_from) conditions.push(`a.alert_date>=$${params.push(req.query.date_from)}::date`);
   if (req.query.date_to) conditions.push(`a.alert_date<=$${params.push(req.query.date_to)}::date`);
   try {
+    const settings = await getMonitorSettings();
+    if (!settings.enabled && (!req.query.status || req.query.status === 'unresolved')) {
+      return res.json({ success: true, enabled: false, settings, alerts: [] });
+    }
     const alerts = await db.query(
       `SELECT a.* FROM employee_monitor_alerts a
         WHERE ${conditions.join(' AND ')}
@@ -239,6 +260,8 @@ router.get('/monitor/admin/alerts', authMiddleware, requireReviewer, async (req,
       : { rows: [] };
     res.json({
       success: true,
+      enabled: settings.enabled !== false,
+      settings,
       alerts: alerts.rows.map(alert => ({
         ...alert,
         events: events.rows.filter(event => String(event.alert_id) === String(alert.id)),

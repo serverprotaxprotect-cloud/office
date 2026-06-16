@@ -507,8 +507,17 @@ async function evaluateAllOrganizations() {
 
 async function getMonitorState(user, { evaluate = true } = {}) {
   if (!isEmployeeActor(user)) return { alerts: [], blocking: false, settings: DEFAULT_SETTINGS };
-  if (evaluate) await evaluateEmployee(user.emp_id);
   const settings = await getMonitorSettings();
+  if (!settings.enabled) {
+    return {
+      alerts: [],
+      blocking: false,
+      popup_repeat_minutes: Number(settings.popup_repeat_minutes || 60),
+      settings,
+      enabled: false,
+    };
+  }
+  if (evaluate) await evaluateEmployee(user.emp_id, { settings });
   const result = await db.query(
     `SELECT id, alert_date, alert_type, severity, status, title, message,
             reference_key, metadata, occurrence_count, escalation_level,
@@ -530,6 +539,7 @@ async function getMonitorState(user, { evaluate = true } = {}) {
     blocking: result.rows.some(row => row.severity === 'critical' && ['Open', 'Rejected'].includes(row.status)),
     popup_repeat_minutes: Number(settings.popup_repeat_minutes || 60),
     settings,
+    enabled: true,
   };
 }
 

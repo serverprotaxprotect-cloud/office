@@ -18,6 +18,7 @@ const statements = [
     updated_by VARCHAR(80),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`,
+  `ALTER TABLE employee_monitor_settings ADD COLUMN IF NOT EXISTS enabled BOOLEAN NOT NULL DEFAULT TRUE`,
   `CREATE TABLE IF NOT EXISTS employee_monitor_alerts (
     id BIGSERIAL PRIMARY KEY,
     organization_id INTEGER NOT NULL DEFAULT current_organization_id(),
