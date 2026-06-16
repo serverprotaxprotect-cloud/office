@@ -1148,12 +1148,12 @@ async function loadProtocolAlerts() {
   tb.innerHTML = data.alerts.length ? data.alerts.map(a => `
     <tr>
       <td>${fmtDate(a.alert_date)}</td>
-      <td><strong>${escHtml(a.employee_name || a.emp_id)}</strong><br><small>${escHtml(a.emp_id)} | ${escHtml(a.designation || '--')}</small></td>
-      <td><strong>${escHtml(a.title)}</strong><br><small>${escHtml(a.message)}</small></td>
+      <td><a class="monitor-link" onclick="openMonitorAlertDetailEncoded('${encodeURIComponent(JSON.stringify(a))}')">${escHtml(a.employee_name || a.emp_id)}</a><br><small>${escHtml(a.emp_id)} | ${escHtml(a.designation || '--')}</small></td>
+      <td><a class="monitor-link" onclick="openMonitorAlertDetailEncoded('${encodeURIComponent(JSON.stringify(a))}')">${escHtml(a.title)}</a><br><small>${escHtml(a.message)}</small></td>
       <td><span class="protocol-status ${protocolStatusClass(a.status)}">${escHtml(a.status)}</span></td>
       <td style="max-width:320px;white-space:normal">${a.explanation ? `<strong>Employee:</strong> ${escHtml(a.explanation)}<br>` : ''}${a.review_remark ? `<strong>Management:</strong> ${escHtml(a.review_remark)}` : '--'}</td>
       <td>Level ${Number(a.escalation_level || 0)}<br><small>Occurrence ${Number(a.occurrence_count || 1)}</small></td>
-      <td><button class="btn-edit" onclick="openMonitorTimeline('${escHtml(a.emp_id)}')">Timeline</button> ${['Director','HR'].includes(admin?.role) && ['Open','Acknowledged','Explanation Submitted','Rejected'].includes(a.status) ? `<button class="btn-edit" onclick="openProtocolReviewEncoded('${encodeURIComponent(JSON.stringify(a))}')">Review</button>` : ''}</td>
+      <td><button class="btn-edit" onclick="openMonitorAlertDetailEncoded('${encodeURIComponent(JSON.stringify(a))}')">Detail</button> <button class="btn-edit" onclick="openMonitorTimeline('${escHtml(a.emp_id)}')">Timeline</button> ${['Director','HR'].includes(admin?.role) && ['Open','Acknowledged','Explanation Submitted','Rejected'].includes(a.status) ? `<button class="btn-edit" onclick="openProtocolReviewEncoded('${encodeURIComponent(JSON.stringify(a))}')">Review</button>` : ''}</td>
     </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:20px">No monitor alerts found</td></tr>';
   loadProtocolAlertCount();
 }
@@ -1213,6 +1213,7 @@ function renderMonitorEmployeeDetail(data, focus) {
   const alerts = data.alerts || [];
   const activities = data.activities || [];
   const overdue = data.overdue || [];
+  const selectedAlert = data.selected_alert || null;
   document.getElementById('monitorDetailTitle').textContent = `${emp.employee_name || emp.emp_id || 'Employee'} - Monitor Detail`;
   document.getElementById('monitorDetailSub').textContent =
     `${emp.emp_id || '--'} | ${emp.designation || '--'} | ${data.date_from || '--'} to ${data.date_to || '--'}`;
@@ -1230,6 +1231,34 @@ function renderMonitorEmployeeDetail(data, focus) {
   ];
 
   document.getElementById('monitorDetailBody').innerHTML = `
+    ${selectedAlert ? `
+    <div id="monitorDetailSelectedAlert" class="detail-section" style="margin-top:0;margin-bottom:14px;border-color:#fecaca">
+      <h4 style="background:#fff1f2;color:#991b1b">Selected Monitor Alert</h4>
+      <div style="padding:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">
+        <div><small style="color:#64748b;text-transform:uppercase;font-weight:800">Date</small><br><strong>${fmtDate(selectedAlert.alert_date)}</strong></div>
+        <div><small style="color:#64748b;text-transform:uppercase;font-weight:800">Type</small><br><strong>${escHtml(monitorTypeLabel(selectedAlert.alert_type))}</strong></div>
+        <div><small style="color:#64748b;text-transform:uppercase;font-weight:800">Status</small><br><span class="protocol-status ${protocolStatusClass(selectedAlert.status)}">${escHtml(selectedAlert.status || '--')}</span></div>
+        <div><small style="color:#64748b;text-transform:uppercase;font-weight:800">Escalation</small><br><strong>Level ${Number(selectedAlert.escalation_level || 0)}</strong> <small>Occurrence ${Number(selectedAlert.occurrence_count || 1)}</small></div>
+      </div>
+      <div style="padding:0 14px 14px">
+        <strong>${escHtml(selectedAlert.title || '--')}</strong>
+        <div style="color:#475569;margin-top:4px">${escHtml(selectedAlert.message || '--')}</div>
+        <div style="margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px">
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px"><strong>Employee Explanation</strong><br>${escHtml(selectedAlert.explanation || 'Not submitted')}</div>
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px"><strong>Management Review</strong><br>${escHtml(selectedAlert.review_remark || 'Not reviewed')}</div>
+        </div>
+        ${(selectedAlert.history || []).length ? `
+          <div style="margin-top:12px">
+            <strong>Audit Trail</strong>
+            <div class="detail-scroll" style="max-height:180px;margin-top:8px">
+              <table><thead><tr><th>Time</th><th>Action</th><th>Actor</th><th>Status</th><th>Remarks</th></tr></thead><tbody>
+                ${(selectedAlert.history || []).map(h => `<tr><td>${fmtDateTime(h.created_at)}</td><td>${escHtml(h.action || h.event_type || '--')}</td><td>${escHtml(h.actor_name || h.actor_id || '--')}</td><td>${escHtml(h.old_status || '--')} -> ${escHtml(h.new_status || '--')}</td><td style="max-width:320px;white-space:normal">${escHtml(h.remarks || '--')}</td></tr>`).join('')}
+              </tbody></table>
+            </div>
+          </div>` : ''}
+      </div>
+    </div>` : ''}
+
     <div id="monitorDetailOverview" class="detail-grid">
       ${summaryCards.map(c => `
         <div class="detail-card" style="border-left:4px solid ${c[2]}">
@@ -1324,6 +1353,7 @@ function renderMonitorEmployeeDetail(data, focus) {
     </div>`;
 
   const sectionMap = {
+    selected: 'monitorDetailSelectedAlert',
     overview: 'monitorDetailOverview',
     daily: 'monitorDetailDaily',
     alerts: 'monitorDetailAlerts',
@@ -1354,6 +1384,28 @@ async function openMonitorEmployeeDetail(encodedEmpId, focus = 'overview') {
     return;
   }
   renderMonitorEmployeeDetail(data, focus);
+}
+
+async function openMonitorAlertDetailEncoded(value) {
+  const alert = JSON.parse(decodeURIComponent(value));
+  const alertDate = alert.alert_date ? String(alert.alert_date).slice(0, 10) : '';
+  const from = document.getElementById('protocolDateFrom')?.value || alertDate;
+  const to = document.getElementById('protocolDateTo')?.value || alertDate;
+  const qs = new URLSearchParams();
+  if (from) qs.set('date_from', from);
+  if (to) qs.set('date_to', to);
+  document.getElementById('monitorDetailModal').style.display = 'flex';
+  document.getElementById('monitorDetailTitle').textContent = 'Monitor Alert Detail';
+  document.getElementById('monitorDetailSub').textContent = 'Loading...';
+  document.getElementById('monitorDetailBody').innerHTML = '<div style="text-align:center;color:#64748b;padding:24px">Loading...</div>';
+  const data = await api(`/performance/admin/report/${encodeURIComponent(alert.emp_id)}/detail?${qs.toString()}`);
+  if (!data.success) {
+    document.getElementById('monitorDetailSub').textContent = '';
+    document.getElementById('monitorDetailBody').innerHTML = `<div style="text-align:center;color:#dc2626;padding:24px">${escHtml(data.message || 'Unable to load alert detail')}</div>`;
+    return;
+  }
+  data.selected_alert = alert;
+  renderMonitorEmployeeDetail(data, 'selected');
 }
 
 function openProtocolReview(alert) {
