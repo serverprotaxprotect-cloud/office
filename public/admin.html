@@ -719,7 +719,11 @@
         <div class="modal-title" id="monitorDetailTitle" style="margin-bottom:4px">Employee Monitor Detail</div>
         <div id="monitorDetailSub" style="font-size:12px;color:#64748b"></div>
       </div>
-      <button class="btn-cancel" onclick="document.getElementById('monitorDetailModal').style.display='none'">Close</button>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
+        <button class="btn-sm" onclick="printMonitorDetail()">Print</button>
+        <button class="btn-edit" onclick="exportMonitorDetailExcel()">Export to Excel</button>
+        <button class="btn-cancel" onclick="document.getElementById('monitorDetailModal').style.display='none'">Close</button>
+      </div>
     </div>
     <div class="detail-body" id="monitorDetailBody">
       <div style="text-align:center;color:#64748b;padding:24px">Loading...</div>
@@ -1206,7 +1210,10 @@ function fmtDateTime(value) {
   });
 }
 
+let currentMonitorDetailData = null;
+
 function renderMonitorEmployeeDetail(data, focus) {
+  currentMonitorDetailData = data;
   const emp = data.employee || {};
   const summary = data.summary || {};
   const daily = data.daily || [];
@@ -1406,6 +1413,97 @@ async function openMonitorAlertDetailEncoded(value) {
   }
   data.selected_alert = alert;
   renderMonitorEmployeeDetail(data, 'selected');
+}
+
+function monitorExcelCell(value) {
+  return `<td>${escHtml(value ?? '--')}</td>`;
+}
+
+function monitorExcelRows(rows, mapper, emptyCols) {
+  return rows.length
+    ? rows.map(row => `<tr>${mapper(row).map(monitorExcelCell).join('')}</tr>`).join('')
+    : `<tr><td colspan="${emptyCols}">No records found</td></tr>`;
+}
+
+function buildMonitorDetailExportHtml(data) {
+  const emp = data.employee || {};
+  const summary = data.summary || {};
+  const selectedAlert = data.selected_alert || null;
+  const title = `${emp.employee_name || emp.emp_id || 'Employee'} - Monitor Detail`;
+  const sub = `${emp.emp_id || '--'} | ${emp.designation || '--'} | ${data.date_from || '--'} to ${data.date_to || '--'}`;
+  const daily = data.daily || [];
+  const alerts = data.alerts || [];
+  const activities = data.activities || [];
+  const overdue = data.overdue || [];
+  const summaryRows = [
+    ['Present Days', summary.present_working_days],
+    ['Compliant Days', summary.activity_compliant_days],
+    ['Zero Activity', summary.zero_activity_days],
+    ['Alerts', summary.alerts_count],
+    ['Created', summary.tasks_created],
+    ['Updated', summary.tasks_updated],
+    ['Completed', summary.tasks_completed],
+    ['Overdue', summary.overdue_tasks],
+    ['Adherence', `${summary.adherence_percentage || 0}%`],
+  ];
+  return `<!doctype html><html><head><meta charset="utf-8">
+    <style>
+      body{font-family:Arial,sans-serif;color:#0f172a}
+      h1{font-size:20px;margin:0 0 4px} h2{font-size:15px;margin:20px 0 8px}
+      .sub{color:#64748b;margin-bottom:14px}
+      table{border-collapse:collapse;width:100%;margin-bottom:14px}
+      th,td{border:1px solid #cbd5e1;padding:7px;font-size:12px;vertical-align:top}
+      th{background:#f1f5f9;text-align:left}
+    </style></head><body>
+    <h1>${escHtml(title)}</h1><div class="sub">${escHtml(sub)}</div>
+    ${selectedAlert ? `<h2>Selected Monitor Alert</h2><table><tbody>
+      <tr><th>Date</th><td>${fmtDate(selectedAlert.alert_date)}</td><th>Type</th><td>${escHtml(monitorTypeLabel(selectedAlert.alert_type))}</td></tr>
+      <tr><th>Status</th><td>${escHtml(selectedAlert.status || '--')}</td><th>Escalation</th><td>Level ${Number(selectedAlert.escalation_level || 0)}, Occurrence ${Number(selectedAlert.occurrence_count || 1)}</td></tr>
+      <tr><th>Title</th><td colspan="3">${escHtml(selectedAlert.title || '--')}</td></tr>
+      <tr><th>Message</th><td colspan="3">${escHtml(selectedAlert.message || '--')}</td></tr>
+      <tr><th>Employee Explanation</th><td colspan="3">${escHtml(selectedAlert.explanation || 'Not submitted')}</td></tr>
+      <tr><th>Management Review</th><td colspan="3">${escHtml(selectedAlert.review_remark || 'Not reviewed')}</td></tr>
+    </tbody></table>` : ''}
+    <h2>Summary</h2><table><tbody>${summaryRows.map(row => `<tr>${row.map(monitorExcelCell).join('')}</tr>`).join('')}</tbody></table>
+    <h2>Daily Attendance and Activity</h2><table><thead><tr><th>Date</th><th>Attendance</th><th>First IN</th><th>Last OUT</th><th>Hours</th><th>Activity</th><th>Created</th><th>Updated</th><th>Completed</th><th>Alerts</th><th>Result</th></tr></thead><tbody>
+      ${monitorExcelRows(daily, d => [fmtDate(d.work_date), d.attendance_status || '--', d.first_in || '--', d.last_out || '--', d.working_hours || '--', Number(d.activity_count || 0), Number(d.tasks_created || 0), Number(d.tasks_updated || 0), Number(d.tasks_completed || 0), Number(d.alert_count || 0), d.result || '--'], 11)}
+    </tbody></table>
+    <h2>Monitor Alerts and Reviews</h2><table><thead><tr><th>Date</th><th>Type</th><th>Title</th><th>Status</th><th>Escalation</th><th>Explanation</th><th>Review</th></tr></thead><tbody>
+      ${monitorExcelRows(alerts, a => [fmtDate(a.alert_date), monitorTypeLabel(a.alert_type), a.title || '--', a.status || '--', `Level ${Number(a.escalation_level || 0)}, Occurrence ${Number(a.occurrence_count || 1)}`, a.explanation || '--', a.review_remark || '--'], 7)}
+    </tbody></table>
+    <h2>Meaningful Task Activity</h2><table><thead><tr><th>Time</th><th>Action</th><th>Task ID</th><th>Work</th><th>Client</th><th>Status Change</th><th>Remark</th></tr></thead><tbody>
+      ${monitorExcelRows(activities, a => [fmtDateTime(a.activity_at), monitorTypeLabel(a.action_type), a.task_id || '--', a.work_name || '--', a.client_name || '--', `${a.old_status || '--'} -> ${a.new_status || '--'}`, a.remark || '--'], 7)}
+    </tbody></table>
+    <h2>Current Overdue Work</h2><table><thead><tr><th>Task ID</th><th>Client</th><th>Work</th><th>Due Date</th><th>Overdue Days</th><th>Status</th></tr></thead><tbody>
+      ${monitorExcelRows(overdue, t => [t.task_id || '--', t.client_name || '--', t.work_name || '--', fmtDate(t.due_date), Number(t.overdue_days || 0), t.status || '--'], 6)}
+    </tbody></table>
+    </body></html>`;
+}
+
+function printMonitorDetail() {
+  if (!currentMonitorDetailData) return showToast('No monitor detail is loaded', 'error');
+  const win = window.open('', '_blank');
+  if (!win) return showToast('Popup blocked. Please allow popups to print.', 'error');
+  win.document.write(buildMonitorDetailExportHtml(currentMonitorDetailData));
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 300);
+}
+
+function exportMonitorDetailExcel() {
+  if (!currentMonitorDetailData) return showToast('No monitor detail is loaded', 'error');
+  const emp = currentMonitorDetailData.employee || {};
+  const safeName = String(emp.emp_id || 'employee').replace(/[^a-z0-9_-]+/gi, '_');
+  const blob = new Blob([buildMonitorDetailExportHtml(currentMonitorDetailData)], {
+    type: 'application/vnd.ms-excel;charset=utf-8'
+  });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `monitor-detail-${safeName}.xls`;
+  document.body.appendChild(a);
+  a.click();
+  URL.revokeObjectURL(a.href);
+  a.remove();
 }
 
 function openProtocolReview(alert) {
