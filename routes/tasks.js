@@ -32,14 +32,18 @@ const orgTaskPrefix = u => String(u.organization_code || 'ORG').replace(/[^a-z0-
 router.get('/meta', authMiddleware, async (req, res) => {
   try {
     const [wn, st, pr, emps] = await Promise.all([
-      db.query('SELECT name FROM work_names ORDER BY name'),
+      db.query(
+        `SELECT id, name, work_category, grouping_name, department, sac_code, sac_description
+           FROM work_names
+          ORDER BY name, work_category NULLS LAST, department NULLS LAST`
+      ),
       db.query('SELECT status FROM task_status_master ORDER BY id'),
       db.query('SELECT priority FROM task_priority_master ORDER BY id'),
       db.query("SELECT emp_id, formal_name, name, designation, photo FROM emplist WHERE status='Active' ORDER BY name"),
     ]);
     res.json({
       success: true,
-      work_names: wn.rows.map(r => r.name),
+      work_names: wn.rows,
       statuses: st.rows.map(r => r.status),
       priorities: pr.rows.map(r => r.priority),
       employees: emps.rows,

@@ -31,6 +31,8 @@
     "work-protocol:migrate:apply": "node scripts/work_protocol_migrate.js --apply",
     "employee-monitor:migrate": "node scripts/employee_monitor_migrate.js",
     "employee-monitor:migrate:apply": "node scripts/employee_monitor_migrate.js --apply",
+    "work-names:import": "node scripts/work_names_master_import.js",
+    "work-names:import:apply": "node scripts/work_names_master_import.js --apply",
     "gst:import:preview": "node scripts/gst_import.js C:/Users/HP/Downloads/GST_CLIENTS.xlsx",
     "gst:import": "node scripts/gst_import.js C:/Users/HP/Downloads/GST_CLIENTS.xlsx --apply"
   },

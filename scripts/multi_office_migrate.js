@@ -307,7 +307,15 @@ async function relaxGlobalConstraints(conn) {
     `CREATE UNIQUE INDEX IF NOT EXISTS ux_salary_structure_org_emp ON salary_structure(organization_id, emp_id)`,
 
     `ALTER TABLE work_names DROP CONSTRAINT IF EXISTS work_names_name_key`,
-    `CREATE UNIQUE INDEX IF NOT EXISTS ux_work_names_org_name_lower ON work_names(organization_id, lower(name))`,
+    `ALTER TABLE work_names ADD COLUMN IF NOT EXISTS work_category VARCHAR(255)`,
+    `ALTER TABLE work_names ADD COLUMN IF NOT EXISTS grouping_name VARCHAR(255)`,
+    `ALTER TABLE work_names ADD COLUMN IF NOT EXISTS department VARCHAR(150)`,
+    `ALTER TABLE work_names ADD COLUMN IF NOT EXISTS sac_code VARCHAR(30)`,
+    `ALTER TABLE work_names ADD COLUMN IF NOT EXISTS sac_description TEXT`,
+    `ALTER TABLE work_names ADD COLUMN IF NOT EXISTS source VARCHAR(150)`,
+    `DROP INDEX IF EXISTS ux_work_names_org_name_lower`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS ux_work_names_org_name_category_department
+      ON work_names(organization_id, lower(name), lower(coalesce(work_category,'')), lower(coalesce(department,'')))`,
 
     `DROP INDEX IF EXISTS ux_gst_clients_gst_no_nonblank`,
     `CREATE UNIQUE INDEX IF NOT EXISTS ux_gst_clients_org_gst_no_nonblank ON gst_clients(organization_id, gst_no) WHERE NULLIF(gst_no,'') IS NOT NULL`,

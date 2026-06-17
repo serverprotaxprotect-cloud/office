@@ -1316,6 +1316,10 @@
           <input type="text" id="tm_work_name" placeholder="Type to search work names..." autocomplete="off" oninput="workAutocomplete(this.value)"/>
           <div class="autocomplete-list hidden" id="wn_ac_list"></div>
         </div>
+        <div id="tm_other_work_wrap" class="hidden" style="margin-top:8px">
+          <input type="text" id="tm_other_work_name" placeholder="Enter custom work name" autocomplete="off"/>
+          <small style="display:block;color:#64748b;margin-top:5px">Use this only when the required work is not available in the master suggestion list.</small>
+        </div>
       </div>
       <div class="form-group"><label>Priority</label>
         <select id="tm_priority"><option value="Low">Low</option><option value="Medium" selected>Medium</option><option value="High">High</option><option value="Urgent">Urgent</option></select>
@@ -2449,6 +2453,13 @@ function jsArg(v) {
 
 // ── META ─────────────────────────────────────────────────────
 let META = { work_names:[], statuses:[], priorities:[], employees:[] };
+function workNameText(work) {
+  return typeof work === 'string' ? work : (work?.name || '');
+}
+function workMetaText(work) {
+  if (!work || typeof work === 'string') return '';
+  return [work.work_category, work.department, work.sac_code ? `SAC ${work.sac_code}` : ''].filter(Boolean).join(' | ');
+}
 
 function employeeLabel(e) {
   const name = e.formal_name || e.name || e.emp_id || '--';
@@ -2476,7 +2487,11 @@ async function loadMeta() {
 
   // Work name filter
   const wf = document.getElementById('allWorkFilter');
-  if (wf) META.work_names.slice(0,50).forEach(w => wf.innerHTML += `<option value="${w}">${w}</option>`);
+  if (wf) {
+    wf.innerHTML = '<option value="">All Work Types</option>';
+    const distinctNames = [...new Set((META.work_names || []).map(workNameText).filter(Boolean))].sort((a,b) => a.localeCompare(b));
+    distinctNames.slice(0,50).forEach(w => wf.innerHTML += `<option value="${h(w)}">${h(w)}</option>`);
+  }
 
   // Employee dropdowns
   ['tm_assign_to','upd_assign_to'].forEach(id => {
@@ -3272,10 +3287,14 @@ async function submitUpdateTask() {
 // ── CREATE TASK ──────────────────────────────────────────────
 let _taskClientSelected = false;
 let _addClientReturnToTask = false;
+let _taskWorkMode = null;
+let _taskWorkSelectedName = '';
 
 function openCreateTask() {
   _addClientReturnToTask = false;
   _taskClientSelected = false;
+  _taskWorkMode = null;
+  _taskWorkSelectedName = '';
   document.getElementById('tm_task_id').value = '';
   document.getElementById('tm_client_id').value = '';
   document.getElementById('tm_agent_id').value = '';
@@ -3284,9 +3303,11 @@ function openCreateTask() {
   document.getElementById('tm_client_chip').classList.add('hidden');
   document.getElementById('tm_client_search_wrap').classList.remove('hidden');
   ['tm_legal_name','tm_biz_name','tm_work_name','tm_work_desc','tm_remark','tm_drive_link',
-   'tm_agent_display','tm_mobile_display'].forEach(id => {
+   'tm_agent_display','tm_mobile_display','tm_other_work_name'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
+  document.getElementById('tm_other_work_wrap')?.classList.add('hidden');
+  document.getElementById('wn_ac_list')?.classList.add('hidden');
   ['tm_prof_fees','tm_challan','tm_other_exp'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
@@ -3356,9 +3377,20 @@ function selectTaskClient(c) {
 
 function workAutocomplete(q) {
   const list = document.getElementById('wn_ac_list');
+  _taskWorkMode = null;
+  _taskWorkSelectedName = '';
+  document.getElementById('tm_other_work_wrap')?.classList.add('hidden');
+  document.getElementById('tm_other_work_name').value = '';
   if (!q) { list.classList.add('hidden'); return; }
-  const filtered = META.work_names.filter(w => w.toLowerCase().includes(q.toLowerCase())).slice(0, 12);
-  if (!filtered.length) { list.classList.add('hidden'); return; }
+  const query = q.toLowerCase();
+  const filtered = (META.work_names || [])
+    .filter(w => `${workNameText(w)} ${workMetaText(w)}`.toLowerCase().includes(query))
+    .slice(0, 12);
+  if (!filtered.length) {
+    list.innerHTML = `<div class="ac-item" style="color:#64748b">No matching master work found</div><div class="ac-add" onmousedown="event.preventDefault(); selectOtherWork()">+ Other Work</div>`;
+    list.classList.remove('hidden');
+    return;
+  }
   list.innerHTML = '';
   filtered.forEach(w => {
     const item = document.createElement('div');
@@ -3370,16 +3402,46 @@ function workAutocomplete(q) {
 
     const name = document.createElement('div');
     name.className = 'ac-name';
-    name.textContent = w;
+    name.textContent = workNameText(w);
     item.appendChild(name);
+    const metaText = workMetaText(w);
+    if (metaText) {
+      const meta = document.createElement('div');
+      meta.className = 'ac-meta';
+      meta.textContent = metaText;
+      item.appendChild(meta);
+    }
     list.appendChild(item);
   });
+  const other = document.createElement('div');
+  other.className = 'ac-add';
+  other.textContent = '+ Other Work';
+  other.addEventListener('mousedown', e => {
+    e.preventDefault();
+    selectOtherWork();
+  });
+  list.appendChild(other);
   list.classList.remove('hidden');
 }
 
-function selectWorkName(name) {
+function selectWorkName(work) {
+  const name = workNameText(work);
+  _taskWorkMode = 'master';
+  _taskWorkSelectedName = name;
   document.getElementById('tm_work_name').value = name;
+  document.getElementById('tm_other_work_name').value = '';
+  document.getElementById('tm_other_work_wrap')?.classList.add('hidden');
   document.getElementById('wn_ac_list').classList.add('hidden');
+  document.getElementById('taskModalErr').classList.add('hidden');
+}
+
+function selectOtherWork() {
+  _taskWorkMode = 'other';
+  _taskWorkSelectedName = '';
+  document.getElementById('tm_work_name').value = 'Other Work';
+  document.getElementById('wn_ac_list').classList.add('hidden');
+  document.getElementById('tm_other_work_wrap')?.classList.remove('hidden');
+  setTimeout(() => document.getElementById('tm_other_work_name')?.focus(), 0);
   document.getElementById('taskModalErr').classList.add('hidden');
 }
 
@@ -3391,8 +3453,22 @@ async function submitTask() {
     err.textContent = 'Please select a client from the suggestion list (mandatory)';
     err.classList.remove('hidden'); return;
   }
-  const workName = document.getElementById('tm_work_name').value.trim();
-  if (!workName) { err.textContent = 'Work name is required'; err.classList.remove('hidden'); return; }
+  let workName = document.getElementById('tm_work_name').value.trim();
+  if (_taskWorkMode === 'master') {
+    if (!workName || workName !== _taskWorkSelectedName) {
+      err.textContent = 'Please select a work name from the master suggestion list';
+      err.classList.remove('hidden'); return;
+    }
+  } else if (_taskWorkMode === 'other') {
+    workName = document.getElementById('tm_other_work_name').value.trim();
+    if (!workName) {
+      err.textContent = 'Please enter the custom work name for Other Work';
+      err.classList.remove('hidden'); return;
+    }
+  } else {
+    err.textContent = 'Please select a work name from suggestions, or choose Other Work';
+    err.classList.remove('hidden'); return;
+  }
   const dueDate = document.getElementById('tm_due_date').value;
   if (!dueDate) { err.textContent = 'Due date is required'; err.classList.remove('hidden'); return; }
 
