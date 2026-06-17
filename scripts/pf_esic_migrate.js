@@ -142,14 +142,6 @@ const statements = [
   `CREATE POLICY pf_esic_autofill_tenant_policy ON pf_esic_autofill_tokens
     USING (current_setting('app.bypass_rls', true) = 'on' OR organization_id = current_organization_id())
     WITH CHECK (current_setting('app.bypass_rls', true) = 'on' OR organization_id = current_organization_id())`,
-  `INSERT INTO work_names (name, organization_id)
-   SELECT v.name, o.id
-     FROM (VALUES ('PF ECR'), ('PF Challan Payment'), ('ESIC Contribution'), ('ESIC Challan Payment')) AS v(name)
-     CROSS JOIN organizations o
-    WHERE NOT EXISTS (
-      SELECT 1 FROM work_names w
-       WHERE w.organization_id=o.id AND lower(w.name)=lower(v.name)
-    )`,
 ];
 
 async function run() {

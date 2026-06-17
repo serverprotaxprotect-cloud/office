@@ -35,6 +35,7 @@ router.get('/meta', authMiddleware, async (req, res) => {
       db.query(
         `SELECT id, name, work_category, grouping_name, department, sac_code, sac_description
            FROM work_names
+          WHERE organization_id IS NULL
           ORDER BY name, work_category NULLS LAST, department NULLS LAST`
       ),
       db.query('SELECT status FROM task_status_master ORDER BY id'),

@@ -53,6 +53,8 @@ function summarize(rows) {
 
 async function ensureSchema(conn) {
   const statements = [
+    `ALTER TABLE work_names ALTER COLUMN organization_id DROP NOT NULL`,
+    `ALTER TABLE work_names ALTER COLUMN organization_id DROP DEFAULT`,
     `ALTER TABLE work_names ADD COLUMN IF NOT EXISTS work_category VARCHAR(255)`,
     `ALTER TABLE work_names ADD COLUMN IF NOT EXISTS grouping_name VARCHAR(255)`,
     `ALTER TABLE work_names ADD COLUMN IF NOT EXISTS department VARCHAR(150)`,
@@ -60,23 +62,34 @@ async function ensureSchema(conn) {
     `ALTER TABLE work_names ADD COLUMN IF NOT EXISTS sac_description TEXT`,
     `ALTER TABLE work_names ADD COLUMN IF NOT EXISTS source VARCHAR(150)`,
     `DROP INDEX IF EXISTS ux_work_names_org_name_lower`,
+    `DROP INDEX IF EXISTS ux_work_names_org_name_category_department`,
+    `DROP INDEX IF EXISTS ux_work_names_central_name_category_department`,
     `CREATE UNIQUE INDEX IF NOT EXISTS ux_work_names_org_name_category_department
        ON work_names (
          organization_id,
          lower(name),
          lower(coalesce(work_category,'')),
          lower(coalesce(department,''))
-       )`,
+       )
+       WHERE organization_id IS NOT NULL`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS ux_work_names_central_name_category_department
+       ON work_names (
+         lower(name),
+         lower(coalesce(work_category,'')),
+         lower(coalesce(department,''))
+       )
+       WHERE organization_id IS NULL`,
+    `ALTER TABLE work_names NO FORCE ROW LEVEL SECURITY`,
+    `ALTER TABLE work_names DISABLE ROW LEVEL SECURITY`,
   ];
   for (const statement of statements) await conn.query(statement);
 }
 
-async function insertRowsForOrganization(conn, organizationId, rows) {
+async function insertCentralRows(conn, rows) {
   const values = [];
   const placeholders = rows.map((row, index) => {
-    const base = index * 8;
+    const base = index * 7;
     values.push(
-      organizationId,
       row.name,
       row.work_category,
       row.grouping_name,
@@ -85,13 +98,12 @@ async function insertRowsForOrganization(conn, organizationId, rows) {
       row.sac_description,
       row.source
     );
-    return `($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8})`;
+    return `($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7})`;
   });
 
   await conn.query(
     `INSERT INTO work_names
-       (organization_id, name, work_category, grouping_name, department,
-        sac_code, sac_description, source)
+       (name, work_category, grouping_name, department, sac_code, sac_description, source)
      VALUES ${placeholders.join(',')}`,
     values
   );
@@ -109,7 +121,7 @@ async function run() {
     throw new Error('Import contains duplicate name/category/department rows.');
   }
   if (!apply) {
-    console.log('Dry run only. Use --apply to replace work suggestions for all organisations.');
+    console.log('Dry run only. Use --apply to replace the central work suggestion master.');
     await db.rawPool.end();
     return;
   }
@@ -120,12 +132,9 @@ async function run() {
     await conn.query(`SELECT set_config('app.bypass_rls','on', true)`);
     await ensureSchema(conn);
 
-    const organizations = await conn.query(`SELECT id FROM organizations ORDER BY id`);
-    for (const organization of organizations.rows) {
-      await conn.query(`DELETE FROM work_names WHERE organization_id=$1`, [organization.id]);
-      await insertRowsForOrganization(conn, organization.id, rows);
-      console.log(`Organisation ${organization.id}: inserted ${rows.length} work names.`);
-    }
+    await conn.query(`DELETE FROM work_names`);
+    await insertCentralRows(conn, rows);
+    console.log(`Central master: inserted ${rows.length} work names.`);
 
     await conn.query('COMMIT');
     console.log('Work suggestion master import completed.');

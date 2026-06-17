@@ -55,10 +55,9 @@ const TENANT_TABLES = [
   'systems_dashboard',
   'task_history',
   'tasks',
-  'work_names',
 ];
 
-const SHARED_TABLES = ['task_priority_master', 'task_status_master'];
+const SHARED_TABLES = ['task_priority_master', 'task_status_master', 'work_names'];
 
 async function tableExists(conn, table) {
   const res = await conn.query(
@@ -307,6 +306,8 @@ async function relaxGlobalConstraints(conn) {
     `CREATE UNIQUE INDEX IF NOT EXISTS ux_salary_structure_org_emp ON salary_structure(organization_id, emp_id)`,
 
     `ALTER TABLE work_names DROP CONSTRAINT IF EXISTS work_names_name_key`,
+    `ALTER TABLE work_names ALTER COLUMN organization_id DROP NOT NULL`,
+    `ALTER TABLE work_names ALTER COLUMN organization_id DROP DEFAULT`,
     `ALTER TABLE work_names ADD COLUMN IF NOT EXISTS work_category VARCHAR(255)`,
     `ALTER TABLE work_names ADD COLUMN IF NOT EXISTS grouping_name VARCHAR(255)`,
     `ALTER TABLE work_names ADD COLUMN IF NOT EXISTS department VARCHAR(150)`,
@@ -314,8 +315,14 @@ async function relaxGlobalConstraints(conn) {
     `ALTER TABLE work_names ADD COLUMN IF NOT EXISTS sac_description TEXT`,
     `ALTER TABLE work_names ADD COLUMN IF NOT EXISTS source VARCHAR(150)`,
     `DROP INDEX IF EXISTS ux_work_names_org_name_lower`,
+    `DROP INDEX IF EXISTS ux_work_names_org_name_category_department`,
+    `DROP INDEX IF EXISTS ux_work_names_central_name_category_department`,
     `CREATE UNIQUE INDEX IF NOT EXISTS ux_work_names_org_name_category_department
-      ON work_names(organization_id, lower(name), lower(coalesce(work_category,'')), lower(coalesce(department,'')))`,
+      ON work_names(organization_id, lower(name), lower(coalesce(work_category,'')), lower(coalesce(department,'')))
+      WHERE organization_id IS NOT NULL`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS ux_work_names_central_name_category_department
+      ON work_names(lower(name), lower(coalesce(work_category,'')), lower(coalesce(department,'')))
+      WHERE organization_id IS NULL`,
 
     `DROP INDEX IF EXISTS ux_gst_clients_gst_no_nonblank`,
     `CREATE UNIQUE INDEX IF NOT EXISTS ux_gst_clients_org_gst_no_nonblank ON gst_clients(organization_id, gst_no) WHERE NULLIF(gst_no,'') IS NOT NULL`,
@@ -349,6 +356,7 @@ async function enableRls(conn) {
 
   for (const table of SHARED_TABLES) {
     if (!(await tableExists(conn, table))) continue;
+    await exec(conn, `ALTER TABLE ${table} NO FORCE ROW LEVEL SECURITY`);
     await exec(conn, `ALTER TABLE ${table} DISABLE ROW LEVEL SECURITY`);
   }
 }

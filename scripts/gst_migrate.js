@@ -127,12 +127,6 @@ const statements = [
       current_setting('app.bypass_rls', true) = 'on'
       OR organization_id::text = current_setting('app.organization_id', true)
     )`,
-  `INSERT INTO work_names (name)
-   SELECT 'GSTR-1 Filing'
-   WHERE NOT EXISTS (SELECT 1 FROM work_names WHERE name='GSTR-1 Filing')`,
-  `INSERT INTO work_names (name)
-   SELECT 'GSTR-3B Filing'
-   WHERE NOT EXISTS (SELECT 1 FROM work_names WHERE name='GSTR-3B Filing')`,
 ];
 
 async function main() {

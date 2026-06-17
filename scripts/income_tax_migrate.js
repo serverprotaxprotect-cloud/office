@@ -150,13 +150,6 @@ const statements = [
       current_setting('app.bypass_rls', true) = 'on'
       OR organization_id::text = current_setting('app.organization_id', true)
     )`,
-  `INSERT INTO work_names (name, organization_id)
-   SELECT 'ITR Filing', id
-   FROM organizations o
-   WHERE NOT EXISTS (
-     SELECT 1 FROM work_names w
-     WHERE w.name='ITR Filing' AND w.organization_id=o.id
-   )`,
 ];
 
 async function main() {
