@@ -1312,11 +1312,13 @@
       <div class="form-group"><label>Mobile</label><input id="tm_mobile_display" readonly style="background:#f1f5f9"/></div>
       <div class="form-group full">
         <label>Work Name *</label>
+        <small style="display:block;color:#475569;margin-bottom:6px">Always select the work from the suggestion list. Use Other Work only when the required work name is not listed.</small>
         <div class="autocomplete-wrap">
           <input type="text" id="tm_work_name" placeholder="Type to search work names..." autocomplete="off" oninput="workAutocomplete(this.value)"/>
           <div class="autocomplete-list hidden" id="wn_ac_list"></div>
         </div>
         <div id="tm_other_work_wrap" class="hidden" style="margin-top:8px">
+          <div style="color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:12px;font-weight:700">Are you sure your work name is not listed?</div>
           <input type="text" id="tm_other_work_name" placeholder="Enter custom work name" autocomplete="off"/>
           <small style="display:block;color:#64748b;margin-top:5px">Use this only when the required work is not available in the master suggestion list.</small>
         </div>
