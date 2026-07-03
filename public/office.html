@@ -31,6 +31,8 @@
     .sb-item.active{background:rgba(33,85,243,.15);color:#7ba2ff;border-left-color:#2155f3}
     .sb-item .ic{font-size:16px;width:20px;text-align:center}
     .sb-badge{margin-left:auto;background:#e94560;color:#fff;font-size:10px;padding:1px 6px;border-radius:20px}
+    .task-count-pill{display:inline-flex;align-items:center;justify-content:center;min-width:28px;margin-left:8px;padding:3px 9px;border-radius:999px;background:#eaf1ff;color:#1d4ed8;font-size:12px;font-weight:900;vertical-align:middle}
+    .task-count-pill.muted{background:#f1f5f9;color:#475569}
 
     .content{flex:1;padding:20px;overflow-x:auto}
     .panel{display:none}.panel.active{display:block}
@@ -97,11 +99,15 @@
     .metric{background:#fff;border-radius:8px;border:1px solid #e2e8f0;padding:10px 12px}
     .metric strong{display:block;font-size:20px;color:#1e293b;line-height:1}
     .metric span{font-size:11px;color:#64748b}
-    #panel-gstclients .tbl-wrap,#panel-incometax .tbl-wrap,#panel-pfesic .tbl-wrap{max-height:calc(100vh - 355px);overflow:auto}
+    #panel-gstclients .tbl-wrap,#panel-incometax .tbl-wrap,#panel-pfesic .tbl-wrap,#panel-trademarks .tbl-wrap{max-height:calc(100vh - 355px);overflow:auto}
     #panel-gstclients .gst-name{font-weight:800;color:#0f172a;max-width:420px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     #panel-gstclients .gst-client-id{font-size:11px;color:#64748b;margin-top:2px}
     #panel-incometax .itr-name{font-weight:800;color:#0f172a;max-width:420px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     #panel-incometax .itr-client-id{font-size:11px;color:#64748b;margin-top:2px}
+    #panel-incometax .itr-delete-btn{background:#dc2626;color:#fff;border:1px solid #b91c1c}
+    #panel-incometax .itr-delete-btn:hover{background:#b91c1c;opacity:1}
+    #panel-incometax .itr-deactivate-btn{background:#fff7ed;color:#b45309;border:1px solid #fed7aa}
+    #panel-incometax .itr-deactivate-btn:hover{background:#ffedd5;color:#991b1b;opacity:1}
     .chat-layout{display:grid;grid-template-columns:360px minmax(0,1fr);gap:14px;min-height:calc(100vh - 180px)}
     .chat-list,.chat-main{background:#fff;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);overflow:hidden}
     .chat-list-head,.chat-main-head{padding:12px 14px;border-bottom:1px solid #e2e8f0;display:flex;gap:8px;align-items:center;justify-content:space-between}
@@ -159,8 +165,8 @@
     #panel-incometax .filter-row input{min-width:230px}
     #panel-pfesic .filter-row select{min-width:165px}
     #panel-pfesic .filter-row input{min-width:230px}
-    #itrClientModal select,#itrAssignModal select,#itrStatusModal select,#itrGenerateModal select,#itrImportModal select,#pfesicClientModal select,#pfesicAssignModal select,#pfesicStatusModal select,#pfesicGenerateModal select,#pfesicImportModal select{min-width:100%;height:40px}
-    #itrClientModal .autocomplete-list,#itrAssignModal .autocomplete-list,#pfesicClientModal .autocomplete-list{max-height:310px;z-index:1200}
+    #itrClientModal select,#itrAssignModal select,#itrStatusModal select,#itrGenerateModal select,#itrImportModal select,#pfesicClientModal select,#pfesicAssignModal select,#pfesicStatusModal select,#pfesicGenerateModal select,#pfesicImportModal select,#tmkApplicationModal select,#tmkAssignModal select,#tmkStatusModal select{min-width:100%;height:40px}
+    #itrClientModal .autocomplete-list,#itrAssignModal .autocomplete-list,#pfesicClientModal .autocomplete-list,#tmkApplicationModal .autocomplete-list{max-height:310px;z-index:1200}
     .modal-actions{display:flex;gap:8px;margin-top:18px;justify-content:flex-end}
     .btn-cancel{padding:9px 18px;background:#f1f5f9;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-weight:700}
 
@@ -375,13 +381,13 @@
   <aside class="sidebar">
     <div class="sb-section" id="sec-tasks">Tasks</div>
     <div class="sb-item active" id="sb-dashboard" onclick="showPanel('dashboard')"><span class="ic">&#128202;</span>Dashboard</div>
-    <div class="sb-item" id="sb-mytasks" onclick="showPanel('mytasks')"><span class="ic">&#9989;</span>My Tasks<span class="sb-badge hidden" id="myBadge">0</span></div>
+    <div class="sb-item" id="sb-mytasks" onclick="showPanel('mytasks')"><span class="ic">&#9989;</span>My Tasks</div>
     <div class="sb-item" id="sb-assignedby" onclick="showPanel('assignedby')"><span class="ic">&#128101;</span>Assigned by Me</div>
     <div class="sb-item" id="sb-alltasks" onclick="showPanel('alltasks')"><span class="ic">&#128203;</span>All Tasks</div>
     <div class="sb-item" id="sb-completed" onclick="showPanel('completed')"><span class="ic">&#9745;</span>Completed</div>
-    <div class="sb-item" id="sb-notifications" onclick="showPanel('notifications')"><span class="ic">&#128276;</span>Notifications<span class="sb-badge hidden" id="notifBadge">0</span></div>
-    <div class="sb-item" id="sb-chat" onclick="showPanel('chat')"><span class="ic">&#128172;</span>Smart Chat<span class="sb-badge hidden" id="chatBadge">0</span></div>
-    <div class="sb-item" id="sb-protocol" onclick="showPanel('protocol')"><span class="ic">&#9888;</span>Employee Monitor<span class="protocol-pulse" id="officeProtocolBadge">0</span></div>
+    <div class="sb-item" id="sb-notifications" onclick="showPanel('notifications')"><span class="ic">&#128276;</span>Notifications</div>
+    <div class="sb-item" id="sb-chat" onclick="showPanel('chat')"><span class="ic">&#128172;</span>Smart Chat</div>
+    <div class="sb-item" id="sb-protocol" onclick="showPanel('protocol')"><span class="ic">&#9888;</span>Employee Monitor</div>
     <div class="sb-section" id="sec-clients">Clients</div>
     <div class="sb-item" id="sb-clients" onclick="showPanel('clients')"><span class="ic">&#128100;</span>Client/Agent Search</div>
     <div class="sb-section" id="sec-compliance">Compliance</div>
@@ -390,6 +396,7 @@
     <div class="sb-item" id="sb-gstclients" onclick="showPanel('gstclients')"><span class="ic">&#128179;</span>GST Clients</div>
     <div class="sb-item" id="sb-incometax" onclick="showPanel('incometax')"><span class="ic">&#128188;</span>Income Tax Clients</div>
     <div class="sb-item" id="sb-pfesic" onclick="showPanel('pfesic')"><span class="ic">&#127974;</span>PF / ESIC Clients</div>
+    <div class="sb-item" id="sb-trademarks" onclick="showPanel('trademarks')"><span class="ic">&#8482;</span>Trademark Clients</div>
     <div class="sb-section" id="sec-management">Management</div>
     <div class="sb-item" id="sb-dataimport" onclick="showPanel('dataimport')"><span class="ic">&#128229;</span>Data Import</div>
     <div class="sb-item" id="sb-empmanagement" onclick="openAdminPortal()"><span class="ic">&#128101;</span>Employee Management</div>
@@ -440,7 +447,7 @@
     <!-- ════ MY TASKS ════ -->
     <div class="panel" id="panel-mytasks">
       <div class="page-title">
-        <span>My Tasks <small>(Assigned to me by others)</small></span>
+        <span>My Tasks <small>(Assigned to me by others)</small><span class="task-count-pill" id="myTasksCount">0</span></span>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn-sm" style="background:#0891b2;color:#fff;padding:7px 12px" onclick="exportTable('myTasksTable','My_Tasks')">&#128229; Export</button>
           <button class="btn-sm" style="background:#475569;color:#fff;padding:7px 12px" onclick="printTableSection('myTasksTable','My Tasks')">&#128438; Print</button>
@@ -468,7 +475,7 @@
     <!-- ════ ASSIGNED BY ME ════ -->
     <div class="panel" id="panel-assignedby">
       <div class="page-title">
-        <span>Assigned by Me <small>(Tasks I assigned to others)</small></span>
+        <span>Assigned by Me <small>(Tasks I assigned to others)</small><span class="task-count-pill" id="assignedByTasksCount">0</span></span>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn-sm" style="background:#0891b2;color:#fff;padding:7px 12px" onclick="exportTable('assignedByTable','Assigned_By_Me')">&#128229; Export</button>
           <button class="btn-sm" style="background:#475569;color:#fff;padding:7px 12px" onclick="printTableSection('assignedByTable','Assigned By Me')">&#128438; Print</button>
@@ -496,10 +503,11 @@
     <!-- ════ ALL TASKS ════ -->
     <div class="panel" id="panel-alltasks">
       <div class="page-title">
-        <span>All Tasks <small>(All Employees)</small></span>
+        <span>All Tasks <small>(All Employees)</small><span class="task-count-pill" id="allTasksCount">0</span></span>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn-sm" style="background:#0891b2;color:#fff;padding:7px 12px" onclick="exportTable('allTasksTable','All_Tasks')">&#128229; Export</button>
           <button class="btn-sm" style="background:#475569;color:#fff;padding:7px 12px" onclick="printTableSection('allTasksTable','All Tasks')">&#128438; Print</button>
+          <button class="btn-sm btn-view" onclick="openUnlinkedReportableReview()">Unlinked Reportable</button>
           <button class="btn btn-primary" onclick="openCreateTask()">+ Create Task</button>
         </div>
       </div>
@@ -527,7 +535,7 @@
     <!-- ════ COMPLETED ════ -->
     <div class="panel" id="panel-completed">
       <div class="page-title">
-        <span id="completedTitle">Completed Tasks</span>
+        <span><span id="completedTitle">Completed Tasks</span><span class="task-count-pill muted" id="completedTasksCount">0</span></span>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn-sm" style="background:#0891b2;color:#fff;padding:7px 12px" onclick="exportTable('completedTable','Completed_Tasks')">&#128229; Export</button>
           <button class="btn-sm" style="background:#475569;color:#fff;padding:7px 12px" onclick="printTableSection('completedTable','Completed Tasks')">&#128438; Print</button>
@@ -725,6 +733,7 @@
       <div class="page-title">
         <span>Companies</span>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-sm" style="background:#0891b2;color:#fff;padding:8px 14px;font-size:13px" onclick="exportCompaniesExcel()">&#8681; Export Excel</button>
           <button class="btn-sm" style="background:#16a34a;color:#fff;padding:8px 14px;font-size:13px" onclick="openExcelImport()">&#128196; Import Excel</button>
           <button class="btn btn-primary" onclick="openAddCompany()">+ Add Company</button>
         </div>
@@ -735,6 +744,7 @@
         <button class="btn-sm btn-view" onclick="setCompanyStatusTab('Active')">Active Companies</button>
         <button class="btn-sm btn-view" onclick="setCompanyStatusTab('Inactive')">Inactive Companies</button>
       </div>
+      <div id="companiesCountSummary" style="display:flex;gap:10px;flex-wrap:wrap;margin:0 0 12px"></div>
       <div class="card"><div class="tbl-wrap"><table>
         <thead><tr><th>CIN</th><th>Company Name</th><th>Client ID</th><th>Agent</th><th>Incorp. Date</th><th>Last AGM</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody id="companiesTable"></tbody>
@@ -1011,9 +1021,17 @@
         <div class="filter-row">
           <input type="text" id="itrClientSearch" placeholder="Search taxpayer, PAN, client ID, assignee..." oninput="debounceITR('clients')" style="max-width:380px;flex:1"/>
           <select id="itrAssigneeFilter" onchange="loadITRClients()"><option value="">All Assignees</option></select>
+          <label class="btn-sm btn-view" style="display:flex;align-items:center;gap:6px;padding:7px 10px;cursor:pointer">
+            <input type="checkbox" id="itrShowReferenceColumn" data-itr-column-toggle="reference" onchange="toggleITRColumn('reference', this.checked)"/>
+            Show Reference
+          </label>
+          <label class="btn-sm btn-view" style="display:flex;align-items:center;gap:6px;padding:7px 10px;cursor:pointer">
+            <input type="checkbox" id="itrShowAgentColumn" data-itr-column-toggle="agent" onchange="toggleITRColumn('agent', this.checked)"/>
+            Show Agent
+          </label>
         </div>
         <div class="card"><div class="tbl-wrap"><table>
-          <thead><tr><th>Taxpayer</th><th>PAN</th><th>Contact</th><th>Reference</th><th>Agent</th><th>Password</th><th>Default Assignee</th><th>Actions</th></tr></thead>
+          <thead id="itrClientsHead"><tr><th>Taxpayer</th><th>PAN</th><th>Contact</th><th>Password</th><th>Default Assignee</th><th>Actions</th></tr></thead>
           <tbody id="itrClientsTable"></tbody>
         </table></div></div>
       </div>
@@ -1063,9 +1081,13 @@
         <div class="filter-row">
           <select id="itrUnassignedAY" onchange="loadITRUnassigned()"></select>
           <input type="text" id="itrUnassignedSearch" placeholder="Search unassigned Income Tax clients..." oninput="debounceITR('unassigned')" style="max-width:380px;flex:1"/>
+          <label class="btn-sm btn-view" style="display:flex;align-items:center;gap:6px;padding:7px 10px;cursor:pointer">
+            <input type="checkbox" data-itr-column-toggle="agent" onchange="toggleITRColumn('agent', this.checked)"/>
+            Show Agent
+          </label>
         </div>
         <div class="card"><div class="tbl-wrap"><table>
-          <thead><tr><th>Taxpayer</th><th>PAN</th><th>Contact</th><th>Agent</th><th>Actions</th></tr></thead>
+          <thead id="itrUnassignedHead"><tr><th>Taxpayer</th><th>PAN</th><th>Contact</th><th>Actions</th></tr></thead>
           <tbody id="itrUnassignedTable"></tbody>
         </table></div></div>
       </div>
@@ -1152,6 +1174,78 @@
         <div class="card"><div class="tbl-wrap"><table>
           <thead><tr><th>Client</th><th>Firm</th><th>PF Code</th><th>ESIC Code</th><th>Default Assignee</th><th>Actions</th></tr></thead>
           <tbody id="pfesicUnassignedTable"></tbody>
+        </table></div></div>
+      </div>
+    </div>
+
+    <!-- TRADEMARK CLIENTS -->
+    <div class="panel" id="panel-trademarks">
+      <div class="page-title">
+        <span>Trademark Clients</span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-sm btn-view" onclick="reloadTrademarkPanel()" style="padding:8px 14px">&#8635; Refresh</button>
+          <button class="btn-sm" style="background:#0891b2;color:#fff;padding:8px 14px" onclick="downloadTrademarkReport()">&#128229; Export Excel</button>
+          <button class="btn btn-primary" onclick="openTrademarkApplicationModal()">+ Add Trademark Application</button>
+        </div>
+      </div>
+
+      <div class="seg-tabs">
+        <button class="btn-sm active" id="tmk-tab-clients" onclick="switchTrademarkTab('clients')">Active Trademark Clients</button>
+        <button class="btn-sm" id="tmk-tab-tracker" onclick="switchTrademarkTab('tracker')">Application Tracker</button>
+        <button class="btn-sm" id="tmk-tab-report" onclick="switchTrademarkTab('report')">Reports</button>
+        <button class="btn-sm" id="tmk-tab-closed" onclick="switchTrademarkTab('closed')">Inactive / Closed</button>
+        <button class="btn-sm" id="tmk-tab-unassigned" onclick="switchTrademarkTab('unassigned')">Unassigned</button>
+      </div>
+
+      <div id="tmk-panel-clients">
+        <div class="filter-row">
+          <input type="text" id="tmkClientSearch" placeholder="Search client, trademark, application no., assignee..." oninput="debounceTrademark('clients')" style="max-width:420px;flex:1"/>
+          <select id="tmkClientAssigneeFilter" onchange="loadTrademarkApplications()"><option value="">All Assignees</option></select>
+        </div>
+        <div class="card"><div class="tbl-wrap"><table>
+          <thead><tr><th>Client</th><th>Agent</th><th>Mobile</th><th>Applications</th><th>Open / Due</th><th>Actions</th></tr></thead>
+          <tbody id="tmkClientsTable"></tbody>
+        </table></div></div>
+      </div>
+
+      <div id="tmk-panel-tracker" class="hidden">
+        <div class="filter-row">
+          <input type="text" id="tmkTrackerSearch" placeholder="Search trademark, client, application no..." oninput="debounceTrademark('tracker')" style="max-width:330px"/>
+          <select id="tmkStageFilter" onchange="loadTrademarkApplications()"><option value="">All Stages</option></select>
+          <select id="tmkStatusFilter" onchange="loadTrademarkApplications()"><option value="">All Status</option></select>
+          <select id="tmkAssigneeFilter" onchange="loadTrademarkApplications()"><option value="">All Assignees</option></select>
+        </div>
+        <div class="card"><div class="tbl-wrap"><table>
+          <thead><tr><th>Client</th><th>Trademark</th><th>Application No.</th><th>Class</th><th>Stage</th><th>Status</th><th>Due Date</th><th>Assignee</th><th>Task</th><th>Actions</th></tr></thead>
+          <tbody id="tmkTrackerTable"></tbody>
+        </table></div></div>
+      </div>
+
+      <div id="tmk-panel-report" class="hidden">
+        <div class="filter-row">
+          <button class="btn-sm" style="background:#0891b2;color:#fff;padding:7px 12px" onclick="exportTable('tmkReportTable','Trademark_Report')">&#128229; Export Visible</button>
+          <button class="btn-sm btn-view" onclick="loadTrademarkReport()">Load Report</button>
+        </div>
+        <div id="tmkReportSummary" class="metric-strip"></div>
+        <div class="card"><div class="tbl-wrap"><table>
+          <thead><tr><th>Client</th><th>Trademark</th><th>Application No.</th><th>Class</th><th>Filing Date</th><th>Stage</th><th>Status</th><th>Assignee</th><th>Due Date</th><th>Remarks</th></tr></thead>
+          <tbody id="tmkReportTable"></tbody>
+        </table></div></div>
+      </div>
+
+      <div id="tmk-panel-closed" class="hidden">
+        <div class="filter-row"><input type="text" id="tmkClosedSearch" placeholder="Search closed trademark applications..." oninput="debounceTrademark('closed')" style="max-width:390px;flex:1"/></div>
+        <div class="card"><div class="tbl-wrap"><table>
+          <thead><tr><th>Client</th><th>Trademark</th><th>Application No.</th><th>Stage</th><th>Status</th><th>Closed From</th><th>Actions</th></tr></thead>
+          <tbody id="tmkClosedTable"></tbody>
+        </table></div></div>
+      </div>
+
+      <div id="tmk-panel-unassigned" class="hidden">
+        <div class="filter-row"><input type="text" id="tmkUnassignedSearch" placeholder="Search unassigned trademark applications..." oninput="debounceTrademark('unassigned')" style="max-width:390px;flex:1"/></div>
+        <div class="card"><div class="tbl-wrap"><table>
+          <thead><tr><th>Client</th><th>Trademark</th><th>Application No.</th><th>Stage</th><th>Due Date</th><th>Actions</th></tr></thead>
+          <tbody id="tmkUnassignedTable"></tbody>
         </table></div></div>
       </div>
     </div>
@@ -1275,6 +1369,77 @@
   </div>
 </div>
 
+<!-- Trademark Application Modal -->
+<div class="modal-backdrop hidden" id="tmkApplicationModal" onclick="if(event.target===this)closeModal('tmkApplicationModal')">
+  <div class="modal modal-lg">
+    <div class="modal-title" id="tmkApplicationTitle">Add Trademark Application</div>
+    <input type="hidden" id="tmk_app_id"/>
+    <input type="hidden" id="tmk_client_id"/>
+    <div class="form-grid">
+      <div class="form-group full autocomplete-wrap">
+        <label>Client *</label>
+        <input id="tmk_base_client_search" placeholder="Type client name, ID or mobile..." autocomplete="off" oninput="searchTrademarkBaseClient(this.value)"/>
+        <div id="tmk_base_client_list" class="autocomplete-list hidden"></div>
+      </div>
+      <div class="form-group"><label>Trademark Name *</label><input id="tmk_name" placeholder="Brand / mark name"/></div>
+      <div class="form-group"><label>Applicant Name</label><input id="tmk_applicant" placeholder="Applicant name"/></div>
+      <div class="form-group"><label>Application No.</label><input id="tmk_app_no" placeholder="Application number"/></div>
+      <div class="form-group"><label>Mark Type</label><select id="tmk_mark_type"></select></div>
+      <div class="form-group"><label>Filing Date</label><input type="date" id="tmk_filing_date"/></div>
+      <div class="form-group"><label>Due Date</label><input type="date" id="tmk_due_date"/></div>
+      <div class="form-group"><label>Stage</label><select id="tmk_stage"></select></div>
+      <div class="form-group"><label>Status</label><select id="tmk_status"></select></div>
+      <div class="form-group"><label>Assign To</label><select id="tmk_assignee"></select></div>
+      <div class="form-group full">
+        <label>Classes</label>
+        <input id="tmk_classes_text" placeholder="Example: 35, 41"/>
+        <small style="display:block;color:#64748b;margin-top:5px">Use comma-separated classes. Goods/services description can be added later from the document workflow.</small>
+      </div>
+      <div class="form-group full"><label>Remarks</label><textarea id="tmk_remarks" placeholder="Optional remarks"></textarea></div>
+    </div>
+    <div id="tmkApplicationErr" class="alert-err hidden"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('tmkApplicationModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitTrademarkApplication()">Save Trademark Application</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop hidden" id="tmkAssignModal" onclick="if(event.target===this)closeModal('tmkAssignModal')">
+  <div class="modal">
+    <div class="modal-title">Assign Trademark Application</div>
+    <input type="hidden" id="tmk_assign_app_id"/>
+    <div class="form-grid">
+      <div class="form-group full"><label>Assign To</label><select id="tmk_assign_employee"></select></div>
+      <div class="form-group full"><label>Remark</label><textarea id="tmk_assign_remark"></textarea></div>
+    </div>
+    <div id="tmkAssignErr" class="alert-err hidden"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('tmkAssignModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitTrademarkAssign()">Assign</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop hidden" id="tmkStatusModal" onclick="if(event.target===this)closeModal('tmkStatusModal')">
+  <div class="modal">
+    <div class="modal-title">Update Trademark Status</div>
+    <input type="hidden" id="tmk_status_app_id"/>
+    <div class="form-grid">
+      <div class="form-group"><label>Stage</label><select id="tmk_status_stage"></select></div>
+      <div class="form-group"><label>Status</label><select id="tmk_status_value"></select></div>
+      <div class="form-group"><label>Application No.</label><input id="tmk_status_app_no" placeholder="Application number"/></div>
+      <div class="form-group"><label>Due Date</label><input type="date" id="tmk_status_due_date"/></div>
+      <div class="form-group full"><label>Remarks</label><textarea id="tmk_status_remarks"></textarea></div>
+    </div>
+    <div id="tmkStatusErr" class="alert-err hidden"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('tmkStatusModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitTrademarkStatus()">Update Status</button>
+    </div>
+  </div>
+</div>
+
 <!-- Create / Edit Task -->
 <div class="modal-backdrop hidden" id="taskModal" onclick="if(event.target===this)closeModal('taskModal')">
   <div class="modal modal-lg">
@@ -1322,6 +1487,28 @@
           <input type="text" id="tm_other_work_name" placeholder="Enter custom work name" autocomplete="off"/>
           <small style="display:block;color:#64748b;margin-top:5px">Use this only when the required work is not available in the master suggestion list.</small>
         </div>
+        <div id="tm_reportable_wrap" class="hidden" style="margin-top:10px;border:1px solid #bfdbfe;background:#eff6ff;border-radius:10px;padding:10px">
+          <div style="font-weight:800;color:#1e3a8a;margin-bottom:4px">Reportable Work Link</div>
+          <div id="tm_reportable_hint" style="font-size:12px;color:#475569;margin-bottom:8px"></div>
+          <div class="form-grid" style="gap:8px">
+            <div class="form-group" id="tm_link_fy_wrap"><label>Financial Year</label><input id="tm_link_fy" placeholder="2025-26" oninput="loadTaskReportableContext()"/></div>
+            <div class="form-group hidden" id="tm_link_ay_wrap"><label>Assessment Year</label><input id="tm_link_ay" placeholder="2026-27" oninput="loadTaskReportableContext()"/></div>
+            <div class="form-group hidden" id="tm_link_month_wrap"><label>Month</label><select id="tm_link_month" onchange="loadTaskReportableContext()"></select></div>
+            <div class="form-group hidden" id="tm_link_year_wrap"><label>Year</label><input type="number" id="tm_link_year" placeholder="2026" oninput="loadTaskReportableContext()"/></div>
+            <div class="form-group full hidden" id="tm_link_company_wrap"><label>Company</label><select id="tm_link_company" onchange="loadTaskReportableContext()"></select></div>
+            <div class="form-group full hidden" id="tm_link_director_wrap"><label>Director</label><select id="tm_link_director" onchange="loadTaskReportableContext()"></select></div>
+            <div class="form-group full hidden" id="tm_link_trademark_wrap"><label>Trademark Application</label><select id="tm_link_trademark" onchange="loadTaskReportableContext()"></select></div>
+            <div class="form-group full hidden" id="tm_link_kyc_reason_wrap">
+              <label>Manual KYC Reason</label>
+              <select id="tm_link_kyc_reason" onchange="loadTaskReportableContext()">
+                <option value="">Normal 3-year KYC cycle</option>
+                <option value="Update in director details">Update in director details</option>
+              </select>
+              <small style="display:block;color:#64748b;margin-top:5px">Use manual KYC only for mobile, email, address or other director detail changes.</small>
+            </div>
+          </div>
+          <div id="tm_reportable_status" style="font-size:12px;color:#0f172a;margin-top:8px"></div>
+        </div>
       </div>
       <div class="form-group"><label>Priority</label>
         <select id="tm_priority"><option value="Low">Low</option><option value="Medium" selected>Medium</option><option value="High">High</option><option value="Urgent">Urgent</option></select>
@@ -1345,6 +1532,26 @@
       <button class="btn-cancel" onclick="closeModal('taskModal')">Cancel</button>
       <button class="btn btn-primary" onclick="submitTask()">Save Task</button>
     </div>
+  </div>
+</div>
+
+<div class="modal-backdrop hidden" id="unlinkedReportableModal" onclick="if(event.target===this)closeModal('unlinkedReportableModal')">
+  <div class="modal" style="max-width:980px">
+    <div class="modal-title">
+      <span>Unlinked Reportable Tasks</span>
+      <button type="button" class="btn-sm btn-cancel" onclick="closeModal('unlinkedReportableModal')" style="margin-left:auto">Close</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <input id="unlinkedReportableSearch" placeholder="Search client, task or work..." style="flex:1;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px"/>
+      <button class="btn-sm btn-view" onclick="loadUnlinkedReportableReview()">Load</button>
+    </div>
+    <div class="tbl-wrap" style="max-height:520px">
+      <table>
+        <thead><tr><th>Task</th><th>Client</th><th>Work</th><th>Matched Module</th><th>Status</th><th>Assignee</th><th>Due Date</th></tr></thead>
+        <tbody id="unlinkedReportableTable"></tbody>
+      </table>
+    </div>
+    <small style="display:block;color:#64748b;margin-top:8px">This list is for management review only. New task creation enforces links only when an exact mapped master work name is selected.</small>
   </div>
 </div>
 
@@ -1575,6 +1782,14 @@
       <div class="form-group full">
         <label>Excel File (.xlsx) *</label>
         <input type="file" id="imp_file" accept=".xlsx,.xls" style="padding:8px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;width:100%"/>
+      </div>
+      <div class="form-group full">
+        <label>Also add this company to Income Tax Clients?</label>
+        <select id="imp_create_itr" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px">
+          <option value="yes" selected>Yes - create Income Tax client</option>
+          <option value="no">No - skip Income Tax client</option>
+        </select>
+        <small style="color:#64748b">PAN and portal password can be updated later from Income Tax Clients.</small>
       </div>
     </div>
     <div id="imp_result" class="hidden" style="margin-top:10px"></div>
@@ -1905,6 +2120,31 @@
   </div>
 </div>
 
+<!-- Income Tax Delete Modal -->
+<div class="modal-backdrop hidden" id="itrDeleteModal" onclick="if(event.target===this)closeModal('itrDeleteModal')">
+  <div class="modal">
+    <div class="modal-title">Delete Income Tax Client</div>
+    <input type="hidden" id="itr_delete_id"/>
+    <div class="alert-err" style="display:block;margin-bottom:12px">
+      This will remove the client from Income Tax client lists. Existing tasks and filing history will remain preserved for audit.
+    </div>
+    <div class="form-grid">
+      <div class="form-group full">
+        <label>Delete Reason *</label>
+        <textarea id="itr_delete_reason" rows="3" placeholder="Reason for deleting this Income Tax client"></textarea>
+      </div>
+      <div class="form-group full">
+        <label>Confirmation *</label>
+        <input id="itr_delete_confirm" placeholder="Type DELETE to confirm"/>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('itrDeleteModal')">Cancel</button>
+      <button class="btn btn-danger" onclick="submitITRClientDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
 <!-- Income Tax Generate Modal -->
 <div class="modal-backdrop hidden" id="itrGenerateModal" onclick="if(event.target===this)closeModal('itrGenerateModal')">
   <div class="modal">
@@ -1947,11 +2187,39 @@
 <script src="/assets/auth-session.js"></script>
 <script>
 // ── Auth & RBAC ───────────────────────────────────────────────
-let token = GBSession.tokenFor('office');
-let user  = GBSession.userFor('office');
+const officeLoginParams = new URLSearchParams(window.location.search);
+const officeForceLogin = officeLoginParams.get('force_login') === '1' || officeLoginParams.get('switch_account') === '1';
+
+function officeSafeReturnUrl() {
+  const raw = officeLoginParams.get('return_to') || '';
+  if (!raw) return '';
+  try {
+    const url = new URL(raw, window.location.origin);
+    const allowedHosts = new Set([window.location.host, 'geebharat.com', 'www.geebharat.com', 'lead.geebharat.com']);
+    if (!allowedHosts.has(url.host)) return '';
+    if (!['/lead.html', '/office.html'].includes(url.pathname)) return '';
+    return url.href;
+  } catch (e) {
+    return '';
+  }
+}
+
+function redirectAfterOfficeLogin() {
+  const target = officeSafeReturnUrl();
+  if (!target) return false;
+  window.location.href = target;
+  return true;
+}
+
+if (officeForceLogin && window.GBSession) {
+  GBSession.clear(false);
+}
+
+let token = officeForceLogin ? null : GBSession.tokenFor('office');
+let user  = officeForceLogin ? null : GBSession.userFor('office');
 
 // Auto-SSO: if employee came from Attendance portal, reuse att_token
-if (!token) {
+if (!token && !officeForceLogin) {
   const attToken = localStorage.getItem('att_token');
   const attEmpRaw = localStorage.getItem('att_emp');
   if (attToken && attEmpRaw) {
@@ -2144,6 +2412,7 @@ async function doOfficeLogin() {
       GBSession.save(data.token, data.user, 'office');
       token = data.token;
       user  = data.user;
+      if (redirectAfterOfficeLogin()) return;
       showOfficeApp();
       initOfficeApp();
     } else {
@@ -2174,6 +2443,7 @@ async function selectOfficeOrg(selectionToken, accountKey) {
     GBSession.save(data.token, data.user, 'office');
     token = data.token;
     user = data.user;
+    if (redirectAfterOfficeLogin()) return;
     showOfficeApp();
     initOfficeApp();
   } catch (e) {
@@ -2468,6 +2738,52 @@ function employeeLabel(e) {
   const role = e.designation || e.role || '';
   return `${name} (${e.emp_id || '--'})${role ? ' - ' + role : ''}`;
 }
+function employeeTodayStatus(e) {
+  const raw = String(e.today_attendance_status || '').trim();
+  if (!raw) return 'Absent';
+  if (/present/i.test(raw)) return 'Present';
+  if (/pending/i.test(raw)) return 'Present';
+  if (/half/i.test(raw)) return 'Half Day';
+  if (/late/i.test(raw)) return 'Present';
+  if (/leave/i.test(raw)) return raw;
+  if (/holiday/i.test(raw)) return raw;
+  if (/absent/i.test(raw)) return 'Absent';
+  return raw;
+}
+function employeeAssignLabel(e) {
+  const status = employeeTodayStatus(e);
+  return `${employeeLabel(e)} - ${status}`;
+}
+function setCountBadge(id, value) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const count = Number(value) || 0;
+  el.textContent = count;
+  el.classList.toggle('hidden', count <= 0);
+}
+function updateTaskCount(view, total) {
+  const count = Number(total) || 0;
+  const map = {
+    my: { title:'myTasksCount', badge:'myBadge' },
+    assigned_by_me: { title:'assignedByTasksCount', badge:'assignedByBadge' },
+    all: { title:'allTasksCount', badge:'allTasksBadge' },
+    completed: { title:'completedTasksCount', badge:'completedBadge' },
+  }[view];
+  if (!map) return;
+  const title = document.getElementById(map.title);
+  if (title) title.textContent = count;
+  setCountBadge(map.badge, count);
+}
+async function loadTaskCounts() {
+  try {
+    const data = await api('/tasks/counts');
+    if (!data.success || !data.counts) return;
+    updateTaskCount('my', data.counts.my);
+    updateTaskCount('assigned_by_me', data.counts.assigned_by_me);
+    updateTaskCount('all', data.counts.all);
+    updateTaskCount('completed', data.counts.completed);
+  } catch {}
+}
 
 async function loadMeta() {
   const data = await api('/tasks/meta');
@@ -2502,12 +2818,13 @@ async function loadMeta() {
     sel.innerHTML = id === 'tm_assign_to' ? '<option value="">Self</option>' : '<option value="">Keep Current</option>';
     META.employees.forEach(e => {
       if (e.emp_id !== user.emp_id)
-        sel.innerHTML += `<option value="${e.emp_id}" data-name="${h(e.formal_name||e.name)}">${h(employeeLabel(e))}</option>`;
+        sel.innerHTML += `<option value="${e.emp_id}" data-name="${h(e.formal_name||e.name)}">${h(employeeAssignLabel(e))}</option>`;
     });
   });
 
   // Employee filter dropdowns for All Tasks / Completed
   populateEmpFilters(META.employees);
+  loadTaskCounts();
 
   // FY + compliance status dropdowns
   const fyRes = await api('/compliance/templates');
@@ -2559,6 +2876,7 @@ function showPanel(name) {
       gstclients: initGSTPanel,
       incometax: () => window.initIncomeTaxPanel?.(),
       pfesic: () => window.initPFESICPanel?.(),
+      trademarks: () => window.initTrademarkPanel?.(),
       mcafiling: () => window.initMCAFilingPanel?.(),
     };
     loaders[name]?.();
@@ -2925,6 +3243,40 @@ function clearTaskFilters(view) {
   else loadTasks(view);
 }
 
+async function openUnlinkedReportableReview() {
+  openModal('unlinkedReportableModal');
+  await loadUnlinkedReportableReview();
+}
+
+async function loadUnlinkedReportableReview() {
+  const tb = document.getElementById('unlinkedReportableTable');
+  if (!tb) return;
+  tb.innerHTML = `<tr><td colspan="7" class="empty-msg">Loading...</td></tr>`;
+  const params = new URLSearchParams();
+  const q = document.getElementById('unlinkedReportableSearch')?.value;
+  if (q) params.set('search', q);
+  const data = await api('/tasks/unlinked-reportable?' + params.toString(), { cache:false });
+  if (!data.success) {
+    tb.innerHTML = `<tr><td colspan="7" class="empty-msg">${h(data.message || 'Unable to load review list')}</td></tr>`;
+    return;
+  }
+  if (!data.tasks.length) {
+    tb.innerHTML = `<tr><td colspan="7" class="empty-msg">No unlinked reportable tasks found.</td></tr>`;
+    return;
+  }
+  tb.innerHTML = data.tasks.map(t => `
+    <tr>
+      <td><small>${h(t.task_id)}</small></td>
+      <td><b>${h(t.legal_name || t.business_name || t.client_id || '--')}</b><br><small>${h(t.client_id || '')}</small></td>
+      <td>${h(t.work_name || '--')}</td>
+      <td>${h(t.module_key || '--')}<br><small>${h(t.module_code || '')}</small></td>
+      <td>${statusBadge(t.status)}</td>
+      <td>${h(t.assigned_to_name || '--')}</td>
+      <td>${fmtDate(t.due_date)}</td>
+    </tr>
+  `).join('');
+}
+
 // Populate employee filter dropdowns once meta is loaded
 function populateEmpFilters(employees) {
   ['allEmpFilter','completedEmpFilter'].forEach(id => {
@@ -2965,6 +3317,7 @@ async function loadTasks(view) {
 
   const data = await api('/tasks?' + params.toString());
   if (!data.success) { tb.innerHTML = `<tr><td colspan="8" class="empty-msg">Error loading tasks</td></tr>`; return; }
+  updateTaskCount(view, data.total ?? data.tasks.length);
   if (!data.tasks.length) { tb.innerHTML = `<tr><td colspan="8" class="empty-msg">No tasks found</td></tr>`; return; }
 
   const showAssign = view === 'assigned_by_me' || view === 'all';
@@ -3011,6 +3364,7 @@ function activeTaskView() {
 function refreshTaskPanels(activeView = activeTaskView()) {
   ['mytasks','assignedby','alltasks','completed','dashboard'].forEach(p => panelLoaded[p] = false);
   panelLoaded['notifications'] = false;
+  loadTaskCounts();
   loadDashboard(); panelLoaded['dashboard'] = true;
   if (activeView === 'completed') loadCompletedTasks();
   else if (activeView) loadTasks(activeView);
@@ -3129,6 +3483,7 @@ async function loadCompletedTasks() {
 
   const data = await api('/tasks?' + params.toString());
   if (!data.success) { tb.innerHTML = `<tr><td colspan="7" class="empty-msg">Error loading</td></tr>`; return; }
+  updateTaskCount('completed', data.total ?? data.tasks.length);
   if (!data.tasks.length) { tb.innerHTML = `<tr><td colspan="7" class="empty-msg">No completed tasks found</td></tr>`; return; }
 
   tb.innerHTML = data.tasks.map(t => {
@@ -3291,12 +3646,18 @@ let _taskClientSelected = false;
 let _addClientReturnToTask = false;
 let _taskWorkMode = null;
 let _taskWorkSelectedName = '';
+let _taskWorkSelectedId = null;
+let _taskReportableRule = null;
+let _taskReportableContext = null;
 
 function openCreateTask() {
   _addClientReturnToTask = false;
   _taskClientSelected = false;
   _taskWorkMode = null;
   _taskWorkSelectedName = '';
+  _taskWorkSelectedId = null;
+  _taskReportableRule = null;
+  _taskReportableContext = null;
   document.getElementById('tm_task_id').value = '';
   document.getElementById('tm_client_id').value = '';
   document.getElementById('tm_agent_id').value = '';
@@ -3309,7 +3670,9 @@ function openCreateTask() {
     const el = document.getElementById(id); if (el) el.value = '';
   });
   document.getElementById('tm_other_work_wrap')?.classList.add('hidden');
+  document.getElementById('tm_reportable_wrap')?.classList.add('hidden');
   document.getElementById('wn_ac_list')?.classList.add('hidden');
+  populateTaskPeriodDefaults();
   ['tm_prof_fees','tm_challan','tm_other_exp'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
@@ -3334,6 +3697,7 @@ function clearTaskClient() {
   document.getElementById('tm_mobile_display').value = '';
   document.getElementById('tm_client_chip').classList.add('hidden');
   document.getElementById('tm_client_search_wrap').classList.remove('hidden');
+  loadTaskReportableContext();
 }
 
 let _taskClientTimer;
@@ -3375,12 +3739,157 @@ function selectTaskClient(c) {
   document.getElementById('tm_client_chip').classList.remove('hidden');
   document.getElementById('tm_client_search_wrap').classList.add('hidden');
   document.getElementById('taskModalErr').classList.add('hidden');
+  loadTaskReportableContext();
+}
+
+function previousMonthPeriod() {
+  const d = new Date();
+  d.setMonth(d.getMonth() - 1);
+  return { year: d.getFullYear(), month: d.getMonth() + 1 };
+}
+
+function currentAssessmentYearForTask() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = d.getMonth() + 1;
+  const ayStart = m >= 4 ? y : y - 1;
+  return `${ayStart}-${String(ayStart + 1).slice(-2)}`;
+}
+
+function populateTaskPeriodDefaults() {
+  const monthSel = document.getElementById('tm_link_month');
+  if (monthSel && !monthSel.options.length) {
+    ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].forEach((m, i) => {
+      monthSel.innerHTML += `<option value="${i + 1}">${m}</option>`;
+    });
+  }
+  const p = previousMonthPeriod();
+  if (monthSel) monthSel.value = String(p.month);
+  const y = document.getElementById('tm_link_year');
+  if (y) y.value = p.year;
+  const fy = document.getElementById('tm_link_fy');
+  if (fy) fy.value = getComplianceDefaultFY();
+  const ay = document.getElementById('tm_link_ay');
+  if (ay) ay.value = currentAssessmentYearForTask();
+}
+
+function getRuleForSelectedWork(work) {
+  const rules = META.work_module_rules || [];
+  if (work?.id) {
+    const exact = rules.find(r => String(r.work_name_id || '') === String(work.id));
+    if (exact) return exact;
+  }
+  const name = workNameText(work).toLowerCase();
+  return rules.find(r => String(r.work_name || '').toLowerCase() === name) || null;
+}
+
+function setReportableVisibility(rule) {
+  _taskReportableRule = rule || null;
+  _taskReportableContext = null;
+  const wrap = document.getElementById('tm_reportable_wrap');
+  if (!wrap) return;
+  if (!rule) {
+    wrap.classList.add('hidden');
+    return;
+  }
+  wrap.classList.remove('hidden');
+  document.getElementById('tm_reportable_hint').textContent =
+    `${rule.module_code} is a tracker-backed work item. Select the required period/details so the task updates the matching tracker automatically.`;
+  ['tm_link_fy_wrap','tm_link_ay_wrap','tm_link_month_wrap','tm_link_year_wrap','tm_link_company_wrap','tm_link_director_wrap','tm_link_trademark_wrap','tm_link_kyc_reason_wrap'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
+  if (rule.requires_period === 'financial_year') document.getElementById('tm_link_fy_wrap')?.classList.remove('hidden');
+  if (rule.requires_period === 'assessment_year') document.getElementById('tm_link_ay_wrap')?.classList.remove('hidden');
+  if (rule.requires_period === 'month_year') {
+    document.getElementById('tm_link_month_wrap')?.classList.remove('hidden');
+    document.getElementById('tm_link_year_wrap')?.classList.remove('hidden');
+  }
+  if (rule.module_key === 'company_compliance' || rule.module_key === 'director_kyc') {
+    document.getElementById('tm_link_company_wrap')?.classList.remove('hidden');
+  }
+  if (rule.module_key === 'director_kyc') {
+    document.getElementById('tm_link_director_wrap')?.classList.remove('hidden');
+    document.getElementById('tm_link_kyc_reason_wrap')?.classList.remove('hidden');
+  }
+  if (rule.module_key === 'trademark') {
+    document.getElementById('tm_link_trademark_wrap')?.classList.remove('hidden');
+  }
+  loadTaskReportableContext();
+}
+
+let _taskReportableTimer;
+function loadTaskReportableContext() {
+  clearTimeout(_taskReportableTimer);
+  _taskReportableTimer = setTimeout(loadTaskReportableContextNow, 250);
+}
+
+async function loadTaskReportableContextNow() {
+  if (!_taskReportableRule) return;
+  const status = document.getElementById('tm_reportable_status');
+  if (!_taskClientSelected || !document.getElementById('tm_client_id').value) {
+    if (status) status.textContent = 'Select a client first.';
+    return;
+  }
+  const rule = _taskReportableRule;
+  const params = new URLSearchParams({
+    rule_id: rule.id,
+    work_name_id: _taskWorkSelectedId || '',
+    client_id: document.getElementById('tm_client_id').value,
+    financial_year: document.getElementById('tm_link_fy')?.value || '',
+    assessment_year: document.getElementById('tm_link_ay')?.value || '',
+    tax_month: document.getElementById('tm_link_month')?.value || '',
+    tax_year: document.getElementById('tm_link_year')?.value || '',
+    cin: document.getElementById('tm_link_company')?.value || '',
+    din: document.getElementById('tm_link_director')?.value || '',
+    trademark_id: document.getElementById('tm_link_trademark')?.value || '',
+    force_reason: document.getElementById('tm_link_kyc_reason')?.value || '',
+  });
+  if (status) status.textContent = 'Checking tracker link...';
+  const data = await api('/tasks/work-link-context?' + params.toString(), { cache:false });
+  if (!data.success) {
+    if (status) status.textContent = data.message || 'Could not check tracker link.';
+    return;
+  }
+  _taskReportableContext = data;
+  const companySel = document.getElementById('tm_link_company');
+  if (companySel && (rule.module_key === 'company_compliance' || rule.module_key === 'director_kyc')) {
+    const old = companySel.value;
+    companySel.innerHTML = (data.candidates || []).map(c => `<option value="${h(c.cin)}">${h(c.company_name || c.cin)}${c.company_status ? ' - ' + h(c.company_status) : ''}</option>`).join('');
+    if (old && [...companySel.options].some(o => o.value === old)) companySel.value = old;
+  }
+  const dirSel = document.getElementById('tm_link_director');
+  if (dirSel && rule.module_key === 'director_kyc') {
+    const old = dirSel.value;
+    dirSel.innerHTML = (data.directors || []).map(d => `<option value="${h(d.din)}">${h(d.director_name || d.din)} (${h(d.din || '--')})</option>`).join('');
+    if (old && [...dirSel.options].some(o => o.value === old)) dirSel.value = old;
+  }
+  const trademarkSel = document.getElementById('tm_link_trademark');
+  if (trademarkSel && rule.module_key === 'trademark') {
+    const old = trademarkSel.value;
+    trademarkSel.innerHTML = (data.candidates || []).map(a => `<option value="${h(a.id)}">${h(a.trademark_name || 'Trademark')} ${a.application_number ? '- ' + h(a.application_number) : ''} (${h(a.current_stage || '--')})</option>`).join('');
+    if (old && [...trademarkSel.options].some(o => o.value === old)) trademarkSel.value = old;
+  }
+  if (status) {
+    if (data.existing_record?.linked_task_id) {
+      status.innerHTML = `<span style="color:#b91c1c;font-weight:800">Already linked to task ${h(data.existing_record.linked_task_id)}.</span>`;
+    } else if (data.existing_record) {
+      status.innerHTML = `<span style="color:#166534;font-weight:800">Existing tracker record found. This task will be linked on save.</span>`;
+    } else if (rule.module_key === 'director_kyc' && data.kyc_cycle && !data.kyc_cycle.due) {
+      status.innerHTML = `<span style="color:#b91c1c;font-weight:800">${h(data.kyc_cycle.kyc_due_reason || 'Director KYC is not due under the 3-year cycle.')}</span>`;
+    } else if (rule.module_key === 'director_kyc' && data.kyc_cycle) {
+      status.innerHTML = `<span style="color:#166534;font-weight:800">${h(data.kyc_cycle.kyc_due_reason || 'Director KYC will be generated and linked on save.')}</span>`;
+    } else if ((data.candidates || []).length) {
+      status.innerHTML = `<span style="color:#92400e;font-weight:800">Tracker record is missing. It will be generated and linked on save.</span>`;
+    } else {
+      status.innerHTML = `<span style="color:#b91c1c;font-weight:800">Required module client/company record was not found for this client.</span>`;
+    }
+  }
 }
 
 function workAutocomplete(q) {
   const list = document.getElementById('wn_ac_list');
   _taskWorkMode = null;
   _taskWorkSelectedName = '';
+  _taskWorkSelectedId = null;
+  setReportableVisibility(null);
   document.getElementById('tm_other_work_wrap')?.classList.add('hidden');
   document.getElementById('tm_other_work_name').value = '';
   if (!q) { list.classList.add('hidden'); return; }
@@ -3430,16 +3939,20 @@ function selectWorkName(work) {
   const name = workNameText(work);
   _taskWorkMode = 'master';
   _taskWorkSelectedName = name;
+  _taskWorkSelectedId = work?.id || null;
   document.getElementById('tm_work_name').value = name;
   document.getElementById('tm_other_work_name').value = '';
   document.getElementById('tm_other_work_wrap')?.classList.add('hidden');
   document.getElementById('wn_ac_list').classList.add('hidden');
   document.getElementById('taskModalErr').classList.add('hidden');
+  setReportableVisibility(getRuleForSelectedWork(work));
 }
 
 function selectOtherWork() {
   _taskWorkMode = 'other';
   _taskWorkSelectedName = '';
+  _taskWorkSelectedId = null;
+  setReportableVisibility(null);
   document.getElementById('tm_work_name').value = 'Other Work';
   document.getElementById('wn_ac_list').classList.add('hidden');
   document.getElementById('tm_other_work_wrap')?.classList.remove('hidden');
@@ -3473,6 +3986,36 @@ async function submitTask() {
   }
   const dueDate = document.getElementById('tm_due_date').value;
   if (!dueDate) { err.textContent = 'Due date is required'; err.classList.remove('hidden'); return; }
+  let module_link = null;
+  if (_taskReportableRule) {
+    await loadTaskReportableContextNow();
+    if (!_taskReportableContext || !(_taskReportableContext.candidates || []).length) {
+      err.textContent = 'Reportable Work Link could not be prepared. Please verify that the selected client has the required module record.';
+      err.classList.remove('hidden'); return;
+    }
+    if (_taskReportableContext.existing_record?.linked_task_id) {
+      err.textContent = `This tracker work is already linked to active task ${_taskReportableContext.existing_record.linked_task_id}`;
+      err.classList.remove('hidden'); return;
+    }
+    if (_taskReportableRule.module_key === 'director_kyc' && _taskReportableContext.kyc_cycle && !_taskReportableContext.kyc_cycle.due) {
+      err.textContent = _taskReportableContext.kyc_cycle.kyc_due_reason || 'Director KYC is not due under the 3-year cycle. Select a valid manual reason only if director details need to be updated.';
+      err.classList.remove('hidden'); return;
+    }
+    module_link = {
+      confirmed: true,
+      rule_id: _taskReportableRule.id,
+      module_key: _taskReportableRule.module_key,
+      module_code: _taskReportableRule.module_code,
+      financial_year: document.getElementById('tm_link_fy')?.value || null,
+      assessment_year: document.getElementById('tm_link_ay')?.value || null,
+      tax_month: document.getElementById('tm_link_month')?.value || null,
+      tax_year: document.getElementById('tm_link_year')?.value || null,
+      cin: document.getElementById('tm_link_company')?.value || null,
+      din: document.getElementById('tm_link_director')?.value || null,
+      trademark_id: document.getElementById('tm_link_trademark')?.value || null,
+      force_reason: document.getElementById('tm_link_kyc_reason')?.value || null,
+    };
+  }
 
   const assignSel = document.getElementById('tm_assign_to');
   const assignOpt = assignSel.options[assignSel.selectedIndex];
@@ -3489,6 +4032,8 @@ async function submitTask() {
       business_name: document.getElementById('tm_biz_name').value || null,
       mobile_number: document.getElementById('tm_mobile_display').value || null,
       work_name: workName,
+      work_name_id: _taskWorkSelectedId || null,
+      module_link,
       work_description: document.getElementById('tm_work_desc').value || null,
       priority: document.getElementById('tm_priority').value,
       due_date: dueDate,
@@ -3521,6 +4066,7 @@ async function loadNotifications() {
   const total = data.total_alerts || 0;
   ['notifBadge','botNotifBadge'].forEach(id => {
     const b = document.getElementById(id);
+    if (!b) return;
     if (total > 0) { b.textContent = total; b.classList.remove('hidden'); }
     else b.classList.add('hidden');
   });
@@ -3926,6 +4472,7 @@ async function loadCompanies() {
   const params = new URLSearchParams(); if (q) params.set('search',q); if (st) params.set('status',st);
   const data = await api('/compliance/companies?' + params);
   if (!data.success) return;
+  renderCompaniesCountSummary(data.counts || {}, Boolean(q || st));
   const tb = document.getElementById('companiesTable');
   tb.innerHTML = data.companies.length ? data.companies.map(c => `
     <tr>
@@ -3943,6 +4490,57 @@ async function loadCompanies() {
         </button>
       </td>
     </tr>`).join('') : '<tr><td colspan="8" class="empty-msg">No companies. Click "+ Add Company".</td></tr>';
+}
+
+function renderCompaniesCountSummary(counts, filteredMode) {
+  const el = document.getElementById('companiesCountSummary');
+  if (!el) return;
+  const pill = (label, value, color) => `
+    <div style="background:#fff;border-left:4px solid ${color};border-radius:8px;padding:9px 12px;min-width:135px;box-shadow:0 4px 12px rgba(15,23,42,.06)">
+      <div style="font-size:11px;color:#64748b;text-transform:uppercase;font-weight:700">${label}</div>
+      <div style="font-size:22px;font-weight:900;color:#0f172a;line-height:1.1">${Number(value || 0)}</div>
+    </div>`;
+  el.innerHTML = [
+    pill('Total Companies', counts.total, '#2563eb'),
+    pill('Active', counts.active, '#16a34a'),
+    pill('Inactive', counts.inactive, '#64748b'),
+    filteredMode ? pill('Filtered Result', counts.filtered, '#7c3aed') : '',
+    pill('Showing', counts.showing, '#0891b2'),
+  ].join('');
+}
+
+async function exportCompaniesExcel() {
+  const q = document.getElementById('compSearch')?.value || '';
+  const st = document.getElementById('compStatusFilter')?.value || '';
+  const params = new URLSearchParams();
+  if (q) params.set('search', q);
+  if (st) params.set('status', st);
+  try {
+    showToast('Preparing companies Excel...', 'success');
+    const response = await fetch('/api/compliance/companies/export?' + params.toString(), {
+      headers: { Authorization: 'Bearer ' + token }
+    });
+    if (!response.ok) {
+      let message = 'Export failed';
+      try {
+        const data = await response.json();
+        message = data.message || message;
+      } catch {}
+      showToast(message, 'error');
+      return;
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `companies-${new Date().toISOString().slice(0,10)}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    showToast('Export failed: ' + err.message, 'error');
+  }
 }
 
 async function viewCompany(cin) {
@@ -4408,15 +5006,15 @@ async function loadKYCTracking() {
   if (!data.success) { el.innerHTML = '<div class="empty-msg">Error loading</div>'; return; }
 
   document.getElementById('kyc_summary').innerHTML = data.rows.length
-    ? `<div style="color:#64748b;font-size:12px;padding:0 2px">${data.rows.length} KYC records found</div>` : '';
+    ? `<div style="color:#64748b;font-size:12px;padding:0 2px">${data.rows.length} KYC records found. DIR-3 KYC is generated only when due under the 3-year cycle or when last KYC data is missing.</div>` : '';
 
   if (!data.rows.length) {
-    el.innerHTML = '<div class="card"><div class="card-body empty-msg">No KYC records found. Use "Bulk Generate" to create records for all active directors.</div></div>';
+    el.innerHTML = '<div class="card"><div class="card-body empty-msg">No KYC records found. Use "Bulk Generate" to create records only for directors due under the 3-year rule.</div></div>';
     return;
   }
   window._kycRows = data.rows;
   el.innerHTML = `<div class="card"><div class="tbl-wrap"><table>
-    <thead><tr><th>Director</th><th>DIN</th><th>Company</th><th>CIN</th><th>FY</th><th>KYC Status</th><th>SRN</th><th>Active</th><th>Agent</th><th>Updated</th><th>Actions</th></tr></thead>
+    <thead><tr><th>Director</th><th>DIN</th><th>Company</th><th>CIN</th><th>FY</th><th>Last KYC</th><th>Next Due</th><th>Cycle Status</th><th>Due Reason</th><th>KYC Status</th><th>SRN</th><th>Active</th><th>Agent</th><th>Updated</th><th>Actions</th></tr></thead>
     <tbody>${data.rows.map(r => `
       <tr>
         <td><strong>${r.director_name}</strong></td>
@@ -4424,6 +5022,10 @@ async function loadKYCTracking() {
         <td>${(r.company_name || '--').substring(0, 24)}</td>
         <td><small>${r.cin || '--'}</small></td>
         <td>${r.financial_year}</td>
+        <td><small>${h(r.last_kyc_financial_year || fmtDate(r.last_kyc_completed_date) || '--')}</small></td>
+        <td><small>${fmtDate(r.next_kyc_due_date || r.cycle_due_date) || '--'}</small></td>
+        <td><span class="badge ${r.kyc_cycle_status === 'Not Due' ? 'b-active' : 'b-pending'}">${h(r.kyc_cycle_status || 'Due')}</span></td>
+        <td><small>${h(r.kyc_due_reason || r.due_reason || '--')}</small></td>
         <td>${compBadge(r.kyc_status)}</td>
         <td><small>${r.srn || '--'}</small></td>
         <td><span class="badge ${r.active_flag === 'Active' ? 'b-active' : 'b-inactive'}">${r.active_flag || 'Active'}</span></td>
@@ -4438,7 +5040,7 @@ async function loadKYCTracking() {
 async function bulkGenerateKYC() {
   const fy = document.getElementById('kyc_fy').value;
   if (!fy) { showToast('Select financial year first', 'error'); return; }
-  if (!confirm(`Generate KYC records for ALL active directors for ${fy}?\n(Won't overwrite existing)`)) return;
+  if (!confirm(`Generate DIR-3 KYC records for ${fy}?\nOnly directors due under the 3-year KYC rule, or directors with missing last KYC data, will be generated.\nExisting records will not be overwritten.`)) return;
   const data = await api('/compliance/kyc/bulk-generate', {
     method: 'POST', body: JSON.stringify({ financial_year: fy })
   });
@@ -4532,8 +5134,10 @@ async function loadOfficeProtocolCount() {
     if (!data.success) return;
     const count = Number(data.summary?.unresolved || 0);
     const badge = document.getElementById('officeProtocolBadge');
-    badge.textContent = count;
-    badge.style.display = count ? 'grid' : 'none';
+    if (badge) {
+      badge.textContent = count;
+      badge.style.display = count ? 'grid' : 'none';
+    }
     document.getElementById('d-protocol').textContent = count;
     document.getElementById('protocolDashChip').classList.toggle('hidden', !count);
   } catch {}
@@ -4884,14 +5488,17 @@ async function saveSelectedCompliance(storeKey, btn) {
 
 function renderKycInlineRows(rows) {
   window._workspaceKycRows = rows || [];
-  if (!rows || !rows.length) return '<div class="empty-msg" style="padding:12px">No Director KYC records. Use Generate KYC.</div>';
+  if (!rows || !rows.length) return '<div class="empty-msg" style="padding:12px">No Director KYC records are due for this FY. Use Generate KYC to create only due/missing-data records under the 3-year rule.</div>';
   return `<div class="tbl-wrap"><table>
-    <thead><tr><th><input type="checkbox" title="Select all" onchange="toggleKycSelection(this.checked)"></th><th>Director Name</th><th>DIN</th><th>Designation</th><th>KYC Status</th><th>SRN</th><th>Assignee</th><th>Task</th><th>Remarks</th><th>Save</th></tr></thead>
+    <thead><tr><th><input type="checkbox" title="Select all" onchange="toggleKycSelection(this.checked)"></th><th>Director Name</th><th>DIN</th><th>Designation</th><th>Last KYC</th><th>Next Due</th><th>Due Reason</th><th>KYC Status</th><th>SRN</th><th>Assignee</th><th>Task</th><th>Remarks</th><th>Save</th></tr></thead>
     <tbody>${rows.map(r => `<tr>
       <td><input type="checkbox" class="wk-select" value="${r.id}" title="Select row"></td>
       <td><strong>${h(r.director_name || '--')}</strong></td>
       <td><small>${h(r.din || '--')}</small></td>
       <td>${h(r.designation || '--')}</td>
+      <td><small>${h(r.last_kyc_financial_year || fmtDate(r.last_kyc_completed_date) || '--')}</small></td>
+      <td><small>${fmtDate(r.next_kyc_due_date || r.cycle_due_date) || '--'}</small></td>
+      <td><small>${h(r.kyc_due_reason || r.due_reason || '--')}</small></td>
       <td><select id="wk_status_${r.id}" style="min-width:145px;padding:7px;border:1px solid #dbe3ef;border-radius:7px">${ctStatusOptions(r.kyc_status || 'Pending')}</select></td>
       <td><input id="wk_srn_${r.id}" value="${h(r.srn || '')}" placeholder="SRN" style="min-width:120px;padding:7px;border:1px solid #dbe3ef;border-radius:7px"></td>
       <td><select id="wk_assign_${r.id}" style="min-width:170px;padding:7px;border:1px solid #dbe3ef;border-radius:7px">${ctEmployeeOptions(r.assigned_to_id || '')}</select></td>
@@ -5089,6 +5696,7 @@ async function generateWorkspaceKyc() {
   const cin = document.getElementById('ct_co_sel').value;
   const fy = document.getElementById('ct_fy').value;
   if (!cin || !fy) return showToast('Select company and FY first', 'error');
+  if (!confirm(`Generate DIR-3 KYC for this company and ${fy}?\nOnly directors due under the 3-year KYC rule, or directors with missing last KYC data, will be generated.`)) return;
   const data = await api('/compliance/kyc/bulk-generate', { method:'POST', body:JSON.stringify({ cin, financial_year: fy }) });
   showToast(data.message, data.success ? 'success' : 'error');
   if (data.success) loadCompanyTracking();
@@ -5518,6 +6126,15 @@ function h(v) {
 
 function gstAdmin() { return !!GST_META.is_admin; }
 
+function canToggleGSTClientStatus(c) {
+  if (gstAdmin()) return true;
+  const assignee = String(c?.default_assignee_id || '').trim().toLowerCase();
+  const ids = [user?.emp_id, user?.username, user?.id]
+    .filter(Boolean)
+    .map(v => String(v).trim().toLowerCase());
+  return Boolean(assignee && ids.includes(assignee));
+}
+
 async function loadGSTMeta() {
   const data = await api('/gst/meta');
   if (!data.success) { showToast(data.message || 'GST setup pending', 'error'); return false; }
@@ -5667,14 +6284,16 @@ async function loadGSTClients() {
   data.clients.forEach(c => GST_STATE.clientMap[c.id] = c);
   if (!data.clients.length) { tb.innerHTML = '<tr><td colspan="8" class="empty-msg">No active GST clients</td></tr>'; return; }
   tb.innerHTML = data.clients.map(c => {
+    const canStatus = canToggleGSTClientStatus(c);
     const actions = gstAdmin()
       ? `<button class="btn-sm btn-edit" onclick="openGSTClientModal(${c.id})">Edit</button>
          <button class="btn-sm btn-view" onclick="openGSTAssign('client',${c.id})">Assign</button>
-         <button class="btn-sm btn-red" onclick="openGSTClientStatus(${c.id},'Inactive')">Inactive</button>`
+         ${canStatus ? `<button class="btn-sm btn-red" onclick="openGSTClientStatus(${c.id},'Inactive')">Inactive</button>` : ''}`
       : (!c.default_assignee_id
         ? `<button class="btn-sm btn-edit" onclick="openGSTClientModal(${c.id})">Edit</button>
            <button class="btn-sm btn-view" onclick="openGSTAssign('client',${c.id})">Assign</button>`
-        : `<button class="btn-sm btn-edit" onclick="openGSTClientModal(${c.id})">Edit</button>`);
+        : `<button class="btn-sm btn-edit" onclick="openGSTClientModal(${c.id})">Edit</button>
+           ${canStatus ? `<button class="btn-sm btn-red" onclick="openGSTClientStatus(${c.id},'Inactive')">Inactive</button>` : ''}`);
     const loginAction = c.can_autofill
       ? `<button class="btn-sm btn-green" title="Open GST portal and autofill login" onclick="openGSTPortalLogin(${c.id})">&#128272; Login</button>`
       : '';
@@ -5718,7 +6337,7 @@ async function loadGSTInactive() {
       <td>${fmtDate(c.inactive_from)}</td>
       <td><small>${h(c.inactive_reason || '--')}</small></td>
       <td>${h(c.default_assignee_name || '--')}</td>
-      <td>${gstAdmin() ? `<button class="btn-sm btn-green" onclick="openGSTClientStatus(${c.id},'Active')">Activate</button>` : '--'}</td>
+      <td>${canToggleGSTClientStatus(c) ? `<button class="btn-sm btn-green" onclick="openGSTClientStatus(${c.id},'Active')">Activate</button>` : '--'}</td>
     </tr>`).join('');
 }
 
@@ -6104,6 +6723,7 @@ function openExcelImport() {
   document.getElementById('imp_client_chip').classList.add('hidden');
   document.getElementById('imp_client_search').parentElement.classList.remove('hidden');
   document.getElementById('imp_file').value = '';
+  document.getElementById('imp_create_itr').value = 'yes';
   document.getElementById('imp_result').classList.add('hidden');
   document.getElementById('imp_err').classList.add('hidden');
   document.getElementById('imp_btn').disabled = false;
@@ -6163,6 +6783,8 @@ async function submitExcelImport() {
 
   if (!clientId) { err.textContent = 'Please select a client first'; err.classList.remove('hidden'); return; }
   if (!fileEl.files.length) { err.textContent = 'Please select an Excel file (.xlsx)'; err.classList.remove('hidden'); return; }
+  const createItr = document.getElementById('imp_create_itr')?.value || 'yes';
+  if (createItr === 'no' && !confirm('Are you sure you do not want to add this company to Income Tax Clients?')) return;
 
   const btn = document.getElementById('imp_btn');
   btn.disabled = true; btn.textContent = 'Importing...';
@@ -6171,6 +6793,7 @@ async function submitExcelImport() {
   fd.append('file', fileEl.files[0]);
   fd.append('client_id', clientId);
   if (agentId) fd.append('agent_id', agentId);
+  fd.append('create_income_tax_client', createItr);
 
   try {
     const r = await fetch('/api/import/excel', {
@@ -6182,6 +6805,8 @@ async function submitExcelImport() {
     btn.disabled = false; btn.textContent = '⚡ Import';
 
     if (data.success) {
+      const itrMsg = data.results.income_tax?.message || '';
+      const itrColor = data.results.income_tax?.status?.includes('skipped') ? '#854d0e' : '#166534';
       res.innerHTML = `
         <div style="background:#dcfce7;border:1.5px solid #16a34a;border-radius:8px;padding:12px 14px">
           <div style="font-weight:700;color:#15803d;margin-bottom:6px">✅ ${data.message}</div>
@@ -6191,10 +6816,13 @@ async function submitExcelImport() {
             Charges: ${data.results.charges} rows &nbsp;|&nbsp;
             Directors: ${data.results.directors} rows
           </div>
+          ${itrMsg ? `<div style="font-size:12px;color:${itrColor};margin-top:6px"><strong>Income Tax:</strong> ${itrMsg}</div>` : ''}
           ${data.results.errors?.length ? `<div style="color:#dc2626;font-size:12px;margin-top:4px">Warnings: ${data.results.errors.join(', ')}</div>` : ''}
         </div>`;
       res.classList.remove('hidden');
-      panelLoaded['companies'] = false; loadCompanies();
+      panelLoaded['companies'] = false;
+      panelLoaded['incometax'] = false;
+      loadCompanies();
     } else {
       err.textContent = data.message; err.classList.remove('hidden');
     }
@@ -6545,6 +7173,7 @@ async function initOfficeApp() {
     if (nd.success && nd.total_alerts > 0) {
       ['notifBadge','botNotifBadge'].forEach(id => {
         const b = document.getElementById(id);
+        if (!b) return;
         b.textContent = nd.total_alerts; b.classList.remove('hidden');
       });
       document.getElementById('notifDot').classList.remove('hidden');
@@ -6564,6 +7193,7 @@ if (token) { initOfficeApp(); }
 </script>
 <script src="/assets/income-tax.js?v=20260603-edit-all-1"></script>
 <script src="/assets/pf-esic.js?v=20260603-1"></script>
-<script src="/assets/mca-filing.js?v=20260528-2"></script>
+<script src="/assets/trademarks.js?v=20260619-2"></script>
+<script src="/assets/mca-filing.js?v=20260624-links"></script>
 </body>
 </html>
