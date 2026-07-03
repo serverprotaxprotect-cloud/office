@@ -5,6 +5,66 @@
   const ITR_STATE = { clientMap: {}, filingMap: {}, reportRows: [] };
   const timers = {};
   const ITR_ASSIGNEE_LOOKUP = new Map();
+  const ITR_COLUMN_STORAGE_KEY = 'geebharat_income_tax_visible_columns_v1';
+  const ITR_COLUMNS = {
+    reference: false,
+    agent: false,
+  };
+
+  function loadITRColumnPrefs() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(ITR_COLUMN_STORAGE_KEY) || '{}');
+      ITR_COLUMNS.reference = !!saved.reference;
+      ITR_COLUMNS.agent = !!saved.agent;
+    } catch (_) {
+      ITR_COLUMNS.reference = false;
+      ITR_COLUMNS.agent = false;
+    }
+  }
+
+  function syncITRColumnControls() {
+    document.querySelectorAll('[data-itr-column-toggle="reference"]').forEach((el) => { el.checked = !!ITR_COLUMNS.reference; });
+    document.querySelectorAll('[data-itr-column-toggle="agent"]').forEach((el) => { el.checked = !!ITR_COLUMNS.agent; });
+    renderITRClientHeaders();
+  }
+
+  function visibleClientColumnCount({ inactiveMode = false, unassignedMode = false } = {}) {
+    if (inactiveMode) return 6;
+    let count = unassignedMode ? 4 : 6;
+    if (!unassignedMode && ITR_COLUMNS.reference) count += 1;
+    if (ITR_COLUMNS.agent) count += 1;
+    return count;
+  }
+
+  function renderITRClientHeaders() {
+    const activeHead = document.getElementById('itrClientsHead');
+    if (activeHead) {
+      activeHead.innerHTML = `<tr>
+        <th>Taxpayer</th><th>PAN</th><th>Contact</th>
+        ${ITR_COLUMNS.reference ? '<th>Reference</th>' : ''}
+        ${ITR_COLUMNS.agent ? '<th>Agent</th>' : ''}
+        <th>Password</th><th>Default Assignee</th><th>Actions</th>
+      </tr>`;
+    }
+    const unassignedHead = document.getElementById('itrUnassignedHead');
+    if (unassignedHead) {
+      unassignedHead.innerHTML = `<tr>
+        <th>Taxpayer</th><th>PAN</th><th>Contact</th>
+        ${ITR_COLUMNS.agent ? '<th>Agent</th>' : ''}
+        <th>Actions</th>
+      </tr>`;
+    }
+  }
+
+  function toggleITRColumn(key, checked) {
+    if (!Object.prototype.hasOwnProperty.call(ITR_COLUMNS, key)) return;
+    ITR_COLUMNS[key] = !!checked;
+    localStorage.setItem(ITR_COLUMN_STORAGE_KEY, JSON.stringify(ITR_COLUMNS));
+    syncITRColumnControls();
+    renderITRClientHeaders();
+    if (ITR_ACTIVE_TAB === 'clients') loadITRClients();
+    if (ITR_ACTIVE_TAB === 'unassigned') loadITRUnassigned();
+  }
 
   function esc(value) {
     return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
@@ -193,6 +253,8 @@
   }
 
   async function initIncomeTaxPanel() {
+    loadITRColumnPrefs();
+    syncITRColumnControls();
     if (!ITR_READY) {
       const ok = await loadITRMeta();
       if (!ok) return;
@@ -228,49 +290,54 @@
     }, 280);
   }
 
-  function clientRows(rows, targetId, inactiveMode = false, unassignedMode = false) {
-    const tbody = document.getElementById(targetId);
-    ITR_STATE.clientMap = {};
-    if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="8" class="empty">No Income Tax clients found</td></tr>';
-      return;
-    }
+function clientRows(rows, targetId, inactiveMode = false, unassignedMode = false) {
+  const tbody = document.getElementById(targetId);
+  if (!tbody) return;
+  if (!inactiveMode && (targetId === 'itrClientsTable' || targetId === 'itrUnassignedTable')) {
+    renderITRClientHeaders();
+  }
+  ITR_STATE.clientMap = {};
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="${visibleClientColumnCount({ inactiveMode, unassignedMode })}" class="empty">No Income Tax clients found</td></tr>`;
+    return;
+  }
     tbody.innerHTML = rows.map((c) => {
       ITR_STATE.clientMap[c.id] = c;
       const pass = c.password ? `<span class="masked-pass">••••••</span> <button class="btn-sm btn-view" onclick="ITRRevealPassword(this,'${esc(c.password)}')">Show</button>` : '--';
+      const panCell = c.pan_number ? esc(c.pan_number) : '<span class="badge b-wait">PAN Pending</span>';
+      const loginAction = `<button class="btn-sm btn-green" title="Open Income Tax portal and auto-login" onclick="openITRPortalLogin(${c.id})">&#128272; Login</button>`;
+      const deleteAction = itrAdmin() ? ` <button class="btn-sm itr-delete-btn itr-admin-only" onclick="openITRClientDelete(${c.id})">Delete</button>` : '';
       if (unassignedMode) {
-        const loginAction = c.pan_number && c.password
-          ? `<button class="btn-sm btn-green" title="Open Income Tax portal and auto-login" onclick="openITRPortalLogin(${c.id})">&#128272; Login</button>`
-          : '';
         return `<tr>
           <td><div class="itr-name">${esc(c.taxpayer_name)}</div><div class="itr-client-id">${esc(c.client_id)} | AY ${esc(c.assessment_year || '')}</div></td>
-          <td>${esc(c.pan_number || '--')}</td><td>${esc(c.contact_number || c.client_mobile || '--')}</td><td>${esc(c.agent_name || '--')}</td>
-          <td>${loginAction} <button class="btn-sm btn-view" onclick="openITRAssign('client',${c.id})">Assign</button></td>
+          <td>${panCell}</td><td>${esc(c.contact_number || c.client_mobile || '--')}</td>
+          ${ITR_COLUMNS.agent ? `<td>${esc(c.agent_name || '--')}</td>` : ''}
+          <td>${loginAction} <button class="btn-sm btn-view" onclick="openITRAssign('client',${c.id})">Assign</button>${deleteAction}</td>
         </tr>`;
       }
       if (inactiveMode) {
         return `<tr>
           <td><div class="itr-name">${esc(c.taxpayer_name)}</div><div class="itr-client-id">${esc(c.client_id)}</div></td>
-          <td>${esc(c.pan_number || '--')}</td><td>${fmtDate(c.inactive_from)}</td><td>${esc(c.inactive_reason || '--')}</td>
+          <td>${panCell}</td><td>${fmtDate(c.inactive_from)}</td><td>${esc(c.inactive_reason || '--')}</td>
           <td>${esc(c.default_assignee_name || '--')}<div class="itr-client-id">${esc(c.default_assignee_id || '')}</div></td>
-          <td><button class="btn-sm btn-green itr-admin-only" onclick="openITRClientStatus(${c.id},'Active')">Activate</button></td>
+          <td><button class="btn-sm btn-green itr-admin-only" onclick="openITRClientStatus(${c.id},'Active')">Activate</button>${deleteAction}</td>
         </tr>`;
       }
       const actions = itrAdmin()
         ? `<button class="btn-sm btn-view itr-admin-only" onclick="openITRClientModal(${c.id})">Edit</button>
            <button class="btn-sm btn-view itr-admin-only" onclick="openITRAssign('client',${c.id})">Assign</button>
-           <button class="btn-sm btn-danger itr-admin-only" onclick="openITRClientStatus(${c.id},'Inactive')">Deactivate</button>`
+           <button class="btn-sm itr-deactivate-btn itr-admin-only" onclick="openITRClientStatus(${c.id},'Inactive')">Deactivate</button>
+           ${deleteAction}`
         : (!c.default_assignee_id
           ? `<button class="btn-sm btn-view" onclick="openITRClientModal(${c.id})">Edit</button>
              <button class="btn-sm btn-view" onclick="openITRAssign('client',${c.id})">Assign</button>`
           : `<button class="btn-sm btn-view" onclick="openITRClientModal(${c.id})">Edit</button>`);
-      const loginAction = c.pan_number && c.password
-        ? `<button class="btn-sm btn-green" title="Open Income Tax portal and auto-login" onclick="openITRPortalLogin(${c.id})">&#128272; Login</button>`
-        : '';
       return `<tr>
         <td><div class="itr-name">${esc(c.taxpayer_name)}</div><div class="itr-client-id">${esc(c.client_id)}</div></td>
-        <td>${esc(c.pan_number || '--')}</td><td>${esc(c.contact_number || c.client_mobile || '--')}</td>
-        <td>${esc(c.reference_client_name || '--')}</td><td>${esc(c.agent_name || '--')}</td><td>${pass}</td>
+        <td>${panCell}</td><td>${esc(c.contact_number || c.client_mobile || '--')}</td>
+        ${ITR_COLUMNS.reference ? `<td>${esc(c.reference_client_name || '--')}</td>` : ''}
+        ${ITR_COLUMNS.agent ? `<td>${esc(c.agent_name || '--')}</td>` : ''}
+        <td>${pass}</td>
         <td>${esc(c.default_assignee_name || '--')}<div class="itr-client-id">${esc(c.default_assignee_id || '')}</div></td>
         <td style="white-space:nowrap">
           ${loginAction}
@@ -638,6 +705,28 @@
     if (data.success) reloadIncomeTaxPanel();
   }
 
+  function openITRClientDelete(id) {
+    document.getElementById('itr_delete_id').value = id || '';
+    document.getElementById('itr_delete_reason').value = '';
+    document.getElementById('itr_delete_confirm').value = '';
+    openModal('itrDeleteModal');
+  }
+
+  async function submitITRClientDelete() {
+    const id = document.getElementById('itr_delete_id').value;
+    const reason = document.getElementById('itr_delete_reason').value.trim();
+    const confirmText = document.getElementById('itr_delete_confirm').value.trim();
+    if (!reason) return showToast('Delete reason is required', 'error');
+    if (confirmText.toUpperCase() !== 'DELETE') return showToast('Type DELETE to confirm', 'error');
+    const data = await api(`/income-tax/clients/${id}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ reason }),
+    });
+    closeModal('itrDeleteModal');
+    showToast(data.message || 'Income Tax client deleted', data.success ? 'success' : 'error');
+    if (data.success) reloadIncomeTaxPanel();
+  }
+
   function openITRGenerateModal() {
     const ay = document.getElementById('itr_generate_ay').value;
     document.getElementById('itr_generate_due_date').value = ayDueDate(ay);
@@ -744,6 +833,8 @@
   window.submitITRStatus = submitITRStatus;
   window.openITRClientStatus = openITRClientStatus;
   window.submitITRClientStatus = submitITRClientStatus;
+  window.openITRClientDelete = openITRClientDelete;
+  window.submitITRClientDelete = submitITRClientDelete;
   window.openITRGenerateModal = openITRGenerateModal;
   window.submitITRGenerate = submitITRGenerate;
   window.openITRImportModal = openITRImportModal;
@@ -752,4 +843,5 @@
   window.submitITRImport = submitITRImport;
   window.ITRRevealPassword = revealPassword;
   window.openITRPortalLogin = openITRPortalLogin;
+  window.toggleITRColumn = toggleITRColumn;
 }());
