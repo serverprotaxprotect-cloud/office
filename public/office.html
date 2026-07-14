@@ -530,7 +530,6 @@
         <select id="allEmpFilter" onchange="loadTasks('all')"><option value="">All Employees</option></select>
         <select id="allStatusFilter" onchange="loadTasks('all')"><option value="">All Status</option></select>
         <select id="allPriorityFilter" onchange="loadTasks('all')"><option value="">All Priority</option></select>
-        <select id="allWorkFilter" onchange="loadTasks('all')"><option value="">All Work Types</option></select>
         <select id="allDeptFilter" onchange="loadTasks('all')"><option value="">All Departments</option></select>
         <select id="allGroupFilter" onchange="loadTasks('all')"><option value="">All Dept. Groups</option></select>
         <input type="date" id="allDateFrom" title="Due date from" onchange="loadTasks('all')"/>
@@ -2852,14 +2851,6 @@ async function loadMeta() {
   const pf = document.getElementById('allPriorityFilter');
   if (pf) { META.priorities.forEach(p => pf.innerHTML += `<option value="${p}">${p}</option>`); }
 
-  // Work name filter
-  const wf = document.getElementById('allWorkFilter');
-  if (wf) {
-    wf.innerHTML = '<option value="">All Work Types</option>';
-    const distinctNames = [...new Set((META.work_names || []).map(workNameText).filter(Boolean))].sort((a,b) => a.localeCompare(b));
-    distinctNames.slice(0,50).forEach(w => wf.innerHTML += `<option value="${h(w)}">${h(w)}</option>`);
-  }
-
   // Department filters (fixed master departments + Unclassified)
   const departments = [...new Set((META.work_names || []).map(w => w.department).filter(Boolean))].sort((a,b) => a.localeCompare(b));
   ['myDeptFilter','byDeptFilter','allDeptFilter','completedDeptFilter'].forEach(id => {
@@ -3272,7 +3263,7 @@ async function openTasksByDepartment(department, allEmployees = false) {
   showPanel(panel);
   await loadMeta();
   if (allEmployees) {
-    ['allSearch','allEmpFilter','allStatusFilter','allPriorityFilter','allWorkFilter','allGroupFilter'].forEach(id => {
+    ['allSearch','allEmpFilter','allStatusFilter','allPriorityFilter','allGroupFilter'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.value = '';
     });
@@ -3294,7 +3285,7 @@ async function openTasksByStatus(status, allEmployees = false) {
   if (allEmployees) {
     showPanel('alltasks');
     await loadMeta();
-    ['allSearch','allEmpFilter','allPriorityFilter','allWorkFilter','allDeptFilter','allGroupFilter'].forEach(id => {
+    ['allSearch','allEmpFilter','allPriorityFilter','allDeptFilter','allGroupFilter'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.value = '';
     });
@@ -3326,7 +3317,7 @@ async function openEmployeeActiveTasks(empId, empName = '') {
     }
     filter.value = empId;
   }
-  ['allSearch','allStatusFilter','allPriorityFilter','allWorkFilter','allDeptFilter','allGroupFilter'].forEach(id => {
+  ['allSearch','allStatusFilter','allPriorityFilter','allDeptFilter','allGroupFilter'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
@@ -3356,7 +3347,7 @@ function clearTaskFilters(view) {
   const idsByView = {
     my: ['mySearch', 'myStatusFilter', 'myDeptFilter', 'myDateFrom', 'myDateTo', 'mySort'],
     assigned_by_me: ['bySearch', 'byStatusFilter', 'byDeptFilter', 'byDateFrom', 'byDateTo', 'bySort'],
-    all: ['allSearch', 'allEmpFilter', 'allStatusFilter', 'allPriorityFilter', 'allWorkFilter', 'allDeptFilter', 'allGroupFilter', 'allDateFrom', 'allDateTo', 'allSort'],
+    all: ['allSearch', 'allEmpFilter', 'allStatusFilter', 'allPriorityFilter', 'allDeptFilter', 'allGroupFilter', 'allDateFrom', 'allDateTo', 'allSort'],
     completed: ['completedSearch', 'completedEmpFilter', 'completedDeptFilter', 'completedDateFrom', 'completedDateTo', 'completedSort'],
   };
   (idsByView[view] || []).forEach(id => {
@@ -3490,7 +3481,9 @@ function populateEmpFilters(employees) {
 }
 
 function deptBadge(t) {
-  const dept = t.department || 'Unclassified';
+  const dept = t.department || '';
+  // Show the department group (e.g. "GST Department" -> "GST"); colour by department.
+  const label = (t.grouping_name || dept || 'Unclassified').replace(/\s+Department$/i, '');
   const cls = {
     'CA Services': 'dept-ca',
     'CS Services': 'dept-cs',
@@ -3498,8 +3491,8 @@ function deptBadge(t) {
     'Common Services': 'dept-common',
     'Internal Office': 'dept-internal',
   }[dept] || 'dept-none';
-  const tip = t.grouping_name ? `${t.grouping_name}${t.work_category ? ' — ' + t.work_category : ''}` : 'Not classified yet';
-  return `<span class="dept-badge ${cls}" title="${h(tip)}">${h(dept)}</span>`;
+  const tip = dept ? `${dept}${t.work_category ? ' — ' + t.work_category : ''}` : 'Not classified yet';
+  return `<span class="dept-badge ${cls}" title="${h(tip)}">${h(label)}</span>`;
 }
 
 async function loadTasks(view) {
@@ -3526,7 +3519,6 @@ async function loadTasks(view) {
     const ef = document.getElementById('allEmpFilter')?.value; if (ef) params.set('emp_filter', ef);
     const st = document.getElementById('allStatusFilter')?.value; if (st) params.set('status', st);
     const pr = document.getElementById('allPriorityFilter')?.value; if (pr) params.set('priority', pr);
-    const wn = document.getElementById('allWorkFilter')?.value; if (wn) params.set('work_name', wn);
     const dp = document.getElementById('allDeptFilter')?.value; if (dp) params.set('department', dp);
     const gp = document.getElementById('allGroupFilter')?.value; if (gp) params.set('grouping_name', gp);
     addTaskDateFilters(params, 'all');
