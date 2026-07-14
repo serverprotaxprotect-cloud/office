@@ -245,6 +245,9 @@ router.get('/', authMiddleware, async (req, res) => {
     // Admin: all active tasks
     if (!status) conds.push(`t.status NOT IN ('Completed','Cancelled')`);
     if (emp_filter) { params.push(emp_filter); conds.push(`(t.assigned_to_id = $${params.length} OR t.created_by_id = $${params.length})`); }
+  } else if (view === 'all_stages') {
+    // Admin: every task across every status (pending + completed + cancelled)
+    if (emp_filter) { params.push(emp_filter); conds.push(`(t.assigned_to_id = $${params.length} OR t.created_by_id = $${params.length})`); }
   }
 
   if (status) { params.push(status); conds.push(`t.status = $${params.length}`); }

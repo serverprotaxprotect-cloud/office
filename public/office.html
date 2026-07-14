@@ -59,7 +59,7 @@
     .tbl-wrap tr:hover td{background:#f8fafc}
     .tbl-wrap th{position:sticky;top:0;z-index:5}
     .tbl-wrap td:nth-child(2),.tbl-wrap td:nth-child(3){white-space:normal;min-width:180px}
-    #panel-mytasks .tbl-wrap,#panel-assignedby .tbl-wrap,#panel-alltasks .tbl-wrap,#panel-completed .tbl-wrap,
+    #panel-mytasks .tbl-wrap,#panel-assignedby .tbl-wrap,#panel-alltasks .tbl-wrap,#panel-allstages .tbl-wrap,#panel-completed .tbl-wrap,
     #panel-clients .tbl-wrap,#panel-companies .tbl-wrap,#panel-directors .tbl-wrap,#panel-comptracking .tbl-wrap,
     #panel-notifications .tbl-wrap{max-height:calc(100vh - 260px)}
     .protocol-pulse{margin-left:auto;min-width:20px;height:20px;padding:0 6px;border-radius:999px;display:none;place-items:center;background:#dc2626;color:#fff;font-size:10px;font-weight:900;animation:protocolPulse 1.4s infinite}
@@ -390,7 +390,8 @@
     <div class="sb-item active" id="sb-dashboard" onclick="showPanel('dashboard')"><span class="ic">&#128202;</span>Dashboard</div>
     <div class="sb-item" id="sb-mytasks" onclick="showPanel('mytasks')"><span class="ic">&#9989;</span>My Tasks</div>
     <div class="sb-item" id="sb-assignedby" onclick="showPanel('assignedby')"><span class="ic">&#128101;</span>Assigned by Me</div>
-    <div class="sb-item" id="sb-alltasks" onclick="showPanel('alltasks')"><span class="ic">&#128203;</span>All Tasks</div>
+    <div class="sb-item" id="sb-alltasks" onclick="showPanel('alltasks')"><span class="ic">&#128203;</span>All Pending Tasks</div>
+    <div class="sb-item" id="sb-allstages" onclick="showPanel('allstages')"><span class="ic">&#128218;</span>All Tasks</div>
     <div class="sb-item" id="sb-completed" onclick="showPanel('completed')"><span class="ic">&#9745;</span>Completed</div>
     <div class="sb-item" id="sb-notifications" onclick="showPanel('notifications')"><span class="ic">&#128276;</span>Notifications</div>
     <div class="sb-item" id="sb-chat" onclick="showPanel('chat')"><span class="ic">&#128172;</span>Smart Chat</div>
@@ -516,7 +517,7 @@
     <!-- ════ ALL TASKS ════ -->
     <div class="panel" id="panel-alltasks">
       <div class="page-title">
-        <span>All Tasks <small>(All Employees)</small><span class="task-count-pill" id="allTasksCount">0</span></span>
+        <span>All Pending Tasks <small>(All Employees)</small><span class="task-count-pill" id="allTasksCount">0</span></span>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn-sm" style="background:#0891b2;color:#fff;padding:7px 12px" onclick="exportTable('allTasksTable','All_Tasks')">&#128229; Export</button>
           <button class="btn-sm" style="background:#475569;color:#fff;padding:7px 12px" onclick="printTableSection('allTasksTable','All Tasks')">&#128438; Print</button>
@@ -544,6 +545,38 @@
       <div class="card"><div class="tbl-wrap"><table id="tbl-alltasks">
         <thead><tr><th>Task ID</th><th>Client</th><th>Work</th><th>Department</th><th>Assigned To</th><th>Priority</th><th>Status</th><th>Due Date</th><th>Actions</th></tr></thead>
         <tbody id="allTasksTable"></tbody>
+      </table></div></div>
+    </div>
+
+    <!-- ════ ALL TASKS (ALL STAGES) ════ -->
+    <div class="panel" id="panel-allstages">
+      <div class="page-title">
+        <span>All Tasks <small>(All Stages — Pending + Completed)</small><span class="task-count-pill" id="allStagesCount">0</span></span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-sm" style="background:#0891b2;color:#fff;padding:7px 12px" onclick="exportTable('allStagesTable','All_Tasks_All_Stages')">&#128229; Export</button>
+          <button class="btn-sm" style="background:#475569;color:#fff;padding:7px 12px" onclick="printTableSection('allStagesTable','All Tasks (All Stages)')">&#128438; Print</button>
+          <button class="btn btn-primary" onclick="openCreateTask()">+ Create Task</button>
+        </div>
+      </div>
+      <div class="filter-row">
+        <input type="text" id="asSearch" placeholder="Search client, task, work..." oninput="debounceLoad('all_stages')" style="max-width:220px"/>
+        <select id="asEmpFilter" onchange="loadTasks('all_stages')"><option value="">All Employees</option></select>
+        <select id="asStatusFilter" onchange="loadTasks('all_stages')"><option value="">All Status</option></select>
+        <select id="asPriorityFilter" onchange="loadTasks('all_stages')"><option value="">All Priority</option></select>
+        <select id="asDeptFilter" onchange="loadTasks('all_stages')"><option value="">All Departments</option></select>
+        <select id="asGroupFilter" onchange="loadTasks('all_stages')"><option value="">All Dept. Groups</option></select>
+        <input type="date" id="asDateFrom" title="Due date from" onchange="loadTasks('all_stages')"/>
+        <input type="date" id="asDateTo" title="Due date to" onchange="loadTasks('all_stages')"/>
+        <select id="asSort" onchange="loadTasks('all_stages')">
+          <option value="">Default Sort</option>
+          <option value="newest">Newest to Oldest</option>
+          <option value="oldest">Oldest to Newest</option>
+        </select>
+        <button class="btn-sm" onclick="clearTaskFilters('all_stages')">Clear All Filter</button>
+      </div>
+      <div class="card"><div class="tbl-wrap"><table id="tbl-allstages">
+        <thead><tr><th>Task ID</th><th>Client</th><th>Work</th><th>Department</th><th>Assigned To</th><th>Priority</th><th>Status</th><th>Due Date</th><th>Actions</th></tr></thead>
+        <tbody id="allStagesTable"></tbody>
       </table></div></div>
     </div>
 
@@ -2317,6 +2350,7 @@ function applyPermissions() {
     'sb-mytasks':     'mytasks',
     'sb-assignedby':  'assignedby',
     'sb-alltasks':    'alltasks',
+    'sb-allstages':   'alltasks',
     'sb-completed':   'completed',
     'sb-notifications':'notifications',
     'sb-chat':        'chat',
@@ -2815,6 +2849,7 @@ function updateTaskCount(view, total) {
     my: { title:'myTasksCount', badge:'myBadge' },
     assigned_by_me: { title:'assignedByTasksCount', badge:'assignedByBadge' },
     all: { title:'allTasksCount', badge:'allTasksBadge' },
+    all_stages: { title:'allStagesCount', badge:'allStagesBadge' },
     completed: { title:'completedTasksCount', badge:'completedBadge' },
   }[view];
   if (!map) return;
@@ -2839,7 +2874,7 @@ async function loadMeta() {
   META = data;
 
   // Status dropdowns
-  ['allStatusFilter','myStatusFilter','byStatusFilter','upd_status'].forEach(id => {
+  ['allStatusFilter','asStatusFilter','myStatusFilter','byStatusFilter','upd_status'].forEach(id => {
     const sel = document.getElementById(id);
     if (!sel) return;
     const isFilter = id.endsWith('Filter');
@@ -2847,13 +2882,17 @@ async function loadMeta() {
     META.statuses.forEach(s => sel.innerHTML += `<option value="${s}">${s}</option>`);
   });
 
-  // Priority dropdown
-  const pf = document.getElementById('allPriorityFilter');
-  if (pf) { META.priorities.forEach(p => pf.innerHTML += `<option value="${p}">${p}</option>`); }
+  // Priority dropdowns
+  ['allPriorityFilter','asPriorityFilter'].forEach(id => {
+    const pf = document.getElementById(id);
+    if (!pf) return;
+    pf.innerHTML = '<option value="">All Priority</option>';
+    META.priorities.forEach(p => pf.innerHTML += `<option value="${p}">${p}</option>`);
+  });
 
   // Department filters (fixed master departments + Unclassified)
   const departments = [...new Set((META.work_names || []).map(w => w.department).filter(Boolean))].sort((a,b) => a.localeCompare(b));
-  ['myDeptFilter','byDeptFilter','allDeptFilter','completedDeptFilter'].forEach(id => {
+  ['myDeptFilter','byDeptFilter','allDeptFilter','asDeptFilter','completedDeptFilter'].forEach(id => {
     const sel = document.getElementById(id);
     if (!sel) return;
     sel.innerHTML = '<option value="">All Departments</option>';
@@ -2861,14 +2900,15 @@ async function loadMeta() {
     sel.innerHTML += '<option value="Unclassified">Unclassified</option>';
   });
 
-  // Department group filter (All Tasks)
-  const gf = document.getElementById('allGroupFilter');
-  if (gf) {
+  // Department group filters
+  const groupNames = [...new Set((META.work_names || []).map(w => w.grouping_name).filter(Boolean))].sort((a,b) => a.localeCompare(b));
+  ['allGroupFilter','asGroupFilter'].forEach(id => {
+    const gf = document.getElementById(id);
+    if (!gf) return;
     gf.innerHTML = '<option value="">All Dept. Groups</option>';
-    const groups = [...new Set((META.work_names || []).map(w => w.grouping_name).filter(Boolean))].sort((a,b) => a.localeCompare(b));
-    groups.forEach(g => gf.innerHTML += `<option value="${h(g)}">${h(g)}</option>`);
+    groupNames.forEach(g => gf.innerHTML += `<option value="${h(g)}">${h(g)}</option>`);
     gf.innerHTML += '<option value="Unclassified">Unclassified</option>';
-  }
+  });
 
   // Dept -> groups map (Other Work + custom-work review)
   DEPT_GROUPS = {};
@@ -2935,6 +2975,7 @@ function showPanel(name) {
       mytasks: () => loadTasks('my'),
       assignedby: () => loadTasks('assigned_by_me'),
       alltasks: () => loadTasks('all'),
+      allstages: () => loadTasks('all_stages'),
       completed: loadCompletedTasks,
       notifications: loadNotifications,
       chat: initChatPanel,
@@ -3348,6 +3389,7 @@ function clearTaskFilters(view) {
     my: ['mySearch', 'myStatusFilter', 'myDeptFilter', 'myDateFrom', 'myDateTo', 'mySort'],
     assigned_by_me: ['bySearch', 'byStatusFilter', 'byDeptFilter', 'byDateFrom', 'byDateTo', 'bySort'],
     all: ['allSearch', 'allEmpFilter', 'allStatusFilter', 'allPriorityFilter', 'allDeptFilter', 'allGroupFilter', 'allDateFrom', 'allDateTo', 'allSort'],
+    all_stages: ['asSearch', 'asEmpFilter', 'asStatusFilter', 'asPriorityFilter', 'asDeptFilter', 'asGroupFilter', 'asDateFrom', 'asDateTo', 'asSort'],
     completed: ['completedSearch', 'completedEmpFilter', 'completedDeptFilter', 'completedDateFrom', 'completedDateTo', 'completedSort'],
   };
   (idsByView[view] || []).forEach(id => {
@@ -3470,7 +3512,7 @@ async function loadUnlinkedReportableReview() {
 
 // Populate employee filter dropdowns once meta is loaded
 function populateEmpFilters(employees) {
-  ['allEmpFilter','completedEmpFilter'].forEach(id => {
+  ['allEmpFilter','asEmpFilter','completedEmpFilter'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     const existing = el.innerHTML.includes('All Employees') ? '<option value="">All Employees</option>' : el.innerHTML;
@@ -3496,7 +3538,7 @@ function deptBadge(t) {
 }
 
 async function loadTasks(view) {
-  const tableMap = { my:'myTasksTable', assigned_by_me:'assignedByTable', all:'allTasksTable' };
+  const tableMap = { my:'myTasksTable', assigned_by_me:'assignedByTable', all:'allTasksTable', all_stages:'allStagesTable' };
   const tb = document.getElementById(tableMap[view]);
   if (!tb) return;
   tb.innerHTML = `<tr><td colspan="9" class="empty-msg">Loading...</td></tr>`;
@@ -3523,13 +3565,22 @@ async function loadTasks(view) {
     const gp = document.getElementById('allGroupFilter')?.value; if (gp) params.set('grouping_name', gp);
     addTaskDateFilters(params, 'all');
   }
+  if (view === 'all_stages') {
+    const q = document.getElementById('asSearch')?.value; if (q) params.set('search', q);
+    const ef = document.getElementById('asEmpFilter')?.value; if (ef) params.set('emp_filter', ef);
+    const st = document.getElementById('asStatusFilter')?.value; if (st) params.set('status', st);
+    const pr = document.getElementById('asPriorityFilter')?.value; if (pr) params.set('priority', pr);
+    const dp = document.getElementById('asDeptFilter')?.value; if (dp) params.set('department', dp);
+    const gp = document.getElementById('asGroupFilter')?.value; if (gp) params.set('grouping_name', gp);
+    addTaskDateFilters(params, 'as');
+  }
 
   const data = await api('/tasks?' + params.toString());
   if (!data.success) { tb.innerHTML = `<tr><td colspan="9" class="empty-msg">Error loading tasks</td></tr>`; return; }
   updateTaskCount(view, data.total ?? data.tasks.length);
   if (!data.tasks.length) { tb.innerHTML = `<tr><td colspan="9" class="empty-msg">No tasks found</td></tr>`; return; }
 
-  const showAssign = view === 'assigned_by_me' || view === 'all';
+  const showAssign = view === 'assigned_by_me' || view === 'all' || view === 'all_stages';
   const showCreatedBy = view === 'my';
   tb.innerHTML = data.tasks.map(t => {
     const client = t.legal_name || t.business_name || t.client_id || '--';
@@ -3567,12 +3618,13 @@ function activeTaskView() {
     'panel-mytasks': 'my',
     'panel-assignedby': 'assigned_by_me',
     'panel-alltasks': 'all',
+    'panel-allstages': 'all_stages',
     'panel-completed': 'completed',
   }[activePanel] || null;
 }
 
 function refreshTaskPanels(activeView = activeTaskView()) {
-  ['mytasks','assignedby','alltasks','completed','dashboard'].forEach(p => panelLoaded[p] = false);
+  ['mytasks','assignedby','alltasks','allstages','completed','dashboard'].forEach(p => panelLoaded[p] = false);
   panelLoaded['notifications'] = false;
   loadTaskCounts();
   loadDashboard(); panelLoaded['dashboard'] = true;
@@ -4279,7 +4331,7 @@ async function submitTask() {
   if (data.success) {
     closeModal('taskModal');
     showToast(data.message + ' (' + data.task_id + ')', 'success');
-    ['mytasks','assignedby','alltasks','dashboard'].forEach(p => panelLoaded[p] = false);
+    ['mytasks','assignedby','alltasks','allstages','dashboard'].forEach(p => panelLoaded[p] = false);
     loadDashboard(); panelLoaded['dashboard'] = true;
   } else {
     err.textContent = data.message; err.classList.remove('hidden');
@@ -6863,7 +6915,7 @@ async function submitGSTAssign() {
   closeModal('gstAssignModal');
   showToast(data.message, data.success ? 'success' : 'error');
   if (data.success) {
-    ['mytasks','assignedby','alltasks','dashboard'].forEach(p => panelLoaded[p] = false);
+    ['mytasks','assignedby','alltasks','allstages','dashboard'].forEach(p => panelLoaded[p] = false);
     reloadGSTPanel();
   }
 }
@@ -6890,7 +6942,7 @@ async function submitGSTStatus() {
   closeModal('gstStatusModal');
   showToast(data.message, data.success ? 'success' : 'error');
   if (data.success) {
-    ['mytasks','assignedby','alltasks','completed','dashboard'].forEach(p => panelLoaded[p] = false);
+    ['mytasks','assignedby','alltasks','allstages','completed','dashboard'].forEach(p => panelLoaded[p] = false);
     reloadGSTPanel();
   }
 }
@@ -6940,7 +6992,7 @@ async function submitGSTGenerate() {
   closeModal('gstGenerateModal');
   showToast(data.message, data.success ? 'success' : 'error');
   if (data.success) {
-    ['mytasks','assignedby','alltasks','dashboard','notifications'].forEach(p => panelLoaded[p] = false);
+    ['mytasks','assignedby','alltasks','allstages','dashboard','notifications'].forEach(p => panelLoaded[p] = false);
     switchGSTTab('tracker');
   }
 }
