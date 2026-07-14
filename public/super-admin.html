@@ -333,10 +333,17 @@
           <td><span class="status ${esc(o.status)}">${esc(o.status)}</span></td>
           <td>${o.employees || 0} employees<br>${o.clients || 0} clients<br>${o.tasks || 0} tasks</td>
           <td>
-            <select onchange="updateBillingAccess(${o.id}, this.value)" style="padding:7px 8px;border:1px solid #d8e0ec;border-radius:8px;font-weight:700">
+            <small style="display:block;color:#63728a;font-weight:800;margin-bottom:4px">Billing</small>
+            <select onchange="updateBillingAccess(${o.id}, this.value)" style="width:145px;padding:7px 8px;border:1px solid #d8e0ec;border-radius:8px;font-weight:700;margin-bottom:8px">
               <option value="none" ${o.billing_access === 'none' ? 'selected' : ''}>No Access</option>
               <option value="view" ${o.billing_access === 'view' ? 'selected' : ''}>View Only</option>
               <option value="full" ${o.billing_access === 'full' ? 'selected' : ''}>Full Access</option>
+            </select>
+            <small style="display:block;color:#63728a;font-weight:800;margin-bottom:4px">Lead Management</small>
+            <select onchange="updateLeadManagementAccess(${o.id}, this.value)" style="width:145px;padding:7px 8px;border:1px solid #d8e0ec;border-radius:8px;font-weight:700">
+              <option value="none" ${o.lead_management_access === 'none' ? 'selected' : ''}>No Access</option>
+              <option value="view" ${o.lead_management_access === 'view' ? 'selected' : ''}>View Only</option>
+              <option value="full" ${o.lead_management_access === 'full' ? 'selected' : ''}>Full Access</option>
             </select>
           </td>
           <td><button class="btn btn-dark" onclick="updateSubscription(${o.id})">Subscription</button></td>
@@ -437,6 +444,14 @@
         body: JSON.stringify({ access_level: accessLevel })
       });
       showMsg(data.message || (data.success ? 'Billing access updated' : 'Billing access update failed'), !!data.success);
+      if (data.success) loadOrganizations();
+    }
+    async function updateLeadManagementAccess(id, accessLevel) {
+      const data = await api('/organizations/' + id + '/features/lead-management', {
+        method: 'PUT',
+        body: JSON.stringify({ access_level: accessLevel })
+      });
+      showMsg(data.message || (data.success ? 'Lead Management access updated' : 'Lead Management access update failed'), !!data.success);
       if (data.success) loadOrganizations();
     }
     async function loadMcaFormats() {

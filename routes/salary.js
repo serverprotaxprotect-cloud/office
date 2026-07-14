@@ -25,6 +25,36 @@ const SALARY_STRUCTURE_INCREMENT_COLUMNS = {
   new_monthly_salary: 'new_monthly_salary NUMERIC(10,2)',
 };
 
+const SALARY_POLICY_COLUMNS = {
+  paid_leave_days: 'paid_leave_days NUMERIC(8,2) DEFAULT 0',
+  unpaid_leave_days: 'unpaid_leave_days NUMERIC(8,2) DEFAULT 0',
+  sandwich_days: 'sandwich_days NUMERIC(8,2) DEFAULT 0',
+  lop_days: 'lop_days NUMERIC(8,2) DEFAULT 0',
+  salary_day_basis: "salary_day_basis VARCHAR(40) DEFAULT 'fixed_30'",
+  per_day_salary: 'per_day_salary NUMERIC(12,2)',
+  effective_grace_minutes: 'effective_grace_minutes NUMERIC(8,2) DEFAULT 0',
+  chargeable_late_minutes: 'chargeable_late_minutes NUMERIC(8,2) DEFAULT 0',
+};
+
+function settingValue(settings, key, fallback) {
+  const value = settings?.[key];
+  return value === undefined || value === null || value === '' ? fallback : value;
+}
+
+function settingBool(settings, key, fallback = false) {
+  const value = settingValue(settings, key, fallback ? 'Yes' : 'No');
+  return ['yes', 'true', '1', 'enabled', 'on'].includes(String(value).toLowerCase());
+}
+
+function isoDate(year, month, day) {
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function normalizeLeavePayType(value, fallback = 'Paid') {
+  const v = String(value || fallback).toLowerCase();
+  return v === 'unpaid' ? 'Unpaid' : 'Paid';
+}
+
 async function ensureIncrementColumns() {
   const columnNames = Object.keys(SALARY_STRUCTURE_INCREMENT_COLUMNS);
   const existing = await db.query(
@@ -50,6 +80,25 @@ async function ensureIncrementColumns() {
       throw e;
     }
     throw err;
+  }
+}
+
+async function ensureSalaryPolicyColumns() {
+  const salaryColumns = Object.keys(SALARY_POLICY_COLUMNS);
+  const existing = await db.query(
+    `SELECT column_name
+     FROM information_schema.columns
+     WHERE table_schema='public'
+       AND table_name='salary'
+       AND column_name = ANY($1::text[])`,
+    [salaryColumns]
+  );
+  const existingNames = new Set(existing.rows.map(row => row.column_name));
+  const missing = salaryColumns.filter(column => !existingNames.has(column));
+  if (!missing.length) return;
+
+  for (const column of missing) {
+    await db.query(`ALTER TABLE salary ADD COLUMN IF NOT EXISTS ${SALARY_POLICY_COLUMNS[column]}`);
   }
 }
 
@@ -123,6 +172,12 @@ router.post('/calculate', adminAuth, async (req, res) => {
 
   try {
     await ensureIncrementColumns();
+    await ensureSalaryPolicyColumns();
+    const settings = await getSettings();
+    const salaryDayBasis = settingValue(settings, 'SALARY_DAY_BASIS', 'fixed_30');
+    const sandwichEnabled = settingBool(settings, 'SALARY_SANDWICH_LEAVE', false);
+    const holidayCreditMode = settingValue(settings, 'SALARY_HOLIDAY_CREDIT', 'paid');
+    const defaultLeavePayType = normalizeLeavePayType(settingValue(settings, 'SALARY_LEAVE_DEFAULT_PAY_TYPE', 'Paid'));
 
     const holRes = await db.query(
       `SELECT EXTRACT(DAY FROM holiday_date)::int AS d FROM holidays
@@ -131,6 +186,14 @@ router.post('/calculate', adminAuth, async (req, res) => {
     );
     const declaredHolidays = new Set(holRes.rows.map(r => r.d));
     const isDayHoliday = d => new Date(y, m - 1, d).getDay() === 0 || declaredHolidays.has(d);
+    const workingDays = Array.from({ length: daysInMonth }, (_, i) => i + 1).filter(d => !isDayHoliday(d)).length;
+    const divisor = salaryDayBasis === 'calendar_days'
+      ? daysInMonth
+      : salaryDayBasis === 'fixed_26'
+        ? 26
+        : salaryDayBasis === 'working_days'
+          ? Math.max(1, workingDays)
+          : 30;
 
     const empQuery = emp_id
       ? `SELECT s.*, e.status FROM salary_structure s JOIN emplist e ON e.emp_id=s.emp_id WHERE s.emp_id=$1 AND s.active='Yes'`
@@ -141,9 +204,18 @@ router.post('/calculate', adminAuth, async (req, res) => {
 
     for (const s of structs.rows) {
       const att = await db.query(
-        `SELECT date, final_status, late_minutes, grace_minutes_granted
+        `SELECT date, final_status, late_minutes, grace_minutes_granted, leave_pay_type
          FROM daily_attendance WHERE emp_id=$1 AND month=$2 AND year=$3`,
         [s.emp_id, m, y]
+      );
+      const leaveRows = await db.query(
+        `SELECT from_date::date AS from_date, to_date::date AS to_date, pay_type
+         FROM leave_requests
+         WHERE emp_id=$1
+           AND status='Approved'
+           AND from_date::date <= $2::date
+           AND to_date::date >= $3::date`,
+        [s.emp_id, isoDate(y, m, daysInMonth), isoDate(y, m, 1)]
       );
 
       const dayMap = {};
@@ -152,22 +224,18 @@ router.post('/calculate', adminAuth, async (req, res) => {
         dayMap[d] = {
           status: r.final_status,
           late_minutes: parseInt(r.late_minutes) || 0,
-          grace: parseInt(r.grace_minutes_granted) || 0
+          grace: parseInt(r.grace_minutes_granted) || 0,
+          leave_pay_type: r.leave_pay_type
         };
       });
-
-      const statusUnit = st => {
-        if (!st) return null;
-        if (st === 'Present' || st === 'Pending') return 1;
-        if (st === 'Half Day' || st === 'Short Day') return 0.5;
-        if (st === 'Leave') return 1;
-        return 0;
-      };
-
-      const presenceFlag = {};
-      for (let d = 1; d <= daysInMonth; d++) {
-        const st = dayMap[d]?.status;
-        presenceFlag[d] = st !== undefined && st !== 'Absent';
+      const leavePayByDay = {};
+      for (const leave of leaveRows.rows) {
+        const from = new Date(leave.from_date);
+        const to = new Date(leave.to_date);
+        for (let d = 1; d <= daysInMonth; d++) {
+          const current = new Date(Date.UTC(y, m - 1, d));
+          if (current >= from && current <= to) leavePayByDay[d] = normalizeLeavePayType(leave.pay_type, defaultLeavePayType);
+        }
       }
 
       // Mid-month increment: split at incDay
@@ -178,74 +246,89 @@ router.post('/calculate', adminAuth, async (req, res) => {
 
       const salaryOld = parseFloat(s.monthly_salary);
       const salaryNew = (incDay > 0 && s.new_monthly_salary) ? parseFloat(s.new_monthly_salary) : salaryOld;
-      const perDayOld = salaryOld / 30;
-      const perDayNew = salaryNew / 30;
+      const perDayOld = salaryOld / divisor;
+      const perDayNew = salaryNew / divisor;
+      const fullOldUnits = incDay > 0 ? divisor * ((incDay - 1) / daysInMonth) : divisor;
+      const fullNewUnits = incDay > 0 ? divisor - fullOldUnits : 0;
+      const fullMonthGross = Math.round((perDayOld * fullOldUnits + perDayNew * fullNewUnits) * 100) / 100;
 
-      let unitsOld = 0, unitsNew = 0;
-      let presentDays = 0, halfDays = 0, leaveDays = 0, absentDays = 0, holidayCredited = 0;
-      let lateCount = 0, totalLateMins = 0;
+      let presentDays = 0, halfDays = 0, paidLeaveDays = 0, unpaidLeaveDays = 0;
+      let leaveDays = 0, absentDays = 0, holidayCredited = 0, sandwichDays = 0;
+      let lopOld = 0, lopNew = 0, lateCount = 0, chargeableLateCount = 0, totalLateMins = 0, manualGraceMins = 0;
+      const unpaidBoundary = {};
+      const addLop = (day, units) => {
+        if (units <= 0) return;
+        if (incDay === 0 || day < incDay) lopOld += units; else lopNew += units;
+      };
 
-      // First pass: worked days
       for (let d = 1; d <= daysInMonth; d++) {
         const entry = dayMap[d];
         const st = entry?.status;
         const isHol = isDayHoliday(d);
-        const isOld = incDay === 0 || d < incDay;
 
-        if (presenceFlag[d]) {
-          const unit = statusUnit(st);
-          const actualUnit = isHol ? Math.min(2, unit * 2) : unit;
-          if (isOld) unitsOld += actualUnit; else unitsNew += actualUnit;
-          if (st === 'Present' || st === 'Pending') presentDays++;
-          else if (st === 'Half Day' || st === 'Short Day') halfDays++;
-          else if (st === 'Leave') leaveDays++;
-          if (entry && entry.late_minutes > 0) { lateCount++; totalLateMins += entry.late_minutes; }
+        if (st === 'Present' || st === 'Pending') {
+          presentDays++;
+          if (entry.late_minutes > 0) {
+            lateCount++;
+            totalLateMins += entry.late_minutes;
+            manualGraceMins += entry.grace || 0;
+          }
+        } else if (st === 'Half Day' || st === 'Short Day') {
+          halfDays++;
+          addLop(d, 0.5);
+          if (entry.late_minutes > 0) {
+            lateCount++;
+            totalLateMins += entry.late_minutes;
+            manualGraceMins += entry.grace || 0;
+          }
+        } else if (st === 'Leave') {
+          leaveDays++;
+          const payType = normalizeLeavePayType(entry.leave_pay_type || leavePayByDay[d], defaultLeavePayType);
+          if (payType === 'Unpaid') {
+            unpaidLeaveDays++;
+            unpaidBoundary[d] = true;
+            addLop(d, 1);
+          } else {
+            paidLeaveDays++;
+          }
         } else if (!isHol) {
           absentDays++;
+          unpaidBoundary[d] = true;
+          addLop(d, 1);
+        } else if (holidayCreditMode !== 'none') {
+          holidayCredited++;
         }
       }
 
-      // Second pass: holiday chain credit
-      let d = 1;
-      while (d <= daysInMonth) {
-        if (isDayHoliday(d) && !presenceFlag[d]) {
+      if (sandwichEnabled) {
+        let d = 1;
+        while (d <= daysInMonth) {
+          if (!isDayHoliday(d)) { d++; continue; }
           const chainStart = d;
-          while (d <= daysInMonth && isDayHoliday(d) && !presenceFlag[d]) d++;
+          while (d <= daysInMonth && isDayHoliday(d)) d++;
           const chainEnd = d - 1;
-          const prevWorked = chainStart > 1 && presenceFlag[chainStart - 1];
-          const nextWorked = chainEnd < daysInMonth && presenceFlag[chainEnd + 1];
-          if (prevWorked || nextWorked) {
+          const prevUnpaid = chainStart > 1 && unpaidBoundary[chainStart - 1];
+          const nextUnpaid = chainEnd < daysInMonth && unpaidBoundary[chainEnd + 1];
+          if (prevUnpaid && nextUnpaid) {
             for (let cd = chainStart; cd <= chainEnd; cd++) {
-              const isOld = incDay === 0 || cd < incDay;
-              if (isOld) unitsOld += 1; else unitsNew += 1;
-              holidayCredited++;
+              sandwichDays++;
+              addLop(cd, 1);
             }
           }
-        } else { d++; }
-      }
-
-      // Normalize to 30-day rule
-      let normOld, normNew;
-      const totalRaw = unitsOld + unitsNew;
-      if (absentDays === 0) {
-        if (incDay === 0) { normOld = 30; normNew = 0; }
-        else {
-          const shareOld = (incDay - 1) / daysInMonth;
-          normOld = 30 * shareOld;
-          normNew = 30 * (1 - shareOld);
         }
-      } else {
-        const capped = Math.min(totalRaw, 30);
-        if (totalRaw === 0) { normOld = 0; normNew = 0; }
-        else { normOld = unitsOld * (capped / totalRaw); normNew = unitsNew * (capped / totalRaw); }
       }
 
-      const grossSalary = Math.round((perDayOld * normOld + perDayNew * normNew) * 100) / 100;
+      const lopDays = Math.round((lopOld + lopNew) * 100) / 100;
+      const payableUnits = Math.max(0, Math.round((divisor - lopDays) * 100) / 100);
+      const grossSalary = Math.max(0, Math.round((fullMonthGross - (perDayOld * lopOld + perDayNew * lopNew)) * 100) / 100);
+      const gracePool = (parseFloat(s.grace_allowed) || 0) + manualGraceMins;
+      const effectiveGrace = Math.min(totalLateMins, gracePool);
+      const chargeableLateMins = Math.max(0, totalLateMins - effectiveGrace);
+      chargeableLateCount = chargeableLateMins > 0 ? lateCount : 0;
       const lateFine = Math.round(
-        (parseFloat(s.late_fine_per_mark) || 0) * lateCount +
-        (parseFloat(s.late_fine_per_minute) || 0) * totalLateMins
+        (parseFloat(s.late_fine_per_mark) || 0) * chargeableLateCount +
+        (parseFloat(s.late_fine_per_minute) || 0) * chargeableLateMins
       );
-      const payableUnits = Math.round((normOld + normNew) * 100) / 100;
 
       // Preserve existing manual adj if record already exists
       const existing = await db.query(
@@ -268,40 +351,38 @@ router.post('/calculate', adminAuth, async (req, res) => {
             present_days, half_days, absent_days, leave_days, holiday_days,
             late_count, total_late_minutes, grace_used, payable_days,
             gross_salary, late_fine, other_deduction, manual_addition,
-            net_salary, calculation_status)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,0,$14,$15,$16,0,0,$17,'Calculated')
+            net_salary, calculation_status, paid_leave_days, unpaid_leave_days,
+            sandwich_days, lop_days, salary_day_basis, per_day_salary, effective_grace_minutes,
+            chargeable_late_minutes)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$18,$14,$15,$16,0,0,$17,'Calculated',
+                 $19,$20,$21,$22,$23,$24,$25,$26)
          ON CONFLICT (organization_id, month, year, emp_id) DO UPDATE SET
            present_days=$7, half_days=$8, absent_days=$9, leave_days=$10, holiday_days=$11,
-           late_count=$12, total_late_minutes=$13, payable_days=$14,
-           gross_salary=$15, late_fine=$16, net_salary=$17, calculation_status='Calculated'`,
+           late_count=$12, total_late_minutes=$13, grace_used=$18, payable_days=$14,
+           gross_salary=$15, late_fine=$16, net_salary=$17, calculation_status='Calculated',
+           paid_leave_days=$19, unpaid_leave_days=$20, sandwich_days=$21, lop_days=$22,
+           salary_day_basis=$23, per_day_salary=$24, effective_grace_minutes=$25,
+           chargeable_late_minutes=$26`,
         [m, y, s.emp_id, s.employee_name, s.formal_name, incDay > 0 ? salaryNew : salaryOld,
          presentDays, halfDays, absentDays, leaveDays, holidayCredited,
-         lateCount, totalLateMins, payableUnits, grossSalary, lateFine, netSalary]
-      ).catch(() => {
-        db.query(
-          `INSERT INTO salary
-             (month, year, emp_id, employee_name, formal_name, monthly_salary,
-              present_days, half_days, absent_days, leave_days, holiday_days,
-              late_count, total_late_minutes, grace_used, payable_days,
-              gross_salary, late_fine, other_deduction, manual_addition,
-              net_salary, calculation_status)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,0,$14,$15,$16,0,0,$17,'Calculated')`,
-          [m, y, s.emp_id, s.employee_name, s.formal_name, incDay > 0 ? salaryNew : salaryOld,
-           presentDays, halfDays, absentDays, leaveDays, holidayCredited,
-           lateCount, totalLateMins, payableUnits, grossSalary, lateFine, netSalary]
-        );
-      });
+         lateCount, totalLateMins, payableUnits, grossSalary, lateFine, netSalary,
+         effectiveGrace, paidLeaveDays, unpaidLeaveDays, sandwichDays, lopDays,
+         salaryDayBasis, Math.round(perDayOld * 100) / 100, effectiveGrace, chargeableLateMins]
+      );
 
       results.push({
         emp_id: s.emp_id, employee_name: s.employee_name,
         present_days: presentDays, half_days: halfDays,
-        leave_days: leaveDays, absent_days: absentDays,
+        leave_days: leaveDays, paid_leave_days: paidLeaveDays, unpaid_leave_days: unpaidLeaveDays,
+        absent_days: absentDays, sandwich_days: sandwichDays, lop_days: lopDays,
         holiday_credited: holidayCredited,
         late_count: lateCount, total_late_minutes: totalLateMins,
+        grace_used: effectiveGrace, chargeable_late_minutes: chargeableLateMins,
         payable_units: payableUnits,
         per_day_old: Math.round(perDayOld * 100) / 100,
         per_day_new: incDay > 0 ? Math.round(perDayNew * 100) / 100 : null,
         increment_from_day: incDay || null,
+        salary_day_basis: salaryDayBasis,
         gross_salary: grossSalary, late_fine: lateFine, net_salary: netSalary
       });
     }
@@ -340,21 +421,26 @@ router.get('/records/export', adminAuth, async (req, res) => {
   const month = parseInt(req.query.month) || istMonth();
   const year  = parseInt(req.query.year)  || istYear();
   try {
+    await ensureSalaryPolicyColumns();
     const r = await db.query(
       `SELECT s.emp_id, s.employee_name, s.monthly_salary,
               s.present_days, s.half_days, s.leave_days, s.absent_days, s.holiday_days,
-              s.late_count, s.total_late_minutes, s.payable_days,
+              s.paid_leave_days, s.unpaid_leave_days, s.sandwich_days, s.lop_days,
+              s.late_count, s.total_late_minutes, s.grace_used, s.chargeable_late_minutes, s.payable_days,
+              s.salary_day_basis, s.per_day_salary,
               s.gross_salary, s.late_fine, s.other_deduction, s.manual_addition, s.net_salary,
               s.calculation_status, s.verified_by, s.remark
        FROM salary s WHERE s.month=$1 AND s.year=$2 ORDER BY s.employee_name`,
       [month, year]
     );
     const wb = XLSX.utils.book_new();
-    const headers = ['Emp ID','Employee Name','Basic Salary','Present','Half Day','Leave','Absent','Holiday+','Late Count','Late Mins','Payable Units','Gross','Late Fine','Other Deduction','Bonus','Net Salary','Status','Approved By','Remark'];
+    const headers = ['Emp ID','Employee Name','Basic Salary','Present','Half Day','Leave','Paid Leave','Unpaid Leave','Absent','Sandwich','LOP','Holiday+','Late Count','Late Mins','Grace Used','Chargeable Late Mins','Payable Units','Salary Basis','Per Day','Gross','Late Fine','Other Deduction','Bonus','Net Salary','Status','Approved By','Remark'];
     const rows = r.rows.map(row => [
       row.emp_id, row.employee_name, row.monthly_salary,
-      row.present_days, row.half_days, row.leave_days, row.absent_days, row.holiday_days,
-      row.late_count, row.total_late_minutes, row.payable_days,
+      row.present_days, row.half_days, row.leave_days, row.paid_leave_days, row.unpaid_leave_days,
+      row.absent_days, row.sandwich_days, row.lop_days, row.holiday_days,
+      row.late_count, row.total_late_minutes, row.grace_used, row.chargeable_late_minutes, row.payable_days,
+      row.salary_day_basis, row.per_day_salary,
       row.gross_salary, row.late_fine, row.other_deduction, row.manual_addition, row.net_salary,
       row.calculation_status, row.verified_by || '', row.remark || ''
     ]);
@@ -441,6 +527,7 @@ router.get('/slip/:emp_id', adminAuth, async (req, res) => {
   const month = parseInt(req.query.month) || istMonth();
   const year  = parseInt(req.query.year)  || istYear();
   try {
+    await ensureSalaryPolicyColumns();
     const [salRow, empRow, cfg] = await Promise.all([
       db.query(`SELECT * FROM salary WHERE emp_id=$1 AND month=$2 AND year=$3`, [emp_id, month, year]),
       db.query(`SELECT emp_id, name, formal_name, designation, date_of_joining FROM emplist WHERE emp_id=$1`, [emp_id]),
@@ -457,9 +544,11 @@ router.get('/slip/:emp_id', adminAuth, async (req, res) => {
 router.get('/my-salary', authMiddleware, async (req, res) => {
   const { emp_id } = req.user;
   try {
+    await ensureSalaryPolicyColumns();
     const r = await db.query(
       `SELECT month, year, monthly_salary, present_days, half_days, leave_days, absent_days,
-              holiday_days, late_count, payable_days, gross_salary, late_fine,
+              paid_leave_days, unpaid_leave_days, sandwich_days, holiday_days,
+              late_count, total_late_minutes, chargeable_late_minutes, payable_days, gross_salary, late_fine,
               other_deduction, manual_addition, net_salary, calculation_status, verified_at
        FROM salary WHERE emp_id=$1 ORDER BY year DESC, month DESC LIMIT 12`,
       [emp_id]
@@ -476,6 +565,7 @@ router.get('/my-slip', authMiddleware, async (req, res) => {
   const month = parseInt(req.query.month) || istMonth();
   const year  = parseInt(req.query.year)  || istYear();
   try {
+    await ensureSalaryPolicyColumns();
     const [salRow, empRow, cfg] = await Promise.all([
       db.query(`SELECT * FROM salary WHERE emp_id=$1 AND month=$2 AND year=$3`, [emp_id, month, year]),
       db.query(`SELECT emp_id, name, formal_name, designation, date_of_joining FROM emplist WHERE emp_id=$1`, [emp_id]),

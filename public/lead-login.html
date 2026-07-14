@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lead Management Login - GeeBharat</title>
+  <meta name="theme-color" content="#13203a" />
+  <style>
+    :root{--nav:#13203a;--nav2:#1d2f57;--bg:#eef4fb;--card:#fff;--text:#0f172a;--muted:#64748b;--line:#dbe5f2;--blue:#2458f4;--green:#10b981;--red:#dc2626;--shadow:0 18px 45px rgba(15,23,42,.18)}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;background:linear-gradient(135deg,var(--nav),#173f78);font-family:Inter,Segoe UI,Arial,sans-serif;color:var(--text);display:flex;align-items:center;justify-content:center;padding:20px}.wrap{width:100%;max-width:430px}.brand{text-align:center;color:#fff;margin-bottom:22px}.logo{width:74px;height:74px;border-radius:22px;background:linear-gradient(135deg,#2463ff,#10b981);display:grid;place-items:center;margin:0 auto 14px;font-size:28px;font-weight:900;box-shadow:0 14px 35px rgba(0,0,0,.24)}.brand h1{margin:0;font-size:28px}.brand p{margin:6px 0 0;color:#c8d8f5;letter-spacing:2px;text-transform:uppercase;font-size:12px}.card{background:rgba(255,255,255,.97);border-radius:20px;padding:24px;box-shadow:var(--shadow)}h2{margin:0 0 8px;text-align:center}.sub{text-align:center;color:var(--muted);line-height:1.45;margin:0 0 20px}label{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.03em;font-weight:900;color:#52627a;margin:14px 0 6px}input{width:100%;border:1px solid var(--line);border-radius:12px;background:#f8fbff;padding:13px;font:inherit;outline:none}input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(36,88,244,.12)}.btn{width:100%;border:0;border-radius:12px;padding:13px 14px;font-weight:900;cursor:pointer;background:#eaf1ff;color:#1d4ed8;margin-top:14px;text-decoration:none;display:inline-block;text-align:center}.btn.primary{background:var(--blue);color:#fff}.btn.green{background:var(--green);color:#fff}.btn:disabled{opacity:.55;cursor:not-allowed}.links{display:flex;gap:10px;margin-top:12px}.links .btn{margin:0}.error{display:none;background:#fee2e2;color:#991b1b;border:1px solid #fecaca;border-radius:12px;padding:11px;margin-top:14px;font-weight:800;text-align:center}.choices{display:grid;gap:10px;margin-top:16px}.choice{border:1px solid #bfdbfe;background:#eff6ff;border-radius:12px;padding:12px;text-align:left;cursor:pointer}.choice strong{display:block}.choice span{display:block;color:#52627a;font-size:12px;margin-top:3px}.footer{text-align:center;color:#a9bddf;font-size:12px;margin-top:16px}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="brand">
+      <div class="logo">GB</div>
+      <h1>GeeBharat Leads</h1>
+      <p>Lead Management System</p>
+    </div>
+    <section class="card">
+      <h2>Login to Lead Management</h2>
+      <p class="sub">Use your existing GeeBharat office credentials. Access is controlled organisation-wise by the super admin.</p>
+      <form id="loginForm">
+        <label for="login_id">Login ID / Email / Mobile</label>
+        <input id="login_id" name="login_id" autocomplete="username" required />
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required />
+        <button id="loginBtn" class="btn primary" type="submit">Login to Lead Management</button>
+      </form>
+      <div id="choiceBox" class="choices" style="display:none"></div>
+      <div id="errorBox" class="error"></div>
+      <div class="links">
+        <a class="btn" href="https://geebharat.com/">Back to GeeBharat</a>
+        <button class="btn" type="button" onclick="clearAndStay()">Switch Account</button>
+      </div>
+    </section>
+    <div class="footer">Same credentials. Separate Lead Management access.</div>
+  </main>
+  <script src="/assets/auth-session.js"></script>
+  <script>
+    const loginForm = document.getElementById('loginForm');
+    const loginBtn = document.getElementById('loginBtn');
+    const choiceBox = document.getElementById('choiceBox');
+    const errorBox = document.getElementById('errorBox');
+    const LEAD_SESSION_KEY = 'lead_session_ready';
+    let selectionToken = '';
+
+    function showError(message) {
+      errorBox.textContent = message || 'Unable to login. Please try again.';
+      errorBox.style.display = 'block';
+    }
+    function clearError() {
+      errorBox.textContent = '';
+      errorBox.style.display = 'none';
+    }
+    function clearLeadAuthStorage() {
+      if (window.GBSession) window.GBSession.clear(false);
+      [
+        'lead_token','office_token','office_user','admin_token','admin_user','admin_info',
+        'att_token','att_emp','gb_access_token','gb_user',LEAD_SESSION_KEY
+      ].forEach(k => localStorage.removeItem(k));
+    }
+    function clearAndStay() {
+      clearLeadAuthStorage();
+      selectionToken = '';
+      choiceBox.style.display = 'none';
+      choiceBox.innerHTML = '';
+      loginForm.style.display = '';
+      clearError();
+    }
+    function safeReturnUrl() {
+      const fallback = window.location.origin + '/lead.html';
+      const raw = new URLSearchParams(window.location.search).get('return_to');
+      if (!raw) return fallback;
+      try {
+        const u = new URL(raw, window.location.origin);
+        const hostAllowed = u.hostname === window.location.hostname || u.hostname === 'lead.geebharat.com' || u.hostname === 'lead.localhost';
+        if (hostAllowed && u.pathname === '/lead.html') return u.href;
+      } catch {}
+      return fallback;
+    }
+    function hasLeadSession() {
+      return localStorage.getItem(LEAD_SESSION_KEY) === '1' && !!localStorage.getItem('lead_token');
+    }
+    function getStoredToken() {
+      return hasLeadSession() ? localStorage.getItem('lead_token') : '';
+    }
+    function saveLeadSession(token, user) {
+      if (window.GBSession) window.GBSession.save(token, user, 'office');
+      localStorage.setItem(LEAD_SESSION_KEY, '1');
+      localStorage.setItem('lead_token', token);
+      localStorage.setItem('office_token', token);
+      localStorage.setItem('office_user', JSON.stringify(user || {}));
+      localStorage.setItem('gb_access_token', token);
+      localStorage.setItem('gb_user', JSON.stringify(user || {}));
+    }
+    async function verifyLeadAccess(token) {
+      const res = await fetch('/api/leads/me', {
+        credentials: 'same-origin',
+        headers: { Authorization: 'Bearer ' + token }
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Lead Management access is not enabled for this user or organisation.');
+      }
+      return data;
+    }
+    async function completeLogin(token, user) {
+      saveLeadSession(token, user);
+      await verifyLeadAccess(token);
+      window.location.replace(safeReturnUrl());
+    }
+    function renderChoices(data) {
+      selectionToken = data.selection_token;
+      loginForm.style.display = 'none';
+      choiceBox.style.display = 'grid';
+      choiceBox.innerHTML = '<label>Select Organisation</label>' + (data.choices || []).map(c => `
+        <button class="choice" type="button" data-key="${String(c.account_key).replace(/"/g,'&quot;')}">
+          <strong>${c.organization_name || c.display_name || c.organization_code}</strong>
+          <span>${c.organization_code || ''} - ${c.display_name || ''} ${c.role ? '(' + c.role + ')' : ''}</span>
+        </button>
+      `).join('');
+      choiceBox.querySelectorAll('.choice').forEach(btn => {
+        btn.addEventListener('click', () => selectOrganisation(btn.dataset.key));
+      });
+    }
+    async function selectOrganisation(accountKey) {
+      clearError();
+      try {
+        const res = await fetch('/api/auth/select-organization', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ selection_token: selectionToken, account_key: accountKey })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) throw new Error(data.message || 'Unable to select organisation.');
+        await completeLogin(data.token, data.user);
+      } catch (err) {
+        showError(err.message);
+      }
+    }
+    loginForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      clearError();
+      loginBtn.disabled = true;
+      loginBtn.textContent = 'Checking...';
+      try {
+        const payload = {
+          login_id: document.getElementById('login_id').value.trim(),
+          password: document.getElementById('password').value
+        };
+        const res = await fetch('/api/auth/office-login', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) throw new Error(data.message || 'Invalid login details.');
+        if (data.requires_selection) {
+          renderChoices(data);
+        } else {
+          await completeLogin(data.token, data.user);
+        }
+      } catch (err) {
+        showError(err.message);
+      } finally {
+        loginBtn.disabled = false;
+        loginBtn.textContent = 'Login to Lead Management';
+      }
+    });
+    async function bootstrap() {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('force_login') === '1' || params.get('switch_account') === '1') {
+        clearLeadAuthStorage();
+        return;
+      }
+      const existingToken = getStoredToken();
+      if (existingToken) {
+        try {
+          await verifyLeadAccess(existingToken);
+          window.location.replace(safeReturnUrl());
+          return;
+        } catch {
+          clearLeadAuthStorage();
+        }
+      }
+    }
+    bootstrap();
+  </script>
+</body>
+</html>

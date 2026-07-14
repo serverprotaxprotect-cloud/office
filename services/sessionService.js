@@ -36,18 +36,24 @@ function parseCookies(req) {
 
 function setRefreshCookie(res, refreshToken) {
   const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
+  const domain = process.env.SESSION_COOKIE_DOMAIN
+    ? `; Domain=${process.env.SESSION_COOKIE_DOMAIN}`
+    : (process.env.NODE_ENV === 'production' ? '; Domain=.geebharat.com' : '');
   const maxAge = REFRESH_DAYS * 24 * 60 * 60;
   res.setHeader(
     'Set-Cookie',
-    `${COOKIE_NAME}=${encodeURIComponent(refreshToken)}; HttpOnly; Path=/api/auth; SameSite=Lax; Max-Age=${maxAge}${secure}`
+    `${COOKIE_NAME}=${encodeURIComponent(refreshToken)}; HttpOnly; Path=/api/auth; SameSite=Lax; Max-Age=${maxAge}${domain}${secure}`
   );
 }
 
 function clearRefreshCookie(res) {
   const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
+  const domain = process.env.SESSION_COOKIE_DOMAIN
+    ? `; Domain=${process.env.SESSION_COOKIE_DOMAIN}`
+    : (process.env.NODE_ENV === 'production' ? '; Domain=.geebharat.com' : '');
   res.setHeader(
     'Set-Cookie',
-    `${COOKIE_NAME}=; HttpOnly; Path=/api/auth; SameSite=Lax; Max-Age=0${secure}`
+    `${COOKIE_NAME}=; HttpOnly; Path=/api/auth; SameSite=Lax; Max-Age=0${domain}${secure}`
   );
 }
 

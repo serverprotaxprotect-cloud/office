@@ -356,6 +356,8 @@ function publicTask(row) {
     client_name: row.client_name,
     work_name: row.work_name,
     work_description: row.client_pending_remark || null,
+    assigned_to_id: row.assigned_to_id || null,
+    assigned_to_name: row.assigned_to_name || null,
     status: row.status,
     priority: row.priority,
     due_date: row.due_date,
@@ -373,6 +375,166 @@ function clientScope(req) {
     sql: `organization_id=$1 AND client_id IN (SELECT client_id FROM clients WHERE organization_id=$1 AND agent_id=$2)`,
     params: [req.portalUser.organization_id, req.portalUser.agent_id],
   };
+}
+
+function portalAccess(alias, req) {
+  const prefix = alias ? `${alias}.` : '';
+  if (req.portalUser.account_type === 'client') {
+    return {
+      sql: `${prefix}organization_id=$1 AND ${prefix}client_id=$2`,
+      params: [req.portalUser.organization_id, req.portalUser.client_id],
+    };
+  }
+  return {
+    sql: `${prefix}organization_id=$1 AND ${prefix}client_id IN (SELECT client_id FROM clients WHERE organization_id=$1 AND agent_id=$2)`,
+    params: [req.portalUser.organization_id, req.portalUser.agent_id],
+  };
+}
+
+function progressInfo(status) {
+  const s = String(status || '').trim();
+  const key = s.toLowerCase();
+  if (!s || key === 'draft' || key === 'not started') return { client_phase: 'Not Started', progress_percent: 10, action_required: false };
+  if (key.includes('pending by client') || key.includes('waiting from client') || key.includes('client')) {
+    return { client_phase: 'Waiting From Client', progress_percent: 65, action_required: true };
+  }
+  if (key.includes('review') || key.includes('government') || key.includes('hearing') || key.includes('opposition')) {
+    return { client_phase: 'Under Review', progress_percent: 75, action_required: false };
+  }
+  if (key.includes('progress') || key.includes('process') || key.includes('prepared') || key.includes('reply filed')) {
+    return { client_phase: 'In Progress', progress_percent: 50, action_required: false };
+  }
+  if (key.includes('filed') || key.includes('completed') || key.includes('complete') || key.includes('registered') || key.includes('paid') || key.includes('renewed')) {
+    return { client_phase: 'Completed', progress_percent: 100, action_required: false };
+  }
+  if (key.includes('cancel') || key.includes('not applicable') || key.includes('refused') || key.includes('abandoned') || key.includes('withdrawn')) {
+    return { client_phase: 'Closed', progress_percent: 100, action_required: false };
+  }
+  if (key.includes('assigned') || key.includes('pending')) return { client_phase: 'Assigned', progress_percent: 25, action_required: false };
+  return { client_phase: 'Assigned', progress_percent: 25, action_required: false };
+}
+
+function normalizeWork(row) {
+  const progress = progressInfo(row.status);
+  return {
+    id: row.id,
+    module: row.module,
+    module_label: row.module_label,
+    client_id: row.client_id,
+    client_name: row.client_name || row.client_id || '--',
+    work_name: row.work_name || '--',
+    status: row.status || 'Pending',
+    client_phase: progress.client_phase,
+    progress_percent: progress.progress_percent,
+    assigned_to_name: row.assigned_to_name || null,
+    due_date: row.due_date || null,
+    last_updated_at: row.last_updated_at || row.updated_at || row.created_at || null,
+    action_required: progress.action_required || row.action_required === true,
+    linked_task_id: row.linked_task_id || row.task_id || null,
+    source_record_id: row.source_record_id || row.id,
+    public_remark: row.public_remark || null,
+  };
+}
+
+async function optionalQuery(sql, params) {
+  try {
+    const result = await db.query(sql, params);
+    return result.rows || [];
+  } catch (err) {
+    console.warn('[portal work-feed source skipped]', err.message);
+    return [];
+  }
+}
+
+async function getPortalWorkFeed(req) {
+  const access = portalAccess('x', req);
+  const params = access.params;
+  const sourceQueries = [
+    optionalQuery(
+      `SELECT x.task_id AS id, 'tasks' AS module, 'Task' AS module_label,
+              x.client_id, COALESCE(x.legal_name,x.business_name,x.client_id) AS client_name,
+              x.work_name, x.status, x.assigned_to_name, x.due_date,
+              x.last_updated_at, x.client_pending_remark AS public_remark,
+              x.task_id AS linked_task_id, x.task_id AS source_record_id
+         FROM tasks x
+        WHERE x.active_flag=true AND ${access.sql}`,
+      params
+    ),
+    optionalQuery(
+      `SELECT x.id, 'gst' AS module, 'GST' AS module_label,
+              x.client_id, x.firm_name AS client_name,
+              (x.return_type || ' - ' || COALESCE(x.period_label,'')) AS work_name,
+              x.status, x.assigned_to_name, x.due_date, x.last_status_at AS last_updated_at,
+              x.linked_task_id, x.id AS source_record_id
+         FROM gst_filing_records x
+        WHERE ${access.sql}`,
+      params
+    ),
+    optionalQuery(
+      `SELECT x.id, 'income_tax' AS module, 'Income Tax' AS module_label,
+              x.client_id, x.taxpayer_name AS client_name,
+              (COALESCE(x.itr_type,'ITR') || ' - AY ' || COALESCE(x.assessment_year,'')) AS work_name,
+              x.status, x.assigned_to_name, x.due_date, x.last_status_at AS last_updated_at,
+              x.linked_task_id, x.id AS source_record_id
+         FROM income_tax_filing_records x
+        WHERE ${access.sql}`,
+      params
+    ),
+    optionalQuery(
+      `SELECT x.id, 'pf_esic' AS module, 'PF/ESIC' AS module_label,
+              x.client_id, x.firm_name AS client_name,
+              (x.compliance_type || ' - ' || COALESCE(x.period_label,'')) AS work_name,
+              x.status, x.assigned_to_name, x.due_date, x.updated_at AS last_updated_at,
+              x.linked_task_id, x.id AS source_record_id
+         FROM pf_esic_filing_records x
+        WHERE ${access.sql}`,
+      params
+    ),
+    optionalQuery(
+      `SELECT x.id, 'compliance' AS module, 'Company Compliance' AS module_label,
+              x.client_id, x.company_name AS client_name,
+              COALESCE(x.compliance_name,x.compliance_code) || CASE WHEN x.financial_year IS NULL THEN '' ELSE ' - ' || x.financial_year END AS work_name,
+              x.status, x.assigned_to_name, x.due_date, x.updated_at AS last_updated_at,
+              x.linked_task_id, x.id AS source_record_id
+         FROM company_compliance_records x
+        WHERE ${access.sql}`,
+      params
+    ),
+    optionalQuery(
+      `SELECT x.id, 'director_kyc' AS module, 'Director KYC' AS module_label,
+              x.client_id, x.company_name AS client_name,
+              ('DIR-3 KYC - ' || COALESCE(x.director_name,x.din,'')) AS work_name,
+              x.kyc_status AS status, x.assigned_to_name, x.cycle_due_date AS due_date,
+              x.updated_at AS last_updated_at, x.linked_task_id, x.id AS source_record_id
+         FROM director_kyc_tracking x
+        WHERE ${access.sql}`,
+      params
+    ),
+    optionalQuery(
+      `SELECT x.id, 'trademark' AS module, 'Trademark' AS module_label,
+              x.client_id, COALESCE(c.legal_name,c.business_name,x.applicant_name,x.client_id) AS client_name,
+              (x.trademark_name || CASE WHEN x.current_stage IS NULL THEN '' ELSE ' - ' || x.current_stage END) AS work_name,
+              COALESCE(x.current_status,x.current_stage) AS status, x.assigned_to_name,
+              x.due_date, x.updated_at AS last_updated_at, x.linked_task_id, x.id AS source_record_id
+         FROM trademark_applications x
+         LEFT JOIN clients c ON c.organization_id=x.organization_id AND c.client_id=x.client_id
+        WHERE x.status <> 'Deleted' AND ${access.sql}`,
+      params
+    ),
+  ];
+  const rows = (await Promise.all(sourceQueries)).flat().map(normalizeWork);
+  const trackerTaskIds = new Set(
+    rows
+      .filter(r => r.module !== 'tasks' && r.linked_task_id)
+      .map(r => String(r.linked_task_id))
+  );
+  const dedupedRows = rows.filter(r => !(r.module === 'tasks' && trackerTaskIds.has(String(r.linked_task_id))));
+  return dedupedRows.sort((a, b) => {
+    const ad = a.due_date ? new Date(a.due_date).getTime() : Number.MAX_SAFE_INTEGER;
+    const bd = b.due_date ? new Date(b.due_date).getTime() : Number.MAX_SAFE_INTEGER;
+    if (ad !== bd) return ad - bd;
+    return String(b.last_updated_at || '').localeCompare(String(a.last_updated_at || ''));
+  });
 }
 
 router.post('/login', async (req, res) => {
@@ -559,29 +721,22 @@ router.get('/me', portalAuth, async (req, res) => {
 
 router.get('/dashboard', portalAuth, async (req, res) => {
   try {
-    const scope = clientScope(req);
-    const taskRows = await db.query(
-      `SELECT status, due_date FROM tasks WHERE active_flag=true AND ${scope.sql}`,
-      scope.params
-    );
-    const gstRows = await db.query(
-      `SELECT status FROM gst_filing_records WHERE ${scope.sql}`,
-      scope.params
-    ).catch(() => ({ rows: [] }));
-    const itrRows = await db.query(
-      `SELECT status FROM income_tax_filing_records WHERE ${scope.sql}`,
-      scope.params
-    ).catch(() => ({ rows: [] }));
+    const feed = await getPortalWorkFeed(req);
     const today = new Date().toISOString().slice(0, 10);
     const dueSoonLimit = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+    const openRows = feed.filter(r => !['completed', 'closed', 'cancelled'].includes(statusBucket(r.status)) && r.client_phase !== 'Closed');
+    const completedRows = feed.filter(r => r.client_phase === 'Completed');
     const summary = {
-      tasks_total: taskRows.rows.length,
-      pending: taskRows.rows.filter(r => !['completed', 'cancelled'].includes(statusBucket(r.status))).length,
-      completed: taskRows.rows.filter(r => statusBucket(r.status) === 'completed').length,
-      due_soon: taskRows.rows.filter(r => r.due_date && String(r.due_date).slice(0, 10) >= today && String(r.due_date).slice(0, 10) <= dueSoonLimit && statusBucket(r.status) !== 'completed').length,
-      overdue: taskRows.rows.filter(r => r.due_date && String(r.due_date).slice(0, 10) < today && statusBucket(r.status) !== 'completed').length,
-      gst_pending: gstRows.rows.filter(r => statusBucket(r.status) !== 'completed').length,
-      itr_pending: itrRows.rows.filter(r => statusBucket(r.status) !== 'completed').length,
+      tasks_total: feed.length,
+      open_work: openRows.length,
+      pending: openRows.length,
+      waiting_from_client: feed.filter(r => r.action_required).length,
+      completed: completedRows.length,
+      due_soon: openRows.filter(r => r.due_date && String(r.due_date).slice(0, 10) >= today && String(r.due_date).slice(0, 10) <= dueSoonLimit).length,
+      overdue: openRows.filter(r => r.due_date && String(r.due_date).slice(0, 10) < today).length,
+      gst_pending: feed.filter(r => r.module === 'gst' && r.client_phase !== 'Completed' && r.client_phase !== 'Closed').length,
+      itr_pending: feed.filter(r => r.module === 'income_tax' && r.client_phase !== 'Completed' && r.client_phase !== 'Closed').length,
+      recent_work: feed.slice(0, 8),
     };
     res.json({ success: true, summary });
   } catch (err) {
@@ -650,7 +805,7 @@ router.get('/tasks', portalAuth, async (req, res) => {
     const result = await db.query(
       `SELECT task_id, client_id, COALESCE(legal_name,business_name,client_id) AS client_name,
               work_name, client_pending_remark, priority, status, due_date, start_date,
-              completion_date, last_updated_at
+              completion_date, last_updated_at, assigned_to_id, assigned_to_name
        FROM tasks
        WHERE active_flag=true AND ${scope.sql} ${statusSql}
        ORDER BY COALESCE(due_date, created_at::date) DESC, created_at DESC
@@ -664,12 +819,35 @@ router.get('/tasks', portalAuth, async (req, res) => {
   }
 });
 
+router.get('/work-feed', portalAuth, async (req, res) => {
+  try {
+    let rows = await getPortalWorkFeed(req);
+    const moduleKey = String(req.query.module || '').trim();
+    const status = String(req.query.status || '').trim().toLowerCase();
+    const search = String(req.query.search || '').trim().toLowerCase();
+    const clientId = String(req.query.client_id || '').trim();
+    if (moduleKey) rows = rows.filter(r => r.module === moduleKey);
+    if (status) {
+      rows = rows.filter(r => String(r.status || '').toLowerCase() === status || String(r.client_phase || '').toLowerCase() === status);
+    }
+    if (clientId) rows = rows.filter(r => r.client_id === clientId);
+    if (search) {
+      rows = rows.filter(r => [r.client_id, r.client_name, r.work_name, r.status, r.assigned_to_name, r.module_label]
+        .some(v => String(v || '').toLowerCase().includes(search)));
+    }
+    res.json({ success: true, work: rows.slice(0, 800) });
+  } catch (err) {
+    console.error('[portal work-feed]', err);
+    res.status(500).json({ success: false, message: 'Work feed load failed' });
+  }
+});
+
 router.get('/gst-filings', portalAuth, async (req, res) => {
   const scope = clientScope(req);
   try {
     const result = await db.query(
       `SELECT client_id, firm_name, gst_no, return_type, tax_year, tax_month,
-              financial_year, period_label, due_date, status, filed_date_ist, last_status_at
+              financial_year, period_label, due_date, status, assigned_to_name, filed_date_ist, last_status_at
        FROM gst_filing_records
        WHERE ${scope.sql}
        ORDER BY tax_year DESC, tax_month DESC, return_type
@@ -688,7 +866,7 @@ router.get('/income-tax-filings', portalAuth, async (req, res) => {
   try {
     const result = await db.query(
       `SELECT client_id, taxpayer_name, pan_number, financial_year, assessment_year,
-              due_date, itr_type, status, filed_date_ist, last_status_at
+              due_date, itr_type, status, assigned_to_name, filed_date_ist, last_status_at
        FROM income_tax_filing_records
        WHERE ${scope.sql}
        ORDER BY assessment_year DESC, taxpayer_name

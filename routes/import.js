@@ -3,6 +3,8 @@ const multer  = require('multer');
 const XLSX    = require('xlsx');
 const db      = require('../db');
 const authMiddleware = require('../middleware/auth');
+const { encryptText, normalizePan } = require('../utils/incomeTaxUtils');
+const { logIncomeTax } = require('../services/incomeTaxService');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -34,6 +36,119 @@ function parseAmount(v) {
   return s === '' ? null : s;
 }
 
+function wantsIncomeTaxClient(value) {
+  const raw = String(value ?? 'yes').trim().toLowerCase();
+  return !['no', 'false', '0', 'skip'].includes(raw);
+}
+
+async function syncIncomeTaxClientFromMca(clientId, companyName, actor) {
+  const clientRes = await db.query(
+    `SELECT client_id, agent_id, agent_name, legal_name, business_name, mobile_number, pan_no
+     FROM clients
+     WHERE client_id=$1
+     LIMIT 1`,
+    [clientId]
+  );
+  const client = clientRes.rows[0];
+  if (!client) {
+    return { status: 'skipped', message: 'Income Tax client skipped: selected client was not found.' };
+  }
+
+  const taxpayerName = cleanStr(companyName) || cleanStr(client.legal_name) || cleanStr(client.business_name) || client.client_id;
+  const referenceName = cleanStr(companyName) || cleanStr(client.legal_name) || cleanStr(client.business_name) || taxpayerName;
+  const clientPan = normalizePan(client.pan_no || '');
+  const panValue = clientPan || null;
+
+  const existingByClient = await db.query(
+    `SELECT *
+     FROM income_tax_clients
+     WHERE client_id=$1 AND status='Active'
+     ORDER BY id
+     LIMIT 1`,
+    [clientId]
+  );
+  if (existingByClient.rows.length) {
+    const existing = existingByClient.rows[0];
+    await db.query(
+      `UPDATE income_tax_clients SET
+         taxpayer_name=COALESCE(NULLIF($1,''), taxpayer_name),
+         contact_number=COALESCE(NULLIF($2,''), contact_number),
+         reference_client_name=COALESCE(NULLIF($3,''), reference_client_name),
+         agent_id=COALESCE($4, agent_id),
+         agent_name=COALESCE($5, agent_name),
+         pan_number=COALESCE(NULLIF($6,''), pan_number),
+         updated_by_id=$7,
+         updated_by_name=$8,
+         updated_at=NOW()
+       WHERE id=$9`,
+      [
+        taxpayerName,
+        cleanStr(client.mobile_number) || '',
+        referenceName,
+        client.agent_id || null,
+        client.agent_name || null,
+        panValue || '',
+        actor.emp_id,
+        actor.formal_name || actor.name,
+        existing.id,
+      ]
+    );
+    return {
+      status: existing.pan_number || panValue ? 'already_exists' : 'already_exists_pending_pan',
+      message: existing.pan_number || panValue
+        ? 'Income Tax client already exists.'
+        : 'Income Tax client already exists. PAN is pending.',
+    };
+  }
+
+  if (panValue) {
+    const duplicatePan = await db.query(
+      `SELECT id, client_id
+       FROM income_tax_clients
+       WHERE UPPER(pan_number)=UPPER($1) AND status='Active'
+       LIMIT 1`,
+      [panValue]
+    );
+    if (duplicatePan.rows.length) {
+      return {
+        status: 'skipped_duplicate_pan',
+        message: `Income Tax client skipped: PAN already exists for ${duplicatePan.rows[0].client_id}.`,
+      };
+    }
+  }
+
+  const inserted = await db.query(
+    `INSERT INTO income_tax_clients
+      (client_id, taxpayer_name, contact_number, pan_number, password_enc, reference_client_name,
+       agent_id, agent_name, status, source, created_by_id, created_by_name, updated_by_id, updated_by_name)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'Active','mca_excel_import',$9,$10,$9,$10)
+     RETURNING *`,
+    [
+      clientId,
+      taxpayerName,
+      cleanStr(client.mobile_number) || null,
+      panValue,
+      encryptText(''),
+      referenceName,
+      client.agent_id || null,
+      client.agent_name || null,
+      actor.emp_id,
+      actor.formal_name || actor.name,
+    ]
+  );
+  await logIncomeTax(db, {
+    income_tax_client_id: inserted.rows[0].id,
+    action: 'CreateIncomeTaxClientFromMcaImport',
+    new_value: { client_id: clientId, taxpayer_name: taxpayerName, pan_pending: !panValue },
+    actor,
+  });
+
+  return {
+    status: panValue ? 'created' : 'created_pending_pan',
+    message: panValue ? 'Income Tax client created.' : 'Income Tax client created. PAN is pending.',
+  };
+}
+
 // ── POST /api/import/excel ───────────────────────────────────
 router.post('/excel', authMiddleware, upload.single('file'), async (req, res) => {
   const { emp_id, name, formal_name } = req.user;
@@ -42,7 +157,7 @@ router.post('/excel', authMiddleware, upload.single('file'), async (req, res) =>
   if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
   if (!client_id) return res.status(400).json({ success: false, message: 'Client ID required' });
 
-  const results = { master: 0, charges: 0, directors: 0, errors: [] };
+  const results = { master: 0, charges: 0, directors: 0, income_tax: null, errors: [] };
   let cin = null;
   let companyName = '';
 
@@ -219,6 +334,15 @@ router.post('/excel', authMiddleware, upload.single('file'), async (req, res) =>
           );
         }
       }
+    }
+
+    if (wantsIncomeTaxClient(req.body.create_income_tax_client)) {
+      results.income_tax = await syncIncomeTaxClientFromMca(client_id, companyName, req.user);
+      if (['skipped', 'skipped_duplicate_pan'].includes(results.income_tax.status)) {
+        results.errors.push(results.income_tax.message);
+      }
+    } else {
+      results.income_tax = { status: 'skipped_by_user', message: 'Income Tax client skipped by user.' };
     }
 
     res.json({

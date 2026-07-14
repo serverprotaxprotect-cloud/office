@@ -1,5 +1,6 @@
 const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
+const { resolveWorkClassification } = require('./workClassificationService');
 const {
   ITR_STATUSES,
   cleanText,
@@ -96,15 +97,20 @@ async function createTaskForFiling(conn, taxClient, filing, actor) {
   const itrLabel = filing.itr_type ? ` (${filing.itr_type})` : '';
   const workName = 'ITR Filing';
   const description = `ITR filing${itrLabel} for ${taxClient.taxpayer_name || taxClient.client_id} - AY ${filing.assessment_year}`;
+  const workClass = await resolveWorkClassification(conn, {
+    work_name: workName,
+    fallback: { work_category: 'Income Tax Returns & Computation', grouping_name: 'Income Tax Department', department: 'CA Services' },
+  });
 
   await conn.query(
     `INSERT INTO tasks
       (task_id, created_at, created_by_id, created_by_name, assigned_to_id, assigned_to_name,
        client_id, agent_id, agent_name, legal_name, business_name, mobile_number, email_id, drive_link,
        work_name, work_description, priority, status, due_date, internal_remark,
-       self_assigned, billing_status, active_flag)
+       self_assigned, billing_status, active_flag,
+       work_name_id, work_category, grouping_name, department, is_custom_work)
      VALUES
-      ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'Medium','Pending',$17,$18,$19,'Not Applicable',true)`,
+      ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'Medium','Pending',$17,$18,$19,'Not Applicable',true,$20,$21,$22,$23,$24)`,
     [
       taskId,
       createdAt,
@@ -125,6 +131,11 @@ async function createTaskForFiling(conn, taxClient, filing, actor) {
       filing.due_date,
       `Auto Income Tax task: AY ${filing.assessment_year}`,
       createdById === filing.assigned_to_id,
+      workClass.work_name_id,
+      workClass.work_category,
+      workClass.grouping_name,
+      workClass.department,
+      workClass.is_custom_work,
     ]
   );
 
@@ -490,6 +501,17 @@ async function assignUnassignedFilingsForClient(conn, incomeTaxClientId, employe
   const clientRes = await conn.query('SELECT * FROM income_tax_clients WHERE id=$1', [incomeTaxClientId]);
   const taxClient = clientRes.rows[0];
   if (!taxClient || !employee) return { updated: 0, tasks_created: 0 };
+  if (!normalizePan(taxClient.pan_number)) {
+    await logIncomeTax(conn, {
+      income_tax_client_id: incomeTaxClientId,
+      action: 'SkipFilingAssignment',
+      old_value: null,
+      new_value: { reason: 'PAN pending' },
+      remarks: 'PAN is pending. Filing records and tasks will be generated after PAN is updated.',
+      actor,
+    });
+    return { updated: 0, tasks_created: 0, skipped_reason: 'PAN pending' };
+  }
 
   const assigneeName = employee.formal_name || employee.name;
   const filings = [];

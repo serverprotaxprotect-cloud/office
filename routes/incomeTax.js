@@ -70,6 +70,40 @@ function mapIncomeTaxClient(row) {
   };
 }
 
+let incomeTaxDeleteColumnsReady = false;
+const INCOME_TAX_DELETE_COLUMNS = ['deleted_at', 'deleted_by_id', 'deleted_by_name', 'delete_reason'];
+async function ensureIncomeTaxDeleteColumns() {
+  if (incomeTaxDeleteColumnsReady) return;
+  const existing = await db.query(
+    `SELECT column_name
+       FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'income_tax_clients'
+        AND column_name = ANY($1::text[])`,
+    [INCOME_TAX_DELETE_COLUMNS]
+  );
+  const existingColumns = new Set(existing.rows.map((row) => row.column_name));
+  const missingColumns = INCOME_TAX_DELETE_COLUMNS.filter((column) => !existingColumns.has(column));
+
+  if (missingColumns.length) {
+    try {
+      await db.query(`
+        ALTER TABLE income_tax_clients
+          ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ,
+          ADD COLUMN IF NOT EXISTS deleted_by_id TEXT,
+          ADD COLUMN IF NOT EXISTS deleted_by_name TEXT,
+          ADD COLUMN IF NOT EXISTS delete_reason TEXT
+      `);
+    } catch (err) {
+      if (err.code === '42501' || /must be owner|permission denied/i.test(err.message || '')) {
+        err.message = `Income Tax delete migration pending: missing columns ${missingColumns.join(', ')}`;
+      }
+      throw err;
+    }
+  }
+  incomeTaxDeleteColumnsReady = true;
+}
+
 function ayOptions() {
   const current = assessmentYearToNumber(currentAssessmentYear()) || new Date().getFullYear() + 1;
   const years = [];
@@ -138,7 +172,7 @@ router.get('/meta', authMiddleware, async (req, res) => {
 router.get('/clients', authMiddleware, async (req, res) => {
   const { search, status = 'Active', assignee_id, unassigned, page = 1, limit = 300 } = req.query;
   const params = [];
-  const conds = ['1=1'];
+  const conds = ['itc.deleted_at IS NULL'];
   if (status) {
     params.push(status);
     conds.push(`itc.status=$${params.length}`);
@@ -155,6 +189,7 @@ router.get('/clients', authMiddleware, async (req, res) => {
   }
   const offset = (parseInt(page, 10) - 1) * parseInt(limit, 10);
   try {
+    await ensureIncomeTaxDeleteColumns();
     params.push(parseInt(limit, 10), offset);
     const data = await db.query(
       `SELECT itc.*,
@@ -192,6 +227,7 @@ router.get('/unassigned', authMiddleware, async (req, res) => {
   const dueDate = dueDateForAssessmentYear(assessmentYear);
   const params = [assessmentYear, dueDate];
   const conds = [
+    'itc.deleted_at IS NULL',
     "itc.status='Active'",
     "(itc.inactive_from IS NULL OR itc.inactive_from::date > $2::date)",
   ];
@@ -202,6 +238,7 @@ router.get('/unassigned', authMiddleware, async (req, res) => {
   }
 
   try {
+    await ensureIncomeTaxDeleteColumns();
     params.push(limit);
     const result = await db.query(
       `SELECT itc.*,
@@ -558,6 +595,60 @@ router.put('/clients/:id/status', authMiddleware, async (req, res) => {
       actor: req.user,
     });
     res.json({ success: true, client: mapIncomeTaxClient(result.rows[0]) });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+router.delete('/clients/:id', authMiddleware, async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const id = parseInt(req.params.id, 10);
+  const reason = cleanText(req.body.reason || req.body.delete_reason || '');
+
+  if (!Number.isFinite(id)) {
+    return res.status(400).json({ success: false, message: 'Valid Income Tax client id required' });
+  }
+  if (!reason) {
+    return res.status(400).json({ success: false, message: 'Delete reason is required' });
+  }
+
+  try {
+    await ensureIncomeTaxDeleteColumns();
+    const old = await db.query('SELECT * FROM income_tax_clients WHERE id=$1 AND deleted_at IS NULL', [id]);
+    if (!old.rows.length) return res.status(404).json({ success: false, message: 'Income Tax client not found' });
+
+    const actorId = req.user.emp_id || req.user.username || String(req.user.id || '');
+    const actorName = req.user.formal_name || req.user.name || req.user.username || actorId;
+    const result = await db.query(
+      `UPDATE income_tax_clients
+       SET status='Inactive',
+           inactive_from=COALESCE(inactive_from, CURRENT_DATE),
+           inactive_reason=$1,
+           deleted_at=NOW(),
+           deleted_by_id=$2,
+           deleted_by_name=$3,
+           delete_reason=$1,
+           updated_by_id=$2,
+           updated_by_name=$3,
+           updated_at=NOW()
+       WHERE id=$4 AND deleted_at IS NULL
+       RETURNING *`,
+      [reason, actorId, actorName, id]
+    );
+
+    await logIncomeTax(db, {
+      income_tax_client_id: id,
+      action: 'DeleteIncomeTaxClient',
+      old_value: {
+        status: old.rows[0].status,
+        taxpayer_name: old.rows[0].taxpayer_name,
+        client_id: old.rows[0].client_id,
+      },
+      new_value: { delete_reason: reason },
+      actor: req.user,
+    });
+
+    res.json({ success: true, message: 'Income Tax client deleted', client: mapIncomeTaxClient(result.rows[0]) });
   } catch (err) {
     handleError(res, err);
   }

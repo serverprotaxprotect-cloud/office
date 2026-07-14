@@ -1447,7 +1447,7 @@ function buildMySlipHTML(s, e, empName, hrName, totalDed, manAdd, net) {
 
     <!-- Attendance Grid -->
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:12px;font-size:11px;text-align:center;">
-      ${[['Present','#15803d',s.present_days||0],['Half Day','#f59e0b',s.half_days||0],['Leave','#2563eb',s.leave_days||0],['Holiday','#7c3aed',s.holiday_days||0],['Absent','#dc2626',s.absent_days||0],['Late','#ea580c',s.late_count||0],['Late Mins','#ea580c',s.total_late_minutes||0],['Payable','#1e293b',parseFloat(s.payable_days||0).toFixed(2)]].map(([lbl,clr,val])=>`
+      ${[['Present','#15803d',s.present_days||0],['Half Day','#f59e0b',s.half_days||0],['Paid Leave','#2563eb',s.paid_leave_days ?? s.leave_days ?? 0],['Unpaid Leave','#dc2626',s.unpaid_leave_days||0],['Sandwich','#dc2626',s.sandwich_days||0],['Holiday','#7c3aed',s.holiday_days||0],['Absent','#dc2626',s.absent_days||0],['Late','#ea580c',s.late_count||0],['Chargeable Late','#ea580c',s.chargeable_late_minutes ?? s.total_late_minutes ?? 0],['Payable','#1e293b',parseFloat(s.payable_days||0).toFixed(2)]].map(([lbl,clr,val])=>`
         <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:6px 2px;">
           <div style="font-size:13px;font-weight:800;color:${clr};">${val}</div>
           <div style="color:#64748b;font-size:10px;">${lbl}</div>
@@ -1458,7 +1458,7 @@ function buildMySlipHTML(s, e, empName, hrName, totalDed, manAdd, net) {
     <table class="slip-table">
       <thead><tr><th>Earnings</th><th style="text-align:right;">Amount (₹)</th></tr></thead>
       <tbody>
-        <tr><td>Basic Salary<br><small style="color:#94a3b8;">${s.payable_days||0} units × ₹${(parseFloat(s.monthly_salary||0)/30).toFixed(0)}/day</small></td><td style="text-align:right;font-weight:700;">₹${parseFloat(s.gross_salary||0).toLocaleString('en-IN')}</td></tr>
+        <tr><td>Basic Salary<br><small style="color:#94a3b8;">${s.payable_days||0} units × ₹${parseFloat(s.per_day_salary || (parseFloat(s.monthly_salary||0)/30)).toFixed(0)}/day</small></td><td style="text-align:right;font-weight:700;">₹${parseFloat(s.gross_salary||0).toLocaleString('en-IN')}</td></tr>
         ${manAdd>0?`<tr><td>Bonus / Addition</td><td style="text-align:right;color:#15803d;font-weight:700;">+ ₹${manAdd.toLocaleString('en-IN')}</td></tr>`:''}
         <tr class="slip-total-row"><td>Total Earnings</td><td style="text-align:right;">₹${(parseFloat(s.gross_salary||0)+manAdd).toLocaleString('en-IN')}</td></tr>
       </tbody>

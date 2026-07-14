@@ -86,6 +86,15 @@ function canAutofillGSTClient(row, user) {
   return !!(user?.emp_id || user?.username || user?.id);
 }
 
+function canManageGSTClientStatus(row, user) {
+  if (isGstAdmin(user)) return true;
+  const userIds = [user?.emp_id, user?.username, user?.id]
+    .filter(Boolean)
+    .map(v => String(v).trim().toLowerCase());
+  const assigneeId = String(row?.default_assignee_id || '').trim().toLowerCase();
+  return Boolean(assigneeId && userIds.includes(assigneeId));
+}
+
 function fyOptions() {
   const now = new Date(Date.now() + (5.5 * 60 * 60 * 1000));
   const year = now.getUTCMonth() >= 3 ? now.getUTCFullYear() : now.getUTCFullYear() - 1;
@@ -839,7 +848,6 @@ router.put('/clients/:id/assign', authMiddleware, async (req, res) => {
 });
 
 router.put('/clients/:id/status', authMiddleware, async (req, res) => {
-  if (!requireAdmin(req, res)) return;
   const id = parseInt(req.params.id, 10);
   const status = req.body.status === 'Inactive' ? 'Inactive' : 'Active';
   const inactiveFrom = status === 'Inactive' ? (req.body.inactive_from || todayIST()) : null;
@@ -852,6 +860,11 @@ router.put('/clients/:id/status', authMiddleware, async (req, res) => {
     if (!old.rows.length) {
       const err = new Error('GST client not found');
       err.statusCode = 404;
+      throw err;
+    }
+    if (!canManageGSTClientStatus(old.rows[0], req.user)) {
+      const err = new Error('Only GST admins or the assigned employee can update this GST client status');
+      err.statusCode = 403;
       throw err;
     }
     await conn.query(

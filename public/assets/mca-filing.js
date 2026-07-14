@@ -64,9 +64,12 @@
     box.className = '';
     box.innerHTML = `
       <style>
-        .mca-hub{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
-        .mca-module{background:#fff;border-radius:8px;box-shadow:0 8px 22px rgba(15,23,42,.07);padding:18px;border:1px solid #dbeafe}
-        .mca-module h3{margin:0 0 6px}.mca-module p{color:#64748b;margin:0 0 14px}
+        .mca-hub{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+        .mca-module{background:#fff;border-radius:8px;box-shadow:0 8px 22px rgba(15,23,42,.07);padding:18px;border:1px solid #dbeafe;display:flex;flex-direction:column;min-height:150px}
+        .mca-module h3{margin:0 0 6px}.mca-module p{color:#64748b;margin:0 0 14px;line-height:1.45}
+        .mca-module .mca-icon{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;background:#eff6ff;margin-bottom:10px;font-size:20px}
+        .mca-module .mca-actions{margin-top:auto;display:flex;gap:8px;flex-wrap:wrap}
+        .mca-note{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px 14px;color:#475569;margin:0 0 14px}
         .mca-shell{display:grid;grid-template-columns:360px minmax(0,1fr);gap:14px}
         .mca-card{background:#fff;border-radius:8px;box-shadow:0 8px 22px rgba(15,23,42,.07);padding:16px}
         .mca-list{max-height:calc(100vh - 270px);overflow:auto;border:1px solid #e5edf7;border-radius:8px}
@@ -77,6 +80,7 @@
         .mca-tabs button,.mca-btn{border:0;border-radius:7px;padding:8px 12px;font-weight:700;cursor:pointer;background:#eef4ff;color:#0f3f9f}
         .mca-tabs button.active,.mca-btn.primary{background:#2f5cf6;color:#fff}
         .mca-btn.green{background:#dcfce7;color:#166534}.mca-btn.dark{background:#1e293b;color:#fff}
+        .mca-btn.link{text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
         .mca-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
         .mca-grid.three{grid-template-columns:repeat(3,minmax(0,1fr))}
         .mca-field label{display:block;font-size:11px;text-transform:uppercase;font-weight:800;color:#536b90;margin:0 0 5px}
@@ -86,7 +90,8 @@
         .mca-table-wrap{overflow:auto;border:1px solid #e5edf7;border-radius:8px}.mca-table{min-width:900px;width:100%;border-collapse:collapse}
         .mca-table th{background:#f6f8fb;text-align:left;color:#334155;font-size:12px}.mca-table th,.mca-table td{border-bottom:1px solid #edf2f7;padding:9px 10px;vertical-align:top}
         .mca-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px}
-        @media(max-width:900px){.mca-shell{grid-template-columns:1fr}.mca-grid,.mca-grid.three{grid-template-columns:1fr}}
+        @media(max-width:1100px){.mca-hub{grid-template-columns:repeat(2,minmax(0,1fr))}}
+        @media(max-width:900px){.mca-shell{grid-template-columns:1fr}.mca-grid,.mca-grid.three,.mca-hub{grid-template-columns:1fr}}
       </style>
       <div id="mcaRoot"></div>`;
     renderHome();
@@ -104,19 +109,72 @@
   function renderHome() {
     const root = document.getElementById('mcaRoot');
     if (!root) return;
+    const tools = [
+      {
+        icon: '📄',
+        title: 'Prepare Annual Filing Attachment',
+        desc: 'Prepare annual filing attachments such as Audit Report, Board Report, Notes, AOC-1, AOC-2, shareholder list and director list.',
+        url: 'https://compliancesearch.in/tools/documents/annual-filing',
+        cta: 'Open Annual Filing'
+      },
+      {
+        icon: '📋',
+        title: 'Prepare Minutes',
+        desc: 'Prepare Board Meeting, AGM, EGM and committee meeting minutes using the ComplianceSearch minutes generator.',
+        url: 'https://compliancesearch.in/tools/documents/minutes',
+        cta: 'Open Minutes'
+      },
+      {
+        icon: '✍️',
+        title: 'Board Resolution Builder',
+        desc: 'Generate board resolutions for accounts, auditors, banking, borrowings, share capital and other company decisions.',
+        url: 'https://compliancesearch.in/tools/documents/board-resolution',
+        cta: 'Open Resolutions'
+      },
+      {
+        icon: '🏷️',
+        title: 'Share Certificate Generator',
+        desc: 'Prepare Form SH-1 share certificates with company and shareholder details.',
+        url: 'https://compliancesearch.in/tools/documents/share-certificate',
+        cta: 'Open Share Certificate'
+      },
+      {
+        icon: '🏦',
+        title: 'Bank Account Opening Resolution',
+        desc: 'Prepare board resolution and certified true copy for opening a company bank account.',
+        url: 'https://compliancesearch.in/tools/documents/bank-resolution',
+        cta: 'Open Bank Resolution'
+      },
+      {
+        icon: '✅',
+        title: 'Compliance Check',
+        desc: 'Check applicable registrations and compliance requirements based on the business profile.',
+        url: 'https://compliancesearch.in/check',
+        cta: 'Open Compliance Check'
+      },
+      {
+        icon: '📊',
+        title: 'Business Valuation Tool',
+        desc: 'Prepare internal business valuation analysis using DCF, multiples and scorecard methods.',
+        url: 'https://compliancesearch.in/tools/business-valuation',
+        cta: 'Open Valuation'
+      }
+    ];
     root.innerHTML = `
+      <div class="mca-note">
+        MCA document preparation is handled through ComplianceSearch tools. Use the links below to open the required tool in a new tab.
+      </div>
       <div class="mca-hub">
-        <div class="mca-module">
-          <h3>Annual Filing Report Preparation</h3>
-          <p>Audit Report, Board Report, Notes to Accounts, AOC-1, AOC-2, Shareholder/Director list prepare karein.</p>
-          <div class="mca-muted" style="margin-bottom:12px">Only for Small Private Limited Company. Not for Public Company and not for Section 8 Company.</div>
-          <button class="mca-btn primary" onclick="mcaOpenAnnual()">Open Annual Filing</button>
-        </div>
-        <div class="mca-module" style="opacity:.65">
-          <h3>Future MCA Form Filing</h3>
-          <p>DIR-12, PAS-3, MGT-14, INC forms aur other MCA workflows yahan add honge.</p>
-          <button class="mca-btn" disabled>Coming Soon</button>
-        </div>
+        ${tools.map((tool, index) => `
+          <div class="mca-module">
+            <div class="mca-icon">${tool.icon}</div>
+            <h3>${esc(tool.title)}</h3>
+            <p>${esc(tool.desc)}</p>
+            <div class="mca-actions">
+              <a class="mca-btn link ${index === 0 ? 'primary' : ''}" href="${attr(tool.url)}" target="_blank" rel="noopener noreferrer">${esc(tool.cta)}</a>
+            </div>
+          </div>
+        `).join('')}
       </div>`;
   }
 
@@ -417,7 +475,6 @@
     if (!state.ready) {
       shell();
       state.ready = true;
-      await loadMeta();
     }
     renderHome();
   }

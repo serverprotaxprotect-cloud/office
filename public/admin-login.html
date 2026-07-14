@@ -4,6 +4,19 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin Login - Gee Bharat Attendance</title>
+  <script>
+    (function redirectLeadLoginToOfficeLoginBeforePaint() {
+      const params = new URLSearchParams(window.location.search);
+      const rawReturn = params.get('return_to') || '';
+      if (!rawReturn) return;
+      try {
+        const target = new URL(rawReturn, window.location.origin);
+        if (target.host !== 'lead.geebharat.com' || target.pathname !== '/lead.html') return;
+        const officeParams = new URLSearchParams({ switch_account: '1', return_to: target.href });
+        window.location.replace('/office.html?' + officeParams.toString());
+      } catch {}
+    })();
+  </script>
   <link rel="stylesheet" href="/assets/style.css" />
 </head>
 <body class="login-body" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);">
@@ -46,11 +59,30 @@
 
   <script src="/assets/auth-session.js"></script>
   <script>
-    GBSession.restore('admin').then(ok => {
-      const currentUser = GBSession.userFor('admin');
-      const tokenUser = GBSession.decode(GBSession.tokenFor('admin'));
-      if (ok && (currentUser.is_admin || tokenUser.is_admin)) window.location.href = '/admin.html';
-    });
+    const loginParams = new URLSearchParams(window.location.search);
+    const forceLogin = loginParams.get('force_login') === '1' || loginParams.get('switch_account') === '1';
+
+    function safeReturnUrl() {
+      const raw = loginParams.get('return_to') || '';
+      if (!raw) return '/admin.html';
+      try {
+        const url = new URL(raw, window.location.origin);
+        const allowedHosts = new Set([window.location.host, 'geebharat.com', 'www.geebharat.com', 'lead.geebharat.com']);
+        const allowedPaths = new Set(['/admin.html', '/office.html', '/lead.html']);
+        if (allowedHosts.has(url.host) && allowedPaths.has(url.pathname)) return url.href;
+      } catch {}
+      return '/admin.html';
+    }
+
+    if (forceLogin) {
+      GBSession.clear(false);
+    } else {
+      GBSession.restore('admin').then(ok => {
+        const currentUser = GBSession.userFor('admin');
+        const tokenUser = GBSession.decode(GBSession.tokenFor('admin'));
+        if (ok && (currentUser.is_admin || tokenUser.is_admin)) window.location.href = safeReturnUrl();
+      });
+    }
 
     function togglePass() {
       const p = document.getElementById('password');
@@ -84,7 +116,7 @@
         const data = await res.json();
         if (!data.success) throw new Error(data.message || 'Selection failed');
         GBSession.save(data.token, data.user, 'admin');
-        window.location.href = '/admin.html';
+        window.location.href = safeReturnUrl();
       } catch (e) {
         err.textContent = e.message || 'Selection failed';
         err.style.display = 'block';
@@ -118,7 +150,7 @@
           spin.style.display = 'none';
         } else if (data.success) {
           GBSession.save(data.token, data.admin, 'admin');
-          window.location.href = '/admin.html';
+          window.location.href = safeReturnUrl();
         } else {
           err.textContent = data.message;
           err.style.display = 'block';

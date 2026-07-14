@@ -461,7 +461,7 @@
       <div class="today-table-wrap">
         <div class="hist-table-wrap">
           <table>
-            <thead><tr><th>Req ID</th><th>Employee</th><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Reason</th><th>Applied</th><th>Status</th><th>Action</th></tr></thead>
+            <thead><tr><th>Req ID</th><th>Employee</th><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Pay Type</th><th>Reason</th><th>Applied</th><th>Status</th><th>Action</th></tr></thead>
             <tbody id="leaveTable"></tbody>
           </table>
         </div>
@@ -492,6 +492,39 @@
             <input type="text" id="hrSignatoryName" placeholder="e.g. Rahul Kumar" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none;" />
             <p style="font-size:12px;color:#94a3b8;margin-top:4px;">This name appears as the authorised signatory on all salary slips.</p>
           </div>
+          <div class="form-grid" style="margin-bottom:14px;">
+            <div>
+              <label>Salary Day Basis</label>
+              <select id="salaryDayBasis">
+                <option value="fixed_30">Monthly salary / 30</option>
+                <option value="calendar_days">Monthly salary / actual calendar days</option>
+                <option value="fixed_26">Monthly salary / 26</option>
+                <option value="working_days">Monthly salary / working days</option>
+              </select>
+            </div>
+            <div>
+              <label>Sandwich Leave Deduction</label>
+              <select id="salarySandwichLeave">
+                <option value="No">No</option>
+                <option value="Yes">Yes</option>
+              </select>
+            </div>
+            <div>
+              <label>Holiday / Weekly Off Credit</label>
+              <select id="salaryHolidayCredit">
+                <option value="paid">Paid by default</option>
+                <option value="none">Do not auto-credit</option>
+              </select>
+            </div>
+            <div>
+              <label>Default Approved Leave Pay Type</label>
+              <select id="salaryDefaultLeavePayType">
+                <option value="Paid">Paid</option>
+                <option value="Unpaid">Unpaid</option>
+              </select>
+            </div>
+          </div>
+          <p style="font-size:12px;color:#64748b;margin:-4px 0 14px;">These rules affect new salary calculations only. Approved salary records remain locked until unlocked.</p>
           <button class="btn-sm" style="background:#16a34a;" onclick="saveSalarySettings()">Save Settings</button>
         </div>
       </div>
@@ -1042,6 +1075,10 @@ async function loadSalarySettings() {
     const data = await api('/admin/settings');
     if (data.success) {
       document.getElementById('hrSignatoryName').value = data.settings.HR_SIGNATORY_NAME || '';
+      document.getElementById('salaryDayBasis').value = data.settings.SALARY_DAY_BASIS || 'fixed_30';
+      document.getElementById('salarySandwichLeave').value = data.settings.SALARY_SANDWICH_LEAVE || 'No';
+      document.getElementById('salaryHolidayCredit').value = data.settings.SALARY_HOLIDAY_CREDIT || 'paid';
+      document.getElementById('salaryDefaultLeavePayType').value = data.settings.SALARY_LEAVE_DEFAULT_PAY_TYPE || 'Paid';
     }
   } catch {}
 }
@@ -1052,7 +1089,13 @@ async function saveSalarySettings() {
   try {
     const data = await api('/admin/settings', {
       method: 'POST',
-      body: JSON.stringify({ HR_SIGNATORY_NAME: hrName })
+      body: JSON.stringify({
+        HR_SIGNATORY_NAME: hrName,
+        SALARY_DAY_BASIS: document.getElementById('salaryDayBasis').value,
+        SALARY_SANDWICH_LEAVE: document.getElementById('salarySandwichLeave').value,
+        SALARY_HOLIDAY_CREDIT: document.getElementById('salaryHolidayCredit').value,
+        SALARY_LEAVE_DEFAULT_PAY_TYPE: document.getElementById('salaryDefaultLeavePayType').value
+      })
     });
     msg.className = data.success ? 'alert alert-success' : 'alert alert-error';
     msg.textContent = data.success ? 'Settings saved successfully!' : data.message;
@@ -2148,22 +2191,25 @@ async function loadLeaves() {
       <td>${fmtDate(l.from_date)}</td>
       <td>${fmtDate(l.to_date)}</td>
       <td><strong>${l.days}</strong></td>
+      <td>${l.status === 'Approved' ? `<span class="badge ${l.pay_type === 'Unpaid' ? 'badge-absent' : 'badge-present'}">${l.pay_type || 'Paid'}</span>` : '--'}</td>
       <td style="max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${l.reason}">${l.reason}</td>
       <td><small>${new Date(l.applied_at).toLocaleDateString('en-IN')}</small></td>
       <td><span class="badge ${badge}">${l.status}</span></td>
       <td>${l.status === 'Pending' ? `
-        <button class="btn-approve" onclick="leaveAction('${l.request_id}','Approved')">Approve</button>
+        <button class="btn-approve" onclick="leaveAction('${l.request_id}','Approved','Paid')">Approve Paid</button>
+        <button class="btn-edit" onclick="leaveAction('${l.request_id}','Approved','Unpaid')">Approve Unpaid</button>
         <button class="btn-reject"  onclick="leaveAction('${l.request_id}','Rejected')">Reject</button>
       ` : `<small style="color:#94a3b8">${l.approved_rejected_by||'--'}</small>`}</td>
     </tr>`;
-  }).join('') : '<tr><td colspan="10" style="text-align:center;color:#94a3b8;padding:20px">No leave requests</td></tr>';
+  }).join('') : '<tr><td colspan="11" style="text-align:center;color:#94a3b8;padding:20px">No leave requests</td></tr>';
 }
 
-async function leaveAction(reqId, action) {
-  if (!confirm(`${action} this leave request?`)) return;
+async function leaveAction(reqId, action, payType='Paid') {
+  const label = action === 'Approved' ? `Approve this leave as ${payType}` : `${action} this leave request`;
+  if (!confirm(`${label}?`)) return;
   const data = await api('/leave/action', {
     method: 'POST',
-    body: JSON.stringify({ request_id: reqId, action })
+    body: JSON.stringify({ request_id: reqId, action, pay_type: payType })
   });
   showToast(data.message, data.success ? 'success' : 'error');
   if (data.success) loadLeaves();
@@ -2252,15 +2298,18 @@ async function calculateSalary() {
         ${skipped.length ? `<br><small style="color:#92400e">&#9888; ${skipped.length} already Approved (skipped): ${skipped.map(r=>r.employee_name).join(', ')}</small>` : ''}
       </div>
       <div class="hist-table-wrap" style="overflow-x:auto;"><table>
-        <thead><tr><th>Employee</th><th>Present</th><th>Half</th><th>Leave</th><th>Absent</th><th>Holiday+</th><th>Late</th><th>Payable</th><th>Gross</th><th>Late Fine</th><th>Net</th></tr></thead>
+        <thead><tr><th>Employee</th><th>Present</th><th>Half</th><th>Paid Leave</th><th>Unpaid Leave</th><th>Absent</th><th>Sandwich</th><th>Holiday+</th><th>Late</th><th>Grace</th><th>Payable</th><th>Gross</th><th>Late Fine</th><th>Net</th></tr></thead>
         <tbody>${calculated.map(r => `<tr>
           <td><strong>${r.employee_name}</strong>${r.increment_from_day ? `<br><span style="font-size:11px;color:#7c3aed;">Incr. from day ${r.increment_from_day}</span>` : ''}</td>
           <td>${r.present_days}</td>
           <td>${r.half_days}</td>
-          <td>${r.leave_days}</td>
+          <td>${r.paid_leave_days || 0}</td>
+          <td>${(r.unpaid_leave_days || 0) > 0 ? `<span style="color:#dc2626;font-weight:700;">${r.unpaid_leave_days}</span>` : '0'}</td>
           <td>${r.absent_days > 0 ? `<span style="color:#dc2626;font-weight:700;">${r.absent_days}</span>` : '0'}</td>
+          <td>${(r.sandwich_days || 0) > 0 ? `<span style="color:#dc2626;font-weight:700;">${r.sandwich_days}</span>` : '0'}</td>
           <td>${r.holiday_credited > 0 ? `<span style="color:#7c3aed;">${r.holiday_credited}</span>` : '0'}</td>
-          <td>${r.late_count > 0 ? `<span style="color:#d97706;">${r.late_count} (${r.total_late_minutes}m)</span>` : '0'}</td>
+          <td>${r.late_count > 0 ? `<span style="color:#d97706;">${r.late_count} (${r.total_late_minutes}m / ${r.chargeable_late_minutes || 0}m charge)</span>` : '0'}</td>
+          <td>${r.grace_used || 0}m</td>
           <td>${r.payable_units}</td>
           <td>${money(r.gross_salary)}</td>
           <td>${r.late_fine > 0 ? `<span style="color:#dc2626;">${money(r.late_fine)}</span>` : '—'}</td>
@@ -2390,7 +2439,7 @@ function buildSlipHTML(s, e, month, year, hrName, MONTHS, totalDed, totalAdd, em
 
     <!-- Attendance Summary -->
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px;font-size:12px;text-align:center;">
-      ${[['Present','#16a34a',s.present_days||0],['Half Day','#f59e0b',s.half_days||0],['Leave','#2563eb',s.leave_days||0],['Holiday','#7c3aed',s.holiday_days||0],['Absent','#dc2626',s.absent_days||0],['Late','#ea580c',s.late_count||0],['Late Mins','#ea580c',s.total_late_minutes||0],['Payable','#1e293b',parseFloat(s.payable_days||0).toFixed(2)]].map(([lbl,clr,val])=>`
+      ${[['Present','#16a34a',s.present_days||0],['Half Day','#f59e0b',s.half_days||0],['Paid Leave','#2563eb',s.paid_leave_days ?? s.leave_days ?? 0],['Unpaid Leave','#dc2626',s.unpaid_leave_days||0],['Sandwich','#dc2626',s.sandwich_days||0],['Holiday','#7c3aed',s.holiday_days||0],['Absent','#dc2626',s.absent_days||0],['Late','#ea580c',s.late_count||0],['Chargeable Late','#ea580c',s.chargeable_late_minutes ?? s.total_late_minutes ?? 0],['Payable','#1e293b',parseFloat(s.payable_days||0).toFixed(2)]].map(([lbl,clr,val])=>`
         <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px 4px;">
           <div style="font-size:14px;font-weight:800;color:${clr};">${val}</div>
           <div style="color:#64748b;">${lbl}</div>
@@ -2409,7 +2458,7 @@ function buildSlipHTML(s, e, month, year, hrName, MONTHS, totalDed, totalAdd, em
       </thead>
       <tbody>
         <tr>
-          <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;">Basic Salary<br><small style="color:#94a3b8;">${s.payable_days||0} units × ₹${(parseFloat(s.monthly_salary||0)/30).toFixed(0)}/day</small></td>
+          <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;">Basic Salary<br><small style="color:#94a3b8;">${s.payable_days||0} units × ₹${parseFloat(s.per_day_salary || (parseFloat(s.monthly_salary||0)/30)).toFixed(0)}/day</small></td>
           <td style="padding:6px 10px;text-align:right;border-bottom:1px solid #e2e8f0;font-weight:700;">${money(s.gross_salary)}</td>
           <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;border-left:1px solid #e2e8f0;">${(parseFloat(s.late_fine)||0)>0 ? 'Late Fine' : '—'}</td>
           <td style="padding:6px 10px;text-align:right;border-bottom:1px solid #e2e8f0;color:#dc2626;">${(parseFloat(s.late_fine)||0)>0 ? '-'+money(s.late_fine) : ''}</td>

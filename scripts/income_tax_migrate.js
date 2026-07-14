@@ -11,7 +11,7 @@ const statements = [
     client_id VARCHAR(50) NOT NULL,
     taxpayer_name VARCHAR(255) NOT NULL,
     contact_number VARCHAR(50),
-    pan_number VARCHAR(20) NOT NULL,
+    pan_number VARCHAR(20),
     password_enc TEXT,
     reference_client_name VARCHAR(255),
     agent_id VARCHAR(50),
@@ -35,6 +35,7 @@ const statements = [
   `CREATE UNIQUE INDEX IF NOT EXISTS ux_income_tax_clients_org_pan
     ON income_tax_clients (organization_id, UPPER(pan_number))
     WHERE NULLIF(pan_number,'') IS NOT NULL`,
+  `ALTER TABLE income_tax_clients ALTER COLUMN pan_number DROP NOT NULL`,
   `ALTER TABLE income_tax_clients ADD COLUMN IF NOT EXISTS source VARCHAR(40) NOT NULL DEFAULT 'manual'`,
   `ALTER TABLE income_tax_clients ADD COLUMN IF NOT EXISTS source_sheet VARCHAR(100)`,
   `ALTER TABLE income_tax_clients ADD COLUMN IF NOT EXISTS source_row INTEGER`,

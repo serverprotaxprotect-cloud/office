@@ -15,6 +15,8 @@ const complianceRoutes = require('./routes/compliance');
 const gstRoutes        = require('./routes/gst');
 const incomeTaxRoutes  = require('./routes/incomeTax');
 const pfEsicRoutes     = require('./routes/pfEsic');
+const trademarkRoutes  = require('./routes/trademarks');
+const leadsRoutes      = require('./routes/leads');
 const billingRoutes    = require('./routes/billing');
 const mcaRoutes        = require('./routes/mca');
 const importRoutes     = require('./routes/import');
@@ -63,6 +65,30 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
+app.use((req, res, next) => {
+  const forwardedHost = String(req.headers['x-forwarded-host'] || '').split(',')[0].trim();
+  const rawHost = forwardedHost || req.headers.host || req.hostname || '';
+  const host = String(rawHost).split(':')[0].toLowerCase();
+  const isLeadHost = host === 'lead.geebharat.com' || host === 'lead.localhost' || host.startsWith('lead.');
+  if (isLeadHost && (req.method === 'GET' || req.method === 'HEAD')) {
+    const leadProtocol = host === 'lead.localhost' || host.endsWith('.localhost') ? req.protocol : 'https';
+    const leadHost = forwardedHost || req.headers.host || host;
+    const returnTo = `${leadProtocol}://${leadHost}/lead.html`;
+    if (req.path === '/lead-login.html') {
+      return res.sendFile(path.join(__dirname, 'public', 'lead-login.html'));
+    }
+    if (req.path === '/admin-login.html' || req.path === '/office.html') {
+      return res.redirect(302, `/lead-login.html?switch_account=1&return_to=${encodeURIComponent(returnTo)}`);
+    }
+    const leadPages = new Set(['/', '/index.html', '/lead.html']);
+    const isPageRequest = !req.path.startsWith('/api/') && (leadPages.has(req.path) || !path.extname(req.path));
+    if (isPageRequest) {
+      return res.sendFile(path.join(__dirname, 'public', 'lead.html'));
+    }
+  }
+  next();
+});
+
 // Static files
 app.use(express.static(path.join(__dirname, 'public'), {
   etag: true,
@@ -88,6 +114,8 @@ app.use('/api/compliance', complianceRoutes);
 app.use('/api/gst',        gstRoutes);
 app.use('/api/income-tax', incomeTaxRoutes);
 app.use('/api/pf-esic',    pfEsicRoutes);
+app.use('/api/trademarks', trademarkRoutes);
+app.use('/api/leads',      leadsRoutes);
 app.use('/api/billing',    billingRoutes);
 app.use('/api/mca',        mcaRoutes);
 app.use('/api/import',         importRoutes);

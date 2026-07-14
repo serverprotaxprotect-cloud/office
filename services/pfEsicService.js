@@ -1,5 +1,6 @@
 const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
+const { resolveWorkClassification } = require('./workClassificationService');
 const {
   PF_ESIC_STATUSES,
   PF_ESIC_TYPES,
@@ -107,15 +108,20 @@ async function createTaskForFiling(conn, pfClient, filing, actor) {
   const assigneeName = filing.assigned_to_name || pfClient.default_assignee_name || filing.assigned_to_id;
   const workName = filing.compliance_type;
   const description = `${filing.compliance_type} for ${pfClient.firm_name || pfClient.client_id} - ${filing.period_label}`;
+  const workClass = await resolveWorkClassification(conn, {
+    work_name: workName,
+    fallback: { work_category: 'Payroll, PF, ESIC & Labour Compliance', grouping_name: 'Payroll & Labour Compliance Department', department: 'Common Services' },
+  });
 
   await conn.query(
     `INSERT INTO tasks
       (task_id, created_at, created_by_id, created_by_name, assigned_to_id, assigned_to_name,
        client_id, agent_id, agent_name, legal_name, business_name, mobile_number, email_id, drive_link,
        work_name, work_description, priority, status, due_date, internal_remark,
-       self_assigned, billing_status, active_flag)
+       self_assigned, billing_status, active_flag,
+       work_name_id, work_category, grouping_name, department, is_custom_work)
      VALUES
-      ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'Medium','Pending',$17,$18,$19,'Not Applicable',true)`,
+      ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'Medium','Pending',$17,$18,$19,'Not Applicable',true,$20,$21,$22,$23,$24)`,
     [
       taskId,
       createdAt,
@@ -136,6 +142,11 @@ async function createTaskForFiling(conn, pfClient, filing, actor) {
       dateOnly(filing.due_date),
       `Linked PF/ESIC monthly tracker #${filing.id}`,
       createdById === filing.assigned_to_id,
+      workClass.work_name_id,
+      workClass.work_category,
+      workClass.grouping_name,
+      workClass.department,
+      workClass.is_custom_work,
     ]
   );
   await conn.query(

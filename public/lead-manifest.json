@@ -1,0 +1,22 @@
+{
+  "name": "GeeBharat Lead Management",
+  "short_name": "GeeBharat Leads",
+  "start_url": "/lead.html",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#eef4fb",
+  "theme_color": "#13203a",
+  "description": "Mobile-first lead management for GeeBharat organisations.",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

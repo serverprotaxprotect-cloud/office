@@ -6,6 +6,36 @@ const adminAuth = require('../middleware/adminAuth');
 
 const router = express.Router();
 
+async function ensureLeavePayColumns() {
+  const columns = [
+    { table: 'leave_requests', name: 'pay_type', ddl: "pay_type VARCHAR(20) DEFAULT 'Paid'" },
+    { table: 'daily_attendance', name: 'leave_pay_type', ddl: "leave_pay_type VARCHAR(20)" }
+  ];
+  const existing = await db.query(
+    `SELECT table_name, column_name
+     FROM information_schema.columns
+     WHERE table_schema='public'
+       AND table_name = ANY($1::text[])
+       AND column_name = ANY($2::text[])`,
+    [[...new Set(columns.map(col => col.table))], columns.map(col => col.name)]
+  );
+  const existingKeys = new Set(existing.rows.map(row => `${row.table_name}.${row.column_name}`));
+  for (const col of columns) {
+    if (!existingKeys.has(`${col.table}.${col.name}`)) {
+      await db.query(`ALTER TABLE ${col.table} ADD COLUMN IF NOT EXISTS ${col.ddl}`);
+    }
+  }
+}
+
+function normalizeLeaveAction(action, payType) {
+  if (action === 'Approved Paid') return { action: 'Approved', payType: 'Paid' };
+  if (action === 'Approved Unpaid') return { action: 'Approved', payType: 'Unpaid' };
+  return {
+    action,
+    payType: String(payType || 'Paid').toLowerCase() === 'unpaid' ? 'Unpaid' : 'Paid'
+  };
+}
+
 // ── POST /api/leave/apply  (employee) ────────────────────────
 router.post('/apply', authMiddleware, async (req, res) => {
   const { emp_id, name, formal_name } = req.user;
@@ -15,6 +45,7 @@ router.post('/apply', authMiddleware, async (req, res) => {
     return res.status(400).json({ success: false, message: 'All fields required' });
 
   try {
+    await ensureLeavePayColumns();
     // Check if leave already applied for overlapping dates
     const overlap = await db.query(
       `SELECT id FROM leave_requests
@@ -49,9 +80,10 @@ router.post('/apply', authMiddleware, async (req, res) => {
 router.get('/my-leaves', authMiddleware, async (req, res) => {
   const { emp_id } = req.user;
   try {
+    await ensureLeavePayColumns();
     const r = await db.query(
       `SELECT request_id, leave_type, from_date, to_date, days, reason,
-              status, applied_at, approved_rejected_by, admin_remark
+              status, pay_type, applied_at, approved_rejected_by, admin_remark
        FROM leave_requests WHERE emp_id=$1
        ORDER BY applied_at DESC`,
       [emp_id]
@@ -66,6 +98,7 @@ router.get('/my-leaves', authMiddleware, async (req, res) => {
 router.get('/all', adminAuth, async (req, res) => {
   const { status } = req.query;
   try {
+    await ensureLeavePayColumns();
     const r = await db.query(
       `SELECT * FROM leave_requests
        ${status ? `WHERE status=$1` : ''}
@@ -80,11 +113,15 @@ router.get('/all', adminAuth, async (req, res) => {
 
 // ── POST /api/leave/action  (admin approve/reject) ───────────
 router.post('/action', adminAuth, async (req, res) => {
-  const { request_id, action, remark } = req.body;
+  const { request_id, remark } = req.body;
+  const normalized = normalizeLeaveAction(req.body.action, req.body.pay_type);
+  const action = normalized.action;
+  const payType = normalized.payType;
   if (!request_id || !['Approved', 'Rejected'].includes(action))
     return res.status(400).json({ success: false, message: 'request_id and action (Approved/Rejected) required' });
 
   try {
+    await ensureLeavePayColumns();
     const r = await db.query(`SELECT * FROM leave_requests WHERE request_id=$1`, [request_id]);
     if (!r.rows.length)
       return res.status(404).json({ success: false, message: 'Leave request not found' });
@@ -93,9 +130,9 @@ router.post('/action', adminAuth, async (req, res) => {
 
     await db.query(
       `UPDATE leave_requests
-       SET status=$1, approved_rejected_by=$2, approved_rejected_at=NOW(), admin_remark=$3
-       WHERE request_id=$4`,
-      [action, req.admin.name, remark || null, request_id]
+       SET status=$1, pay_type=$2, approved_rejected_by=$3, approved_rejected_at=NOW(), admin_remark=$4
+       WHERE request_id=$5`,
+      [action, action === 'Approved' ? payType : null, req.admin.name, remark || null, request_id]
     );
 
     // If approved: mark daily_attendance as 'Leave' for those dates
@@ -106,14 +143,14 @@ router.post('/action', adminAuth, async (req, res) => {
         const dateStr = d.toISOString().split('T')[0];
         // Upsert daily_attendance with Leave status
         await db.query(
-          `INSERT INTO daily_attendance (date, emp_id, employee_name, formal_name, final_status, month, year)
-           VALUES ($1,$2,$3,$4,'Leave',EXTRACT(MONTH FROM $1::date),EXTRACT(YEAR FROM $1::date))
+          `INSERT INTO daily_attendance (date, emp_id, employee_name, formal_name, final_status, leave_pay_type, month, year)
+           VALUES ($1,$2,$3,$4,'Leave',$5,EXTRACT(MONTH FROM $1::date),EXTRACT(YEAR FROM $1::date))
            ON CONFLICT DO NOTHING`,
-          [dateStr, leave.emp_id, leave.employee_name, leave.formal_name]
+          [dateStr, leave.emp_id, leave.employee_name, leave.formal_name, payType]
         );
         await db.query(
-          `UPDATE daily_attendance SET final_status='Leave' WHERE emp_id=$1 AND date::date=$2`,
-          [leave.emp_id, dateStr]
+          `UPDATE daily_attendance SET final_status='Leave', leave_pay_type=$3 WHERE emp_id=$1 AND date::date=$2`,
+          [leave.emp_id, dateStr, payType]
         );
       }
     }

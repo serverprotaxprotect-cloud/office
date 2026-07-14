@@ -1,5 +1,6 @@
 const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
+const { resolveWorkClassification } = require('./workClassificationService');
 
 const COMPLIANCE_STATUSES = [
   'Draft',
@@ -24,7 +25,7 @@ const DEFAULT_TEMPLATES = [
   { code: 'AOC-4', name: 'AOC-4 Filing', type: 'annual', due_rule: 'FY_PLUS_OCT_29', priority: 'High', sort_order: 110 },
   { code: 'MGT-7A', name: 'MGT-7 / MGT-7A Annual Return', type: 'annual', due_rule: 'FY_PLUS_NOV_28', priority: 'High', sort_order: 120 },
   { code: 'AGM-CHECKLIST', name: 'AGM Minutes / Annual Checklist', type: 'annual', due_rule: 'FY_PLUS_SEP_30', priority: 'Medium', sort_order: 130 },
-  { code: 'DIR-3-KYC', name: 'DIR-3 KYC', type: 'director_kyc', due_rule: 'FY_PLUS_SEP_30', priority: 'Medium', sort_order: 140 },
+  { code: 'DIR-3-KYC', name: 'DIR-3 KYC', type: 'director_kyc', due_rule: 'DIR3_KYC_3_YEAR', priority: 'Medium', sort_order: 140 },
   { code: 'ITR-COMPANY', name: 'Company ITR Filing Status', type: 'itr_linked', due_rule: 'FY_PLUS_OCT_31', priority: 'High', sort_order: 150 },
   { code: 'DIR-12', name: 'DIR-12 Director Appointment / Resignation', type: 'event_based', event_type: 'director_change', due_rule: 'EVENT_PLUS_30', priority: 'High', sort_order: 200 },
   { code: 'PAS-3', name: 'PAS-3 Return of Allotment', type: 'event_based', event_type: 'share_allotment', due_rule: 'EVENT_PLUS_30', priority: 'High', sort_order: 210 },
@@ -77,6 +78,11 @@ function fiscalStartYear(financialYear) {
   return m ? parseInt(m[1], 10) : null;
 }
 
+function financialYearLabelFromStart(startYear) {
+  if (!startYear) return null;
+  return `${startYear}-${String(startYear + 1).slice(-2)}`;
+}
+
 function compareFY(a, b) {
   const ay = fiscalStartYear(a);
   const by = fiscalStartYear(b);
@@ -109,6 +115,7 @@ function dueDateForRule(rule, ctx = {}) {
   const eventDate = ctx.event_date || ctx.incorporation_date;
   const rules = {
     FY_PLUS_SEP_30: `${fyEnd}-09-30`,
+    DIR3_KYC_3_YEAR: `${fyEnd}-06-30`,
     FY_PLUS_OCT_29: `${fyEnd}-10-29`,
     FY_PLUS_OCT_31: `${fyEnd}-10-31`,
     FY_PLUS_NOV_28: `${fyEnd}-11-28`,
@@ -119,6 +126,67 @@ function dueDateForRule(rule, ctx = {}) {
     EVENT_PLUS_30: addDays(eventDate, 30),
   };
   return rules[rule] || null;
+}
+
+function kycCycleCutoff(financialYear) {
+  const fyEnd = fiscalEndYear(financialYear);
+  return `${fyEnd}-06-30`;
+}
+
+function nextKycDueFromLast(lastFinancialYear, lastCompletedDate) {
+  const fyStart = fiscalStartYear(lastFinancialYear);
+  if (fyStart) return `${fyStart + 3}-06-30`;
+  if (lastCompletedDate) {
+    const d = new Date(`${dateOnly(lastCompletedDate)}T00:00:00.000Z`);
+    if (!Number.isNaN(d.getTime())) return `${d.getUTCFullYear() + 3}-06-30`;
+  }
+  return null;
+}
+
+function deriveDirectorKycCycle(director = {}, financialYear, options = {}) {
+  const lastFy = director.last_kyc_financial_year || director.dir_3_fy || null;
+  const lastDate = dateOnly(director.last_kyc_completed_date);
+  const nextDue = dateOnly(director.next_kyc_due_date) || nextKycDueFromLast(lastFy, lastDate);
+  const cutoff = kycCycleCutoff(financialYear);
+  const manualReason = String(options.forceReason || '').trim();
+  if (manualReason) {
+    return {
+      due: true,
+      manual: true,
+      missing_last_kyc: !lastFy && !lastDate,
+      cycle_due_date: nextDue || cutoff,
+      kyc_cycle_status: 'Manual',
+      kyc_due_reason: manualReason,
+      last_kyc_financial_year: lastFy,
+      last_kyc_completed_date: lastDate,
+      next_kyc_due_date: nextDue,
+    };
+  }
+  if (!lastFy && !lastDate && !nextDue) {
+    return {
+      due: true,
+      manual: false,
+      missing_last_kyc: true,
+      cycle_due_date: cutoff,
+      kyc_cycle_status: 'Missing Last KYC',
+      kyc_due_reason: 'Missing last KYC data; verify and file if applicable.',
+      last_kyc_financial_year: null,
+      last_kyc_completed_date: null,
+      next_kyc_due_date: null,
+    };
+  }
+  const due = Boolean(nextDue && nextDue <= cutoff);
+  return {
+    due,
+    manual: false,
+    missing_last_kyc: false,
+    cycle_due_date: nextDue || cutoff,
+    kyc_cycle_status: due ? 'Due' : 'Not Due',
+    kyc_due_reason: due ? `Due under 3-year DIR-3 KYC cycle by ${nextDue}` : 'Not due under 3-year cycle',
+    last_kyc_financial_year: lastFy,
+    last_kyc_completed_date: lastDate,
+    next_kyc_due_date: nextDue,
+  };
 }
 
 function normalizeStatus(status) {
@@ -285,6 +353,7 @@ async function ensureSchema(conn = db) {
     await syncCompanyIncorporationDates(conn);
     syncedIncorporationTenants.add(tenantKey);
   }
+  await ensureKycCycleSchema(conn);
   if (!seededTenants.has(tenantKey)) {
     await seedTemplates(conn);
     await migrateLegacyTracking(conn);
@@ -309,12 +378,156 @@ async function syncCompanyIncorporationDates(conn = db) {
   `);
 }
 
+async function tableExists(conn, table) {
+  const exists = await conn.query(`SELECT to_regclass($1) AS table_name`, [`public.${table}`]);
+  return Boolean(exists.rows[0]?.table_name);
+}
+
+async function hasColumn(conn, table, column) {
+  const result = await conn.query(
+    `SELECT 1
+       FROM information_schema.columns
+      WHERE table_schema='public' AND table_name=$1 AND column_name=$2`,
+    [table, column]
+  );
+  return Boolean(result.rows.length);
+}
+
+async function columnDataType(conn, table, column) {
+  const result = await conn.query(
+    `SELECT data_type
+       FROM information_schema.columns
+      WHERE table_schema='public' AND table_name=$1 AND column_name=$2`,
+    [table, column]
+  );
+  return result.rows[0]?.data_type || null;
+}
+
+async function indexExists(conn, indexName) {
+  const result = await conn.query(
+    `SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname=$1`,
+    [indexName]
+  );
+  return Boolean(result.rows.length);
+}
+
+async function ensureIndex(conn, indexName, ddl) {
+  if (await indexExists(conn, indexName)) return true;
+  const created = await safeDdl(conn, ddl, indexName);
+  return created || await indexExists(conn, indexName);
+}
+
+async function safeDdl(conn, sql, label) {
+  try {
+    await conn.query(sql);
+    return true;
+  } catch (err) {
+    if (err.code === '42501') {
+      console.warn(`[compliance] Skipping ${label || 'DDL'} because database user is not table owner.`);
+      return false;
+    }
+    throw err;
+  }
+}
+
+async function ensureColumn(conn, table, column, ddl) {
+  if (!(await tableExists(conn, table))) return false;
+  if (await hasColumn(conn, table, column)) return true;
+  const created = await safeDdl(conn, ddl, `${table}.${column}`);
+  return created || await hasColumn(conn, table, column);
+}
+
 async function ensureKycAssignmentSchema(conn = db) {
-  await conn.query(`ALTER TABLE director_kyc_tracking ALTER COLUMN active_flag TYPE VARCHAR(20)`);
-  await conn.query(`ALTER TABLE director_kyc_tracking ADD COLUMN IF NOT EXISTS assigned_to_id VARCHAR(80)`);
-  await conn.query(`ALTER TABLE director_kyc_tracking ADD COLUMN IF NOT EXISTS assigned_to_name VARCHAR(150)`);
-  await conn.query(`ALTER TABLE director_kyc_tracking ADD COLUMN IF NOT EXISTS linked_task_id VARCHAR(100)`);
-  await conn.query(`CREATE INDEX IF NOT EXISTS idx_director_kyc_org_assignee ON director_kyc_tracking (organization_id, assigned_to_id, kyc_status)`);
+  if (!(await tableExists(conn, 'director_kyc_tracking'))) return;
+  if (await columnDataType(conn, 'director_kyc_tracking', 'active_flag') !== 'character varying') {
+    await safeDdl(conn, `ALTER TABLE director_kyc_tracking ALTER COLUMN active_flag TYPE VARCHAR(20)`, 'director_kyc_tracking.active_flag type');
+  }
+  await ensureColumn(conn, 'director_kyc_tracking', 'assigned_to_id', `ALTER TABLE director_kyc_tracking ADD COLUMN IF NOT EXISTS assigned_to_id VARCHAR(80)`);
+  await ensureColumn(conn, 'director_kyc_tracking', 'assigned_to_name', `ALTER TABLE director_kyc_tracking ADD COLUMN IF NOT EXISTS assigned_to_name VARCHAR(150)`);
+  await ensureColumn(conn, 'director_kyc_tracking', 'linked_task_id', `ALTER TABLE director_kyc_tracking ADD COLUMN IF NOT EXISTS linked_task_id VARCHAR(100)`);
+  await ensureColumn(conn, 'director_kyc_tracking', 'cycle_due_date', `ALTER TABLE director_kyc_tracking ADD COLUMN IF NOT EXISTS cycle_due_date DATE`);
+  await ensureColumn(conn, 'director_kyc_tracking', 'due_reason', `ALTER TABLE director_kyc_tracking ADD COLUMN IF NOT EXISTS due_reason TEXT`);
+  await ensureColumn(conn, 'director_kyc_tracking', 'generated_under_rule', `ALTER TABLE director_kyc_tracking ADD COLUMN IF NOT EXISTS generated_under_rule VARCHAR(80)`);
+  await ensureIndex(conn, 'idx_director_kyc_org_assignee', `CREATE INDEX IF NOT EXISTS idx_director_kyc_org_assignee ON director_kyc_tracking (organization_id, assigned_to_id, kyc_status)`);
+  await ensureIndex(conn, 'idx_director_kyc_org_cycle', `CREATE INDEX IF NOT EXISTS idx_director_kyc_org_cycle ON director_kyc_tracking (organization_id, cycle_due_date, kyc_status)`);
+}
+
+async function ensureKycCycleSchema(conn = db) {
+  await ensureKycAssignmentSchema(conn);
+  for (const table of ['directors', 'director_details']) {
+    if (!(await tableExists(conn, table))) continue;
+    await ensureColumn(conn, table, 'last_kyc_financial_year', `ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS last_kyc_financial_year VARCHAR(20)`);
+    await ensureColumn(conn, table, 'last_kyc_completed_date', `ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS last_kyc_completed_date DATE`);
+    await ensureColumn(conn, table, 'next_kyc_due_date', `ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS next_kyc_due_date DATE`);
+    await ensureColumn(conn, table, 'kyc_cycle_status', `ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS kyc_cycle_status VARCHAR(80)`);
+    await ensureColumn(conn, table, 'kyc_due_reason', `ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS kyc_due_reason TEXT`);
+    await ensureIndex(conn, `idx_${table}_org_next_kyc`, `CREATE INDEX IF NOT EXISTS idx_${table}_org_next_kyc ON ${table} (organization_id, next_kyc_due_date)`);
+  }
+  if (await tableExists(conn, 'compliance_templates')) {
+    await conn.query(`UPDATE compliance_templates SET due_rule='DIR3_KYC_3_YEAR' WHERE code='DIR-3-KYC' AND due_rule <> 'DIR3_KYC_3_YEAR'`);
+  }
+  const directorsReady = await tableExists(conn, 'directors')
+    && await hasColumn(conn, 'directors', 'last_kyc_financial_year')
+    && await hasColumn(conn, 'directors', 'next_kyc_due_date');
+  if (!directorsReady) return;
+  await conn.query(`
+    UPDATE directors
+       SET last_kyc_financial_year = COALESCE(last_kyc_financial_year, dir_3_fy),
+           kyc_cycle_status = COALESCE(kyc_cycle_status, 'Last KYC Known'),
+           kyc_due_reason = COALESCE(kyc_due_reason, 'Last KYC financial year available from director master.')
+     WHERE dir_3_filed='Yes'
+       AND dir_3_fy IS NOT NULL
+       AND last_kyc_financial_year IS NULL
+  `);
+  await conn.query(`
+    WITH latest AS (
+      SELECT DISTINCT ON (organization_id, UPPER(cin), din)
+             organization_id, cin, din, financial_year,
+             CASE WHEN COALESCE(updated_at,'') ~ '^\\d{4}-\\d{2}-\\d{2}' THEN LEFT(updated_at,10)::date ELSE NULL::date END AS completed_date
+        FROM director_kyc_tracking
+       WHERE (kyc_status IN ('Filed','Closed') OR NULLIF(srn,'') IS NOT NULL)
+       ORDER BY organization_id, UPPER(cin), din, financial_year DESC, updated_at DESC
+    )
+    UPDATE directors d
+       SET last_kyc_financial_year = COALESCE(d.last_kyc_financial_year, latest.financial_year),
+           last_kyc_completed_date = COALESCE(d.last_kyc_completed_date, latest.completed_date),
+           kyc_cycle_status = COALESCE(d.kyc_cycle_status, 'Last KYC Known'),
+           kyc_due_reason = COALESCE(d.kyc_due_reason, 'Last KYC inferred from completed DIR-3 KYC tracker.')
+      FROM latest
+     WHERE d.organization_id=latest.organization_id
+       AND UPPER(d.cin)=UPPER(latest.cin)
+       AND d.din=latest.din
+  `);
+  await conn.query(`
+    UPDATE directors
+       SET next_kyc_due_date = (
+         (substring(last_kyc_financial_year from 1 for 4)::int + 3)::text || '-06-30'
+       )::date
+     WHERE next_kyc_due_date IS NULL
+       AND last_kyc_financial_year ~ '^\\d{4}-\\d{2}$'
+  `);
+  await conn.query(`
+    UPDATE directors
+       SET next_kyc_due_date = ((EXTRACT(YEAR FROM last_kyc_completed_date)::int + 3)::text || '-06-30')::date
+     WHERE next_kyc_due_date IS NULL
+       AND last_kyc_completed_date IS NOT NULL
+  `);
+  const detailsReady = await tableExists(conn, 'director_details')
+    && await hasColumn(conn, 'director_details', 'last_kyc_financial_year')
+    && await hasColumn(conn, 'director_details', 'next_kyc_due_date');
+  if (!detailsReady) return;
+  await conn.query(`
+    UPDATE director_details dd
+       SET last_kyc_financial_year = COALESCE(dd.last_kyc_financial_year, d.last_kyc_financial_year),
+           last_kyc_completed_date = COALESCE(dd.last_kyc_completed_date, d.last_kyc_completed_date),
+           next_kyc_due_date = COALESCE(dd.next_kyc_due_date, d.next_kyc_due_date),
+           kyc_cycle_status = COALESCE(dd.kyc_cycle_status, d.kyc_cycle_status),
+           kyc_due_reason = COALESCE(dd.kyc_due_reason, d.kyc_due_reason)
+      FROM directors d
+     WHERE dd.organization_id=d.organization_id
+       AND UPPER(dd.cin)=UPPER(d.cin)
+       AND dd.din=d.din
+  `);
 }
 
 async function seedTemplates(conn = db) {
@@ -382,13 +595,18 @@ async function createTaskForRecord(conn, record, actor) {
   const fyLabel = record.financial_year ? ` (${record.financial_year})` : '';
   const eventLabel = record.event_type ? ` - ${record.event_type.replace(/_/g, ' ')}` : '';
   const description = `${record.compliance_name}${fyLabel}${eventLabel} for ${record.company_name || record.cin}`;
+  const workClass = await resolveWorkClassification(conn, {
+    work_name: record.compliance_code,
+    fallback: { work_category: 'Annual ROC Compliance', grouping_name: 'ROC Compliance Department', department: 'CS Services' },
+  });
   await conn.query(
     `INSERT INTO tasks
       (task_id, created_at, created_by_id, created_by_name, assigned_to_id, assigned_to_name,
        client_id, agent_name, legal_name, business_name, work_name, work_description, priority,
-       status, due_date, internal_remark, self_assigned, billing_status, active_flag)
+       status, due_date, internal_remark, self_assigned, billing_status, active_flag,
+       work_name_id, work_category, grouping_name, department, is_custom_work)
      VALUES
-      ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'Pending',$14,$15,$16,'Not Applicable',true)`,
+      ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'Pending',$14,$15,$16,'Not Applicable',true,$17,$18,$19,$20,$21)`,
     [
       taskId,
       nowIST(),
@@ -406,6 +624,11 @@ async function createTaskForRecord(conn, record, actor) {
       record.due_date || null,
       `Auto Companies Act compliance task: ${record.compliance_code}`,
       createdById === record.assigned_to_id,
+      workClass.work_name_id,
+      workClass.work_category,
+      workClass.grouping_name,
+      workClass.department,
+      workClass.is_custom_work,
     ]
   );
   await conn.query(
@@ -1001,6 +1224,9 @@ async function syncComplianceForTaskStatus(conn, task, status, actor, remark, sr
          updated_by_id=$3, updated_by_name=$4, updated_at=NOW() WHERE id=$5`,
       [kycStatus, remark || null, actorId(actor), actorName(actor), kyc.id]
     );
+    if (kycStatus === 'Filed' || kycStatus === 'Closed') {
+      await updateDirectorKycCycleAfterFiling(conn, kyc, actor);
+    }
     return { kyc_id: kyc.id, status: kycStatus, changed: true };
   }
   const rec = recRes.rows[0];
@@ -1021,6 +1247,212 @@ async function syncComplianceForTaskStatus(conn, task, status, actor, remark, sr
     actor,
   });
   return { record_id: rec.id, status: complianceStatus, changed: true };
+}
+
+async function updateDirectorKycCycleAfterFiling(conn, kyc, actor) {
+  const lastFy = kyc.financial_year || null;
+  const completedDate = todayIST();
+  const nextDue = nextKycDueFromLast(lastFy, completedDate);
+  const status = 'Completed';
+  const reason = nextDue ? `Next DIR-3 KYC due by ${nextDue} under 3-year cycle.` : 'DIR-3 KYC completed; next due date could not be calculated.';
+  for (const table of ['directors', 'director_details']) {
+    const exists = await conn.query(`SELECT to_regclass($1) AS table_name`, [`public.${table}`]);
+    if (!exists.rows[0]?.table_name) continue;
+    await conn.query(
+      `UPDATE ${table}
+          SET last_kyc_financial_year=$1,
+              last_kyc_completed_date=$2,
+              next_kyc_due_date=$3,
+              kyc_cycle_status=$4,
+              kyc_due_reason=$5
+        WHERE UPPER(cin)=UPPER($6) AND din=$7`,
+      [lastFy, completedDate, nextDue, status, reason, kyc.cin, kyc.din]
+    );
+  }
+}
+
+async function getDirectorForKyc(conn, cin, din) {
+  const dir = await conn.query(
+    `SELECT d.*, c.agent_name AS c_agent, c.client_id AS c_client, c.company_status AS c_status, c.company_name AS c_company_name
+       FROM directors d
+       LEFT JOIN companies c ON UPPER(c.cin)=UPPER(d.cin)
+      WHERE UPPER(d.cin)=UPPER($1) AND d.din=$2
+      LIMIT 1`,
+    [cin, din]
+  );
+  return dir.rows[0] || null;
+}
+
+async function insertKycTrackingRecord(conn, director, financialYear, cycle, actor) {
+  const result = await conn.query(
+    `INSERT INTO director_kyc_tracking
+      (agent_name, client_id, cin, company_name, din, director_name, financial_year,
+       kyc_status, active_flag, cycle_due_date, due_reason, generated_under_rule,
+       updated_by_id, updated_by_name)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,'Pending','Active',$8,$9,'DIR3_KYC_3_YEAR_2026',$10,$11)
+     RETURNING *`,
+    [
+      director.c_agent || director.agent_name || '',
+      director.c_client || director.client_id || '',
+      director.cin ? director.cin.toUpperCase() : '',
+      director.company_name || director.c_company_name || '',
+      director.din,
+      director.director_name,
+      financialYear,
+      cycle.cycle_due_date || null,
+      cycle.kyc_due_reason || null,
+      actorId(actor),
+      actorName(actor),
+    ]
+  );
+  await conn.query(
+    `UPDATE directors SET
+       kyc_cycle_status=$1,
+       kyc_due_reason=$2,
+       next_kyc_due_date=COALESCE(next_kyc_due_date,$3::date),
+       last_kyc_financial_year=COALESCE(last_kyc_financial_year,$4),
+       last_kyc_completed_date=COALESCE(last_kyc_completed_date,$5::date)
+     WHERE UPPER(cin)=UPPER($6) AND din=$7`,
+    [
+      cycle.kyc_cycle_status,
+      cycle.kyc_due_reason,
+      cycle.next_kyc_due_date || null,
+      cycle.last_kyc_financial_year || null,
+      cycle.last_kyc_completed_date || null,
+      director.cin,
+      director.din,
+    ]
+  );
+  if (await tableExists(conn, 'director_details') && await hasColumn(conn, 'director_details', 'next_kyc_due_date')) {
+    await conn.query(
+      `UPDATE director_details SET
+         kyc_cycle_status=$1,
+         kyc_due_reason=$2,
+         next_kyc_due_date=COALESCE(next_kyc_due_date,$3::date),
+         last_kyc_financial_year=COALESCE(last_kyc_financial_year,$4),
+         last_kyc_completed_date=COALESCE(last_kyc_completed_date,$5::date)
+       WHERE UPPER(cin)=UPPER($6) AND din=$7`,
+      [
+        cycle.kyc_cycle_status,
+        cycle.kyc_due_reason,
+        cycle.next_kyc_due_date || null,
+        cycle.last_kyc_financial_year || null,
+        cycle.last_kyc_completed_date || null,
+        director.cin,
+        director.din,
+      ]
+    );
+  }
+  return result.rows[0];
+}
+
+async function generateKycRecord(payload, actor) {
+  await ensureKycCycleSchema();
+  const { cin, din, financial_year: financialYear, force_reason: forceReason } = payload || {};
+  if (!cin || !din || !financialYear) {
+    const err = new Error('CIN, DIN and financial year are required.');
+    err.statusCode = 400;
+    throw err;
+  }
+  const conn = await db.pool.connect();
+  try {
+    await conn.query('BEGIN');
+    const director = await getDirectorForKyc(conn, cin, din);
+    if (!director) {
+      const err = new Error('Director not found.');
+      err.statusCode = 404;
+      throw err;
+    }
+    const existing = await conn.query(
+      `SELECT id FROM director_kyc_tracking WHERE UPPER(cin)=UPPER($1) AND din=$2 AND financial_year=$3`,
+      [cin, din, financialYear]
+    );
+    if (existing.rows.length) {
+      const err = new Error(`KYC already generated for ${financialYear}.`);
+      err.statusCode = 400;
+      throw err;
+    }
+    const cycle = deriveDirectorKycCycle(director, financialYear, { forceReason });
+    if (!cycle.due) {
+      const err = new Error(cycle.kyc_due_reason || 'Director KYC is not due under the 3-year cycle.');
+      err.statusCode = 400;
+      err.details = cycle;
+      throw err;
+    }
+    const row = await insertKycTrackingRecord(conn, director, financialYear, cycle, actor);
+    await conn.query('COMMIT');
+    return { row, cycle };
+  } catch (err) {
+    await conn.query('ROLLBACK');
+    throw err;
+  } finally {
+    conn.release();
+  }
+}
+
+async function bulkGenerateKycRecords(payload, actor) {
+  await ensureKycCycleSchema();
+  const { cin, financial_year: financialYear } = payload || {};
+  if (!financialYear) {
+    const err = new Error('Financial Year required');
+    err.statusCode = 400;
+    throw err;
+  }
+  const cinCond = cin ? 'AND UPPER(d.cin)=UPPER($1)' : '';
+  const params = cin ? [cin] : [];
+  const dirs = await db.query(
+    `SELECT d.*, c.agent_name AS c_agent, c.client_id AS c_client, c.company_status AS c_status, c.company_name AS c_company_name
+       FROM directors d
+       LEFT JOIN companies c ON UPPER(c.cin)=UPPER(d.cin)
+      WHERE COALESCE(d.director_status,'Active')='Active'
+        AND COALESCE(c.company_status,'Active')='Active'
+        ${cinCond}
+      ORDER BY d.company_name, d.director_name`,
+    params
+  );
+  const inactive = await db.query(
+    `SELECT COUNT(*)::int AS total
+       FROM directors d
+       LEFT JOIN companies c ON UPPER(c.cin)=UPPER(d.cin)
+      WHERE (COALESCE(d.director_status,'Active') <> 'Active' OR COALESCE(c.company_status,'Active') <> 'Active')
+        ${cin ? 'AND UPPER(d.cin)=UPPER($1)' : ''}`,
+    params
+  );
+  const counts = { created: 0, already_exists: 0, not_due: 0, missing_last_kyc: 0, skipped_inactive: inactive.rows[0]?.total || 0 };
+  const conn = await db.pool.connect();
+  try {
+    await conn.query('BEGIN');
+    for (const director of dirs.rows) {
+      const existing = await conn.query(
+        `SELECT id FROM director_kyc_tracking WHERE UPPER(cin)=UPPER($1) AND din=$2 AND financial_year=$3`,
+        [director.cin, director.din, financialYear]
+      );
+      if (existing.rows.length) {
+        counts.already_exists++;
+        continue;
+      }
+      const cycle = deriveDirectorKycCycle(director, financialYear);
+      if (cycle.missing_last_kyc) counts.missing_last_kyc++;
+      if (!cycle.due) {
+        counts.not_due++;
+        await conn.query(
+          `UPDATE directors SET kyc_cycle_status=$1, kyc_due_reason=$2, next_kyc_due_date=COALESCE(next_kyc_due_date,$3::date)
+            WHERE UPPER(cin)=UPPER($4) AND din=$5`,
+          [cycle.kyc_cycle_status, cycle.kyc_due_reason, cycle.next_kyc_due_date || null, director.cin, director.din]
+        );
+        continue;
+      }
+      await insertKycTrackingRecord(conn, director, financialYear, cycle, actor);
+      counts.created++;
+    }
+    await conn.query('COMMIT');
+  } catch (err) {
+    await conn.query('ROLLBACK');
+    throw err;
+  } finally {
+    conn.release();
+  }
+  return counts;
 }
 
 async function summary(query = {}) {
@@ -1124,7 +1556,16 @@ async function workspace(cin, financialYear) {
     db.query(`SELECT * FROM companies WHERE UPPER(cin)=UPPER($1)`, [cin]),
     listRecords({ cin, financial_year: fy }),
     db.query(`SELECT * FROM directors WHERE UPPER(cin)=UPPER($1) AND COALESCE(director_status,'Active')='Active' ORDER BY director_name`, [cin]),
-    db.query(`SELECT * FROM director_kyc_tracking WHERE UPPER(cin)=UPPER($1) AND financial_year=$2 ORDER BY director_name`, [cin, fy]),
+    db.query(
+      `SELECT dk.*, d.designation, d.last_kyc_financial_year, d.last_kyc_completed_date,
+              d.next_kyc_due_date, d.kyc_cycle_status,
+              COALESCE(dk.due_reason, d.kyc_due_reason) AS kyc_due_reason
+         FROM director_kyc_tracking dk
+         LEFT JOIN directors d ON UPPER(d.cin)=UPPER(dk.cin) AND d.din=dk.din
+        WHERE UPPER(dk.cin)=UPPER($1) AND dk.financial_year=$2
+        ORDER BY dk.director_name`,
+      [cin, fy]
+    ),
     db.query(`SELECT emp_id, COALESCE(formal_name, name) AS name, formal_name, designation, photo FROM emplist WHERE status='Active' ORDER BY COALESCE(formal_name, name)`),
     db.query(`SELECT * FROM compliance_templates WHERE enabled=true ORDER BY sort_order, code`),
     db.query(
@@ -1225,12 +1666,17 @@ async function createTaskForKyc(conn, kyc, actor) {
   const createdById = actorId(actor);
   const createdByName = actorName(actor);
   const assigneeName = kyc.assigned_to_name || kyc.assigned_to_id;
+  const workClass = await resolveWorkClassification(conn, {
+    work_name: 'DIR-3 KYC',
+    fallback: { work_category: 'DIN & Director Particulars', grouping_name: 'Secretarial Compliance Department', department: 'CS Services' },
+  });
   await conn.query(
     `INSERT INTO tasks
       (task_id, created_at, created_by_id, created_by_name, assigned_to_id, assigned_to_name,
        client_id, agent_name, legal_name, business_name, work_name, work_description, priority,
-       status, internal_remark, self_assigned, billing_status, active_flag)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'Medium','Pending',$13,$14,'Not Applicable',true)`,
+       status, internal_remark, self_assigned, billing_status, active_flag,
+       work_name_id, work_category, grouping_name, department, is_custom_work)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'Medium','Pending',$13,$14,'Not Applicable',true,$15,$16,$17,$18,$19)`,
     [
       taskId,
       nowIST(),
@@ -1246,6 +1692,11 @@ async function createTaskForKyc(conn, kyc, actor) {
       `DIR-3 KYC for ${kyc.director_name || kyc.din} (${kyc.financial_year})`,
       'Auto Director KYC compliance task',
       createdById === kyc.assigned_to_id,
+      workClass.work_name_id,
+      workClass.work_category,
+      workClass.grouping_name,
+      workClass.department,
+      workClass.is_custom_work,
     ]
   );
   await conn.query(
@@ -1327,6 +1778,7 @@ module.exports = {
   COMPLIANCE_STATUSES,
   TEMPLATE_TYPES,
   ensureSchema,
+  ensureKycCycleSchema,
   listTemplates,
   updateTemplate,
   listRecords,
@@ -1347,4 +1799,8 @@ module.exports = {
   ensureKycAssignmentSchema,
   assignKycRecord,
   syncTaskForKycStatus,
+  generateKycRecord,
+  bulkGenerateKycRecords,
+  deriveDirectorKycCycle,
+  updateDirectorKycCycleAfterFiling,
 };

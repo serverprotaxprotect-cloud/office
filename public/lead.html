@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>GeeBharat Leads</title>
+  <link rel="manifest" href="/lead-manifest.json" />
+  <meta name="theme-color" content="#13203a" />
+  <style>
+    :root{--nav:#13203a;--nav2:#1d2f57;--bg:#eef4fb;--card:#fff;--text:#0f172a;--muted:#64748b;--line:#dbe5f2;--blue:#2458f4;--green:#16a34a;--red:#dc2626;--amber:#d97706;--shadow:0 12px 30px rgba(15,23,42,.10)}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:Inter,Segoe UI,Arial,sans-serif;color:var(--text);font-size:14px}.top{height:58px;background:linear-gradient(90deg,var(--nav),var(--nav2));color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 14px;position:sticky;top:0;z-index:20;box-shadow:0 2px 15px rgba(0,0,0,.18)}.brand{font-weight:900;font-size:17px}.brand small{font-weight:600;color:#adc2e8;margin-left:6px}.user{font-size:12px;background:rgba(255,255,255,.12);border-radius:18px;padding:7px 10px;font-weight:800;max-width:50vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.app{max-width:1180px;margin:0 auto;padding:14px 14px 88px}.title{font-size:22px;font-weight:900;margin:8px 0 12px}.sub{color:var(--muted);font-size:12px}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.metric{background:var(--card);border-radius:14px;padding:13px;box-shadow:var(--shadow);border-left:4px solid var(--blue)}.metric strong{display:block;font-size:25px;color:var(--blue);line-height:1}.metric span{display:block;color:var(--muted);font-size:12px;margin-top:4px;font-weight:700}.card{background:var(--card);border-radius:16px;padding:14px;box-shadow:var(--shadow);margin-bottom:12px}.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.toolbar>*{flex:1;min-width:140px}input,select,textarea{width:100%;border:1px solid var(--line);border-radius:11px;background:#f8fbff;padding:11px;font:inherit;outline:none}input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(36,88,244,.10)}label{display:block;font-size:11px;text-transform:uppercase;font-weight:900;color:#52627a;margin:10px 0 5px}.btn{border:0;border-radius:11px;padding:10px 12px;font-weight:900;background:#eaf1ff;color:#1d4ed8;cursor:pointer}.btn.primary{background:var(--blue);color:#fff}.btn.green{background:#dcfce7;color:#166534}.btn.red{background:#fee2e2;color:#b91c1c}.btn.dark{background:#263b64;color:#fff}.btn:disabled{opacity:.5;cursor:not-allowed}.lead{display:grid;gap:6px;border:1px solid var(--line);border-radius:14px;padding:12px;background:#fff;margin-bottom:10px}.lead-head{display:flex;justify-content:space-between;gap:8px}.lead-title{font-weight:900}.chips{display:flex;gap:6px;flex-wrap:wrap}.chip{border-radius:20px;padding:4px 8px;background:#eaf1ff;color:#1d4ed8;font-size:11px;font-weight:900}.chip.hot{background:#fee2e2;color:#b91c1c}.chip.warm{background:#fef3c7;color:#a16207}.chip.done{background:#dcfce7;color:#166534}.actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:6px}.bottom{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(5,1fr);z-index:30;padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -8px 24px rgba(15,23,42,.10)}.nav{padding:10px 4px;text-align:center;color:#64748b;font-weight:800;font-size:11px;cursor:pointer}.nav strong{display:block;font-size:20px;line-height:1.1}.nav.active{color:var(--blue);background:#eef4ff}.panel{display:none}.panel.active{display:block}.drawer{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:flex-end;z-index:60}.drawer.show{display:flex}.sheet{background:#fff;border-radius:20px 20px 0 0;width:100%;max-height:88vh;overflow:auto;padding:16px}.timeline{border-left:3px solid #dbeafe;margin:10px 0 0 8px;padding-left:14px}.event{position:relative;padding:0 0 12px}.event:before{content:"";position:absolute;left:-22px;top:3px;width:12px;height:12px;border-radius:50%;background:var(--blue);box-shadow:0 0 0 4px #dbeafe}.muted{color:var(--muted)}.write-hide{display:none!important}.msg{position:fixed;left:14px;right:14px;bottom:74px;background:#111827;color:#fff;border-radius:12px;padding:12px;font-weight:800;z-index:90;display:none;text-align:center}.empty{text-align:center;color:#7b8aa2;padding:28px 8px}.desktop-only{display:none}
+    body.auth-pending .bottom,body.auth-pending .panel{display:none!important}
+    .login-gate{max-width:460px;margin:72px auto;background:#fff;border-radius:20px;padding:22px;box-shadow:var(--shadow);text-align:center}.login-gate h2{margin:0 0 8px}.login-gate p{color:var(--muted);line-height:1.5}.login-gate .btn{display:inline-block;text-decoration:none;margin-top:8px}
+    @media(min-width:850px){.app{padding-bottom:22px}.bottom{position:sticky;top:58px;bottom:auto;grid-template-columns:repeat(5,160px);justify-content:center}.nav strong{display:none}.grid{grid-template-columns:repeat(6,1fr)}.sheet{max-width:760px;border-radius:18px;margin:auto;align-self:center}.drawer{align-items:center}.desktop-only{display:inline}}
+  </style>
+</head>
+<body class="auth-pending">
+  <header class="top"><div class="brand">GeeBharat <small>Leads</small></div><div class="user" id="userChip">Loading...</div></header>
+  <nav class="bottom">
+    <div class="nav active" data-panel="dashboard" onclick="showPanel('dashboard')"><strong>📊</strong>Dashboard</div>
+    <div class="nav" data-panel="leads" onclick="showPanel('leads')"><strong>📋</strong>Leads</div>
+    <div class="nav" data-panel="followups" onclick="showPanel('followups')"><strong>⏰</strong>Follow-ups</div>
+    <div class="nav" data-panel="add" onclick="showPanel('add')"><strong>➕</strong>Add Lead</div>
+    <div class="nav" data-panel="profile" onclick="showPanel('profile')"><strong>👤</strong>Profile</div>
+  </nav>
+  <main class="app">
+    <section id="loginGate" class="login-gate" style="display:none">
+      <h2>Lead Management Login Required</h2>
+      <p>Login with your GeeBharat credentials on the dedicated Lead Management login page. After successful login, you will return here automatically.</p>
+      <a class="btn primary" id="leadLoginLink" href="/lead-login.html" onclick="startLeadLogin(event)">Login / Switch Account</a>
+      <a class="btn" href="/lead.html" style="margin-left:6px">Retry</a>
+    </section>
+    <section id="panel-dashboard" class="panel active">
+      <div class="title">Lead Dashboard <span class="sub" id="accessText"></span></div>
+      <div class="grid">
+        <div class="metric"><strong id="mNew">--</strong><span>New Leads</span></div>
+        <div class="metric"><strong id="mToday">--</strong><span>Today Follow-ups</span></div>
+        <div class="metric"><strong id="mOverdue">--</strong><span>Overdue Follow-ups</span></div>
+        <div class="metric"><strong id="mHot">--</strong><span>Hot Leads</span></div>
+        <div class="metric"><strong id="mConverted">--</strong><span>Converted This Month</span></div>
+        <div class="metric"><strong id="mLost">--</strong><span>Lost Leads</span></div>
+      </div>
+      <div class="card" style="margin-top:12px"><h3>Status Funnel</h3><div id="statusFunnel" class="chips"></div></div>
+    </section>
+
+    <section id="panel-leads" class="panel">
+      <div class="title">Leads</div>
+      <div class="toolbar">
+        <input id="leadSearch" placeholder="Search name, mobile, service..." oninput="debouncedLoadLeads()" />
+        <select id="statusFilter" onchange="loadLeads()"><option value="">All Status</option></select>
+        <select id="priorityFilter" onchange="loadLeads()"><option value="">All Priority</option></select>
+        <button class="btn" onclick="exportLeads()">Export</button>
+      </div>
+      <div id="leadList"></div>
+    </section>
+
+    <section id="panel-followups" class="panel">
+      <div class="title">Follow-ups</div>
+      <div class="toolbar"><button class="btn primary" onclick="loadFollowups('today')">Today</button><button class="btn red" onclick="loadFollowups('overdue')">Overdue</button></div>
+      <div id="followupList"></div>
+    </section>
+
+    <section id="panel-add" class="panel">
+      <div class="title">Add Lead</div>
+      <form class="card" id="leadForm">
+        <input type="hidden" id="leadId" />
+        <label>Lead Name *</label><input id="name" required />
+        <label>Mobile</label><input id="mobile" inputmode="tel" />
+        <label>WhatsApp</label><input id="whatsapp" inputmode="tel" />
+        <label>Email</label><input id="email" type="email" />
+        <label>Business Name</label><input id="business_name" />
+        <label>Service Required</label><input id="service_required" placeholder="GST, ITR, Company compliance..." />
+        <div class="toolbar">
+          <div><label>Source</label><select id="source"></select></div>
+          <div><label>Priority</label><select id="priority"></select></div>
+        </div>
+        <div class="toolbar">
+          <div><label>Status</label><select id="status"></select></div>
+          <div><label>Assign To</label><select id="assigned_to_id"></select></div>
+        </div>
+        <div class="toolbar">
+          <div><label>Next Follow-up *</label><input id="next_followup_date" type="date" /></div>
+          <div><label>Expected Value</label><input id="expected_value" type="number" step="0.01" value="0" /></div>
+        </div>
+        <div class="toolbar">
+          <div><label>City</label><input id="city" /></div>
+          <div><label>State</label><input id="state" /></div>
+          <div><label>Pincode</label><input id="pincode" inputmode="numeric" /></div>
+        </div>
+        <label>Remarks</label><textarea id="remarks" rows="3"></textarea>
+        <button class="btn primary write-action" type="submit">Save Lead</button>
+        <button class="btn" type="button" onclick="resetLeadForm()">Clear</button>
+      </form>
+    </section>
+
+    <section id="panel-profile" class="panel">
+      <div class="title">Profile</div>
+      <div class="card" id="profileCard">Loading...</div>
+      <button class="btn red" onclick="logout()">Logout</button>
+    </section>
+  </main>
+
+  <div class="drawer" id="detailDrawer"><div class="sheet">
+    <div style="display:flex;justify-content:space-between;gap:10px;align-items:start"><div><h2 id="dName"></h2><div class="sub" id="dMeta"></div></div><button class="btn red" onclick="closeDrawer()">Close</button></div>
+    <div class="chips" id="dChips" style="margin:10px 0"></div>
+    <div class="actions">
+      <a class="btn green" id="dCall" href="#">Call</a>
+      <a class="btn green" id="dWhatsapp" href="#" target="_blank">WhatsApp</a>
+      <button class="btn primary write-action" onclick="convertLead()">Convert to Client</button>
+    </div>
+    <div class="card"><h3>Update</h3>
+      <div class="toolbar"><select id="dStatus"></select><select id="dAssign"></select></div>
+      <div class="toolbar"><button class="btn write-action" onclick="saveStatus()">Save Status</button><button class="btn write-action" onclick="saveAssign()">Assign</button></div>
+    </div>
+    <div class="card"><h3>Follow-up</h3>
+      <div class="toolbar"><select id="fuType"></select><select id="fuResult"></select></div>
+      <label>Summary</label><textarea id="fuSummary" rows="2"></textarea>
+      <label>Next Follow-up</label><input id="fuNext" type="date" />
+      <button class="btn primary write-action" onclick="saveFollowup()" style="margin-top:10px">Save Follow-up</button>
+    </div>
+    <div class="card"><h3>Timeline</h3><div class="timeline" id="timeline"></div></div>
+  </div></div>
+  <div class="msg" id="msg"></div>
+  <script>
+    const state = { token:null, user:null, access:null, meta:{statuses:[],priorities:[],employees:[],sources:[],followup_types:[],followup_results:[]}, activeLead:null, timer:null };
+    const LEAD_SESSION_KEY = 'lead_session_ready';
+    const terminal = new Set(['Converted','Not Interested','Lost','Duplicate','Closed']);
+    function esc(v){return String(v ?? '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));}
+    function showMsg(text){const el=document.getElementById('msg');el.textContent=text;el.style.display='block';setTimeout(()=>el.style.display='none',2800);}
+    function leadReturnUrl(){return window.location.origin + '/lead.html';}
+    function clearLeadAuthStorage(){
+      if (window.GBSession) window.GBSession.clear(false);
+      [
+        'lead_token','office_token','office_user','admin_token','admin_user','admin_info',
+        'att_token','att_emp','gb_access_token','gb_user',LEAD_SESSION_KEY
+      ].forEach(k => localStorage.removeItem(k));
+    }
+    function leadLoginUrl(){
+      const params = new URLSearchParams({ switch_account: '1', return_to: leadReturnUrl() });
+      return '/lead-login.html?' + params.toString();
+    }
+    function startLeadLogin(event){
+      if(event) event.preventDefault();
+      clearLeadAuthStorage();
+      window.location.href = leadLoginUrl();
+    }
+    function hasLeadSession(){
+      return localStorage.getItem(LEAD_SESSION_KEY) === '1' && !!localStorage.getItem('lead_token');
+    }
+    function getStoredToken(){
+      return hasLeadSession() ? localStorage.getItem('lead_token') : '';
+    }
+    function showLoginGate(message){
+      document.body.classList.add('auth-pending');
+      document.querySelectorAll('.panel').forEach(p=>p.style.display='none');
+      document.querySelector('.bottom').style.display='none';
+      document.getElementById('userChip').textContent='Login Required';
+      const gate=document.getElementById('loginGate');
+      if(message)gate.querySelector('p').textContent=message;
+      const loginLink=document.getElementById('leadLoginLink');
+      if(loginLink){
+        loginLink.href=leadLoginUrl();
+      }
+      gate.style.display='block';
+    }
+    async function refreshToken(){try{if(!hasLeadSession())return false;const r=await fetch('/api/auth/refresh',{method:'POST',credentials:'include'});const d=await r.json();if(d.success&&d.token){state.token=d.token;state.user=d.user;localStorage.setItem('lead_token',d.token);localStorage.setItem(LEAD_SESSION_KEY,'1');return true;}}catch{}return false;}
+    async function api(path, opts={}){if(!state.token){state.token=getStoredToken();}let r=await fetch('/api/leads'+path,{...opts,headers:{'Content-Type':'application/json','Authorization':'Bearer '+state.token,...(opts.headers||{})},credentials:'include'});if(r.status===401&&await refreshToken()){r=await fetch('/api/leads'+path,{...opts,headers:{'Content-Type':'application/json','Authorization':'Bearer '+state.token,...(opts.headers||{})},credentials:'include'});}const d=await r.json().catch(()=>({success:false,message:'Invalid server response'}));if(!d.success&&r.status>=400)throw new Error(d.message||'Request failed');return d;}
+    function requireWrite(){return state.access?.can_write;}
+    function applyAccess(){document.querySelectorAll('.write-action').forEach(el=>el.disabled=!requireWrite());document.getElementById('accessText').textContent=state.access?.access_level==='view'?'View Only':'';}
+    function showPanel(name){document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));document.getElementById('panel-'+name).classList.add('active');document.querySelectorAll('.nav').forEach(n=>n.classList.toggle('active',n.dataset.panel===name));if(name==='leads')loadLeads();if(name==='followups')loadFollowups('today');if(name==='dashboard')loadDashboard();}
+    function fillSelect(id, rows, valueKey, textKey, blank){const el=document.getElementById(id);el.innerHTML=(blank?`<option value="">${blank}</option>`:'')+rows.map(r=>`<option value="${esc(typeof r==='string'?r:r[valueKey])}">${esc(typeof r==='string'?r:r[textKey])}</option>`).join('');}
+    async function init(){state.token=getStoredToken();if(!state.token){showLoginGate();return;}try{const me=await api('/me');state.user=me.user;state.access=me.access;document.body.classList.remove('auth-pending');document.getElementById('loginGate').style.display='none';document.querySelector('.bottom').style.display='grid';document.querySelectorAll('.panel').forEach(p=>p.style.display='');document.getElementById('userChip').textContent=(me.user.formal_name||me.user.name||me.user.username)+' - '+(me.user.organization_code||'');const meta=await api('/meta');state.meta=meta;fillSelect('statusFilter',meta.statuses,null,null,'All Status');fillSelect('priorityFilter',meta.priorities,null,null,'All Priority');fillSelect('source',meta.sources,null,null,'Select Source');fillSelect('priority',meta.priorities,null,null,null);fillSelect('status',meta.statuses,null,null,null);fillSelect('assigned_to_id',meta.employees,'emp_id','formal_name','Self');fillSelect('dStatus',meta.statuses,null,null,null);fillSelect('dAssign',meta.employees,'emp_id','formal_name','Select Employee');fillSelect('fuType',meta.followup_types,null,null,null);fillSelect('fuResult',meta.followup_results,null,null,null);document.getElementById('profileCard').innerHTML=`<strong>${esc(me.user.formal_name||me.user.name||me.user.username)}</strong><br><span class="muted">${esc(me.user.designation||me.user.role||me.user.user_type||'')}</span><br><span class="muted">${esc(me.user.organization_code||'')}</span>`;applyAccess();loadDashboard();}catch(e){clearLeadAuthStorage();showMsg(e.message);setTimeout(()=>showLoginGate(e.message),500);}}
+    async function loadDashboard(){try{const d=await api('/reports/summary');const s=d.summary||{};mNew.textContent=s.new_leads||0;mToday.textContent=s.today_followups||0;mOverdue.textContent=s.overdue_followups||0;mHot.textContent=s.hot_leads||0;mConverted.textContent=s.converted_month||0;mLost.textContent=s.lost||0;statusFunnel.innerHTML=(d.by_status||[]).map(x=>`<span class="chip">${esc(x.status)}: ${x.count}</span>`).join('')||'<div class="empty">No leads yet</div>';}catch(e){showMsg(e.message);}}
+    function leadCard(l){const tel=l.mobile||l.whatsapp||'';return `<div class="lead" onclick="openLead(${l.id})"><div class="lead-head"><div><div class="lead-title">${esc(l.name)}</div><div class="sub">${esc(l.lead_no)} ${l.business_name?' - '+esc(l.business_name):''}</div></div><span class="chip ${String(l.priority).toLowerCase()}">${esc(l.priority)}</span></div><div class="chips"><span class="chip">${esc(l.status)}</span><span class="chip">${esc(l.assigned_to_name||'Unassigned')}</span>${l.next_followup_date?`<span class="chip">Next: ${esc(l.next_followup_date)}</span>`:''}</div><div class="muted">${esc(l.service_required||'Service not set')} ${tel?' | '+esc(tel):''}</div><div class="actions"><a class="btn green" onclick="event.stopPropagation()" href="tel:${esc(tel)}">Call</a><a class="btn green" onclick="event.stopPropagation()" target="_blank" href="https://wa.me/91${esc((l.whatsapp||l.mobile||'').replace(/\\D/g,'').slice(-10))}">WhatsApp</a><button class="btn" onclick="event.stopPropagation();openLead(${l.id})">Open</button></div></div>`;}
+    async function loadLeads(){try{const q=new URLSearchParams();if(leadSearch.value)q.set('search',leadSearch.value);if(statusFilter.value)q.set('status',statusFilter.value);if(priorityFilter.value)q.set('priority',priorityFilter.value);const d=await api('/?'+q.toString());leadList.innerHTML=d.leads.length?d.leads.map(leadCard).join(''):'<div class="card empty">No leads found</div>';}catch(e){showMsg(e.message);}}
+    function debouncedLoadLeads(){clearTimeout(state.timer);state.timer=setTimeout(loadLeads,300);}
+    async function loadFollowups(type){try{const d=await api('/?followup='+type);followupList.innerHTML=d.leads.length?d.leads.map(leadCard).join(''):`<div class="card empty">No ${type} follow-ups</div>`;}catch(e){showMsg(e.message);}}
+    function formPayload(){return ['name','mobile','whatsapp','email','business_name','service_required','source','priority','status','assigned_to_id','next_followup_date','expected_value','city','state','pincode','remarks'].reduce((a,id)=>(a[id]=document.getElementById(id).value,a),{});}
+    leadForm.addEventListener('submit',async e=>{e.preventDefault();if(!requireWrite())return showMsg('Lead Management is view-only.');const id=leadId.value;try{const d=await api(id?'/'+id:'/',{method:id?'PUT':'POST',body:JSON.stringify(formPayload())});showMsg(d.message||'Saved');resetLeadForm();showPanel('leads');loadLeads();loadDashboard();}catch(err){showMsg(err.message);}});
+    function resetLeadForm(){leadForm.reset();leadId.value='';priority.value='Normal';status.value='New';expected_value.value='0';}
+    async function openLead(id){try{const d=await api('/'+id);state.activeLead=d.lead;dName.textContent=d.lead.name;dMeta.textContent=`${d.lead.lead_no} | ${d.lead.mobile||d.lead.whatsapp||'No phone'} | ${d.lead.service_required||'No service'}`;dChips.innerHTML=`<span class="chip ${String(d.lead.priority).toLowerCase()}">${esc(d.lead.priority)}</span><span class="chip">${esc(d.lead.status)}</span><span class="chip">${esc(d.lead.assigned_to_name||'Unassigned')}</span>`;dCall.href='tel:'+(d.lead.mobile||d.lead.whatsapp||'');dWhatsapp.href='https://wa.me/91'+String(d.lead.whatsapp||d.lead.mobile||'').replace(/\\D/g,'').slice(-10);dStatus.value=d.lead.status;dAssign.value=d.lead.assigned_to_id||'';timeline.innerHTML=[...(d.followups||[]).map(f=>({t:f.followup_type+' - '+f.result,b:f.summary,a:f.created_by_name,d:f.created_at})),...(d.history||[]).map(h=>({t:h.action,b:h.remarks,a:h.actor_name,d:h.created_at}))].sort((a,b)=>new Date(b.d)-new Date(a.d)).map(x=>`<div class="event"><strong>${esc(x.t)}</strong><br><span class="muted">${esc(x.a||'')} - ${new Date(x.d).toLocaleString('en-IN')}</span>${x.b?`<div>${esc(x.b)}</div>`:''}</div>`).join('')||'<div class="muted">No timeline yet</div>';detailDrawer.classList.add('show');}catch(e){showMsg(e.message);}}
+    function closeDrawer(){detailDrawer.classList.remove('show');state.activeLead=null;}
+    async function saveStatus(){if(!state.activeLead)return;try{const d=await api('/'+state.activeLead.id+'/status',{method:'PUT',body:JSON.stringify({status:dStatus.value})});showMsg(d.message);openLead(state.activeLead.id);loadLeads();loadDashboard();}catch(e){showMsg(e.message);}}
+    async function saveAssign(){if(!state.activeLead)return;try{const d=await api('/'+state.activeLead.id+'/assign',{method:'PUT',body:JSON.stringify({assigned_to_id:dAssign.value})});showMsg(d.message);openLead(state.activeLead.id);loadLeads();}catch(e){showMsg(e.message);}}
+    async function saveFollowup(){if(!state.activeLead)return;try{const d=await api('/'+state.activeLead.id+'/followups',{method:'POST',body:JSON.stringify({followup_type:fuType.value,result:fuResult.value,summary:fuSummary.value,next_followup_date:fuNext.value})});showMsg(d.message);fuSummary.value='';fuNext.value='';openLead(state.activeLead.id);loadDashboard();}catch(e){showMsg(e.message);}}
+    async function convertLead(){if(!state.activeLead||!confirm('Convert this lead to client and create onboarding task?'))return;try{const d=await api('/'+state.activeLead.id+'/convert-client',{method:'POST',body:JSON.stringify({})});showMsg(d.message);closeDrawer();loadLeads();loadDashboard();}catch(e){showMsg(e.message);}}
+    async function exportLeads(){
+      try{
+        const res=await fetch('/api/leads/reports/export',{headers:{Authorization:'Bearer '+state.token},credentials:'include'});
+        if(!res.ok)throw new Error('Export failed');
+        const blob=await res.blob();
+        const url=URL.createObjectURL(blob);
+        const a=document.createElement('a');
+        a.href=url;
+        a.download='lead-report.csv';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      }catch(e){showMsg(e.message);}
+    }
+    async function logout(){try{await fetch('/api/auth/logout',{method:'POST',headers:{Authorization:'Bearer '+state.token},credentials:'include'});}catch{}clearLeadAuthStorage();showLoginGate();}
+  </script>
+  <script src="/assets/auth-session.js"></script>
+  <script>
+    if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(()=>{});}
+    init();
+  </script>
+</body>
+</html>

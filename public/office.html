@@ -134,6 +134,13 @@
     .chat-pill{display:inline-flex;align-items:center;gap:5px;border-radius:999px;background:#e0f2fe;color:#0369a1;font-size:11px;font-weight:800;padding:3px 8px;margin:2px}
     .chat-pill button{border:0;background:transparent;color:#0369a1;cursor:pointer;font-weight:900}
     .chat-empty{padding:26px;text-align:center;color:#94a3b8}
+    .dept-badge{display:inline-block;border-radius:999px;font-size:10.5px;font-weight:800;padding:3px 9px;white-space:nowrap}
+    .dept-ca{background:#dbeafe;color:#1d4ed8}
+    .dept-cs{background:#ede9fe;color:#6d28d9}
+    .dept-cma{background:#dcfce7;color:#15803d}
+    .dept-common{background:#e2e8f0;color:#475569}
+    .dept-internal{background:#fef3c7;color:#b45309}
+    .dept-none{background:#fee2e2;color:#b91c1c}
     @media(max-width:1000px){.chat-layout{grid-template-columns:1fr}.chat-list-body{max-height:260px}.chat-compose-grid{grid-template-columns:1fr 1fr}.chat-msg{max-width:94%}}
     .import-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:14px}
     .import-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px;box-shadow:0 2px 8px rgba(15,23,42,.06)}
@@ -433,6 +440,10 @@
         <div class="card-head"><h3 id="statusBreakdownTitle">Tasks by Status</h3></div>
         <div class="card-body" id="statusBreakdown"></div>
       </div>
+      <div class="card">
+        <div class="card-head"><h3 id="deptBreakdownTitle">Active Tasks by Department</h3></div>
+        <div class="card-body" id="deptBreakdown"></div>
+      </div>
       <div class="card hidden" id="empBreakdownCard">
         <div class="card-head"><h3>Tasks by Employee</h3></div>
         <div class="card-body">
@@ -457,6 +468,7 @@
       <div class="filter-row">
         <input type="text" id="mySearch" placeholder="Search..." oninput="debounceLoad('my')" style="max-width:280px"/>
         <select id="myStatusFilter" onchange="loadTasks('my')"><option value="">All Status</option></select>
+        <select id="myDeptFilter" onchange="loadTasks('my')"><option value="">All Departments</option></select>
         <input type="date" id="myDateFrom" title="Due date from" onchange="loadTasks('my')"/>
         <input type="date" id="myDateTo" title="Due date to" onchange="loadTasks('my')"/>
         <select id="mySort" onchange="loadTasks('my')">
@@ -467,7 +479,7 @@
         <button class="btn-sm" onclick="clearTaskFilters('my')">Clear All Filter</button>
       </div>
       <div class="card"><div class="tbl-wrap"><table id="tbl-mytasks">
-        <thead><tr><th>Task ID</th><th>Client</th><th>Work</th><th>Assigned By</th><th>Priority</th><th>Status</th><th>Due Date</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Task ID</th><th>Client</th><th>Work</th><th>Department</th><th>Assigned By</th><th>Priority</th><th>Status</th><th>Due Date</th><th>Actions</th></tr></thead>
         <tbody id="myTasksTable"></tbody>
       </table></div></div>
     </div>
@@ -485,6 +497,7 @@
       <div class="filter-row">
         <input type="text" id="bySearch" placeholder="Search..." oninput="debounceLoad('assigned_by_me')" style="max-width:280px"/>
         <select id="byStatusFilter" onchange="loadTasks('assigned_by_me')"><option value="">All Status</option></select>
+        <select id="byDeptFilter" onchange="loadTasks('assigned_by_me')"><option value="">All Departments</option></select>
         <input type="date" id="byDateFrom" title="Due date from" onchange="loadTasks('assigned_by_me')"/>
         <input type="date" id="byDateTo" title="Due date to" onchange="loadTasks('assigned_by_me')"/>
         <select id="bySort" onchange="loadTasks('assigned_by_me')">
@@ -495,7 +508,7 @@
         <button class="btn-sm" onclick="clearTaskFilters('assigned_by_me')">Clear All Filter</button>
       </div>
       <div class="card"><div class="tbl-wrap"><table id="tbl-assignedby">
-        <thead><tr><th>Task ID</th><th>Client</th><th>Work</th><th>Assigned To</th><th>Priority</th><th>Status</th><th>Due Date</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Task ID</th><th>Client</th><th>Work</th><th>Department</th><th>Assigned To</th><th>Priority</th><th>Status</th><th>Due Date</th><th>Actions</th></tr></thead>
         <tbody id="assignedByTable"></tbody>
       </table></div></div>
     </div>
@@ -508,6 +521,7 @@
           <button class="btn-sm" style="background:#0891b2;color:#fff;padding:7px 12px" onclick="exportTable('allTasksTable','All_Tasks')">&#128229; Export</button>
           <button class="btn-sm" style="background:#475569;color:#fff;padding:7px 12px" onclick="printTableSection('allTasksTable','All Tasks')">&#128438; Print</button>
           <button class="btn-sm btn-view" onclick="openUnlinkedReportableReview()">Unlinked Reportable</button>
+          <button class="btn-sm" style="background:#b45309;color:#fff;padding:7px 12px" onclick="openCustomWorkReview()">Custom Work Review</button>
           <button class="btn btn-primary" onclick="openCreateTask()">+ Create Task</button>
         </div>
       </div>
@@ -517,6 +531,8 @@
         <select id="allStatusFilter" onchange="loadTasks('all')"><option value="">All Status</option></select>
         <select id="allPriorityFilter" onchange="loadTasks('all')"><option value="">All Priority</option></select>
         <select id="allWorkFilter" onchange="loadTasks('all')"><option value="">All Work Types</option></select>
+        <select id="allDeptFilter" onchange="loadTasks('all')"><option value="">All Departments</option></select>
+        <select id="allGroupFilter" onchange="loadTasks('all')"><option value="">All Dept. Groups</option></select>
         <input type="date" id="allDateFrom" title="Due date from" onchange="loadTasks('all')"/>
         <input type="date" id="allDateTo" title="Due date to" onchange="loadTasks('all')"/>
         <select id="allSort" onchange="loadTasks('all')">
@@ -527,7 +543,7 @@
         <button class="btn-sm" onclick="clearTaskFilters('all')">Clear All Filter</button>
       </div>
       <div class="card"><div class="tbl-wrap"><table id="tbl-alltasks">
-        <thead><tr><th>Task ID</th><th>Client</th><th>Work</th><th>Assigned To</th><th>Priority</th><th>Status</th><th>Due Date</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Task ID</th><th>Client</th><th>Work</th><th>Department</th><th>Assigned To</th><th>Priority</th><th>Status</th><th>Due Date</th><th>Actions</th></tr></thead>
         <tbody id="allTasksTable"></tbody>
       </table></div></div>
     </div>
@@ -544,6 +560,7 @@
       <div class="filter-row">
         <input type="text" id="completedSearch" placeholder="Search..." oninput="debounceLoad('completed')" style="max-width:220px"/>
         <select id="completedEmpFilter" onchange="loadCompletedTasks()" class="hidden"><option value="">All Employees</option></select>
+        <select id="completedDeptFilter" onchange="loadCompletedTasks()"><option value="">All Departments</option></select>
         <input type="date" id="completedDateFrom" title="Completed date from" onchange="loadCompletedTasks()"/>
         <input type="date" id="completedDateTo" title="Completed date to" onchange="loadCompletedTasks()"/>
         <select id="completedSort" onchange="loadCompletedTasks()">
@@ -554,7 +571,7 @@
         <button class="btn-sm" onclick="clearTaskFilters('completed')">Clear All Filter</button>
       </div>
       <div class="card"><div class="tbl-wrap"><table id="tbl-completed">
-        <thead><tr><th>Task ID</th><th>Client</th><th>Work</th><th>Assigned To</th><th>Status</th><th>Completed On</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Task ID</th><th>Client</th><th>Work</th><th>Department</th><th>Assigned To</th><th>Status</th><th>Completed On</th><th>Actions</th></tr></thead>
         <tbody id="completedTable"></tbody>
       </table></div></div>
     </div>
@@ -1486,6 +1503,16 @@
           <div style="color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:12px;font-weight:700">Are you sure your work name is not listed?</div>
           <input type="text" id="tm_other_work_name" placeholder="Enter custom work name" autocomplete="off"/>
           <small style="display:block;color:#64748b;margin-top:5px">Use this only when the required work is not available in the master suggestion list.</small>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+            <div>
+              <label style="font-size:12px;font-weight:700;color:#334155">Department *</label>
+              <select id="tm_other_dept" onchange="populateOtherWorkGroups()"><option value="">Select department...</option></select>
+            </div>
+            <div>
+              <label style="font-size:12px;font-weight:700;color:#334155">Department Group (optional)</label>
+              <select id="tm_other_group"><option value="">Select group...</option></select>
+            </div>
+          </div>
         </div>
         <div id="tm_reportable_wrap" class="hidden" style="margin-top:10px;border:1px solid #bfdbfe;background:#eff6ff;border-radius:10px;padding:10px">
           <div style="font-weight:800;color:#1e3a8a;margin-bottom:4px">Reportable Work Link</div>
@@ -1552,6 +1579,27 @@
       </table>
     </div>
     <small style="display:block;color:#64748b;margin-top:8px">This list is for management review only. New task creation enforces links only when an exact mapped master work name is selected.</small>
+  </div>
+</div>
+
+<!-- Custom Work Review Modal -->
+<div class="modal-backdrop hidden" id="customWorkModal" onclick="if(event.target===this)closeModal('customWorkModal')">
+  <div class="modal" style="max-width:1080px">
+    <div class="modal-title">
+      <span>Custom Work Review <small style="font-size:12px;font-weight:600;color:#64748b">(custom / unclassified work names)</small></span>
+      <button type="button" class="btn-sm btn-cancel" onclick="closeModal('customWorkModal')" style="margin-left:auto">Close</button>
+    </div>
+    <small style="display:block;color:#475569;margin-bottom:10px">
+      For each custom work name: map it to an existing master work name, OR pick a department manually.
+      Tick "Add to master" to make the name appear in future suggestions.
+    </small>
+    <div class="tbl-wrap" style="max-height:540px">
+      <table>
+        <thead><tr><th>Work Name</th><th>Tasks</th><th>Map to Master Work</th><th>OR Department</th><th>Dept. Group</th><th>Add to master</th><th></th></tr></thead>
+        <tbody id="customWorkTable"></tbody>
+      </table>
+    </div>
+    <datalist id="masterWorkList"></datalist>
   </div>
 </div>
 
@@ -2725,6 +2773,7 @@ function jsArg(v) {
 
 // ── META ─────────────────────────────────────────────────────
 let META = { work_names:[], statuses:[], priorities:[], employees:[] };
+let DEPT_GROUPS = {};
 function workNameText(work) {
   return typeof work === 'string' ? work : (work?.name || '');
 }
@@ -2809,6 +2858,38 @@ async function loadMeta() {
     wf.innerHTML = '<option value="">All Work Types</option>';
     const distinctNames = [...new Set((META.work_names || []).map(workNameText).filter(Boolean))].sort((a,b) => a.localeCompare(b));
     distinctNames.slice(0,50).forEach(w => wf.innerHTML += `<option value="${h(w)}">${h(w)}</option>`);
+  }
+
+  // Department filters (fixed master departments + Unclassified)
+  const departments = [...new Set((META.work_names || []).map(w => w.department).filter(Boolean))].sort((a,b) => a.localeCompare(b));
+  ['myDeptFilter','byDeptFilter','allDeptFilter','completedDeptFilter'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    sel.innerHTML = '<option value="">All Departments</option>';
+    departments.forEach(d => sel.innerHTML += `<option value="${h(d)}">${h(d)}</option>`);
+    sel.innerHTML += '<option value="Unclassified">Unclassified</option>';
+  });
+
+  // Department group filter (All Tasks)
+  const gf = document.getElementById('allGroupFilter');
+  if (gf) {
+    gf.innerHTML = '<option value="">All Dept. Groups</option>';
+    const groups = [...new Set((META.work_names || []).map(w => w.grouping_name).filter(Boolean))].sort((a,b) => a.localeCompare(b));
+    groups.forEach(g => gf.innerHTML += `<option value="${h(g)}">${h(g)}</option>`);
+    gf.innerHTML += '<option value="Unclassified">Unclassified</option>';
+  }
+
+  // Dept -> groups map (Other Work + custom-work review)
+  DEPT_GROUPS = {};
+  (META.work_names || []).forEach(w => {
+    if (!w.department || !w.grouping_name) return;
+    (DEPT_GROUPS[w.department] = DEPT_GROUPS[w.department] || new Set()).add(w.grouping_name);
+  });
+  const od = document.getElementById('tm_other_dept');
+  if (od) {
+    od.innerHTML = '<option value="">Select department...</option>';
+    departments.forEach(d => od.innerHTML += `<option value="${h(d)}">${h(d)}</option>`);
+    populateOtherWorkGroups();
   }
 
   // Employee dropdowns
@@ -3107,6 +3188,8 @@ async function loadDashboard() {
   const data = await api('/tasks/dashboard');
   if (!data.success) return;
 
+  renderDeptBreakdown(data);
+
   if (data.is_admin_view) {
     // Admin view: all-employee stats
     document.getElementById('d-over').textContent = data.overdue || 0;
@@ -3167,12 +3250,51 @@ async function loadDashboard() {
   }
 }
 
+function renderDeptBreakdown(data) {
+  const card = document.getElementById('deptBreakdown');
+  if (!card) return;
+  document.getElementById('deptBreakdownTitle').textContent =
+    data.is_admin_view ? 'All Active Tasks by Department' : 'My Active Tasks by Department';
+  const rows = data.department_breakdown || [];
+  const total = rows.reduce((a, r) => a + parseInt(r.cnt), 0) || 1;
+  card.innerHTML = rows.map(r => `
+    <div onclick="openTasksByDepartment('${jsArg(r.department)}', ${data.is_admin_view})" title="Open ${h(r.department)} tasks" style="display:flex;align-items:center;gap:10px;margin-bottom:8px;cursor:pointer">
+      ${deptBadge({ department: r.department === 'Unclassified' ? null : r.department, grouping_name: '' })}
+      <div style="flex:1;background:#f1f5f9;border-radius:4px;height:8px;overflow:hidden">
+        <div style="background:#7c3aed;height:100%;width:${Math.min(100, r.cnt / total * 100)}%;border-radius:4px"></div>
+      </div>
+      <span style="font-size:13px;font-weight:700;min-width:28px">${r.cnt}</span>
+    </div>`).join('') || '<div class="empty-msg">No active tasks</div>';
+}
+
+async function openTasksByDepartment(department, allEmployees = false) {
+  const panel = allEmployees ? 'alltasks' : 'mytasks';
+  showPanel(panel);
+  await loadMeta();
+  if (allEmployees) {
+    ['allSearch','allEmpFilter','allStatusFilter','allPriorityFilter','allWorkFilter','allGroupFilter'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    const f = document.getElementById('allDeptFilter');
+    if (f) f.value = department || '';
+    panelLoaded['alltasks'] = true;
+    loadTasks('all');
+  } else {
+    const s = document.getElementById('myStatusFilter'); if (s) s.value = '';
+    const f = document.getElementById('myDeptFilter');
+    if (f) f.value = department || '';
+    panelLoaded['mytasks'] = true;
+    loadTasks('my');
+  }
+}
+
 // ── TASKS ────────────────────────────────────────────────────
 async function openTasksByStatus(status, allEmployees = false) {
   if (allEmployees) {
     showPanel('alltasks');
     await loadMeta();
-    ['allSearch','allEmpFilter','allPriorityFilter','allWorkFilter'].forEach(id => {
+    ['allSearch','allEmpFilter','allPriorityFilter','allWorkFilter','allDeptFilter','allGroupFilter'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.value = '';
     });
@@ -3185,6 +3307,8 @@ async function openTasksByStatus(status, allEmployees = false) {
   showPanel('mytasks');
   const search = document.getElementById('mySearch');
   if (search) search.value = '';
+  const deptFilter = document.getElementById('myDeptFilter');
+  if (deptFilter) deptFilter.value = '';
   const statusFilter = document.getElementById('myStatusFilter');
   if (statusFilter) statusFilter.value = status || '';
   panelLoaded['mytasks'] = true;
@@ -3202,7 +3326,7 @@ async function openEmployeeActiveTasks(empId, empName = '') {
     }
     filter.value = empId;
   }
-  ['allSearch','allStatusFilter','allPriorityFilter','allWorkFilter'].forEach(id => {
+  ['allSearch','allStatusFilter','allPriorityFilter','allWorkFilter','allDeptFilter','allGroupFilter'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
@@ -3230,10 +3354,10 @@ function addTaskDateFilters(params, prefix) {
 
 function clearTaskFilters(view) {
   const idsByView = {
-    my: ['mySearch', 'myStatusFilter', 'myDateFrom', 'myDateTo', 'mySort'],
-    assigned_by_me: ['bySearch', 'byStatusFilter', 'byDateFrom', 'byDateTo', 'bySort'],
-    all: ['allSearch', 'allEmpFilter', 'allStatusFilter', 'allPriorityFilter', 'allWorkFilter', 'allDateFrom', 'allDateTo', 'allSort'],
-    completed: ['completedSearch', 'completedEmpFilter', 'completedDateFrom', 'completedDateTo', 'completedSort'],
+    my: ['mySearch', 'myStatusFilter', 'myDeptFilter', 'myDateFrom', 'myDateTo', 'mySort'],
+    assigned_by_me: ['bySearch', 'byStatusFilter', 'byDeptFilter', 'byDateFrom', 'byDateTo', 'bySort'],
+    all: ['allSearch', 'allEmpFilter', 'allStatusFilter', 'allPriorityFilter', 'allWorkFilter', 'allDeptFilter', 'allGroupFilter', 'allDateFrom', 'allDateTo', 'allSort'],
+    completed: ['completedSearch', 'completedEmpFilter', 'completedDeptFilter', 'completedDateFrom', 'completedDateTo', 'completedSort'],
   };
   (idsByView[view] || []).forEach(id => {
     const el = document.getElementById(id);
@@ -3241,6 +3365,82 @@ function clearTaskFilters(view) {
   });
   if (view === 'completed') loadCompletedTasks();
   else loadTasks(view);
+}
+
+// ── Custom Work Review (admin) ───────────────────────────────
+let CUSTOM_WORK_ITEMS = [];
+
+async function openCustomWorkReview() {
+  openModal('customWorkModal');
+  if (!META.work_names?.length) await loadMeta();
+  const dl = document.getElementById('masterWorkList');
+  if (dl && !dl.children.length) {
+    const names = [...new Set((META.work_names || []).map(w => w.name).filter(Boolean))].sort((a,b) => a.localeCompare(b));
+    dl.innerHTML = names.map(n => `<option value="${h(n)}"></option>`).join('');
+  }
+  await loadCustomWorkReview();
+}
+
+async function loadCustomWorkReview() {
+  const tb = document.getElementById('customWorkTable');
+  if (!tb) return;
+  tb.innerHTML = `<tr><td colspan="7" class="empty-msg">Loading...</td></tr>`;
+  const data = await api('/tasks/custom-work');
+  if (!data.success) { tb.innerHTML = `<tr><td colspan="7" class="empty-msg">${h(data.message || 'Error loading')}</td></tr>`; return; }
+  CUSTOM_WORK_ITEMS = data.items || [];
+  if (!CUSTOM_WORK_ITEMS.length) { tb.innerHTML = `<tr><td colspan="7" class="empty-msg">No custom work names pending review 🎉</td></tr>`; return; }
+
+  const departments = [...new Set((META.work_names || []).map(w => w.department).filter(Boolean))].sort((a,b) => a.localeCompare(b));
+  const deptOpts = '<option value="">Select...</option>' + departments.map(d => `<option value="${h(d)}">${h(d)}</option>`).join('');
+  tb.innerHTML = CUSTOM_WORK_ITEMS.map((it, i) => `
+    <tr>
+      <td style="max-width:260px" title="${h(it.work_name || '')}">${h((it.work_name || '--').substring(0, 60))}</td>
+      <td><span title="${it.active_count} active">${it.task_count}</span></td>
+      <td><input list="masterWorkList" id="cw_master_${i}" placeholder="Type master work name..." style="min-width:200px" oninput="document.getElementById('cw_dept_${i}').value=''"/></td>
+      <td><select id="cw_dept_${i}" onchange="populateCustomWorkGroups(${i})">${deptOpts}</select></td>
+      <td><select id="cw_group_${i}"><option value="">Select...</option></select></td>
+      <td style="text-align:center"><input type="checkbox" id="cw_add_${i}"/></td>
+      <td><button class="btn-sm btn-green" id="cw_apply_${i}" onclick="applyCustomWorkClassify(${i})">Apply</button></td>
+    </tr>`).join('');
+}
+
+function populateCustomWorkGroups(i) {
+  const dept = document.getElementById(`cw_dept_${i}`)?.value || '';
+  const sel = document.getElementById(`cw_group_${i}`);
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Select...</option>';
+  [...(DEPT_GROUPS[dept] || [])].sort((a,b) => a.localeCompare(b))
+    .forEach(g => sel.innerHTML += `<option value="${h(g)}">${h(g)}</option>`);
+  if (dept) { const m = document.getElementById(`cw_master_${i}`); if (m) m.value = ''; }
+}
+
+async function applyCustomWorkClassify(i) {
+  const item = CUSTOM_WORK_ITEMS[i];
+  if (!item) return;
+  const masterName = document.getElementById(`cw_master_${i}`)?.value.trim() || '';
+  const dept = document.getElementById(`cw_dept_${i}`)?.value || '';
+  const body = { work_name: item.work_name, add_to_master: !!document.getElementById(`cw_add_${i}`)?.checked };
+
+  if (masterName) {
+    const match = (META.work_names || []).find(w => (w.name || '').toLowerCase() === masterName.toLowerCase());
+    if (!match) { showToast('Master work name not found — select from the suggestion list', 'error'); return; }
+    body.work_name_id = match.id;
+  } else if (dept) {
+    body.department = dept;
+    body.grouping_name = document.getElementById(`cw_group_${i}`)?.value || null;
+  } else {
+    showToast('Map to a master work name or select a department first', 'error');
+    return;
+  }
+
+  const btn = document.getElementById(`cw_apply_${i}`);
+  if (btn) { btn.disabled = true; btn.textContent = '...'; }
+  const data = await api('/tasks/custom-work/classify', { method: 'POST', body: JSON.stringify(body) });
+  if (btn) { btn.disabled = false; btn.textContent = 'Apply'; }
+  if (!data.success) { showToast(data.message || 'Failed to classify', 'error'); return; }
+  showToast(data.message, 'success');
+  await loadCustomWorkReview();
+  refreshTaskPanels();
 }
 
 async function openUnlinkedReportableReview() {
@@ -3289,21 +3489,36 @@ function populateEmpFilters(employees) {
   });
 }
 
+function deptBadge(t) {
+  const dept = t.department || 'Unclassified';
+  const cls = {
+    'CA Services': 'dept-ca',
+    'CS Services': 'dept-cs',
+    'CMA Services': 'dept-cma',
+    'Common Services': 'dept-common',
+    'Internal Office': 'dept-internal',
+  }[dept] || 'dept-none';
+  const tip = t.grouping_name ? `${t.grouping_name}${t.work_category ? ' — ' + t.work_category : ''}` : 'Not classified yet';
+  return `<span class="dept-badge ${cls}" title="${h(tip)}">${h(dept)}</span>`;
+}
+
 async function loadTasks(view) {
   const tableMap = { my:'myTasksTable', assigned_by_me:'assignedByTable', all:'allTasksTable' };
   const tb = document.getElementById(tableMap[view]);
   if (!tb) return;
-  tb.innerHTML = `<tr><td colspan="8" class="empty-msg">Loading...</td></tr>`;
+  tb.innerHTML = `<tr><td colspan="9" class="empty-msg">Loading...</td></tr>`;
 
   const params = new URLSearchParams({ view, limit: 200 });
   if (view === 'my') {
     const q = document.getElementById('mySearch')?.value; if (q) params.set('search', q);
     const st = document.getElementById('myStatusFilter')?.value; if (st) params.set('status', st);
+    const dp = document.getElementById('myDeptFilter')?.value; if (dp) params.set('department', dp);
     addTaskDateFilters(params, 'my');
   }
   if (view === 'assigned_by_me') {
     const q = document.getElementById('bySearch')?.value; if (q) params.set('search', q);
     const st = document.getElementById('byStatusFilter')?.value; if (st) params.set('status', st);
+    const dp = document.getElementById('byDeptFilter')?.value; if (dp) params.set('department', dp);
     addTaskDateFilters(params, 'by');
   }
   if (view === 'all') {
@@ -3312,13 +3527,15 @@ async function loadTasks(view) {
     const st = document.getElementById('allStatusFilter')?.value; if (st) params.set('status', st);
     const pr = document.getElementById('allPriorityFilter')?.value; if (pr) params.set('priority', pr);
     const wn = document.getElementById('allWorkFilter')?.value; if (wn) params.set('work_name', wn);
+    const dp = document.getElementById('allDeptFilter')?.value; if (dp) params.set('department', dp);
+    const gp = document.getElementById('allGroupFilter')?.value; if (gp) params.set('grouping_name', gp);
     addTaskDateFilters(params, 'all');
   }
 
   const data = await api('/tasks?' + params.toString());
-  if (!data.success) { tb.innerHTML = `<tr><td colspan="8" class="empty-msg">Error loading tasks</td></tr>`; return; }
+  if (!data.success) { tb.innerHTML = `<tr><td colspan="9" class="empty-msg">Error loading tasks</td></tr>`; return; }
   updateTaskCount(view, data.total ?? data.tasks.length);
-  if (!data.tasks.length) { tb.innerHTML = `<tr><td colspan="8" class="empty-msg">No tasks found</td></tr>`; return; }
+  if (!data.tasks.length) { tb.innerHTML = `<tr><td colspan="9" class="empty-msg">No tasks found</td></tr>`; return; }
 
   const showAssign = view === 'assigned_by_me' || view === 'all';
   const showCreatedBy = view === 'my';
@@ -3332,6 +3549,7 @@ async function loadTasks(view) {
         <td><small style="color:#64748b">${t.task_id}</small></td>
         <td title="${t.client_id||''}">${client.substring(0,26)}</td>
         <td>${(t.work_name||'--').substring(0,28)}</td>
+        <td>${deptBadge(t)}</td>
         ${showAssign ? `<td>${t.assigned_to_name||'--'}</td>` : ''}
         ${showCreatedBy ? `<td>${t.created_by_name||'--'}</td>` : ''}
         <td><span class="pri ${priClass(t.priority)}">${t.priority||'--'}</span></td>
@@ -3468,12 +3686,13 @@ async function submitCompleteTask() {
 async function loadCompletedTasks() {
   const tb = document.getElementById('completedTable');
   if (!tb) return;
-  tb.innerHTML = `<tr><td colspan="7" class="empty-msg">Loading...</td></tr>`;
+  tb.innerHTML = `<tr><td colspan="8" class="empty-msg">Loading...</td></tr>`;
 
   const isAdmin = user.user_type === 'admin' && ['Director','Office Manager','HR'].includes(user.role);
   const view = isAdmin ? 'all_completed' : 'completed';
   const params = new URLSearchParams({ view, limit: 200 });
   const q = document.getElementById('completedSearch')?.value; if (q) params.set('search', q);
+  const dp = document.getElementById('completedDeptFilter')?.value; if (dp) params.set('department', dp);
   addTaskDateFilters(params, 'completed');
   if (isAdmin) {
     const ef = document.getElementById('completedEmpFilter')?.value; if (ef) params.set('emp_filter', ef);
@@ -3482,9 +3701,9 @@ async function loadCompletedTasks() {
   }
 
   const data = await api('/tasks?' + params.toString());
-  if (!data.success) { tb.innerHTML = `<tr><td colspan="7" class="empty-msg">Error loading</td></tr>`; return; }
+  if (!data.success) { tb.innerHTML = `<tr><td colspan="8" class="empty-msg">Error loading</td></tr>`; return; }
   updateTaskCount('completed', data.total ?? data.tasks.length);
-  if (!data.tasks.length) { tb.innerHTML = `<tr><td colspan="7" class="empty-msg">No completed tasks found</td></tr>`; return; }
+  if (!data.tasks.length) { tb.innerHTML = `<tr><td colspan="8" class="empty-msg">No completed tasks found</td></tr>`; return; }
 
   tb.innerHTML = data.tasks.map(t => {
     const client = t.legal_name || t.business_name || t.client_id || '--';
@@ -3493,6 +3712,7 @@ async function loadCompletedTasks() {
         <td><small style="color:#64748b">${t.task_id}</small></td>
         <td title="${t.client_id||''}">${client.substring(0,28)}</td>
         <td>${(t.work_name||'--').substring(0,28)}</td>
+        <td>${deptBadge(t)}</td>
         <td>${t.assigned_to_name||'--'}</td>
         <td>${statusBadge(t.status)}</td>
         <td>${fmtDate(t.completion_date)}</td>
@@ -3956,8 +4176,19 @@ function selectOtherWork() {
   document.getElementById('tm_work_name').value = 'Other Work';
   document.getElementById('wn_ac_list').classList.add('hidden');
   document.getElementById('tm_other_work_wrap')?.classList.remove('hidden');
+  const od = document.getElementById('tm_other_dept'); if (od) od.value = '';
+  populateOtherWorkGroups();
   setTimeout(() => document.getElementById('tm_other_work_name')?.focus(), 0);
   document.getElementById('taskModalErr').classList.add('hidden');
+}
+
+function populateOtherWorkGroups() {
+  const dept = document.getElementById('tm_other_dept')?.value || '';
+  const og = document.getElementById('tm_other_group');
+  if (!og) return;
+  og.innerHTML = '<option value="">Select group...</option>';
+  [...(DEPT_GROUPS[dept] || [])].sort((a,b) => a.localeCompare(b))
+    .forEach(g => og.innerHTML += `<option value="${h(g)}">${h(g)}</option>`);
 }
 
 async function submitTask() {
@@ -3978,6 +4209,10 @@ async function submitTask() {
     workName = document.getElementById('tm_other_work_name').value.trim();
     if (!workName) {
       err.textContent = 'Please enter the custom work name for Other Work';
+      err.classList.remove('hidden'); return;
+    }
+    if (!document.getElementById('tm_other_dept')?.value) {
+      err.textContent = 'Please select a department for the custom work';
       err.classList.remove('hidden'); return;
     }
   } else {
@@ -4033,6 +4268,8 @@ async function submitTask() {
       mobile_number: document.getElementById('tm_mobile_display').value || null,
       work_name: workName,
       work_name_id: _taskWorkSelectedId || null,
+      custom_department: _taskWorkMode === 'other' ? (document.getElementById('tm_other_dept')?.value || null) : null,
+      custom_grouping_name: _taskWorkMode === 'other' ? (document.getElementById('tm_other_group')?.value || null) : null,
       module_link,
       work_description: document.getElementById('tm_work_desc').value || null,
       priority: document.getElementById('tm_priority').value,

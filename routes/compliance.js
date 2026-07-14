@@ -1,4 +1,5 @@
 const express = require('express');
+const XLSX = require('xlsx');
 const db = require('../db');
 const authMiddleware = require('../middleware/auth');
 const complianceService = require('../services/complianceService');
@@ -45,23 +46,92 @@ async function logActivity(p) {
   } catch(e) { console.error('Log error:',e.message); }
 }
 
+function companyFilterWhere(query = {}) {
+  const { search, status } = query;
+  const conds = [];
+  const params = [];
+  if (search) {
+    params.push(`%${search}%`);
+    conds.push(`(cin ILIKE $${params.length} OR company_name ILIKE $${params.length} OR client_id ILIKE $${params.length} OR agent_name ILIKE $${params.length})`);
+  }
+  if (status) {
+    params.push(status);
+    conds.push(`company_status=$${params.length}`);
+  }
+  return { where: conds.length ? `WHERE ${conds.join(' AND ')}` : '', params };
+}
+
 // ── COMPANIES ─────────────────────────────────────────────────
 
 router.get('/companies', authMiddleware, async (req, res) => {
-  const { search, status } = req.query;
   try {
-    const conds = []; const params = [];
-    if (search) {
-      params.push(`%${search}%`);
-      conds.push(`(cin ILIKE $${params.length} OR company_name ILIKE $${params.length} OR client_id ILIKE $${params.length} OR agent_name ILIKE $${params.length})`);
-    }
-    if (status) { params.push(status); conds.push(`company_status=$${params.length}`); }
-    const where = conds.length ? 'WHERE '+conds.join(' AND ') : '';
-    const r = await db.query(
-      `SELECT id,cin,company_name,client_id,agent_name,company_type,incorporation_date,company_status,city,state,last_agm_date,pan_no,tan_no
-       FROM companies ${where} ORDER BY company_name LIMIT 300`, params);
-    res.json({ success:true, companies:r.rows, fy_options:FY_OPTIONS(), status_options:STATUS_OPTIONS });
+    const { where, params } = companyFilterWhere(req.query);
+    const [r, counts, filtered] = await Promise.all([
+      db.query(
+        `SELECT id,cin,company_name,client_id,agent_name,company_type,incorporation_date,company_status,city,state,last_agm_date,pan_no,tan_no
+         FROM companies ${where} ORDER BY company_name LIMIT 300`, params),
+      db.query(
+        `SELECT COUNT(*)::int AS total,
+                COUNT(*) FILTER (WHERE company_status='Active')::int AS active,
+                COUNT(*) FILTER (WHERE company_status='Inactive')::int AS inactive
+         FROM companies`),
+      db.query(`SELECT COUNT(*)::int AS total FROM companies ${where}`, params),
+    ]);
+    res.json({
+      success:true,
+      companies:r.rows,
+      counts: { ...counts.rows[0], filtered: filtered.rows[0]?.total || 0, showing: r.rows.length },
+      fy_options:FY_OPTIONS(),
+      status_options:STATUS_OPTIONS,
+    });
   } catch(err) { console.error(err); res.status(500).json({ success:false, message:'Server error' }); }
+});
+
+router.get('/companies/export', authMiddleware, async (req, res) => {
+  try {
+    const { where, params } = companyFilterWhere(req.query);
+    const result = await db.query(
+      `SELECT cin,company_name,client_id,agent_name,company_type,category,
+              to_char(incorporation_date::date, 'DD Mon YYYY') AS incorporation_date,
+              to_char(last_agm_date::date, 'DD Mon YYYY') AS last_agm_date,
+              company_status,city,state,pan_no,tan_no
+       FROM companies ${where}
+       ORDER BY company_name`,
+      params
+    );
+    const rows = result.rows.map((c, i) => ({
+      'Sl No': i + 1,
+      CIN: c.cin || '',
+      'Company Name': c.company_name || '',
+      'Client ID': c.client_id || '',
+      Agent: c.agent_name || '',
+      'Company Type': c.company_type || '',
+      Category: c.category || '',
+      'Incorporation Date': c.incorporation_date || '',
+      'Last AGM': c.last_agm_date || '',
+      Status: c.company_status || '',
+      City: c.city || '',
+      State: c.state || '',
+      PAN: c.pan_no || '',
+      TAN: c.tan_no || '',
+    }));
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [
+      { wch: 8 }, { wch: 24 }, { wch: 45 }, { wch: 14 }, { wch: 28 },
+      { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 14 }, { wch: 12 },
+      { wch: 18 }, { wch: 18 }, { wch: 14 }, { wch: 14 },
+    ];
+    XLSX.utils.book_append_sheet(wb, ws, 'Companies');
+    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const stamp = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="companies-${stamp}.xlsx"`);
+    res.send(buffer);
+  } catch (err) {
+    console.error('[companies export]', err);
+    res.status(500).json({ success:false, message:'Export failed' });
+  }
 });
 
 router.get('/companies/workspace-list', authMiddleware, async (req, res) => {
@@ -485,6 +555,7 @@ router.put('/tracking/:id', authMiddleware, async (req, res) => {
 router.get('/kyc', authMiddleware, async (req, res) => {
   const { cin, din, financial_year, kyc_status, company_text, agent_name, company_status } = req.query;
   try {
+    await complianceService.ensureKycCycleSchema();
     const conds = ['1=1']; const params = [];
     if (cin) { params.push(cin); conds.push(`UPPER(dk.cin)=UPPER($${params.length})`); }
     if (din) { params.push(`%${din}%`); conds.push(`dk.din ILIKE $${params.length}`); }
@@ -494,9 +565,13 @@ router.get('/kyc', authMiddleware, async (req, res) => {
     if (agent_name) { params.push(`%${agent_name}%`); conds.push(`dk.agent_name ILIKE $${params.length}`); }
     if (company_status) { params.push(company_status); conds.push(`COALESCE(c.company_status,'Active')=$${params.length}`); }
     const r = await db.query(
-      `SELECT dk.*, COALESCE(c.company_status,'Active') as company_status
+      `SELECT dk.*, COALESCE(c.company_status,'Active') as company_status,
+              d.last_kyc_financial_year, d.last_kyc_completed_date,
+              d.next_kyc_due_date, d.kyc_cycle_status,
+              COALESCE(dk.due_reason, d.kyc_due_reason) AS kyc_due_reason
        FROM director_kyc_tracking dk
        LEFT JOIN companies c ON UPPER(c.cin)=UPPER(dk.cin)
+       LEFT JOIN directors d ON UPPER(d.cin)=UPPER(dk.cin) AND d.din=dk.din
        WHERE ${conds.join(' AND ')}
        ORDER BY dk.company_name, dk.director_name, dk.financial_year DESC LIMIT 500`, params);
     res.json({ success:true, rows:r.rows, fy_options:FY_OPTIONS(), status_options:STATUS_OPTIONS });
@@ -508,59 +583,32 @@ router.post('/kyc/generate', authMiddleware, async (req, res) => {
   const { cin, din, financial_year } = req.body;
   if (!cin||!din||!financial_year) return res.status(400).json({ success:false, message:'CIN, DIN and FY required' });
   try {
-    const dir = await db.query('SELECT * FROM directors WHERE UPPER(cin)=UPPER($1) AND din=$2', [cin, din]);
-    if (!dir.rows.length) return res.status(404).json({ success:false, message:'Director not found' });
-    const d = dir.rows[0];
-    const co = await db.query('SELECT * FROM companies WHERE UPPER(cin)=UPPER($1)', [cin]);
-    const c = co.rows[0] || {};
-    const ex = await db.query('SELECT id FROM director_kyc_tracking WHERE UPPER(cin)=UPPER($1) AND din=$2 AND financial_year=$3', [cin,din,financial_year]);
-    if (ex.rows.length) return res.status(400).json({ success:false, message:`KYC already generated for ${financial_year}` });
-    await db.query(
-      `INSERT INTO director_kyc_tracking (agent_name,client_id,cin,company_name,din,director_name,
-        financial_year,kyc_status,active_flag,updated_by_id,updated_by_name)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,'Pending','Active',$8,$9)`,
-      [c.agent_name||d.agent_name||'',c.client_id||d.client_id||'',cin.toUpperCase(),
-       d.company_name||c.company_name||'',din,d.director_name,financial_year,emp_id,formal_name||name]);
+    const result = await complianceService.generateKycRecord(req.body, req.user);
     await logActivity({ module:'DirectorKYC', action:'Generate', cin:cin.toUpperCase(),
-      company_name:d.company_name, din, director_name:d.director_name,
-      financial_year, new_value:'Generated', emp_id, emp_name:formal_name||name });
-    res.json({ success:true, message:`KYC generated for ${d.director_name} (${financial_year})` });
-  } catch(err) { console.error(err); res.status(500).json({ success:false, message:'Server error' }); }
+      company_name:result.row.company_name, din, director_name:result.row.director_name,
+      financial_year, new_value:JSON.stringify(result.cycle), emp_id, emp_name:formal_name||name });
+    res.json({ success:true, message:`KYC generated for ${result.row.director_name} (${financial_year})`, row: result.row, cycle: result.cycle });
+  } catch(err) { routeError(res, err, '[kyc generate]'); }
 });
 
 router.post('/kyc/bulk-generate', authMiddleware, async (req, res) => {
-  const { emp_id, name, formal_name } = req.user;
   const { cin, financial_year } = req.body;
   if (!financial_year) return res.status(400).json({ success:false, message:'Financial Year required' });
   try {
-    const cinCond = cin ? 'AND UPPER(d.cin)=UPPER($2)' : '';
-    const params = [financial_year]; if (cin) params.push(cin);
-    const dirs = await db.query(
-      `SELECT d.*,c.agent_name as c_agent,c.client_id as c_client
-       FROM directors d
-       LEFT JOIN companies c ON UPPER(c.cin)=UPPER(d.cin)
-       WHERE d.director_status='Active' AND COALESCE(c.company_status,'Active')='Active' ${cinCond}
-         AND NOT EXISTS (SELECT 1 FROM director_kyc_tracking dk
-           WHERE UPPER(dk.cin)=UPPER(d.cin) AND dk.din=d.din AND dk.financial_year=$1)`, params);
-    let created = 0;
-    for (const d of dirs.rows) {
-      await db.query(
-        `INSERT INTO director_kyc_tracking (agent_name,client_id,cin,company_name,din,director_name,
-          financial_year,kyc_status,active_flag,updated_by_id,updated_by_name)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,'Pending','Active',$8,$9)`,
-        [d.c_agent||d.agent_name||'',d.c_client||d.client_id||'',
-         d.cin?d.cin.toUpperCase():'',d.company_name||'',d.din,d.director_name,
-         financial_year,emp_id,formal_name||name]);
-      created++;
-    }
-    res.json({ success:true, message:`KYC generated for ${created} directors for ${financial_year}.` });
-  } catch(err) { console.error(err); res.status(500).json({ success:false, message:'Server error' }); }
+    const counts = await complianceService.bulkGenerateKycRecords({ cin, financial_year }, req.user);
+    res.json({
+      success:true,
+      counts,
+      message:`DIR-3 KYC generation finished for ${financial_year}: ${counts.created} created, ${counts.already_exists} already existed, ${counts.not_due} not due, ${counts.missing_last_kyc} missing last KYC data.`
+    });
+  } catch(err) { routeError(res, err, '[kyc bulk generate]'); }
 });
 
 router.put('/kyc/:id', authMiddleware, async (req, res) => {
   const { emp_id, name, formal_name } = req.user;
   const { kyc_status, srn, remarks, active_flag, inactive_remarks } = req.body;
   try {
+    await complianceService.ensureKycCycleSchema();
     const old = await db.query('SELECT din,director_name,cin,company_name,financial_year,kyc_status,linked_task_id FROM director_kyc_tracking WHERE id=$1', [req.params.id]);
     if (!old.rows.length) return res.status(404).json({ success:false, message:'KYC record not found' });
     const r = old.rows[0];
@@ -574,6 +622,9 @@ router.put('/kyc/:id', authMiddleware, async (req, res) => {
        emp_id,formal_name||name,req.params.id]);
     if (kyc_status && kyc_status!==r.kyc_status) {
       await complianceService.syncTaskForKycStatus(parseInt(req.params.id, 10), kyc_status, req.user, remarks || null);
+      if (kyc_status === 'Filed' || kyc_status === 'Closed') {
+        await complianceService.updateDirectorKycCycleAfterFiling(db, r, req.user);
+      }
       await logActivity({ module:'DirectorKYC', action:'UpdateKYC', cin:r.cin, company_name:r.company_name,
         din:r.din, director_name:r.director_name, financial_year:r.financial_year,
         old_value:r.kyc_status, new_value:kyc_status, remarks:remarks||null, emp_id, emp_name:formal_name||name });

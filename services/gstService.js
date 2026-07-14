@@ -1,5 +1,6 @@
 const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
+const { resolveWorkClassification } = require('./workClassificationService');
 const {
   RETURN_TYPES,
   GST_STATUSES,
@@ -101,15 +102,20 @@ async function createTaskForFiling(conn, gstClient, filing, actor) {
   const assigneeName = filing.assigned_to_name || gstClient.default_assignee_name || filing.assigned_to_id;
   const workName = `${filing.return_type} Filing`;
   const description = `${filing.return_type} filing for ${gstClient.firm_name || gstClient.client_id} - ${periodLabel(filing.tax_year, filing.tax_month)}`;
+  const workClass = await resolveWorkClassification(conn, {
+    work_name: workName,
+    fallback: { work_category: 'GST Returns & Regular Compliance', grouping_name: 'GST Department', department: 'CA Services' },
+  });
 
   await conn.query(
     `INSERT INTO tasks
       (task_id, created_at, created_by_id, created_by_name, assigned_to_id, assigned_to_name,
        client_id, agent_id, agent_name, legal_name, business_name, mobile_number, email_id, drive_link,
        work_name, work_description, priority, status, due_date, internal_remark,
-       self_assigned, billing_status, active_flag)
+       self_assigned, billing_status, active_flag,
+       work_name_id, work_category, grouping_name, department, is_custom_work)
      VALUES
-      ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'Medium','Pending',$17,$18,$19,'Not Applicable',true)`,
+      ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'Medium','Pending',$17,$18,$19,'Not Applicable',true,$20,$21,$22,$23,$24)`,
     [
       taskId,
       createdAt,
@@ -130,6 +136,11 @@ async function createTaskForFiling(conn, gstClient, filing, actor) {
       filing.due_date,
       `Auto GST task: ${filing.return_type} ${periodLabel(filing.tax_year, filing.tax_month)}`,
       createdById === filing.assigned_to_id,
+      workClass.work_name_id,
+      workClass.work_category,
+      workClass.grouping_name,
+      workClass.department,
+      workClass.is_custom_work,
     ]
   );
 
