@@ -277,6 +277,10 @@ router.get('/', authMiddleware, async (req, res) => {
 
   let orderBy = `CASE WHEN t.status IN ('Completed','Cancelled') THEN 1 ELSE 0 END,
          t.due_date ASC NULLS LAST, t.created_at DESC`;
+  if (['assigned_by_me', 'all', 'all_stages', 'completed', 'all_completed'].includes(view)) {
+    // Default for these views: date-wise, latest on top
+    orderBy = `${dateColumn} DESC NULLS LAST, t.created_at DESC`;
+  }
   if (sort_order === 'oldest' || sort_order === 'newest') {
     const dir = sort_order === 'oldest' ? 'ASC' : 'DESC';
     orderBy = `${dateColumn} ${dir} NULLS LAST, t.created_at ${dir}`;
