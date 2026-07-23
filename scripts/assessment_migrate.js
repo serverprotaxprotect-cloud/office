@@ -26,8 +26,9 @@ const statements = [
     id SERIAL PRIMARY KEY,
     organization_id INTEGER UNIQUE DEFAULT current_organization_id(),
     public_token VARCHAR(64) NOT NULL UNIQUE,
-    questions_per_area INTEGER NOT NULL DEFAULT 5,
-    duration_minutes INTEGER NOT NULL DEFAULT 0,
+    total_questions INTEGER NOT NULL DEFAULT 40,
+    marks_per_question NUMERIC(5,2) NOT NULL DEFAULT 2.5,
+    duration_minutes INTEGER NOT NULL DEFAULT 60,
     pass_percent INTEGER NOT NULL DEFAULT 0,
     welcome_text TEXT,
     status VARCHAR(20) NOT NULL DEFAULT 'Active',
@@ -35,6 +36,11 @@ const statements = [
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     CONSTRAINT assessment_config_status_chk CHECK (status IN ('Active','Inactive'))
   )`,
+  // Bring existing config tables up to the new defaults (idempotent).
+  `ALTER TABLE assessment_config ADD COLUMN IF NOT EXISTS total_questions INTEGER NOT NULL DEFAULT 40`,
+  `ALTER TABLE assessment_config ADD COLUMN IF NOT EXISTS marks_per_question NUMERIC(5,2) NOT NULL DEFAULT 2.5`,
+  `ALTER TABLE assessment_config ALTER COLUMN duration_minutes SET DEFAULT 60`,
+  `ALTER TABLE assessment_config DROP COLUMN IF EXISTS questions_per_area`,
 
   `CREATE TABLE IF NOT EXISTS assessment_questions (
     id SERIAL PRIMARY KEY,
@@ -69,8 +75,8 @@ const statements = [
     status VARCHAR(20) NOT NULL DEFAULT 'Registered',
     total_questions INTEGER NOT NULL DEFAULT 0,
     correct_count INTEGER NOT NULL DEFAULT 0,
-    total_marks INTEGER NOT NULL DEFAULT 0,
-    scored_marks INTEGER NOT NULL DEFAULT 0,
+    total_marks NUMERIC(7,2) NOT NULL DEFAULT 0,
+    scored_marks NUMERIC(7,2) NOT NULL DEFAULT 0,
     score_percent NUMERIC(5,2) NOT NULL DEFAULT 0,
     passed BOOLEAN NOT NULL DEFAULT false,
     answers JSONB NOT NULL DEFAULT '[]',

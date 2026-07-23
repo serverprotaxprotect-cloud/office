@@ -56,6 +56,7 @@
     <div id="welcomeCard" class="card hidden">
       <h2>Welcome to the Candidate Assessment</h2>
       <p class="muted" id="welcomeText" style="margin-top:6px"></p>
+      <div id="welcomeMeta" style="margin-top:10px;font-weight:700;color:#1e3a8a;font-size:13px"></div>
       <button class="btn" onclick="showStart()">Start New Assessment</button>
       <button class="btn sec" onclick="showStatus()">Check My Status</button>
     </div>
@@ -133,6 +134,11 @@
         if (!data.success) { $('loading').innerHTML = `<p class="err">${esc(data.message || 'Not available.')}</p>`; return; }
         CFG = data; LEVELS = data.levels; AREAS = data.areas;
         $('welcomeText').textContent = data.welcome_text || 'Please complete the assessment. Select your level and your areas of expertise — you will be tested only on what you choose.';
+        const meta = [];
+        if (data.total_questions) meta.push(`${data.total_questions} questions`);
+        if (data.total_questions && data.marks_per_question) meta.push(`${data.total_questions * data.marks_per_question} marks`);
+        if (data.duration_minutes > 0) meta.push(`${data.duration_minutes} minutes`);
+        $('welcomeMeta').textContent = meta.join('  •  ');
         $('levelPills').innerHTML = LEVELS.map(l => `<div class="pill" data-level="${esc(l)}" onclick="pickLevel('${esc(l)}',this)">${esc(l)}</div>`).join('');
         $('areaPills').innerHTML = AREAS.length
           ? AREAS.map(a => `<div class="pill" data-area="${a.id}" onclick="toggleArea(${a.id},this)">${esc(a.name)}</div>`).join('')

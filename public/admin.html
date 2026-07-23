@@ -740,26 +740,32 @@
         </div>
         <div class="card">
           <div class="card-title">Settings</div>
+          <p style="font-size:12px;color:#64748b;margin-bottom:10px;">The total questions are split equally across the areas each candidate selects (e.g. 40 total &divide; 4 areas = 10 from each). Total marks = total questions &times; marks per question.</p>
           <div style="display:flex;gap:12px;flex-wrap:wrap;">
-            <div style="flex:1;min-width:150px;">
-              <label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:4px;">QUESTIONS PER AREA</label>
-              <input type="number" id="cfg_perarea" value="5" min="1" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;"/>
+            <div style="flex:1;min-width:140px;">
+              <label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:4px;">TOTAL QUESTIONS</label>
+              <input type="number" id="cfg_total" value="40" min="1" oninput="updateMarksHint()" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;"/>
             </div>
-            <div style="flex:1;min-width:150px;">
+            <div style="flex:1;min-width:140px;">
+              <label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:4px;">MARKS PER QUESTION</label>
+              <input type="number" id="cfg_marks" value="2.5" min="0.25" step="0.25" oninput="updateMarksHint()" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;"/>
+            </div>
+            <div style="flex:1;min-width:140px;">
               <label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:4px;">TIME LIMIT (min, 0 = none)</label>
-              <input type="number" id="cfg_duration" value="0" min="0" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;"/>
+              <input type="number" id="cfg_duration" value="60" min="0" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;"/>
             </div>
-            <div style="flex:1;min-width:150px;">
+            <div style="flex:1;min-width:130px;">
               <label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:4px;">PASS % (0 = no cutoff)</label>
               <input type="number" id="cfg_pass" value="0" min="0" max="100" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;"/>
             </div>
-            <div style="flex:1;min-width:150px;">
+            <div style="flex:1;min-width:130px;">
               <label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:4px;">LINK STATUS</label>
               <select id="cfg_status" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;">
                 <option value="Active">Active</option><option value="Inactive">Inactive</option>
               </select>
             </div>
           </div>
+          <div id="marksHint" style="font-size:12px;color:#16a34a;font-weight:700;margin-top:8px;"></div>
           <div style="margin-top:12px;">
             <label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:4px;">WELCOME MESSAGE (shown to candidate)</label>
             <input type="text" id="cfg_welcome" placeholder="e.g. Welcome! Please select your level and areas honestly." style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;"/>
@@ -808,11 +814,10 @@
             <input id="q_d" placeholder="Option D (optional)" style="padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;"/>
           </div>
           <div style="display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap;">
-            <div><label style="font-size:12px;font-weight:700;color:#64748b;margin-right:5px;">Correct</label>
+            <div><label style="font-size:12px;font-weight:700;color:#64748b;margin-right:5px;">Correct Answer</label>
               <select id="q_correct" style="padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;"><option>A</option><option>B</option><option>C</option><option>D</option></select></div>
-            <div><label style="font-size:12px;font-weight:700;color:#64748b;margin-right:5px;">Marks</label>
-              <input id="q_marks" type="number" value="1" min="1" style="width:70px;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;"/></div>
             <button class="btn-sm" style="background:#16a34a;" onclick="addBankQuestion()">&#10133; Add</button>
+            <span style="font-size:12px;color:#94a3b8;">Marks are uniform (set in Settings).</span>
           </div>
         </div>
         <div class="card" style="margin-bottom:12px;">
@@ -824,7 +829,7 @@
         </div>
         <div class="hist-table-wrap" style="max-height:420px;">
           <table>
-            <thead><tr><th>Area</th><th>Level</th><th>Question</th><th>Correct</th><th>Marks</th><th>Action</th></tr></thead>
+            <thead><tr><th>Area</th><th>Level</th><th>Question</th><th>Correct</th><th>Action</th></tr></thead>
             <tbody id="bankTable"></tbody>
           </table>
         </div>
@@ -2909,11 +2914,13 @@ async function initAssessment() {
   if (!cfg.success) return;
   ASMT.config = cfg.config; ASMT.levels = cfg.levels; ASMT.token = cfg.config.public_token;
   document.getElementById('asmtLink').value = candidateLink(cfg.config.public_token);
-  document.getElementById('cfg_perarea').value = cfg.config.questions_per_area;
+  document.getElementById('cfg_total').value = cfg.config.total_questions;
+  document.getElementById('cfg_marks').value = Number(cfg.config.marks_per_question);
   document.getElementById('cfg_duration').value = cfg.config.duration_minutes;
   document.getElementById('cfg_pass').value = cfg.config.pass_percent;
   document.getElementById('cfg_status').value = cfg.config.status;
   document.getElementById('cfg_welcome').value = cfg.config.welcome_text || '';
+  updateMarksHint();
   // level dropdowns
   const lvlSel = document.getElementById('q_level');
   lvlSel.innerHTML = ASMT.levels.map(l => `<option value="${l}">${l}</option>`).join('');
@@ -2922,11 +2929,19 @@ async function initAssessment() {
   showAsmtTab('link');
 }
 
+function updateMarksHint() {
+  const total = parseInt(document.getElementById('cfg_total').value) || 0;
+  const marks = parseFloat(document.getElementById('cfg_marks').value) || 0;
+  const hint = document.getElementById('marksHint');
+  if (hint) hint.textContent = total && marks ? `Total marks = ${total} × ${marks} = ${(total * marks)}` : '';
+}
+
 async function saveConfig() {
   const data = await api('/assessment/config', {
     method: 'PUT',
     body: JSON.stringify({
-      questions_per_area: parseInt(document.getElementById('cfg_perarea').value) || 5,
+      total_questions: parseInt(document.getElementById('cfg_total').value) || 40,
+      marks_per_question: parseFloat(document.getElementById('cfg_marks').value) || 2.5,
       duration_minutes: parseInt(document.getElementById('cfg_duration').value) || 0,
       pass_percent: parseInt(document.getElementById('cfg_pass').value) || 0,
       status: document.getElementById('cfg_status').value,
@@ -3012,13 +3027,13 @@ async function addBankQuestion() {
       area_id: areaId, level: document.getElementById('q_level').value,
       question_text: text, option_a: a, option_b: b,
       option_c: document.getElementById('q_c').value.trim(), option_d: document.getElementById('q_d').value.trim(),
-      correct_option: document.getElementById('q_correct').value, marks: parseInt(document.getElementById('q_marks').value) || 1,
+      correct_option: document.getElementById('q_correct').value,
     })
   });
   showToast(data.message, data.success ? 'success' : 'error');
   if (data.success) {
     ['q_text','q_a','q_b','q_c','q_d'].forEach(id => document.getElementById(id).value = '');
-    document.getElementById('q_correct').value = 'A'; document.getElementById('q_marks').value = '1';
+    document.getElementById('q_correct').value = 'A';
     document.getElementById('q_text').focus();
     loadBankQuestions(); loadAreas();
   }
@@ -3041,9 +3056,8 @@ async function loadBankQuestions() {
         <div style="font-size:11px;color:#94a3b8;margin-top:3px">A) ${escHtml(q.option_a)} &nbsp; B) ${escHtml(q.option_b)}${q.option_c ? ' &nbsp; C) ' + escHtml(q.option_c) : ''}${q.option_d ? ' &nbsp; D) ' + escHtml(q.option_d) : ''}</div>
       </td>
       <td style="text-align:center;font-weight:800;color:#16a34a">${q.correct_option}</td>
-      <td style="text-align:center">${q.marks}</td>
       <td><button class="btn-danger" style="padding:3px 9px;font-size:12px" onclick="deleteBankQuestion(${q.id})">Delete</button></td>
-    </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:16px">No questions match. Add some above.</td></tr>';
+    </tr>`).join('') : '<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:16px">No questions match. Add some above.</td></tr>';
 }
 
 async function deleteBankQuestion(qid) {

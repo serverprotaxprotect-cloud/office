@@ -57,7 +57,7 @@ router.get('/config', adminAuth, async (req, res) => {
 });
 
 router.put('/config', adminAuth, async (req, res) => {
-  const { questions_per_area, duration_minutes, pass_percent, welcome_text, status } = req.body;
+  const { total_questions, marks_per_question, duration_minutes, pass_percent, welcome_text, status } = req.body;
   if (status && !['Active', 'Inactive'].includes(status)) {
     return res.status(400).json({ success: false, message: 'Invalid status' });
   }
@@ -65,15 +65,17 @@ router.put('/config', adminAuth, async (req, res) => {
     await ensureConfig(req.admin.name);
     await db.query(
       `UPDATE assessment_config SET
-          questions_per_area = COALESCE($1, questions_per_area),
-          duration_minutes = COALESCE($2, duration_minutes),
-          pass_percent = COALESCE($3, pass_percent),
-          welcome_text = $4,
-          status = COALESCE($5, status),
+          total_questions = COALESCE($1, total_questions),
+          marks_per_question = COALESCE($2, marks_per_question),
+          duration_minutes = COALESCE($3, duration_minutes),
+          pass_percent = COALESCE($4, pass_percent),
+          welcome_text = $5,
+          status = COALESCE($6, status),
           updated_at = NOW()
         WHERE organization_id = current_organization_id()`,
       [
-        questions_per_area !== undefined ? Math.max(1, parseInt(questions_per_area, 10) || 1) : null,
+        total_questions !== undefined ? Math.max(1, parseInt(total_questions, 10) || 1) : null,
+        marks_per_question !== undefined ? Math.max(0.01, parseFloat(marks_per_question) || 1) : null,
         duration_minutes !== undefined ? Math.max(0, parseInt(duration_minutes, 10) || 0) : null,
         pass_percent !== undefined ? Math.max(0, Math.min(100, parseInt(pass_percent, 10) || 0)) : null,
         clean(welcome_text),
@@ -388,7 +390,8 @@ router.get('/public/:token', async (req, res) => {
       success: true,
       welcome_text: cfg.welcome_text || '',
       duration_minutes: cfg.duration_minutes,
-      questions_per_area: cfg.questions_per_area,
+      total_questions: cfg.total_questions,
+      marks_per_question: Number(cfg.marks_per_question),
       levels: LEVELS,
       areas: areas.rows,
     });
@@ -433,8 +436,9 @@ router.post('/public/:token/start', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Selected areas are not valid.' });
     }
 
-    // pick N random questions per area at the chosen level
-    const perArea = cfg.questions_per_area || 5;
+    // split the fixed total equally across the areas the candidate selected
+    const totalTarget = cfg.total_questions || 40;
+    const perArea = Math.max(1, Math.ceil(totalTarget / validAreas.rows.length));
     let picked = [];
     for (const area of validAreas.rows) {
       const qs = await db.runWithTenant({ bypassTenant: true }, () => db.query(
@@ -514,18 +518,20 @@ router.post('/public/:token/submit', async (req, res) => {
     ));
     const questions = qres.rows;
 
+    // uniform marks per question from config (e.g. 2.5)
+    const mpq = Number(cfg.marks_per_question) || 1;
     let correctCount = 0, scoredMarks = 0, totalMarks = 0;
     const areaAgg = {};
     const breakdown = questions.map(q => {
-      totalMarks += q.marks;
+      totalMarks += mpq;
       const sel = String(answers[q.id] || answers[String(q.id)] || '').toUpperCase();
       const ok = sel && sel === q.correct_option;
-      if (ok) { correctCount += 1; scoredMarks += q.marks; }
+      if (ok) { correctCount += 1; scoredMarks += mpq; }
       const a = areaAgg[q.area_name] || { area: q.area_name, total: 0, correct: 0, total_marks: 0, scored_marks: 0 };
-      a.total += 1; a.total_marks += q.marks;
-      if (ok) { a.correct += 1; a.scored_marks += q.marks; }
+      a.total += 1; a.total_marks += mpq;
+      if (ok) { a.correct += 1; a.scored_marks += mpq; }
       areaAgg[q.area_name] = a;
-      return { question_id: q.id, area: q.area_name, selected: sel || null, correct: q.correct_option, is_correct: !!ok, marks: q.marks };
+      return { question_id: q.id, area: q.area_name, selected: sel || null, correct: q.correct_option, is_correct: !!ok, marks: mpq };
     });
     const scorePercent = totalMarks > 0 ? Math.round((scoredMarks / totalMarks) * 10000) / 100 : 0;
     const passed = cfg.pass_percent > 0 ? scorePercent >= cfg.pass_percent : false;
