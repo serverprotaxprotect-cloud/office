@@ -8,19 +8,24 @@
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:#eef2f7;color:#1e293b;line-height:1.5;padding:16px}
     .wrap{max-width:760px;margin:0 auto}
-    .brand{text-align:center;padding:18px 0 10px}
+    .brand{text-align:center;padding:18px 0 6px}
     .brand h1{font-size:22px;color:#1e3a8a;font-weight:800;letter-spacing:.3px}
     .brand small{color:#64748b;font-size:12px;font-weight:600}
     .card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;box-shadow:0 4px 18px rgba(15,23,42,.06);padding:22px;margin-top:14px}
     h2{font-size:18px;color:#0f172a;margin-bottom:6px}
     .muted{color:#64748b;font-size:13px}
     label{display:block;font-size:12px;font-weight:700;color:#475569;margin:12px 0 4px}
-    input,select{width:100%;padding:11px 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:14px;outline:none;background:#f8fafc}
-    input:focus,select:focus{border-color:#2563eb;background:#fff}
+    input{width:100%;padding:11px 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:14px;outline:none;background:#f8fafc}
+    input:focus{border-color:#2563eb;background:#fff}
     .btn{display:inline-block;width:100%;padding:13px;border:0;border-radius:10px;background:#2563eb;color:#fff;font-size:15px;font-weight:800;cursor:pointer;margin-top:16px}
     .btn:disabled{opacity:.6;cursor:not-allowed}
-    .btn-back{background:#e2e8f0;color:#334155;width:auto;padding:9px 16px;font-size:13px;margin-top:0}
+    .btn.sec{background:#e2e8f0;color:#334155}
+    .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .pill-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+    .pill{border:1.5px solid #e2e8f0;border-radius:999px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;background:#f8fafc;user-select:none}
+    .pill.sel{border-color:#2563eb;background:#eff6ff;color:#1d4ed8}
     .q-card{border:1px solid #e8edf3;border-radius:11px;padding:15px;margin-bottom:12px;background:#fcfdff}
+    .q-area{font-size:10.5px;font-weight:800;color:#7c3aed;text-transform:uppercase;letter-spacing:.5px}
     .q-num{font-size:11px;font-weight:800;color:#2563eb;text-transform:uppercase;letter-spacing:.5px}
     .q-text{font-size:15px;font-weight:600;margin:5px 0 10px;white-space:pre-wrap}
     .opt{display:flex;align-items:flex-start;gap:10px;border:1.5px solid #e2e8f0;border-radius:9px;padding:10px 12px;margin-bottom:8px;cursor:pointer;background:#fff;transition:.15s}
@@ -32,41 +37,56 @@
     .timer{font-weight:800;color:#b45309;font-size:15px}
     .hidden{display:none}
     .err{background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;border-radius:8px;padding:10px 12px;font-size:13px;font-weight:600;margin-top:12px}
-    .ok-screen{text-align:center;padding:30px 16px}
+    .ok-screen{text-align:center;padding:26px 16px}
     .ok-screen .big{font-size:52px;margin-bottom:10px}
     .prog{font-size:12px;color:#64748b;font-weight:700}
+    table{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}
+    th,td{text-align:left;padding:7px 8px;border-bottom:1px solid #eef2f7}
+    th{color:#64748b;font-size:11px;text-transform:uppercase}
+    .stat{display:inline-block;padding:4px 12px;border-radius:999px;font-weight:800;font-size:13px}
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="brand">
-      <h1>Gee Bharat</h1>
-      <small>Candidate Assessment</small>
+    <div class="brand"><h1>Gee Bharat</h1><small>Candidate Assessment</small></div>
+
+    <div id="loading" class="card"><p class="muted">Loading...</p></div>
+
+    <!-- Landing -->
+    <div id="welcomeCard" class="card hidden">
+      <h2>Welcome to the Candidate Assessment</h2>
+      <p class="muted" id="welcomeText" style="margin-top:6px"></p>
+      <button class="btn" onclick="showStart()">Start New Assessment</button>
+      <button class="btn sec" onclick="showStatus()">Check My Status</button>
     </div>
 
-    <div id="loading" class="card"><p class="muted">Loading assessment...</p></div>
+    <!-- Registration + level + areas -->
+    <div id="startCard" class="card hidden">
+      <h2>Your Details</h2>
+      <div class="row2">
+        <div><label>Full Name *</label><input id="c_name" placeholder="Your full name"/></div>
+        <div><label>Mobile Number *</label><input id="c_mobile" placeholder="10-digit mobile" inputmode="numeric"/></div>
+      </div>
+      <div class="row2">
+        <div><label>Email (optional)</label><input id="c_email" placeholder="you@example.com"/></div>
+        <div><label>Position Applied For</label><input id="c_position" placeholder="e.g. Accountant"/></div>
+      </div>
 
-    <!-- Registration -->
-    <div id="regCard" class="card hidden">
-      <h2 id="testTitle">Assessment</h2>
-      <p class="muted" id="testDesc"></p>
-      <div id="testMeta" class="muted" style="margin-top:8px;font-weight:600"></div>
-      <label>Full Name *</label>
-      <input id="c_name" placeholder="Your full name" autocomplete="name"/>
-      <label>Mobile Number *</label>
-      <input id="c_mobile" placeholder="10-digit mobile number" inputmode="numeric" autocomplete="tel"/>
-      <label>Email (optional)</label>
-      <input id="c_email" placeholder="you@example.com" autocomplete="email"/>
-      <label>Position Applied For</label>
-      <input id="c_position" placeholder="e.g. Accountant, GST Executive"/>
-      <div id="regErr" class="err hidden"></div>
-      <button class="btn" id="startBtn" onclick="startTest()">Start Assessment &rarr;</button>
+      <label>Your Level *</label>
+      <div class="pill-grid" id="levelPills"></div>
+
+      <label style="margin-top:14px">Your Core Area(s) — select all you are strong in *</label>
+      <div class="pill-grid" id="areaPills"></div>
+
+      <div id="startErr" class="err hidden"></div>
+      <button class="btn" id="startBtn" onclick="startTest()">Start Test &rarr;</button>
+      <button class="btn sec" onclick="backToWelcome()">Back</button>
     </div>
 
     <!-- Test -->
     <div id="testCard" class="hidden">
       <div class="bar">
-        <span class="prog" id="progLbl">Question 0 of 0</span>
+        <span class="prog" id="progLbl">0 answered</span>
         <span class="timer hidden" id="timer"></span>
       </div>
       <div id="questions"></div>
@@ -80,138 +100,155 @@
         <div class="big">&#9989;</div>
         <h2>Thank you!</h2>
         <p class="muted" id="doneMsg" style="margin-top:8px"></p>
+        <button class="btn" style="max-width:280px;margin:16px auto 0" onclick="showStatus()">Check My Result &amp; Status</button>
       </div>
+    </div>
+
+    <!-- Status -->
+    <div id="statusCard" class="card hidden">
+      <h2>Check Your Status</h2>
+      <p class="muted">Enter the mobile number you used for the assessment.</p>
+      <label>Mobile Number</label>
+      <input id="s_mobile" placeholder="10-digit mobile" inputmode="numeric"/>
+      <div id="statusErr" class="err hidden"></div>
+      <button class="btn" id="checkBtn" onclick="checkStatus()">Check Status</button>
+      <button class="btn sec" onclick="backToWelcome()">Back</button>
+      <div id="statusResult" class="hidden" style="margin-top:16px"></div>
     </div>
   </div>
 
   <script>
     const token = new URLSearchParams(location.search).get('t') || '';
-    let TEST = null, QUESTIONS = [], startedAt = null, timerInt = null;
+    let CFG = null, LEVELS = [], AREAS = [], QUESTIONS = [], startedAt = null, timerInt = null;
+    let selLevel = '', selAreas = new Set(), candidateId = null, submitToken = null;
     const $ = id => document.getElementById(id);
     const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    function show(id){ ['welcomeCard','startCard','testCard','doneCard','statusCard'].forEach(x => $(x).classList.toggle('hidden', x !== id)); window.scrollTo(0,0); }
 
     async function init() {
       if (!token) { $('loading').innerHTML = '<p class="err">Invalid assessment link.</p>'; return; }
       try {
         const res = await fetch('/api/assessment/public/' + encodeURIComponent(token));
         const data = await res.json();
-        if (!data.success) { $('loading').innerHTML = `<p class="err">${esc(data.message || 'Assessment not available.')}</p>`; return; }
-        TEST = data.test; QUESTIONS = data.questions;
-        $('testTitle').textContent = TEST.title;
-        $('testDesc').textContent = TEST.description || '';
-        const parts = [`${TEST.total_questions} question${TEST.total_questions > 1 ? 's' : ''}`];
-        if (TEST.duration_minutes > 0) parts.push(`${TEST.duration_minutes} minute time limit`);
-        $('testMeta').textContent = parts.join('  •  ');
+        if (!data.success) { $('loading').innerHTML = `<p class="err">${esc(data.message || 'Not available.')}</p>`; return; }
+        CFG = data; LEVELS = data.levels; AREAS = data.areas;
+        $('welcomeText').textContent = data.welcome_text || 'Please complete the assessment. Select your level and your areas of expertise — you will be tested only on what you choose.';
+        $('levelPills').innerHTML = LEVELS.map(l => `<div class="pill" data-level="${esc(l)}" onclick="pickLevel('${esc(l)}',this)">${esc(l)}</div>`).join('');
+        $('areaPills').innerHTML = AREAS.length
+          ? AREAS.map(a => `<div class="pill" data-area="${a.id}" onclick="toggleArea(${a.id},this)">${esc(a.name)}</div>`).join('')
+          : '<span class="muted">No areas configured yet. Please contact the office.</span>';
         $('loading').classList.add('hidden');
-        $('regCard').classList.remove('hidden');
-      } catch {
-        $('loading').innerHTML = '<p class="err">Could not load the assessment. Please check your connection.</p>';
-      }
+        show('welcomeCard');
+      } catch { $('loading').innerHTML = '<p class="err">Could not load. Check your connection.</p>'; }
     }
 
-    function startTest() {
+    function showStart(){ show('startCard'); }
+    function backToWelcome(){ show('welcomeCard'); }
+    function pickLevel(l, el){ selLevel = l; document.querySelectorAll('#levelPills .pill').forEach(p => p.classList.remove('sel')); el.classList.add('sel'); }
+    function toggleArea(id, el){ if (selAreas.has(id)) { selAreas.delete(id); el.classList.remove('sel'); } else { selAreas.add(id); el.classList.add('sel'); } }
+
+    async function startTest() {
+      const err = $('startErr'); err.classList.add('hidden');
       const name = $('c_name').value.trim();
       const mobile = $('c_mobile').value.trim();
-      const err = $('regErr');
-      if (!name) { err.textContent = 'Please enter your name.'; err.classList.remove('hidden'); return; }
-      if (!/^\d{10}$/.test(mobile.replace(/\D/g, '').slice(-10)) || mobile.replace(/\D/g,'').length < 10) {
-        err.textContent = 'Please enter a valid 10-digit mobile number.'; err.classList.remove('hidden'); return;
-      }
-      err.classList.add('hidden');
-      startedAt = new Date().toISOString();
-      renderQuestions();
-      $('regCard').classList.add('hidden');
-      $('testCard').classList.remove('hidden');
-      if (TEST.duration_minutes > 0) startTimer(TEST.duration_minutes * 60);
-      window.scrollTo(0, 0);
+      if (!name) return fail(err, 'Please enter your name.');
+      if (mobile.replace(/\D/g,'').length < 10) return fail(err, 'Please enter a valid 10-digit mobile number.');
+      if (!selLevel) return fail(err, 'Please select your level.');
+      if (!selAreas.size) return fail(err, 'Please select at least one area.');
+      $('startBtn').disabled = true; $('startBtn').textContent = 'Loading...';
+      try {
+        const res = await fetch('/api/assessment/public/' + encodeURIComponent(token) + '/start', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, mobile, email: $('c_email').value.trim(), position: $('c_position').value.trim(), level: selLevel, area_ids: [...selAreas] })
+        });
+        const data = await res.json();
+        $('startBtn').disabled = false; $('startBtn').textContent = 'Start Test →';
+        if (!data.success) return fail(err, data.message || 'Could not start.');
+        candidateId = data.candidate_id; submitToken = data.submit_token; QUESTIONS = data.questions; CFG.duration_minutes = data.duration_minutes;
+        startedAt = new Date().toISOString();
+        renderQuestions();
+        show('testCard');
+        if (CFG.duration_minutes > 0) startTimer(CFG.duration_minutes * 60);
+      } catch { $('startBtn').disabled = false; $('startBtn').textContent = 'Start Test →'; fail(err, 'Network error. Please try again.'); }
     }
-
-    function renderQuestions() {
-      $('progLbl').textContent = `Question 1 of ${QUESTIONS.length}`;
-      $('questions').innerHTML = QUESTIONS.map((q, i) => {
-        const opts = [['A', q.option_a], ['B', q.option_b], ['C', q.option_c], ['D', q.option_d]]
-          .filter(o => o[1] !== '' && o[1] != null)
-          .map(([k, v]) => `
-            <label class="opt" onclick="pick(${q.id},'${k}',this)">
-              <input type="radio" name="q_${q.id}" value="${k}"/>
-              <span class="opt-key">${k}.</span><span>${esc(v)}</span>
-            </label>`).join('');
-        return `<div class="q-card" data-qid="${q.id}">
-          <div class="q-num">Question ${i + 1}</div>
-          <div class="q-text">${esc(q.question_text)}</div>
-          ${opts}
-        </div>`;
-      }).join('');
-    }
+    function fail(el, msg){ el.textContent = msg; el.classList.remove('hidden'); }
 
     const answers = {};
+    function renderQuestions() {
+      Object.keys(answers).forEach(k => delete answers[k]);
+      $('progLbl').textContent = `0 of ${QUESTIONS.length} answered`;
+      $('questions').innerHTML = QUESTIONS.map((q, i) => {
+        const opts = [['A',q.option_a],['B',q.option_b],['C',q.option_c],['D',q.option_d]].filter(o => o[1] !== '' && o[1] != null)
+          .map(([k,v]) => `<label class="opt" onclick="pick(${q.id},'${k}',this)"><input type="radio" name="q_${q.id}" value="${k}"/><span class="opt-key">${k}.</span><span>${esc(v)}</span></label>`).join('');
+        return `<div class="q-card"><div class="q-area">${esc(q.area_name)}</div><div class="q-num">Question ${i+1} of ${QUESTIONS.length}</div><div class="q-text">${esc(q.question_text)}</div>${opts}</div>`;
+      }).join('');
+    }
     function pick(qid, key, el) {
       answers[qid] = key;
       el.parentNode.querySelectorAll('.opt').forEach(o => o.classList.remove('sel'));
-      el.classList.add('sel');
-      el.querySelector('input').checked = true;
-      const done = Object.keys(answers).length;
-      $('progLbl').textContent = `${done} of ${QUESTIONS.length} answered`;
+      el.classList.add('sel'); el.querySelector('input').checked = true;
+      $('progLbl').textContent = `${Object.keys(answers).length} of ${QUESTIONS.length} answered`;
     }
 
     function startTimer(seconds) {
-      const t = $('timer');
-      t.classList.remove('hidden');
-      let left = seconds;
-      const tick = () => {
-        const m = Math.floor(left / 60), s = left % 60;
-        t.textContent = `⏱ ${m}:${String(s).padStart(2, '0')}`;
-        if (left <= 0) { clearInterval(timerInt); submitTest(true); return; }
-        left -= 1;
-      };
-      tick();
-      timerInt = setInterval(tick, 1000);
+      const t = $('timer'); t.classList.remove('hidden'); let left = seconds;
+      const tick = () => { const m = Math.floor(left/60), s = left%60; t.textContent = `⏱ ${m}:${String(s).padStart(2,'0')}`; if (left <= 0){ clearInterval(timerInt); submitTest(true); return; } left -= 1; };
+      tick(); timerInt = setInterval(tick, 1000);
     }
 
     let submitting = false;
     async function submitTest(auto = false) {
       if (submitting) return;
-      const unanswered = QUESTIONS.length - Object.keys(answers).length;
-      if (!auto && unanswered > 0) {
-        if (!confirm(`You have ${unanswered} unanswered question(s). Submit anyway?`)) return;
-      }
-      submitting = true;
-      if (timerInt) clearInterval(timerInt);
-      $('submitBtn').disabled = true;
-      $('submitBtn').textContent = 'Submitting...';
+      const un = QUESTIONS.length - Object.keys(answers).length;
+      if (!auto && un > 0 && !confirm(`You have ${un} unanswered question(s). Submit anyway?`)) return;
+      submitting = true; if (timerInt) clearInterval(timerInt);
+      $('submitBtn').disabled = true; $('submitBtn').textContent = 'Submitting...';
       try {
         const res = await fetch('/api/assessment/public/' + encodeURIComponent(token) + '/submit', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            candidate_name: $('c_name').value.trim(),
-            mobile: $('c_mobile').value.trim(),
-            email: $('c_email').value.trim(),
-            position: $('c_position').value.trim(),
-            answers,
-            started_at: startedAt,
-          }),
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ candidate_id: candidateId, submit_token: submitToken, answers })
         });
         const data = await res.json();
-        if (!data.success) {
-          $('testErr').textContent = data.message || 'Could not submit. Please try again.';
-          $('testErr').classList.remove('hidden');
-          submitting = false;
-          $('submitBtn').disabled = false;
-          $('submitBtn').textContent = 'Submit Assessment';
-          return;
-        }
-        $('testCard').classList.add('hidden');
+        if (!data.success) { fail($('testErr'), data.message || 'Could not submit.'); submitting = false; $('submitBtn').disabled = false; $('submitBtn').textContent = 'Submit Assessment'; return; }
         $('doneMsg').textContent = data.message;
-        $('doneCard').classList.remove('hidden');
-        window.scrollTo(0, 0);
-      } catch {
-        $('testErr').textContent = 'Network error. Please try again.';
-        $('testErr').classList.remove('hidden');
-        submitting = false;
-        $('submitBtn').disabled = false;
-        $('submitBtn').textContent = 'Submit Assessment';
-      }
+        $('s_mobile').value = $('c_mobile').value.trim();
+        show('doneCard');
+      } catch { fail($('testErr'), 'Network error. Please try again.'); submitting = false; $('submitBtn').disabled = false; $('submitBtn').textContent = 'Submit Assessment'; }
+    }
+
+    function showStatus(){ show('statusCard'); $('statusResult').classList.add('hidden'); }
+    async function checkStatus() {
+      const err = $('statusErr'); err.classList.add('hidden');
+      const mobile = $('s_mobile').value.trim();
+      if (mobile.replace(/\D/g,'').length < 10) return fail(err, 'Please enter a valid 10-digit mobile number.');
+      $('checkBtn').disabled = true; $('checkBtn').textContent = 'Checking...';
+      try {
+        const res = await fetch('/api/assessment/public/' + encodeURIComponent(token) + '/status', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mobile })
+        });
+        const data = await res.json();
+        $('checkBtn').disabled = false; $('checkBtn').textContent = 'Check Status';
+        if (!data.success) return fail(err, data.message || 'Not found.');
+        renderStatus(data.result);
+      } catch { $('checkBtn').disabled = false; $('checkBtn').textContent = 'Check Status'; fail(err, 'Network error. Please try again.'); }
+    }
+
+    const STATUS_COLORS = { 'Under Review':'#64748b', Shortlisted:'#2563eb', Rejected:'#dc2626', Interviewed:'#b45309', Selected:'#16a34a' };
+    function renderStatus(r) {
+      const col = STATUS_COLORS[r.interview_status] || '#64748b';
+      const areas = (r.areas || []).map(a => esc(a.name)).join(', ');
+      const rows = (r.area_breakdown || []).map(b => `<tr><td>${esc(b.area)}</td><td>${b.correct}/${b.total}</td><td>${b.scored_marks}/${b.total_marks}</td></tr>`).join('');
+      $('statusResult').innerHTML = `
+        <div style="border:1px solid #e2e8f0;border-radius:11px;padding:16px;background:#f8fafc">
+          <div style="font-weight:800;font-size:16px">${esc(r.name)}</div>
+          <div class="muted" style="margin:2px 0 12px">Level: ${esc(r.level)} &nbsp;|&nbsp; Areas: ${areas || '--'}</div>
+          <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+            <div><div class="muted">Your Score</div><div style="font-size:26px;font-weight:800;color:#1e3a8a">${r.score_percent}%</div><div class="muted">${r.scored_marks}/${r.total_marks} marks &middot; ${r.correct_count}/${r.total_questions} correct</div></div>
+            <div><div class="muted">Shortlisting Status</div><span class="stat" style="background:${col}22;color:${col};margin-top:4px">${esc(r.interview_status)}</span></div>
+          </div>
+          ${rows ? `<div class="muted" style="font-weight:700;margin-top:10px">Area-wise Breakdown</div><table><thead><tr><th>Area</th><th>Correct</th><th>Marks</th></tr></thead><tbody>${rows}</tbody></table>` : ''}
+        </div>`;
+      $('statusResult').classList.remove('hidden');
     }
 
     init();
