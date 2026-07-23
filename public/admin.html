@@ -227,6 +227,9 @@
     <div class="sidebar-item" id="s-notices" onclick="showPanel('notices')">
       <span class="s-icon">&#128226;</span> Notices
     </div>
+    <div class="sidebar-item" id="s-assessment" onclick="showPanel('assessment')">
+      <span class="s-icon">&#128221;</span> Candidate Assessment
+    </div>
   </aside>
 
   <!-- Content -->
@@ -711,6 +714,50 @@
       </div>
     </div>
 
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- CANDIDATE ASSESSMENT PANEL                              -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div class="admin-panel" id="panel-assessment">
+      <div class="page-title">Candidate Assessment <span>Create tests, share a link with candidates, and review their scores before the interview</span></div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title">Create New Test</div>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div style="display:flex;gap:12px;flex-wrap:wrap;">
+            <div style="flex:2;min-width:220px;">
+              <label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:4px;">TEST TITLE *</label>
+              <input type="text" id="at_title" placeholder="e.g. Accountant Test, GST Executive Test" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;"/>
+            </div>
+            <div style="flex:1;min-width:140px;">
+              <label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:4px;">TIME LIMIT (min, 0 = none)</label>
+              <input type="number" id="at_duration" value="0" min="0" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;"/>
+            </div>
+            <div style="flex:1;min-width:140px;">
+              <label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:4px;">PASS % (0 = no cutoff)</label>
+              <input type="number" id="at_pass" value="0" min="0" max="100" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;"/>
+            </div>
+          </div>
+          <div>
+            <label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:4px;">DESCRIPTION / INSTRUCTIONS (optional)</label>
+            <input type="text" id="at_desc" placeholder="Shown to the candidate before starting" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;"/>
+          </div>
+          <div>
+            <button class="btn-sm" onclick="createTest()" style="background:#2563eb;">&#10133; Create Test</button>
+            <span style="font-size:12px;color:#64748b;margin-left:8px;">After creating, add questions and copy the candidate link.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="today-table-wrap">
+        <div class="hist-table-wrap">
+          <table>
+            <thead><tr><th>Test</th><th>Questions</th><th>Candidates</th><th>Time / Pass</th><th>Status</th><th>Action</th></tr></thead>
+            <tbody id="testsTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
   </main>
 </div>
 
@@ -982,6 +1029,85 @@
   </div>
 </div>
 
+<!-- Assessment: Questions Modal -->
+<div class="modal-backdrop" id="asmtQuestionsModal" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal" style="max-width:820px;">
+    <div class="modal-title">&#128221; Questions <span id="aqTestTitle" style="font-weight:600;color:#64748b;font-size:14px;"></span></div>
+    <input type="hidden" id="aq_test_id"/>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:9px;padding:14px;margin-bottom:14px;">
+      <div style="font-weight:800;font-size:13px;color:#334155;margin-bottom:8px;">Add Question</div>
+      <input id="aq_text" placeholder="Question text" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;margin-bottom:8px;box-sizing:border-box;"/>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <input id="aq_a" placeholder="Option A" style="padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;"/>
+        <input id="aq_b" placeholder="Option B" style="padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;"/>
+        <input id="aq_c" placeholder="Option C (optional)" style="padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;"/>
+        <input id="aq_d" placeholder="Option D (optional)" style="padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;"/>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap;">
+        <div>
+          <label style="font-size:12px;font-weight:700;color:#64748b;margin-right:5px;">Correct Answer</label>
+          <select id="aq_correct" style="padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;">
+            <option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:700;color:#64748b;margin-right:5px;">Marks</label>
+          <input id="aq_marks" type="number" value="1" min="1" style="width:70px;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;"/>
+        </div>
+        <button class="btn-sm" style="background:#16a34a;" onclick="addQuestion()">&#10133; Add</button>
+      </div>
+    </div>
+    <div class="hist-table-wrap" style="max-height:360px;">
+      <table>
+        <thead><tr><th>#</th><th>Question</th><th>Correct</th><th>Marks</th><th>Action</th></tr></thead>
+        <tbody id="questionsTable"></tbody>
+      </table>
+    </div>
+    <div class="modal-actions"><button class="btn-cancel" onclick="document.getElementById('asmtQuestionsModal').style.display='none'">Close</button></div>
+  </div>
+</div>
+
+<!-- Assessment: Results Modal -->
+<div class="modal-backdrop" id="asmtResultsModal" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal" style="max-width:960px;">
+    <div class="modal-title">&#128202; Candidate Results <span id="arTestTitle" style="font-weight:600;color:#64748b;font-size:14px;"></span></div>
+    <input type="hidden" id="ar_test_id"/>
+    <div class="hist-table-wrap" style="max-height:460px;">
+      <table>
+        <thead><tr><th>Candidate</th><th>Mobile</th><th>Position</th><th>Score</th><th>Result</th><th>Interview</th><th>On</th><th>Action</th></tr></thead>
+        <tbody id="resultsTable"></tbody>
+      </table>
+    </div>
+    <div class="modal-actions"><button class="btn-cancel" onclick="document.getElementById('asmtResultsModal').style.display='none'">Close</button></div>
+  </div>
+</div>
+
+<!-- Assessment: Submission Detail Modal -->
+<div class="modal-backdrop" id="asmtDetailModal" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal" style="max-width:760px;">
+    <div class="modal-title">&#128100; Candidate Answer Sheet</div>
+    <input type="hidden" id="ad_sub_id"/>
+    <div id="adSummary" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:9px;padding:12px;margin-bottom:12px;font-size:13px;"></div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+      <div>
+        <label style="font-size:12px;font-weight:700;color:#64748b;margin-right:5px;">Interview Status</label>
+        <select id="ad_status" style="padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;">
+          <option>Pending</option><option>Shortlisted</option><option>Rejected</option><option>Interviewed</option><option>Selected</option>
+        </select>
+      </div>
+      <input id="ad_remarks" placeholder="Remarks (optional)" style="flex:1;min-width:200px;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;"/>
+      <button class="btn-sm" style="background:#2563eb;" onclick="saveSubmissionStatus()">Save</button>
+    </div>
+    <div class="hist-table-wrap" style="max-height:340px;">
+      <table>
+        <thead><tr><th>#</th><th>Question</th><th>Candidate</th><th>Correct</th><th></th></tr></thead>
+        <tbody id="detailTable"></tbody>
+      </table>
+    </div>
+    <div class="modal-actions"><button class="btn-cancel" onclick="document.getElementById('asmtDetailModal').style.display='none'">Close</button></div>
+  </div>
+</div>
+
 <script src="/assets/address-autocomplete.js"></script>
 <script src="/assets/auth-session.js"></script>
 <script>
@@ -1055,6 +1181,7 @@ function showPanel(name) {
   if (name === 'att-requests')  loadAttRequests();
   if (name === 'holidays')      loadHolidays();
   if (name === 'notices')       loadNotices();
+  if (name === 'assessment')    loadTests();
 }
 
 // ── Salary sub-tabs ──────────────────────────────────────────
@@ -2727,6 +2854,217 @@ async function deleteNotice(id, title) {
   const data = await api(`/admin/notices/${id}`, { method: 'DELETE' });
   showToast(data.message, data.success ? 'success' : 'error');
   if (data.success) loadNotices();
+}
+
+// ── CANDIDATE ASSESSMENT ──────────────────────────────────────
+let ASMT_TESTS = [];
+
+function candidateLink(token) {
+  return `${location.origin}/assessment-test.html?t=${token}`;
+}
+
+async function loadTests() {
+  const data = await api('/assessment/tests');
+  if (!data.success) return;
+  ASMT_TESTS = data.tests;
+  const tb = document.getElementById('testsTable');
+  tb.innerHTML = data.tests.length ? data.tests.map(t => {
+    const live = t.status === 'Active';
+    return `<tr>
+      <td><strong>${escHtml(t.title)}</strong>${t.description ? `<br><span style="font-size:12px;color:#94a3b8">${escHtml(t.description)}</span>` : ''}</td>
+      <td style="text-align:center">${t.question_count}</td>
+      <td style="text-align:center">${t.submission_count}</td>
+      <td style="font-size:12px;">${t.duration_minutes > 0 ? t.duration_minutes + ' min' : 'No limit'}<br>${t.pass_percent > 0 ? 'Pass ' + t.pass_percent + '%' : 'No cutoff'}</td>
+      <td>${live ? '<span style="color:#16a34a;font-weight:700;">&#9679; Active</span>' : '<span style="color:#94a3b8;">Inactive</span>'}</td>
+      <td style="white-space:nowrap;">
+        <button class="btn-sm" style="background:#0891b2;" onclick="copyLink('${t.public_token}')">&#128279; Copy Link</button>
+        <button class="btn-sm" style="background:#7c3aed;" onclick="openQuestions(${t.id})">Questions</button>
+        <button class="btn-sm" style="background:#2563eb;" onclick="openResults(${t.id})">Results</button>
+        <button class="btn-sm" style="background:${live ? '#94a3b8' : '#16a34a'};" onclick="toggleTest(${t.id}, '${live ? 'Inactive' : 'Active'}')">${live ? 'Deactivate' : 'Activate'}</button>
+        <button class="btn-danger" style="padding:4px 10px;font-size:12px;" onclick="deleteTest(${t.id}, '${escHtml(t.title).replace(/'/g,"\\'")}')">Delete</button>
+      </td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:20px">No tests yet. Create one above.</td></tr>';
+}
+
+async function createTest() {
+  const title = document.getElementById('at_title').value.trim();
+  if (!title) { showToast('Test title is required', 'error'); return; }
+  const data = await api('/assessment/tests', {
+    method: 'POST',
+    body: JSON.stringify({
+      title,
+      description: document.getElementById('at_desc').value.trim(),
+      duration_minutes: parseInt(document.getElementById('at_duration').value) || 0,
+      pass_percent: parseInt(document.getElementById('at_pass').value) || 0,
+    })
+  });
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) {
+    document.getElementById('at_title').value = '';
+    document.getElementById('at_desc').value = '';
+    document.getElementById('at_duration').value = '0';
+    document.getElementById('at_pass').value = '0';
+    loadTests();
+    openQuestions(data.id);
+  }
+}
+
+function copyLink(token) {
+  const link = candidateLink(token);
+  navigator.clipboard.writeText(link).then(
+    () => showToast('Candidate link copied! Share it on WhatsApp/email.', 'success'),
+    () => prompt('Copy this candidate link:', link)
+  );
+}
+
+async function toggleTest(id, status) {
+  const data = await api(`/assessment/tests/${id}`, { method: 'PUT', body: JSON.stringify({ status }) });
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) loadTests();
+}
+
+async function deleteTest(id, title) {
+  if (!confirm(`Delete "${title}"? All its questions and candidate results will be removed.`)) return;
+  const data = await api(`/assessment/tests/${id}`, { method: 'DELETE' });
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) loadTests();
+}
+
+// ── Questions ─────────────────────────────────────────────────
+async function openQuestions(testId) {
+  document.getElementById('aq_test_id').value = testId;
+  const test = ASMT_TESTS.find(t => t.id === testId);
+  document.getElementById('aqTestTitle').textContent = test ? '— ' + test.title : '';
+  document.getElementById('asmtQuestionsModal').style.display = 'flex';
+  await loadQuestions();
+}
+
+async function loadQuestions() {
+  const testId = document.getElementById('aq_test_id').value;
+  const data = await api(`/assessment/tests/${testId}/questions`);
+  const tb = document.getElementById('questionsTable');
+  if (!data.success) { tb.innerHTML = '<tr><td colspan="5">Error</td></tr>'; return; }
+  tb.innerHTML = data.questions.length ? data.questions.map((q, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td style="max-width:340px;white-space:pre-wrap;">${escHtml(q.question_text)}
+        <div style="font-size:11px;color:#94a3b8;margin-top:3px;">A) ${escHtml(q.option_a)} &nbsp; B) ${escHtml(q.option_b)}${q.option_c ? ' &nbsp; C) ' + escHtml(q.option_c) : ''}${q.option_d ? ' &nbsp; D) ' + escHtml(q.option_d) : ''}</div>
+      </td>
+      <td style="text-align:center;font-weight:800;color:#16a34a;">${q.correct_option}</td>
+      <td style="text-align:center;">${q.marks}</td>
+      <td><button class="btn-danger" style="padding:3px 9px;font-size:12px;" onclick="deleteQuestion(${q.id})">Delete</button></td>
+    </tr>`).join('') : '<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:16px">No questions yet.</td></tr>';
+}
+
+async function addQuestion() {
+  const testId = document.getElementById('aq_test_id').value;
+  const text = document.getElementById('aq_text').value.trim();
+  const a = document.getElementById('aq_a').value.trim();
+  const b = document.getElementById('aq_b').value.trim();
+  if (!text) { showToast('Enter the question text', 'error'); return; }
+  if (!a || !b) { showToast('At least options A and B are required', 'error'); return; }
+  const data = await api(`/assessment/tests/${testId}/questions`, {
+    method: 'POST',
+    body: JSON.stringify({
+      question_text: text, option_a: a, option_b: b,
+      option_c: document.getElementById('aq_c').value.trim(),
+      option_d: document.getElementById('aq_d').value.trim(),
+      correct_option: document.getElementById('aq_correct').value,
+      marks: parseInt(document.getElementById('aq_marks').value) || 1,
+    })
+  });
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) {
+    ['aq_text','aq_a','aq_b','aq_c','aq_d'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('aq_correct').value = 'A';
+    document.getElementById('aq_marks').value = '1';
+    document.getElementById('aq_text').focus();
+    loadQuestions();
+    loadTests();
+  }
+}
+
+async function deleteQuestion(qid) {
+  if (!confirm('Delete this question?')) return;
+  const data = await api(`/assessment/questions/${qid}`, { method: 'DELETE' });
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) { loadQuestions(); loadTests(); }
+}
+
+// ── Results ───────────────────────────────────────────────────
+async function openResults(testId) {
+  document.getElementById('ar_test_id').value = testId;
+  const test = ASMT_TESTS.find(t => t.id === testId);
+  document.getElementById('arTestTitle').textContent = test ? '— ' + test.title : '';
+  document.getElementById('asmtResultsModal').style.display = 'flex';
+  await loadResults();
+}
+
+const INTERVIEW_COLORS = { Pending:'#94a3b8', Shortlisted:'#2563eb', Rejected:'#dc2626', Interviewed:'#b45309', Selected:'#16a34a' };
+
+async function loadResults() {
+  const testId = document.getElementById('ar_test_id').value;
+  const data = await api(`/assessment/tests/${testId}/results`);
+  const tb = document.getElementById('resultsTable');
+  if (!data.success) { tb.innerHTML = '<tr><td colspan="8">Error</td></tr>'; return; }
+  tb.innerHTML = data.submissions.length ? data.submissions.map(s => {
+    const dt = new Date(s.submitted_at).toLocaleString('en-IN', { day:'2-digit', month:'short', year:'2-digit', hour:'2-digit', minute:'2-digit' });
+    const col = INTERVIEW_COLORS[s.interview_status] || '#64748b';
+    return `<tr>
+      <td><strong>${escHtml(s.candidate_name)}</strong></td>
+      <td style="font-size:12px;">${escHtml(s.mobile || '--')}</td>
+      <td style="font-size:12px;">${escHtml(s.position || '--')}</td>
+      <td style="text-align:center;font-weight:800;">${s.scored_marks}/${s.total_marks}<br><span style="font-size:11px;color:#64748b;">${s.score_percent}%</span></td>
+      <td style="text-align:center;">${s.passed ? '<span style="color:#16a34a;font-weight:700;">Pass</span>' : '<span style="color:#94a3b8;">--</span>'}</td>
+      <td><span style="color:${col};font-weight:700;font-size:12px;">${s.interview_status}</span></td>
+      <td style="font-size:11px;color:#64748b;">${dt}</td>
+      <td><button class="btn-sm" style="background:#2563eb;" onclick="openSubmission(${s.id})">View</button></td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:16px">No candidates have taken this test yet.</td></tr>';
+}
+
+async function openSubmission(sid) {
+  const data = await api(`/assessment/submissions/${sid}`);
+  if (!data.success) { showToast(data.message, 'error'); return; }
+  const s = data.submission;
+  document.getElementById('ad_sub_id').value = sid;
+  document.getElementById('ad_status').value = s.interview_status;
+  document.getElementById('ad_remarks').value = s.remarks || '';
+  document.getElementById('adSummary').innerHTML =
+    `<strong>${escHtml(s.candidate_name)}</strong> &nbsp;|&nbsp; ${escHtml(s.mobile || '--')} &nbsp;|&nbsp; ${escHtml(s.email || '--')}<br>
+     Position: ${escHtml(s.position || '--')} &nbsp;|&nbsp; Score: <strong>${s.scored_marks}/${s.total_marks} (${s.score_percent}%)</strong> &nbsp;|&nbsp; Correct: ${s.correct_count}/${s.total_questions}`;
+  const ansMap = {};
+  (s.answers || []).forEach(a => { ansMap[a.question_id] = a; });
+  const tb = document.getElementById('detailTable');
+  tb.innerHTML = data.questions.map((q, i) => {
+    const a = ansMap[q.id] || {};
+    const optText = { A:q.option_a, B:q.option_b, C:q.option_c, D:q.option_d };
+    const sel = a.selected ? `${a.selected}. ${escHtml(optText[a.selected] || '')}` : '<em style="color:#94a3b8">Not answered</em>';
+    const cor = `${q.correct_option}. ${escHtml(optText[q.correct_option] || '')}`;
+    const mark = a.is_correct ? '<span style="color:#16a34a;font-weight:800;">&#10003;</span>' : '<span style="color:#dc2626;font-weight:800;">&#10007;</span>';
+    return `<tr>
+      <td>${i + 1}</td>
+      <td style="max-width:280px;white-space:pre-wrap;font-size:13px;">${escHtml(q.question_text)}</td>
+      <td style="font-size:12px;${a.is_correct ? 'color:#16a34a;' : 'color:#dc2626;'}">${sel}</td>
+      <td style="font-size:12px;color:#16a34a;">${cor}</td>
+      <td style="text-align:center;">${mark}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('asmtDetailModal').style.display = 'flex';
+}
+
+async function saveSubmissionStatus() {
+  const sid = document.getElementById('ad_sub_id').value;
+  const data = await api(`/assessment/submissions/${sid}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      interview_status: document.getElementById('ad_status').value,
+      remarks: document.getElementById('ad_remarks').value.trim(),
+    })
+  });
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) { document.getElementById('asmtDetailModal').style.display = 'none'; loadResults(); }
 }
 
 // ── ATTENDANCE IMPORT ────────────────────────────────────────

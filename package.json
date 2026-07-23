@@ -37,6 +37,8 @@
     "leads:migrate:apply": "node scripts/leads_migrate.js --apply",
     "task-department:migrate": "node scripts/task_department_migrate.js",
     "task-department:migrate:apply": "node scripts/task_department_migrate.js --apply",
+    "assessment:migrate": "node scripts/assessment_migrate.js",
+    "assessment:migrate:apply": "node scripts/assessment_migrate.js --apply",
     "task-department:backfill": "node scripts/task_department_backfill.js",
     "task-department:backfill:apply": "node scripts/task_department_backfill.js --apply",
     "work-names:import": "node scripts/work_names_master_import.js",
