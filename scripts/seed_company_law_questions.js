@@ -44,7 +44,7 @@ const INTERN = [
   ["The reserve created when shares are issued at a premium is the:", "General reserve", "Securities premium", "Capital redemption reserve", "Revaluation reserve", "B"],
   ["Bonus shares are issued to shareholders:", "For consideration in cash", "Without any payment, out of free reserves/premium", "Only to directors", "Only to the public", "B"],
   ["A private placement is an offer of securities made to a select group of persons, not exceeding:", "20 persons", "50 persons in a financial year", "200 persons in a financial year", "500 persons", "C"],
-  ["Debentures represent:", "Ownership capital", "A form of borrowed/loan capital", "Reserves", "Goodwill", "B"],
+  ["Under company law, a debenture is essentially an instrument acknowledging a:", "Ownership stake in the company", "Debt owed by the company to the holder", "Government subsidy", "Trademark right", "B"],
   ["A debenture holder is a company's:", "Owner", "Creditor", "Employee", "Auditor", "B"],
   ["Convertible debentures can be converted into:", "Cash only", "Equity shares", "Preference shares only", "Goodwill", "B"],
   ["A company incorporated for charitable or non-profit objects (without adding 'Limited') is a:", "Private company", "Public company", "Section 8 company", "Government company", "C"],
