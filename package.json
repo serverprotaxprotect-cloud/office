@@ -55,6 +55,8 @@
     "seed:trademark:apply": "node scripts/seed_trademark_questions.js --apply",
     "seed:tally": "node scripts/seed_tally_questions.js",
     "seed:tally:apply": "node scripts/seed_tally_questions.js --apply",
+    "seed:audit": "node scripts/seed_audit_questions.js",
+    "seed:audit:apply": "node scripts/seed_audit_questions.js --apply",
     "task-department:backfill": "node scripts/task_department_backfill.js",
     "task-department:backfill:apply": "node scripts/task_department_backfill.js --apply",
     "work-names:import": "node scripts/work_names_master_import.js",
