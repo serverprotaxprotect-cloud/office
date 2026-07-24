@@ -49,6 +49,8 @@
     "seed:gst:apply": "node scripts/seed_gst_questions.js --apply",
     "seed:income-tax": "node scripts/seed_income_tax_questions.js",
     "seed:income-tax:apply": "node scripts/seed_income_tax_questions.js --apply",
+    "seed:company-law": "node scripts/seed_company_law_questions.js",
+    "seed:company-law:apply": "node scripts/seed_company_law_questions.js --apply",
     "task-department:backfill": "node scripts/task_department_backfill.js",
     "task-department:backfill:apply": "node scripts/task_department_backfill.js --apply",
     "work-names:import": "node scripts/work_names_master_import.js",
