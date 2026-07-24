@@ -41,6 +41,8 @@
     "assessment:migrate:apply": "node scripts/assessment_migrate.js --apply",
     "assessment-settings:migrate": "node scripts/assessment_settings_migrate.js",
     "assessment-settings:migrate:apply": "node scripts/assessment_settings_migrate.js --apply",
+    "seed:accounts": "node scripts/seed_accounts_questions.js",
+    "seed:accounts:apply": "node scripts/seed_accounts_questions.js --apply",
     "task-department:backfill": "node scripts/task_department_backfill.js",
     "task-department:backfill:apply": "node scripts/task_department_backfill.js --apply",
     "work-names:import": "node scripts/work_names_master_import.js",
