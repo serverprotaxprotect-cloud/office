@@ -59,6 +59,8 @@
     "seed:audit:apply": "node scripts/seed_audit_questions.js --apply",
     "seed:accounts-batch2": "node scripts/seed_accounts_batch2.js",
     "seed:accounts-batch2:apply": "node scripts/seed_accounts_batch2.js --apply",
+    "seed:roc-batch2": "node scripts/seed_roc_batch2.js",
+    "seed:roc-batch2:apply": "node scripts/seed_roc_batch2.js --apply",
     "assessment-resume:migrate": "node scripts/assessment_resume_migrate.js",
     "assessment-resume:migrate:apply": "node scripts/assessment_resume_migrate.js --apply",
     "task-department:backfill": "node scripts/task_department_backfill.js",
