@@ -375,6 +375,30 @@ async function findConfigByToken(token) {
   return r.rows[0] || null;
 }
 
+// Picks up to `limit` random active questions from an area (excluding ids
+// already picked). Pass `level` to restrict to that level, or omit/null to
+// pull from any level — used as the fallback when a specific area+level pool
+// runs short, so the overall test total never falls short.
+async function pickQuestions(orgId, areaId, limit, excludeIds, level) {
+  if (limit <= 0) return [];
+  const excludeArr = [...excludeIds];
+  const params = level
+    ? [orgId, areaId, level, excludeArr, limit]
+    : [orgId, areaId, excludeArr, limit];
+  const levelClause = level ? 'AND level = $3' : '';
+  const excludeIdx = level ? 4 : 3;
+  const limitIdx = level ? 5 : 4;
+  const r = await db.runWithTenant({ bypassTenant: true }, () => db.query(
+    `SELECT id, area_id, question_text, option_a, option_b, option_c, option_d, marks
+       FROM assessment_questions
+      WHERE organization_id = $1 AND area_id = $2 ${levelClause}
+        AND active = true AND NOT (id = ANY($${excludeIdx}::int[]))
+      ORDER BY random() LIMIT $${limitIdx}`,
+    params
+  ));
+  return r.rows;
+}
+
 // Landing: welcome + levels + active areas
 router.get('/public/:token', async (req, res) => {
   try {
@@ -436,23 +460,58 @@ router.post('/public/:token/start', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Selected areas are not valid.' });
     }
 
-    // split the fixed total equally across the areas the candidate selected
+    // Split the fixed total EXACTLY (never more, never less) across the
+    // areas selected: floor-divide, then hand the remainder to a randomly
+    // shuffled subset of areas so the sum of per-area targets == totalTarget.
     const totalTarget = cfg.total_questions || 40;
-    const perArea = Math.max(1, Math.ceil(totalTarget / validAreas.rows.length));
+    const areasShuffled = [...validAreas.rows].sort(() => Math.random() - 0.5);
+    const areaCount = areasShuffled.length;
+    const base = Math.floor(totalTarget / areaCount);
+    const remainder = totalTarget % areaCount;
+    const areaTargets = areasShuffled.map((area, i) => ({ area, target: base + (i < remainder ? 1 : 0) }));
+
     let picked = [];
-    for (const area of validAreas.rows) {
-      const qs = await db.runWithTenant({ bypassTenant: true }, () => db.query(
-        `SELECT id, area_id, question_text, option_a, option_b, option_c, option_d, marks
-           FROM assessment_questions
-          WHERE organization_id = $1 AND area_id = $2 AND level = $3 AND active = true
-          ORDER BY random() LIMIT $4`,
-        [orgId, area.id, level, perArea]
-      ));
-      picked = picked.concat(qs.rows.map(q => ({ ...q, area_name: area.name })));
+    const usedIds = new Set();
+    let shortfall = 0;
+
+    for (const { area, target } of areaTargets) {
+      // 1) fill from this area at the candidate's chosen level first
+      const atLevel = await pickQuestions(orgId, area.id, target, usedIds, level);
+      atLevel.forEach(q => usedIds.add(q.id));
+      picked.push(...atLevel.map(q => ({ ...q, area_name: area.name })));
+
+      // 2) that area+level ran short — top up from OTHER levels in the same area
+      let remaining = target - atLevel.length;
+      if (remaining > 0) {
+        const otherLevel = await pickQuestions(orgId, area.id, remaining, usedIds, null);
+        otherLevel.forEach(q => usedIds.add(q.id));
+        picked.push(...otherLevel.map(q => ({ ...q, area_name: area.name })));
+        remaining -= otherLevel.length;
+      }
+      if (remaining > 0) shortfall += remaining;
     }
-    if (!picked.length) {
-      return res.status(400).json({ success: false, message: 'No questions are available yet for your selected level and areas. Please contact the office.' });
+
+    // 3) some area(s) couldn't fill their share even across all levels —
+    // move that shortfall onto other selected areas so the grand total still
+    // lands on exactly totalTarget.
+    if (shortfall > 0) {
+      for (const { area } of areaTargets) {
+        if (shortfall <= 0) break;
+        const extra = await pickQuestions(orgId, area.id, shortfall, usedIds, null);
+        extra.forEach(q => usedIds.add(q.id));
+        picked.push(...extra.map(q => ({ ...q, area_name: area.name })));
+        shortfall -= extra.length;
+      }
     }
+
+    if (picked.length < totalTarget) {
+      return res.status(400).json({
+        success: false,
+        message: `Not enough questions are available yet for the selected level/areas to build a full ${totalTarget}-question test. Please contact the office.`,
+      });
+    }
+    // Safety net: never send more than the configured total either.
+    if (picked.length > totalTarget) picked = picked.slice(0, totalTarget);
 
     const submitToken = genToken();
     const ip = (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').toString().split(',')[0].trim();
