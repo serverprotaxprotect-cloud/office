@@ -90,6 +90,7 @@
         <span class="prog" id="progLbl">0 answered</span>
         <span class="timer hidden" id="timer"></span>
       </div>
+      <div id="resumeNotice" class="hidden" style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:9px;padding:9px 12px;font-size:12.5px;font-weight:700;margin-bottom:10px">&#8635; Resuming your previous in-progress test — your saved answers have been restored.</div>
       <div id="questions"></div>
       <div id="testErr" class="err hidden"></div>
       <button class="btn" id="submitBtn" onclick="submitTest()">Submit Assessment</button>
@@ -171,21 +172,39 @@
         $('startBtn').disabled = false; $('startBtn').textContent = 'Start Test →';
         if (!data.success) return fail(err, data.message || 'Could not start.');
         candidateId = data.candidate_id; submitToken = data.submit_token; QUESTIONS = data.questions; CFG.duration_minutes = data.duration_minutes;
-        startedAt = new Date().toISOString();
+
+        Object.keys(answers).forEach(k => delete answers[k]);
+        if (data.resumed && data.draft_answers) {
+          Object.entries(data.draft_answers).forEach(([k, v]) => { answers[k] = v; });
+        }
+        $('resumeNotice').classList.toggle('hidden', !data.resumed);
+
         renderQuestions();
         show('testCard');
-        if (CFG.duration_minutes > 0) startTimer(CFG.duration_minutes * 60);
+
+        if (CFG.duration_minutes > 0) {
+          let remaining = CFG.duration_minutes * 60;
+          if (data.resumed && data.started_at) {
+            const elapsed = Math.floor((Date.now() - new Date(data.started_at).getTime()) / 1000);
+            remaining = CFG.duration_minutes * 60 - elapsed;
+          }
+          if (remaining <= 0) { submitTest(true); return; }
+          startTimer(remaining);
+        }
       } catch { $('startBtn').disabled = false; $('startBtn').textContent = 'Start Test →'; fail(err, 'Network error. Please try again.'); }
     }
     function fail(el, msg){ el.textContent = msg; el.classList.remove('hidden'); }
 
     const answers = {};
     function renderQuestions() {
-      Object.keys(answers).forEach(k => delete answers[k]);
-      $('progLbl').textContent = `0 of ${QUESTIONS.length} answered`;
+      $('progLbl').textContent = `${Object.keys(answers).length} of ${QUESTIONS.length} answered`;
       $('questions').innerHTML = QUESTIONS.map((q, i) => {
+        const selected = answers[q.id] !== undefined ? String(answers[q.id]).toUpperCase() : null;
         const opts = [['A',q.option_a],['B',q.option_b],['C',q.option_c],['D',q.option_d]].filter(o => o[1] !== '' && o[1] != null)
-          .map(([k,v]) => `<label class="opt" onclick="pick(${q.id},'${k}',this)"><input type="radio" name="q_${q.id}" value="${k}"/><span class="opt-key">${k}.</span><span>${esc(v)}</span></label>`).join('');
+          .map(([k,v]) => {
+            const isSel = selected === k;
+            return `<label class="opt${isSel ? ' sel' : ''}" onclick="pick(${q.id},'${k}',this)"><input type="radio" name="q_${q.id}" value="${k}" ${isSel ? 'checked' : ''}/><span class="opt-key">${k}.</span><span>${esc(v)}</span></label>`;
+          }).join('');
         return `<div class="q-card"><div class="q-area">${esc(q.area_name)}</div><div class="q-num">Question ${i+1} of ${QUESTIONS.length}</div><div class="q-text">${esc(q.question_text)}</div>${opts}</div>`;
       }).join('');
     }
@@ -194,7 +213,32 @@
       el.parentNode.querySelectorAll('.opt').forEach(o => o.classList.remove('sel'));
       el.classList.add('sel'); el.querySelector('input').checked = true;
       $('progLbl').textContent = `${Object.keys(answers).length} of ${QUESTIONS.length} answered`;
+      saveProgress();
     }
+
+    // Autosave the candidate's answers so a refresh/disconnect/browser-close
+    // can be resumed exactly where they left off (see /start's resume path).
+    let progressTimer = null;
+    function saveProgress() {
+      clearTimeout(progressTimer);
+      progressTimer = setTimeout(async () => {
+        if (!candidateId || !submitToken) return;
+        try {
+          await fetch('/api/assessment/public/' + encodeURIComponent(token) + '/progress', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ candidate_id: candidateId, submit_token: submitToken, answers }),
+          });
+        } catch { /* best-effort — the next answer resends the full snapshot anyway */ }
+      }, 400);
+    }
+    // Best-effort final flush if the tab is closed before the debounce fires.
+    window.addEventListener('beforeunload', () => {
+      if (!candidateId || !submitToken || !Object.keys(answers).length) return;
+      try {
+        const blob = new Blob([JSON.stringify({ candidate_id: candidateId, submit_token: submitToken, answers })], { type: 'application/json' });
+        navigator.sendBeacon('/api/assessment/public/' + encodeURIComponent(token) + '/progress', blob);
+      } catch { /* ignore */ }
+    });
 
     function startTimer(seconds) {
       const t = $('timer'); t.classList.remove('hidden'); let left = seconds;

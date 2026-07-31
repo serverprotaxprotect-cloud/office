@@ -451,6 +451,39 @@ router.post('/public/:token/start', async (req, res) => {
       return res.status(409).json({ success: false, already: true, message: 'You have already taken this assessment. Please use "Check My Status" with your mobile number.' });
     }
 
+    // Resume an in-progress (not yet submitted) attempt for this mobile,
+    // if one exists, instead of starting a fresh test — this is what makes
+    // a refresh/browser-close/disconnect recoverable without losing
+    // progress or generating a second (orphaned) attempt.
+    const inProgress = await db.runWithTenant({ bypassTenant: true }, () => db.query(
+      `SELECT * FROM assessment_candidates
+        WHERE organization_id = $1 AND mobile = $2 AND status = 'Registered'
+        ORDER BY started_at DESC LIMIT 1`,
+      [orgId, mobile]
+    ));
+    if (inProgress.rows.length) {
+      const cand = inProgress.rows[0];
+      const ids = (cand.served_question_ids || []).map(Number).filter(Boolean);
+      const qres = await db.runWithTenant({ bypassTenant: true }, () => db.query(
+        `SELECT q.id, a.name AS area_name, q.question_text, q.option_a, q.option_b, q.option_c, q.option_d
+           FROM assessment_questions q JOIN assessment_areas a ON a.id = q.area_id
+          WHERE q.id = ANY($1::int[])`,
+        [ids]
+      ));
+      const byId = new Map(qres.rows.map(q => [q.id, q]));
+      const orderedQs = ids.map(id => byId.get(id)).filter(Boolean);
+      return res.json({
+        success: true,
+        resumed: true,
+        candidate_id: cand.id,
+        submit_token: cand.submit_token,
+        duration_minutes: cfg.duration_minutes,
+        started_at: cand.started_at,
+        draft_answers: cand.draft_answers || {},
+        questions: orderedQs,
+      });
+    }
+
     // validate areas belong to org + active
     const validAreas = await db.runWithTenant({ bypassTenant: true }, () => db.query(
       `SELECT id, name FROM assessment_areas WHERE organization_id = $1 AND active = true AND id = ANY($2::int[])`,
@@ -545,6 +578,37 @@ router.post('/public/:token/start', async (req, res) => {
   }
 });
 
+// Autosave: called as the candidate answers each question, so a
+// refresh/disconnect/browser-close can resume exactly where they left off.
+router.post('/public/:token/progress', async (req, res) => {
+  const candidateId = parseInt(req.body.candidate_id, 10);
+  const submitToken = clean(req.body.submit_token);
+  const answers = req.body.answers && typeof req.body.answers === 'object' ? req.body.answers : {};
+  if (!candidateId || !submitToken) return res.status(400).json({ success: false, message: 'Invalid request.' });
+  try {
+    const cfg = await findConfigByToken(req.params.token);
+    if (!cfg) return res.status(404).json({ success: false, message: 'This assessment link is not available.' });
+    const cand = await db.runWithTenant({ bypassTenant: true }, () => db.query(
+      `SELECT id, status, submit_token FROM assessment_candidates WHERE id = $1 AND organization_id = $2`,
+      [candidateId, cfg.organization_id]
+    ));
+    if (!cand.rows.length || cand.rows[0].submit_token !== submitToken) {
+      return res.status(403).json({ success: false, message: 'This assessment session is not valid.' });
+    }
+    if (cand.rows[0].status === 'Completed') {
+      return res.json({ success: true }); // already submitted — nothing to save
+    }
+    await db.runWithTenant({ organizationId: cfg.organization_id }, () => db.query(
+      `UPDATE assessment_candidates SET draft_answers = $1 WHERE id = $2`,
+      [JSON.stringify(answers), candidateId]
+    ));
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[assessment public progress]', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 // Submit answers → auto-score (overall + area breakdown)
 router.post('/public/:token/submit', async (req, res) => {
   const candidateId = parseInt(req.body.candidate_id, 10);
@@ -599,7 +663,7 @@ router.post('/public/:token/submit', async (req, res) => {
       `UPDATE assessment_candidates SET
           status = 'Completed', total_questions = $1, correct_count = $2, total_marks = $3,
           scored_marks = $4, score_percent = $5, passed = $6, answers = $7, area_breakdown = $8,
-          submitted_at = NOW()
+          draft_answers = '{}', submitted_at = NOW()
         WHERE id = $9`,
       [
         questions.length, correctCount, totalMarks, scoredMarks, scorePercent, passed,

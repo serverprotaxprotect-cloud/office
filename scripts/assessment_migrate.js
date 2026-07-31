@@ -80,6 +80,7 @@ const statements = [
     score_percent NUMERIC(5,2) NOT NULL DEFAULT 0,
     passed BOOLEAN NOT NULL DEFAULT false,
     answers JSONB NOT NULL DEFAULT '[]',
+    draft_answers JSONB NOT NULL DEFAULT '{}',
     area_breakdown JSONB NOT NULL DEFAULT '[]',
     interview_status VARCHAR(30) NOT NULL DEFAULT 'Pending',
     remarks TEXT,
