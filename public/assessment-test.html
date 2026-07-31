@@ -58,7 +58,19 @@
       <p class="muted" id="welcomeText" style="margin-top:6px"></p>
       <div id="welcomeMeta" style="margin-top:10px;font-weight:700;color:#1e3a8a;font-size:13px"></div>
       <button class="btn" onclick="showStart()">Start New Assessment</button>
-      <button class="btn sec" onclick="showStatus()">Check My Status</button>
+      <button class="btn sec" style="margin-top:8px" onclick="showResume()">Resume My Test</button>
+      <button class="btn sec" style="margin-top:8px" onclick="showStatus()">Check My Status</button>
+    </div>
+
+    <!-- Resume by mobile only -->
+    <div id="resumeEntryCard" class="card hidden">
+      <h2>Resume Your Test</h2>
+      <p class="muted">Already started but got disconnected? Enter your mobile number to continue exactly where you left off — no need to fill your details again.</p>
+      <label>Mobile Number</label>
+      <input id="r_mobile" placeholder="10-digit mobile" inputmode="numeric"/>
+      <div id="resumeEntryErr" class="err hidden"></div>
+      <button class="btn" id="resumeEntryBtn" onclick="resumeOnly()">Resume Test &rarr;</button>
+      <button class="btn sec" onclick="backToWelcome()">Back</button>
     </div>
 
     <!-- Registration + level + areas -->
@@ -122,10 +134,10 @@
   <script>
     const token = new URLSearchParams(location.search).get('t') || '';
     let CFG = null, LEVELS = [], AREAS = [], QUESTIONS = [], startedAt = null, timerInt = null;
-    let selLevel = '', selAreas = new Set(), candidateId = null, submitToken = null;
+    let selLevel = '', selAreas = new Set(), candidateId = null, submitToken = null, currentMobile = '';
     const $ = id => document.getElementById(id);
     const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    function show(id){ ['welcomeCard','startCard','testCard','doneCard','statusCard'].forEach(x => $(x).classList.toggle('hidden', x !== id)); window.scrollTo(0,0); }
+    function show(id){ ['welcomeCard','resumeEntryCard','startCard','testCard','doneCard','statusCard'].forEach(x => $(x).classList.toggle('hidden', x !== id)); window.scrollTo(0,0); }
 
     async function init() {
       if (!token) { $('loading').innerHTML = '<p class="err">Invalid assessment link.</p>'; return; }
@@ -171,27 +183,54 @@
         const data = await res.json();
         $('startBtn').disabled = false; $('startBtn').textContent = 'Start Test →';
         if (!data.success) return fail(err, data.message || 'Could not start.');
-        candidateId = data.candidate_id; submitToken = data.submit_token; QUESTIONS = data.questions; CFG.duration_minutes = data.duration_minutes;
-
-        Object.keys(answers).forEach(k => delete answers[k]);
-        if (data.resumed && data.draft_answers) {
-          Object.entries(data.draft_answers).forEach(([k, v]) => { answers[k] = v; });
-        }
-        $('resumeNotice').classList.toggle('hidden', !data.resumed);
-
-        renderQuestions();
-        show('testCard');
-
-        if (CFG.duration_minutes > 0) {
-          let remaining = CFG.duration_minutes * 60;
-          if (data.resumed && data.started_at) {
-            const elapsed = Math.floor((Date.now() - new Date(data.started_at).getTime()) / 1000);
-            remaining = CFG.duration_minutes * 60 - elapsed;
-          }
-          if (remaining <= 0) { submitTest(true); return; }
-          startTimer(remaining);
-        }
+        currentMobile = mobile;
+        enterTestFromResponse(data);
       } catch { $('startBtn').disabled = false; $('startBtn').textContent = 'Start Test →'; fail(err, 'Network error. Please try again.'); }
+    }
+
+    function showResume(){ show('resumeEntryCard'); $('resumeEntryErr').classList.add('hidden'); }
+    async function resumeOnly() {
+      const err = $('resumeEntryErr'); err.classList.add('hidden');
+      const mobile = $('r_mobile').value.trim();
+      if (mobile.replace(/\D/g,'').length < 10) return fail(err, 'Please enter a valid 10-digit mobile number.');
+      $('resumeEntryBtn').disabled = true; $('resumeEntryBtn').textContent = 'Loading...';
+      try {
+        const res = await fetch('/api/assessment/public/' + encodeURIComponent(token) + '/resume', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mobile }),
+        });
+        const data = await res.json();
+        $('resumeEntryBtn').disabled = false; $('resumeEntryBtn').textContent = 'Resume Test →';
+        if (!data.success) return fail(err, data.message || 'Could not resume your test.');
+        currentMobile = mobile;
+        enterTestFromResponse(data);
+      } catch { $('resumeEntryBtn').disabled = false; $('resumeEntryBtn').textContent = 'Resume Test →'; fail(err, 'Network error. Please try again.'); }
+    }
+
+    // Shared entry point for both a fresh /start and a mobile-only /resume —
+    // loads the questions, restores any saved answers, and continues the
+    // countdown from the original start time rather than resetting it.
+    function enterTestFromResponse(data) {
+      candidateId = data.candidate_id; submitToken = data.submit_token; QUESTIONS = data.questions; CFG.duration_minutes = data.duration_minutes;
+
+      Object.keys(answers).forEach(k => delete answers[k]);
+      if (data.resumed && data.draft_answers) {
+        Object.entries(data.draft_answers).forEach(([k, v]) => { answers[k] = v; });
+      }
+      $('resumeNotice').classList.toggle('hidden', !data.resumed);
+
+      renderQuestions();
+      show('testCard');
+
+      if (CFG.duration_minutes > 0) {
+        let remaining = CFG.duration_minutes * 60;
+        if (data.resumed && data.started_at) {
+          const elapsed = Math.floor((Date.now() - new Date(data.started_at).getTime()) / 1000);
+          remaining = CFG.duration_minutes * 60 - elapsed;
+        }
+        if (remaining <= 0) { submitTest(true); return; }
+        startTimer(remaining);
+      }
     }
     function fail(el, msg){ el.textContent = msg; el.classList.remove('hidden'); }
 
@@ -261,7 +300,7 @@
         const data = await res.json();
         if (!data.success) { fail($('testErr'), data.message || 'Could not submit.'); submitting = false; $('submitBtn').disabled = false; $('submitBtn').textContent = 'Submit Assessment'; return; }
         $('doneMsg').textContent = data.message;
-        $('s_mobile').value = $('c_mobile').value.trim();
+        $('s_mobile').value = currentMobile;
         show('doneCard');
       } catch { fail($('testErr'), 'Network error. Please try again.'); submitting = false; $('submitBtn').disabled = false; $('submitBtn').textContent = 'Submit Assessment'; }
     }

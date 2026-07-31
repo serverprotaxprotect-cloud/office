@@ -425,6 +425,74 @@ router.get('/public/:token', async (req, res) => {
   }
 });
 
+// If an in-progress (not yet submitted) attempt exists for this mobile,
+// build the same response shape used to resume it: original questions (in
+// original order, no correct answers), restored draft answers, and the
+// original started_at so the countdown timer continues rather than resets.
+// Returns null when there is nothing to resume.
+async function buildResumePayload(orgId, mobile, cfg) {
+  const inProgress = await db.runWithTenant({ bypassTenant: true }, () => db.query(
+    `SELECT * FROM assessment_candidates
+      WHERE organization_id = $1 AND mobile = $2 AND status = 'Registered'
+      ORDER BY started_at DESC LIMIT 1`,
+    [orgId, mobile]
+  ));
+  if (!inProgress.rows.length) return null;
+  const cand = inProgress.rows[0];
+  const ids = (cand.served_question_ids || []).map(Number).filter(Boolean);
+  const qres = await db.runWithTenant({ bypassTenant: true }, () => db.query(
+    `SELECT q.id, a.name AS area_name, q.question_text, q.option_a, q.option_b, q.option_c, q.option_d
+       FROM assessment_questions q JOIN assessment_areas a ON a.id = q.area_id
+      WHERE q.id = ANY($1::int[])`,
+    [ids]
+  ));
+  const byId = new Map(qres.rows.map(q => [q.id, q]));
+  const orderedQs = ids.map(id => byId.get(id)).filter(Boolean);
+  return {
+    success: true,
+    resumed: true,
+    candidate_id: cand.id,
+    submit_token: cand.submit_token,
+    duration_minutes: cfg.duration_minutes,
+    started_at: cand.started_at,
+    draft_answers: cand.draft_answers || {},
+    questions: orderedQs,
+    candidate_name: cand.name,
+  };
+}
+
+// Mobile-only resume: candidate re-enters just their mobile number (no need
+// to refill name/level/areas) to continue an in-progress test after a
+// refresh/disconnect/browser-close.
+router.post('/public/:token/resume', async (req, res) => {
+  const mobile = clean(req.body.mobile);
+  if (!mobile) return res.status(400).json({ success: false, message: 'Please enter your mobile number.' });
+  try {
+    const cfg = await findConfigByToken(req.params.token);
+    if (!cfg || cfg.status !== 'Active') {
+      return res.status(404).json({ success: false, message: 'This assessment link is not available.' });
+    }
+    const orgId = cfg.organization_id;
+
+    const done = await db.runWithTenant({ bypassTenant: true }, () => db.query(
+      `SELECT id FROM assessment_candidates WHERE organization_id = $1 AND mobile = $2 AND status = 'Completed' LIMIT 1`,
+      [orgId, mobile]
+    ));
+    if (done.rows.length) {
+      return res.status(409).json({ success: false, already: true, message: 'You have already completed this assessment. Please use "Check My Status" to view your result.' });
+    }
+
+    const payload = await buildResumePayload(orgId, mobile, cfg);
+    if (!payload) {
+      return res.status(404).json({ success: false, message: 'No in-progress assessment was found for this mobile number. Please use "Start New Assessment" instead.' });
+    }
+    res.json(payload);
+  } catch (err) {
+    console.error('[assessment public resume]', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 // Start: register candidate, pick questions for chosen level + areas
 router.post('/public/:token/start', async (req, res) => {
   const name = clean(req.body.name);
@@ -455,34 +523,8 @@ router.post('/public/:token/start', async (req, res) => {
     // if one exists, instead of starting a fresh test — this is what makes
     // a refresh/browser-close/disconnect recoverable without losing
     // progress or generating a second (orphaned) attempt.
-    const inProgress = await db.runWithTenant({ bypassTenant: true }, () => db.query(
-      `SELECT * FROM assessment_candidates
-        WHERE organization_id = $1 AND mobile = $2 AND status = 'Registered'
-        ORDER BY started_at DESC LIMIT 1`,
-      [orgId, mobile]
-    ));
-    if (inProgress.rows.length) {
-      const cand = inProgress.rows[0];
-      const ids = (cand.served_question_ids || []).map(Number).filter(Boolean);
-      const qres = await db.runWithTenant({ bypassTenant: true }, () => db.query(
-        `SELECT q.id, a.name AS area_name, q.question_text, q.option_a, q.option_b, q.option_c, q.option_d
-           FROM assessment_questions q JOIN assessment_areas a ON a.id = q.area_id
-          WHERE q.id = ANY($1::int[])`,
-        [ids]
-      ));
-      const byId = new Map(qres.rows.map(q => [q.id, q]));
-      const orderedQs = ids.map(id => byId.get(id)).filter(Boolean);
-      return res.json({
-        success: true,
-        resumed: true,
-        candidate_id: cand.id,
-        submit_token: cand.submit_token,
-        duration_minutes: cfg.duration_minutes,
-        started_at: cand.started_at,
-        draft_answers: cand.draft_answers || {},
-        questions: orderedQs,
-      });
-    }
+    const resumePayload = await buildResumePayload(orgId, mobile, cfg);
+    if (resumePayload) return res.json(resumePayload);
 
     // validate areas belong to org + active
     const validAreas = await db.runWithTenant({ bypassTenant: true }, () => db.query(
