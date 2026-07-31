@@ -7,7 +7,7 @@ const router = express.Router();
 
 const LEVELS = ['Intern', 'Executive', 'Intermediate', 'Expert'];
 const INTERVIEW_STATUSES = ['Pending', 'Shortlisted', 'Rejected', 'Interviewed', 'Selected'];
-const DEFAULT_AREAS = ['Accounts', 'ROC', 'GST', 'Income Tax', 'Licenses', 'Tally', 'Company Law', 'Trademark', 'Audit'];
+const DEFAULT_AREAS = ['Accounts', 'ROC', 'GST', 'Income Tax', 'Tally', 'Company Law', 'Trademark', 'Audit'];
 
 function clean(v) {
   const t = v === undefined || v === null ? '' : String(v).trim();
