@@ -63,6 +63,8 @@
     "seed:roc-batch2:apply": "node scripts/seed_roc_batch2.js --apply",
     "seed:gst-batch2": "node scripts/seed_gst_batch2.js",
     "seed:gst-batch2:apply": "node scripts/seed_gst_batch2.js --apply",
+    "seed:income-tax-batch2": "node scripts/seed_income_tax_batch2.js",
+    "seed:income-tax-batch2:apply": "node scripts/seed_income_tax_batch2.js --apply",
     "assessment-resume:migrate": "node scripts/assessment_resume_migrate.js",
     "assessment-resume:migrate:apply": "node scripts/assessment_resume_migrate.js --apply",
     "task-department:backfill": "node scripts/task_department_backfill.js",
