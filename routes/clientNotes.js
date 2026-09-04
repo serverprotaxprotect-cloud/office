@@ -1,5 +1,6 @@
 const express = require('express');
 const multer = require('multer');
+const { Readable } = require('stream');
 const db = require('../db');
 const authMiddleware = require('../middleware/auth');
 const googleDrive = require('../services/googleDriveService');
@@ -84,6 +85,40 @@ router.get('/search/all', async (req, res) => {
   } catch (err) {
     console.error('[client notes search]', err);
     res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ── GET /api/client-notes/attachment/:fileId (view/download a Drive attachment) ──
+// NOTE: must be registered BEFORE the generic '/:type/:id' route below —
+// same route-ordering trap as '/search/all': otherwise Express matches this
+// as type="attachment", id=<fileId> and 400s with "Invalid party type".
+//
+// Attachments live privately in the organisation's own Google Drive
+// (drive.file scope, never shared publicly), so a raw Google link only opens
+// for whoever is signed into that exact Google account in their browser —
+// no use to any other employee. Instead we fetch the file server-side, using
+// this organisation's own stored access token, and stream the bytes back to
+// whichever authenticated GeeBharat user asked. Nobody needs a Google login
+// of their own, and — same as every other query here — the lookup is always
+// scoped to the requester's own organization_id, never any other org's Drive.
+router.get('/attachment/:fileId', async (req, res) => {
+  try {
+    const orgId = req.user.organization_id;
+    const linkRes = await db.runWithTenant({ organizationId: orgId }, () =>
+      db.query(`SELECT encrypted_refresh_token FROM organization_drive_links WHERE organization_id=$1`, [orgId])
+    );
+    if (!linkRes.rows.length) {
+      return res.status(404).json({ success: false, message: 'This organisation has no Google Drive connected.' });
+    }
+    const accessToken = await googleDrive.refreshAccessToken(decrypt(linkRes.rows[0].encrypted_refresh_token));
+    const meta = await googleDrive.getFileMetadata(accessToken, req.params.fileId);
+    const fileRes = await googleDrive.downloadFile(accessToken, req.params.fileId);
+    res.setHeader('Content-Type', meta.mimeType || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `${req.query.download ? 'attachment' : 'inline'}; filename="${(meta.name || 'file').replace(/"/g, '')}"`);
+    Readable.fromWeb(fileRes.body).pipe(res);
+  } catch (err) {
+    console.error('[client notes attachment]', err);
+    res.status(500).json({ success: false, message: err.message || 'Could not load attachment' });
   }
 });
 

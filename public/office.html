@@ -4627,18 +4627,46 @@ function renderAttachmentChips(attachments) {
   return (attachments || []).map(a => {
     const isImg = /^image\//.test(a.mime_type || '');
     const safeName = h(a.filename || 'file').replace(/'/g, "\\'");
+    // Drive-stored attachments are private to the connected Google account —
+    // a raw Google link only opens for whoever is signed into that exact
+    // account, so we go through our own server proxy instead (works for any
+    // logged-in GeeBharat user, no Google login needed). Older attachments
+    // that were saved before Drive linking still use their direct URL.
+    const isDrive = !!a.drive_file_id;
+    const ref = isDrive ? a.drive_file_id : a.url;
+    const safeRef = h(ref).replace(/'/g, "\\'");
     return `<span style="display:inline-flex;align-items:center;gap:5px;background:#eef2f7;border-radius:7px;padding:4px 5px 4px 9px;margin:3px 5px 0 0;font-size:11.5px;color:#334155">
-      <a href="${h(a.url)}" target="_blank" rel="noopener" style="color:#334155;text-decoration:none">${isImg ? '&#128247;' : '&#128196;'} ${h(a.filename || 'file')}</a>
-      <button type="button" onclick="downloadAttachment('${h(a.url)}','${safeName}')" style="border:0;background:#4338ca;color:#fff;border-radius:5px;padding:2px 7px;font-size:10px;font-weight:800;cursor:pointer">&#11015; Download</button>
+      <a href="javascript:void(0)" onclick="viewAttachment('${safeRef}','${safeName}',${isDrive})" style="color:#334155;text-decoration:none">${isImg ? '&#128247;' : '&#128196;'} ${h(a.filename || 'file')}</a>
+      <button type="button" onclick="downloadAttachment('${safeRef}','${safeName}',${isDrive})" style="border:0;background:#4338ca;color:#fff;border-radius:5px;padding:2px 7px;font-size:10px;font-weight:800;cursor:pointer">&#11015; Download</button>
     </span>`;
   }).join('');
 }
 
-async function downloadAttachment(url, filename) {
+async function fetchAttachmentBlob(ref, isDrive) {
+  if (isDrive) {
+    const res = await GBSession.fetch(`/api/client-notes/attachment/${encodeURIComponent(ref)}`, {}, 'office');
+    if (!res.ok) throw new Error('Could not load file');
+    return res.blob();
+  }
+  const res = await fetch(ref); // legacy public Blob URL, no auth needed
+  if (!res.ok) throw new Error('Could not load file');
+  return res.blob();
+}
+
+async function viewAttachment(ref, filename, isDrive) {
   try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('Download failed');
-    const blob = await res.blob();
+    const blob = await fetchAttachmentBlob(ref, isDrive);
+    const objUrl = URL.createObjectURL(blob);
+    window.open(objUrl, '_blank');
+    setTimeout(() => URL.revokeObjectURL(objUrl), 30000);
+  } catch (e) {
+    showToast('Could not open file: ' + (e.message || 'unknown error'), 'error');
+  }
+}
+
+async function downloadAttachment(ref, filename, isDrive) {
+  try {
+    const blob = await fetchAttachmentBlob(ref, isDrive);
     const objUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = objUrl;

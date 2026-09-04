@@ -127,9 +127,37 @@ async function revokeToken(token) {
   } catch { /* non-fatal — disconnect still proceeds */ }
 }
 
+// The uploaded file is private to the connected Google account (drive.file
+// scope, no public sharing) — so a viewer/downloader must NOT be sent to
+// Google's own webViewLink (that requires being signed into that exact
+// Google account in the browser). Instead the server fetches the file
+// itself, using its own stored access token, and hands the bytes to
+// whichever GeeBharat employee asked — no Google login required on their end.
+async function getFileMetadata(accessToken, fileId) {
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=name,mimeType,size`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || 'Could not read file metadata');
+  return data; // { name, mimeType, size }
+}
+
+async function downloadFile(accessToken, fileId) {
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error?.message || 'Could not download file');
+  }
+  return res; // caller streams res.body
+}
+
 module.exports = {
   DRIVE_FOLDER_NAME,
   getAuthUrl,
+  getFileMetadata,
+  downloadFile,
   exchangeCodeForTokens,
   refreshAccessToken,
   getConnectedEmail,
