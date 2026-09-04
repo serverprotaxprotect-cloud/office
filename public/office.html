@@ -1754,6 +1754,7 @@
         <select id="cn_category" style="padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px"></select>
         <input type="file" id="cn_file" accept="image/png,image/jpeg,image/webp,application/pdf" multiple style="font-size:12px"/>
       </div>
+      <div style="font-size:10.5px;color:#94a3b8;margin:-4px 0 8px">Images or PDF, max 5MB per file</div>
       <textarea id="cn_text" rows="4" placeholder="What did the client say? What was decided? e.g. 'Client asked to file GSTR-3B on estimated figures as books not shared. Called twice, no response.'" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;resize:vertical;box-sizing:border-box"></textarea>
       <div id="cnPendingFiles" style="margin-top:6px;font-size:12px;color:#64748b"></div>
       <div id="cnErr" class="hidden" style="color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 10px;font-size:12.5px;margin-top:8px;font-weight:700"></div>
@@ -4578,8 +4579,21 @@ function openClientNotes(type, id, name) {
   loadClientNotesEntries();
 }
 
+// Attachments (screenshots/PDFs) are capped at 5MB each — reject oversize
+// files client-side immediately instead of letting them fail after upload.
+const CN_MAX_FILE_BYTES = 5 * 1024 * 1024;
+function filterOversizeFiles(files) {
+  const accepted = [];
+  const rejected = [];
+  [...files].forEach(f => (f.size > CN_MAX_FILE_BYTES ? rejected : accepted).push(f));
+  if (rejected.length) {
+    showToast(`${rejected.length} file(s) skipped — over the 5MB limit: ${rejected.map(f => f.name).join(', ')}`, 'error');
+  }
+  return accepted;
+}
+
 document.getElementById('cn_file')?.addEventListener('change', (e) => {
-  cnPendingFiles = [...(e.target.files || [])];
+  cnPendingFiles = filterOversizeFiles(e.target.files || []);
   document.getElementById('cnPendingFiles').textContent = cnPendingFiles.length
     ? `${cnPendingFiles.length} file(s) selected: ${cnPendingFiles.map(f => f.name).join(', ')}`
     : '';
@@ -4792,7 +4806,7 @@ async function openClientProfile(type, id) {
 let cpPendingFiles = [];
 
 function cpFileChange(el) {
-  cpPendingFiles = [...(el.files || [])];
+  cpPendingFiles = filterOversizeFiles(el.files || []);
   const box = document.getElementById('cpPendingFiles');
   if (box) box.textContent = cpPendingFiles.length
     ? `${cpPendingFiles.length} file(s) selected: ${cpPendingFiles.map(f => f.name).join(', ')}`
@@ -4913,6 +4927,7 @@ function renderClientProfileBody(cp) {
         <select id="cp_category" style="padding:7px 9px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12.5px">${CLIENT_NOTES.categories.map(c => `<option value="${h(c)}">${h(c)}</option>`).join('')}</select>
         <input type="file" id="cp_file" accept="image/png,image/jpeg,image/webp,application/pdf" multiple style="font-size:11.5px" onchange="cpFileChange(this)"/>
       </div>
+      <div style="font-size:10.5px;color:#94a3b8;margin:-4px 0 8px">Images or PDF, max 5MB per file</div>
       <textarea id="cp_text" rows="3" placeholder="What did the client say? What was decided?" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box"></textarea>
       <div id="cpPendingFiles" style="margin-top:5px;font-size:11.5px;color:#64748b"></div>
       <div id="cpErr" class="hidden" style="color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:7px 9px;font-size:12px;margin-top:7px;font-weight:700"></div>

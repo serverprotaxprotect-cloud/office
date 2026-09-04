@@ -5,7 +5,8 @@ const db = require('../db');
 const authMiddleware = require('../middleware/auth');
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
+const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024; // 5MB cap per attachment
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_ATTACHMENT_BYTES } });
 
 const FEATURE_KEY = 'client_conversation_log';
 const EDIT_WINDOW_MS = 10 * 60 * 1000; // 10 minutes self-correction window
@@ -189,7 +190,21 @@ router.delete('/:id', async (req, res) => {
 });
 
 // ── POST /api/client-notes/upload (screenshot/PDF attachment) ──
-router.post('/upload', upload.single('file'), async (req, res) => {
+// Turn multer's file-too-large error into a clean JSON response instead of
+// falling through to Express's default (HTML) error handler.
+function handleUpload(req, res, next) {
+  upload.single('file')(req, res, (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ success: false, message: 'File is too large. Maximum attachment size is 5MB.' });
+      }
+      return res.status(400).json({ success: false, message: err.message || 'File upload failed' });
+    }
+    next();
+  });
+}
+
+router.post('/upload', handleUpload, async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, message: 'File required' });
     if (!['application/pdf', 'image/png', 'image/jpeg', 'image/webp'].includes(req.file.mimetype)) {
