@@ -220,6 +220,8 @@ router.post('/upload', handleUpload, async (req, res) => {
       `SELECT folder_id, encrypted_refresh_token FROM organization_drive_links WHERE organization_id=$1`,
       [req.user.organization_id]
     );
+    // TEMP DIAGNOSTIC — remove once the intermittent "not connected" issue is confirmed fixed.
+    console.log('[drive-upload-debug]', { org_id: req.user.organization_id, rows_found: linkRes.rows.length, tenant_ctx: JSON.stringify(db.getTenantContext()) });
     if (!linkRes.rows.length) {
       return res.status(403).json({
         success: false,
