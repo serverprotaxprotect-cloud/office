@@ -42,8 +42,24 @@ async function query(text, params) {
   const client = await pool.connect();
   try {
     const rawQuery = client.query.bind(client);
-    await applyTenantContext(rawQuery);
-    return rawQuery(text, params);
+    // Our DATABASE_URL points at Neon's pooler endpoint (PgBouncer,
+    // transaction-mode pooling). Outside an explicit transaction, PgBouncer
+    // is free to hand each statement to a *different* physical backend
+    // connection — so a bare "SET app.organization_id" followed by the real
+    // query as two separate statements can silently lose that setting
+    // between them, making current_organization_id() resolve to nothing and
+    // RLS hide rows that should be visible. Wrapping both statements in one
+    // BEGIN/COMMIT keeps them pinned to the same backend connection.
+    await rawQuery('BEGIN');
+    try {
+      await applyTenantContext(rawQuery);
+      const result = await rawQuery(text, params);
+      await rawQuery('COMMIT');
+      return result;
+    } catch (err) {
+      await rawQuery('ROLLBACK').catch(() => {});
+      throw err;
+    }
   } finally {
     client.release();
   }
