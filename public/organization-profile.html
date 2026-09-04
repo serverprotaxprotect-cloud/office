@@ -229,7 +229,9 @@
         if (isAdmin) disconnectBtn.classList.remove('hidden');
       } else {
         textEl.textContent = 'Not connected';
-        subEl.textContent = 'Client Update Log attachments are disabled until an admin connects a Google Drive account.';
+        subEl.innerHTML = data.registered_email
+          ? `Client Update Log attachments are disabled until connected. When you click Connect, sign in with <strong>${data.registered_email}</strong> — the email this organisation is registered with on GeeBharat. Signing in with any other Google account (like an employee's personal Gmail) will be rejected automatically.`
+          : 'Client Update Log attachments are disabled until an admin connects a Google Drive account.';
         disconnectBtn.classList.add('hidden');
         if (isAdmin) {
           connectBtn.href = '/api/google-drive/connect?token=' + encodeURIComponent(token);

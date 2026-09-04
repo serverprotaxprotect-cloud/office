@@ -12,7 +12,7 @@ function requireEnv(name) {
   return v;
 }
 
-function getAuthUrl(state, redirectUri) {
+function getAuthUrl(state, redirectUri, loginHint) {
   const params = new URLSearchParams({
     client_id: requireEnv('GOOGLE_DRIVE_CLIENT_ID'),
     redirect_uri: redirectUri,
@@ -22,6 +22,11 @@ function getAuthUrl(state, redirectUri) {
     prompt: 'consent',      // forces a refresh_token even on repeat connects
     state,
   });
+  // Pre-fills/suggests the organisation's own registered email on Google's
+  // account picker, so an employee doesn't end up connecting their personal
+  // Gmail by mistake. This is a UX nudge only — the callback independently
+  // verifies the account actually used before saving anything.
+  if (loginHint) params.set('login_hint', loginHint);
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 }
 

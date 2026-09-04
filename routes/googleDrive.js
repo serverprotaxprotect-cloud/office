@@ -38,12 +38,13 @@ function redirectUriFor(req) {
 // ── GET /api/google-drive/status ───────────────────────────────
 router.get('/status', authMiddleware, async (req, res) => {
   try {
-    const r = await db.query(
-      `SELECT connected_email, connected_at FROM organization_drive_links WHERE organization_id=$1`,
-      [req.user.organization_id]
-    );
-    if (!r.rows.length) return res.json({ success: true, connected: false });
-    res.json({ success: true, connected: true, email: r.rows[0].connected_email, connected_at: r.rows[0].connected_at });
+    const [linkRes, orgRes] = await Promise.all([
+      db.query(`SELECT connected_email, connected_at FROM organization_drive_links WHERE organization_id=$1`, [req.user.organization_id]),
+      db.query(`SELECT contact_email FROM organizations WHERE id=$1`, [req.user.organization_id]),
+    ]);
+    const registeredEmail = orgRes.rows[0]?.contact_email || null;
+    if (!linkRes.rows.length) return res.json({ success: true, connected: false, registered_email: registeredEmail });
+    res.json({ success: true, connected: true, email: linkRes.rows[0].connected_email, connected_at: linkRes.rows[0].connected_at, registered_email: registeredEmail });
   } catch (err) {
     console.error('[google-drive status]', err);
     res.status(500).json({ success: false, message: 'Server error' });
@@ -54,6 +55,12 @@ router.get('/status', authMiddleware, async (req, res) => {
 router.get('/connect', tokenAuth, async (req, res) => {
   if (!isAdminView(req.user)) return res.status(403).json({ success: false, message: 'Admin access required' });
   try {
+    // tokenAuth is a lightweight check (no tenant context) — establish it
+    // ourselves for this one lookup of the organisation's registered email.
+    const orgEmail = await db.runWithTenant({ organizationId: req.user.organization_id }, async () => {
+      const r = await db.query(`SELECT contact_email FROM organizations WHERE id=$1`, [req.user.organization_id]);
+      return r.rows[0]?.contact_email || null;
+    });
     // Short-lived, signed state — carries which organisation/admin is
     // connecting through Google's redirect round-trip (which has no
     // Authorization header of its own) and can't be tampered with or reused
@@ -63,7 +70,7 @@ router.get('/connect', tokenAuth, async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: '10m' }
     );
-    const url = drive.getAuthUrl(state, redirectUriFor(req));
+    const url = drive.getAuthUrl(state, redirectUriFor(req), orgEmail);
     res.redirect(url);
   } catch (err) {
     console.error('[google-drive connect]', err);
@@ -95,14 +102,26 @@ router.get('/callback', async (req, res) => {
       return failRedirect('Google did not return a long-lived connection. Please remove GeeBharat from your Google account\'s connected apps and try connecting again.');
     }
     const email = await drive.getConnectedEmail(tokens.access_token);
-    const folderId = await drive.ensureAppFolder(tokens.access_token);
-    const encryptedRefreshToken = encrypt(tokens.refresh_token);
 
     // This request carries no Authorization header (it's Google's own
     // redirect, not an authenticated API call), so authMiddleware never ran
     // and no tenant context is set — establish it explicitly here, scoped to
     // exactly the organisation named in the signed `state` we verified above.
     await db.runWithTenant({ organizationId: payload.organization_id }, async () => {
+      const org = await db.query(`SELECT contact_email FROM organizations WHERE id=$1`, [payload.organization_id]);
+      const registeredEmail = String(org.rows[0]?.contact_email || '').trim().toLowerCase();
+      if (!registeredEmail || registeredEmail !== email.trim().toLowerCase()) {
+        // The whole point of this check: an employee's personal Gmail must
+        // never get connected in place of the organisation's own registered
+        // account. Reject before ever storing a token, and immediately
+        // revoke the grant we just received for the wrong account.
+        await drive.revokeToken(tokens.refresh_token);
+        const err = new Error(`This Google account (${email}) doesn't match the organisation's registered email (${registeredEmail || 'not set'}). Please sign in with the organisation's own email instead.`);
+        err.isMismatch = true;
+        throw err;
+      }
+      const folderId = await drive.ensureAppFolder(tokens.access_token);
+      const encryptedRefreshToken = encrypt(tokens.refresh_token);
       const admin = await db.query(`SELECT name FROM admins WHERE id=$1 AND organization_id=$2`, [payload.admin_id, payload.organization_id]);
       await db.query(
         `INSERT INTO organization_drive_links
