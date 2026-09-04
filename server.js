@@ -27,6 +27,7 @@ const portalRoutes = require('./routes/portal');
 const chatRoutes = require('./routes/chat');
 const performanceRoutes = require('./routes/performance');
 const assessmentRoutes = require('./routes/assessment');
+const clientNotesRoutes = require('./routes/clientNotes');
 const { router: notifRoutes } = require('./routes/notifications');
 
 const app = express();
@@ -129,6 +130,7 @@ app.use('/api/portal/chat', chatRoutes.portalRouter);
 app.use('/api/notifications',  notifRoutes);
 app.use('/api/performance', performanceRoutes);
 app.use('/api/assessment', assessmentRoutes);
+app.use('/api/client-notes', clientNotesRoutes);
 
 app.get('/api/maps/config', (req, res) => {
   if (!process.env.GOOGLE_MAPS_API_KEY) {

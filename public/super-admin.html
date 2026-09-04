@@ -340,10 +340,16 @@
               <option value="full" ${o.billing_access === 'full' ? 'selected' : ''}>Full Access</option>
             </select>
             <small style="display:block;color:#63728a;font-weight:800;margin-bottom:4px">Lead Management</small>
-            <select onchange="updateLeadManagementAccess(${o.id}, this.value)" style="width:145px;padding:7px 8px;border:1px solid #d8e0ec;border-radius:8px;font-weight:700">
+            <select onchange="updateLeadManagementAccess(${o.id}, this.value)" style="width:145px;padding:7px 8px;border:1px solid #d8e0ec;border-radius:8px;font-weight:700;margin-bottom:8px">
               <option value="none" ${o.lead_management_access === 'none' ? 'selected' : ''}>No Access</option>
               <option value="view" ${o.lead_management_access === 'view' ? 'selected' : ''}>View Only</option>
               <option value="full" ${o.lead_management_access === 'full' ? 'selected' : ''}>Full Access</option>
+            </select>
+            <small style="display:block;color:#63728a;font-weight:800;margin-bottom:4px">Client Update Log</small>
+            <select onchange="updateClientConversationLogAccess(${o.id}, this.value)" style="width:145px;padding:7px 8px;border:1px solid #d8e0ec;border-radius:8px;font-weight:700">
+              <option value="none" ${o.client_conversation_log_access === 'none' ? 'selected' : ''}>No Access</option>
+              <option value="view" ${o.client_conversation_log_access === 'view' ? 'selected' : ''}>View Only</option>
+              <option value="full" ${o.client_conversation_log_access === 'full' ? 'selected' : ''}>Full Access</option>
             </select>
           </td>
           <td><button class="btn btn-dark" onclick="updateSubscription(${o.id})">Subscription</button></td>
@@ -452,6 +458,14 @@
         body: JSON.stringify({ access_level: accessLevel })
       });
       showMsg(data.message || (data.success ? 'Lead Management access updated' : 'Lead Management access update failed'), !!data.success);
+      if (data.success) loadOrganizations();
+    }
+    async function updateClientConversationLogAccess(id, accessLevel) {
+      const data = await api('/organizations/' + id + '/features/client-conversation-log', {
+        method: 'PUT',
+        body: JSON.stringify({ access_level: accessLevel })
+      });
+      showMsg(data.message || (data.success ? 'Client Update Log access updated' : 'Client Update Log access update failed'), !!data.success);
       if (data.success) loadOrganizations();
     }
     async function loadMcaFormats() {

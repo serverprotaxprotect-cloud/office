@@ -1736,6 +1736,33 @@
   </div>
 </div>
 
+<!-- Client Update Log Modal -->
+<div class="modal-backdrop hidden" id="clientNotesModal" onclick="if(event.target===this)closeModal('clientNotesModal')">
+  <div class="modal" style="max-width:760px">
+    <div class="modal-title">
+      &#128221; Update Log <small id="cnPartyName" style="font-weight:600;color:#64748b;font-size:14px"></small>
+      <button type="button" class="btn-sm btn-cancel" onclick="closeModal('clientNotesModal')" style="margin-left:auto">Close</button>
+    </div>
+    <input type="hidden" id="cn_party_type"/>
+    <input type="hidden" id="cn_party_id"/>
+
+    <div id="cnTimeline" style="max-height:360px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:10px;padding:10px;background:#f8fafc;margin-bottom:14px"></div>
+
+    <div id="cnAddForm" style="border:1px solid #e2e8f0;border-radius:10px;padding:14px;background:#fff">
+      <div style="font-weight:800;font-size:13px;color:#334155;margin-bottom:8px">Add Update</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <select id="cn_category" style="padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px"></select>
+        <input type="file" id="cn_file" accept="image/png,image/jpeg,image/webp,application/pdf" multiple style="font-size:12px"/>
+      </div>
+      <textarea id="cn_text" rows="4" placeholder="What did the client say? What was decided? e.g. 'Client asked to file GSTR-3B on estimated figures as books not shared. Called twice, no response.'" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;resize:vertical;box-sizing:border-box"></textarea>
+      <div id="cnPendingFiles" style="margin-top:6px;font-size:12px;color:#64748b"></div>
+      <div id="cnErr" class="hidden" style="color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 10px;font-size:12.5px;margin-top:8px;font-weight:700"></div>
+      <button class="btn-sm" id="cnSaveBtn" style="background:#7c3aed;color:#fff;margin-top:10px" onclick="submitClientNote()">Save Update</button>
+    </div>
+    <p class="hidden" id="cnViewOnlyNote" style="font-size:12.5px;color:#94a3b8;margin-top:8px">This organisation has view-only access to the Update Log.</p>
+  </div>
+</div>
+
 <!-- Add New Agent Modal -->
 <div class="modal-backdrop hidden" id="addAgentModal" onclick="if(event.target===this)closeModal('addAgentModal')">
   <div class="modal">
@@ -2806,6 +2833,7 @@ function jsArg(v) {
 
 // ── META ─────────────────────────────────────────────────────
 let META = { work_names:[], statuses:[], priorities:[], employees:[] };
+let CLIENT_NOTES = { enabled:false, access_level:'none', is_admin:false, categories:[] };
 let DEPT_GROUPS = {};
 function workNameText(work) {
   return typeof work === 'string' ? work : (work?.name || '');
@@ -4459,6 +4487,7 @@ function searchClients(immediate) {
           <button class="btn-sm btn-view" onclick="viewSearchRow('agent','${h(a.agent_id)}')">View</button>
           <button class="btn-sm btn-edit" onclick="editAgentById('${h(a.agent_id)}')">Edit</button>
           <button class="btn-sm btn-green" onclick="openPortalAccessById('agent','${h(a.agent_id)}')">Portal</button>
+          ${CLIENT_NOTES.enabled ? `<button class="btn-sm" style="background:#7c3aed;color:#fff" onclick="openClientNotes('agent','${h(a.agent_id)}','${h((a.name||a.agent_id)).replace(/'/g,"\\'")}')">&#128221; Update Log</button>` : ''}
         </td>
       </tr>`);
     const clientRows = clients.map(c => `
@@ -4473,6 +4502,7 @@ function searchClients(immediate) {
           <button class="btn-sm btn-view" onclick="viewSearchRow('client','${h(c.client_id)}')">View</button>
           <button class="btn-sm btn-edit" onclick="editClientById('${h(c.client_id)}')">Edit</button>
           <button class="btn-sm btn-green" onclick="openPortalAccessById('client','${h(c.client_id)}')">Portal</button>
+          ${CLIENT_NOTES.enabled ? `<button class="btn-sm" style="background:#7c3aed;color:#fff" onclick="openClientNotes('client','${h(c.client_id)}','${h((c.legal_name||c.business_name||c.client_id)).replace(/'/g,"\\'")}')">&#128221; Update Log</button>` : ''}
         </td>
       </tr>`);
     const rows = [...agentRows, ...clientRows];
@@ -4500,6 +4530,154 @@ function viewAgent(a) {
 function editClientById(id) {
   const row = clientSearchRows.client?.[id];
   if (row) editClient(row);
+}
+
+// ── CLIENT UPDATE LOG ──────────────────────────────────────────
+const CN_CATEGORY_COLORS = {
+  'Instruction Given': '#2563eb', 'Client Unreachable': '#dc2626', 'Payment Pending': '#b45309',
+  'Estimated Data Used': '#7c3aed', 'Follow-up Required': '#0891b2', 'Other': '#64748b',
+};
+let cnPendingFiles = [];
+
+function openClientNotes(type, id, name) {
+  document.getElementById('cn_party_type').value = type;
+  document.getElementById('cn_party_id').value = id;
+  document.getElementById('cnPartyName').textContent = `— ${name} (${id})`;
+  const catSel = document.getElementById('cn_category');
+  catSel.innerHTML = CLIENT_NOTES.categories.map(c => `<option value="${h(c)}">${h(c)}</option>`).join('');
+  document.getElementById('cn_text').value = '';
+  document.getElementById('cn_file').value = '';
+  cnPendingFiles = [];
+  document.getElementById('cnPendingFiles').textContent = '';
+  document.getElementById('cnErr').classList.add('hidden');
+  const canWrite = CLIENT_NOTES.access_level === 'full';
+  document.getElementById('cnAddForm').classList.toggle('hidden', !canWrite);
+  document.getElementById('cnViewOnlyNote').classList.toggle('hidden', canWrite);
+  openModal('clientNotesModal');
+  loadClientNotesEntries();
+}
+
+document.getElementById('cn_file')?.addEventListener('change', (e) => {
+  cnPendingFiles = [...(e.target.files || [])];
+  document.getElementById('cnPendingFiles').textContent = cnPendingFiles.length
+    ? `${cnPendingFiles.length} file(s) selected: ${cnPendingFiles.map(f => f.name).join(', ')}`
+    : '';
+});
+
+async function loadClientNotesEntries() {
+  const type = document.getElementById('cn_party_type').value;
+  const id = document.getElementById('cn_party_id').value;
+  const box = document.getElementById('cnTimeline');
+  box.innerHTML = '<div class="empty-msg">Loading...</div>';
+  const data = await api(`/client-notes/${type}/${encodeURIComponent(id)}`, { cache: false });
+  if (!data.success) { box.innerHTML = `<div class="empty-msg">${h(data.message || 'Could not load updates')}</div>`; return; }
+  if (!data.entries.length) { box.innerHTML = '<div class="empty-msg">No updates recorded yet for this ' + type + '.</div>'; return; }
+  box.innerHTML = data.entries.map(renderClientNoteEntry).join('');
+}
+
+function renderClientNoteEntry(e) {
+  const col = CN_CATEGORY_COLORS[e.category] || '#64748b';
+  const dt = new Date(e.created_at).toLocaleString('en-IN', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  const atts = (e.attachments || []).map(a => {
+    const isImg = /^image\//.test(a.mime_type || '');
+    return `<a href="${h(a.url)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;background:#eef2f7;border-radius:7px;padding:4px 9px;margin:3px 4px 0 0;font-size:11.5px;color:#334155;text-decoration:none">${isImg ? '&#128247;' : '&#128196;'} ${h(a.filename || 'file')}</a>`;
+  }).join('');
+  const editedNote = e.edited_at
+    ? `<div style="font-size:11px;color:#94a3b8;margin-top:4px">&#9998; Edited by ${h(e.edited_by_name || '')} on ${new Date(e.edited_at).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div>`
+    : '';
+  const actions = e.can_edit
+    ? `<button class="btn-sm" style="background:#e2e8f0;color:#334155;padding:3px 9px;font-size:11px" onclick="editClientNoteEntry(${e.id})">Edit</button>
+       ${CLIENT_NOTES.is_admin ? `<button class="btn-danger" style="padding:3px 9px;font-size:11px" onclick="deleteClientNoteEntry(${e.id})">Delete</button>` : ''}`
+    : (e.edit_window_ends_at ? `<span style="font-size:11px;color:#94a3b8">&#128274; Locked</span>` : (CLIENT_NOTES.is_admin ? `<button class="btn-sm" style="background:#e2e8f0;color:#334155;padding:3px 9px;font-size:11px" onclick="editClientNoteEntry(${e.id})">Edit</button><button class="btn-danger" style="padding:3px 9px;font-size:11px" onclick="deleteClientNoteEntry(${e.id})">Delete</button>` : ''));
+  const windowNote = e.can_edit && e.edit_window_ends_at
+    ? `<div style="font-size:11px;color:#b45309;margin-top:4px">Editable until ${new Date(e.edit_window_ends_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})} (10 min window)</div>` : '';
+  return `
+    <div id="cnEntry_${e.id}" style="background:#fff;border:1px solid #e2e8f0;border-radius:9px;padding:11px 13px;margin-bottom:9px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
+        <div>
+          <span class="dept-badge" style="background:${col}22;color:${col}">${h(e.category)}</span>
+          <span style="font-size:11.5px;color:#64748b;margin-left:6px">${dt} &middot; by <strong>${h(e.created_by_name || '--')}</strong></span>
+        </div>
+        <div style="white-space:nowrap">${actions}</div>
+      </div>
+      <div id="cnEntryBody_${e.id}" style="margin-top:7px;font-size:13.5px;white-space:pre-wrap;color:#1e293b">${h(e.entry_text)}</div>
+      ${atts ? `<div style="margin-top:6px">${atts}</div>` : ''}
+      ${windowNote}
+      ${editedNote}
+    </div>`;
+}
+
+async function uploadClientNoteFiles() {
+  const uploaded = [];
+  for (const file of cnPendingFiles) {
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await api('/client-notes/upload', { method: 'POST', body: fd });
+    if (!res.success) throw new Error(res.message || `Could not upload ${file.name}`);
+    uploaded.push(res.attachment);
+  }
+  return uploaded;
+}
+
+async function submitClientNote() {
+  const err = document.getElementById('cnErr');
+  err.classList.add('hidden');
+  const text = document.getElementById('cn_text').value.trim();
+  if (!text) { err.textContent = 'Please write the update before saving.'; err.classList.remove('hidden'); return; }
+  const btn = document.getElementById('cnSaveBtn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const attachments = await uploadClientNoteFiles();
+    const data = await api('/client-notes', {
+      method: 'POST',
+      body: JSON.stringify({
+        type: document.getElementById('cn_party_type').value,
+        id: document.getElementById('cn_party_id').value,
+        category: document.getElementById('cn_category').value,
+        entry_text: text,
+        attachments,
+      }),
+    });
+    if (!data.success) { err.textContent = data.message || 'Could not save.'; err.classList.remove('hidden'); return; }
+    document.getElementById('cn_text').value = '';
+    document.getElementById('cn_file').value = '';
+    cnPendingFiles = [];
+    document.getElementById('cnPendingFiles').textContent = '';
+    showToast('Update saved and locked after 10 minutes', 'success');
+    loadClientNotesEntries();
+  } catch (e) {
+    err.textContent = e.message || 'Could not save.'; err.classList.remove('hidden');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save Update';
+  }
+}
+
+function editClientNoteEntry(id) {
+  const body = document.getElementById(`cnEntryBody_${id}`);
+  if (!body || body.dataset.editing) return;
+  const original = body.textContent;
+  body.dataset.editing = '1';
+  body.innerHTML = `
+    <textarea id="cnEditText_${id}" rows="3" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13.5px;box-sizing:border-box">${h(original)}</textarea>
+    <div style="margin-top:6px">
+      <button class="btn-sm" style="background:#7c3aed;color:#fff;padding:4px 10px;font-size:11px" onclick="saveClientNoteEdit(${id})">Save</button>
+      <button class="btn-sm" style="background:#e2e8f0;color:#334155;padding:4px 10px;font-size:11px" onclick="loadClientNotesEntries()">Cancel</button>
+    </div>`;
+}
+
+async function saveClientNoteEdit(id) {
+  const text = document.getElementById(`cnEditText_${id}`)?.value.trim();
+  if (!text) { showToast('Entry text cannot be empty', 'error'); return; }
+  const data = await api(`/client-notes/${id}`, { method: 'PUT', body: JSON.stringify({ entry_text: text }) });
+  showToast(data.message, data.success ? 'success' : 'error');
+  loadClientNotesEntries();
+}
+
+async function deleteClientNoteEntry(id) {
+  if (!confirm('Delete this update permanently? This cannot be undone.')) return;
+  const data = await api(`/client-notes/${id}`, { method: 'DELETE' });
+  showToast(data.message, data.success ? 'success' : 'error');
+  loadClientNotesEntries();
 }
 
 function editAgentById(id) {
@@ -7445,8 +7623,18 @@ Object.assign(window, {
 
 installTaxModuleClickFallbacks();
 
+async function loadClientNotesAccess() {
+  try {
+    const data = await api('/client-notes/categories');
+    if (data.success) {
+      CLIENT_NOTES = { enabled: true, access_level: data.access_level, is_admin: data.is_admin, categories: data.categories };
+    }
+  } catch { /* feature not enabled for this org — buttons stay hidden */ }
+}
+
 async function initOfficeApp() {
   await loadMeta();
+  await loadClientNotesAccess();
   await loadDashboard();
   panelLoaded['dashboard'] = true;
   try {
