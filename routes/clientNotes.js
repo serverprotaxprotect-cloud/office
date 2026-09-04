@@ -1,8 +1,9 @@
 const express = require('express');
 const multer = require('multer');
-const { put } = require('@vercel/blob');
 const db = require('../db');
 const authMiddleware = require('../middleware/auth');
+const googleDrive = require('../services/googleDriveService');
+const { decrypt } = require('../utils/encryption');
 
 const router = express.Router();
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024; // 5MB cap per attachment
@@ -210,22 +211,34 @@ router.post('/upload', handleUpload, async (req, res) => {
     if (!['application/pdf', 'image/png', 'image/jpeg', 'image/webp'].includes(req.file.mimetype)) {
       return res.status(400).json({ success: false, message: 'Only image (PNG/JPG/WEBP) or PDF files are allowed' });
     }
-    if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      return res.status(500).json({ success: false, message: 'File storage is not configured' });
+    // Attachments live in the organisation's own Google Drive, never in our
+    // storage — each org must connect its own Drive first (Organisation
+    // Profile → Integrations). No org can ever reach another org's link:
+    // this lookup is always scoped to the authenticated request's own
+    // organization_id, same as every other tenant-scoped query in this app.
+    const linkRes = await db.query(
+      `SELECT folder_id, encrypted_refresh_token FROM organization_drive_links WHERE organization_id=$1`,
+      [req.user.organization_id]
+    );
+    if (!linkRes.rows.length) {
+      return res.status(403).json({
+        success: false,
+        message: "Attachments need this organisation's Google Drive connected first. Ask an admin to connect it from Organisation Profile → Integrations.",
+      });
     }
+    const { folder_id, encrypted_refresh_token } = linkRes.rows[0];
+    const accessToken = await googleDrive.refreshAccessToken(decrypt(encrypted_refresh_token));
     const safeName = String(req.file.originalname || 'attachment').replace(/[^a-z0-9._-]/gi, '_');
-    const blob = await put(`client-notes/${req.user.organization_id}/${Date.now()}-${safeName}`, req.file.buffer, {
-      access: 'public',
-      contentType: req.file.mimetype,
-    });
+    const uploaded = await googleDrive.uploadFile(accessToken, folder_id, req.file.buffer, safeName, req.file.mimetype);
     res.json({
       success: true,
       attachment: {
-        url: blob.url,
-        pathname: blob.pathname,
+        url: uploaded.webViewLink,
         filename: req.file.originalname || safeName,
         mime_type: req.file.mimetype,
         size_bytes: req.file.size,
+        source: 'drive',
+        drive_file_id: uploaded.id,
       },
     });
   } catch (err) {

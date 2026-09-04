@@ -21,6 +21,9 @@
     .stat strong { color:#0f172a; }
     .actions { display:flex;gap:10px;margin-top:18px;align-items:center; }
     #msg { margin-top:14px;display:none; }
+    .hidden { display:none !important; }
+    .btn-danger { background:#dc2626;color:#fff;border:0;border-radius:8px;padding:10px 18px;font-weight:700;cursor:pointer;font-size:14px; }
+    .btn-danger:hover { background:#b91c1c; }
     @media(max-width:760px){ .grid,.read{grid-template-columns:1fr;} .top{align-items:flex-start;flex-direction:column;} }
   </style>
 </head>
@@ -120,12 +123,31 @@
         <div id="msg" class="alert"></div>
       </form>
     </section>
+
+    <section class="cardx" style="margin-top:18px">
+      <h2 style="font-size:17px;color:#0f172a;margin-bottom:4px">Integrations</h2>
+      <p style="color:#64748b;font-size:13px;margin-bottom:16px">Connect this organisation's own Google Drive so Client Update Log screenshots/PDFs are stored there — not on our servers — and stay completely separate from every other organisation's files.</p>
+      <div id="driveStatusBox" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px">
+        <div>
+          <strong id="driveStatusText" style="color:#0f172a">Checking status...</strong>
+          <div id="driveStatusSub" style="color:#64748b;font-size:12.5px;margin-top:3px"></div>
+        </div>
+        <div>
+          <a id="driveConnectBtn" class="btn-primary hidden" style="text-decoration:none;display:inline-block" href="/api/google-drive/connect">Connect Google Drive</a>
+          <button id="driveDisconnectBtn" class="btn-danger hidden" type="button" onclick="disconnectDrive()">Disconnect</button>
+        </div>
+      </div>
+      <div id="driveMsg" class="alert" style="display:none;margin-top:12px"></div>
+    </section>
   </main>
 
   <script src="/assets/address-autocomplete.js"></script>
   <script>
     const token = localStorage.getItem('office_token');
     if (!token) window.location.href = '/office.html';
+    let officeUser = {};
+    try { officeUser = JSON.parse(localStorage.getItem('office_user') || '{}'); } catch {}
+    const isAdmin = officeUser.user_type === 'admin' && ['Director', 'Office Manager', 'HR'].includes(officeUser.role);
 
     function val(id) { return document.getElementById(id).value.trim(); }
     function setVal(id, value) { document.getElementById(id).value = value == null ? '' : value; }
@@ -181,6 +203,59 @@
       }
     });
     loadProfile();
+
+    // ── Google Drive integration ─────────────────────────────
+    function showDriveMsg(text, ok) {
+      const el = document.getElementById('driveMsg');
+      el.textContent = text;
+      el.className = 'alert ' + (ok ? 'alert-success' : 'alert-error');
+      el.style.display = 'block';
+    }
+
+    async function loadDriveStatus() {
+      const data = await api('/google-drive/status');
+      const textEl = document.getElementById('driveStatusText');
+      const subEl = document.getElementById('driveStatusSub');
+      const connectBtn = document.getElementById('driveConnectBtn');
+      const disconnectBtn = document.getElementById('driveDisconnectBtn');
+      if (!data.success) {
+        textEl.textContent = 'Could not check Google Drive status';
+        return;
+      }
+      if (data.connected) {
+        textEl.textContent = '✅ Connected';
+        subEl.textContent = `${data.email} — attachments are being saved to this account's Drive`;
+        connectBtn.classList.add('hidden');
+        if (isAdmin) disconnectBtn.classList.remove('hidden');
+      } else {
+        textEl.textContent = 'Not connected';
+        subEl.textContent = 'Client Update Log attachments are disabled until an admin connects a Google Drive account.';
+        disconnectBtn.classList.add('hidden');
+        if (isAdmin) {
+          connectBtn.href = '/api/google-drive/connect?token=' + encodeURIComponent(token);
+          connectBtn.classList.remove('hidden');
+        }
+      }
+    }
+
+    async function disconnectDrive() {
+      if (!confirm('Disconnect Google Drive? Future attachments will be blocked until it is reconnected.')) return;
+      const data = await api('/google-drive/disconnect', { method: 'POST' });
+      showDriveMsg(data.message || (data.success ? 'Disconnected' : 'Could not disconnect'), !!data.success);
+      loadDriveStatus();
+    }
+
+    // After Google redirects back here with ?drive=connected / ?drive=error
+    (function handleDriveRedirectResult() {
+      const params = new URLSearchParams(window.location.search);
+      const driveResult = params.get('drive');
+      if (!driveResult) return;
+      if (driveResult === 'connected') showDriveMsg('Google Drive connected successfully.', true);
+      else showDriveMsg(params.get('message') || 'Could not connect Google Drive.', false);
+      window.history.replaceState({}, '', window.location.pathname);
+    })();
+
+    loadDriveStatus();
   </script>
 </body>
 </html>
