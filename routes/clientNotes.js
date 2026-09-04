@@ -211,17 +211,17 @@ router.post('/upload', handleUpload, async (req, res) => {
     if (!['application/pdf', 'image/png', 'image/jpeg', 'image/webp'].includes(req.file.mimetype)) {
       return res.status(400).json({ success: false, message: 'Only image (PNG/JPG/WEBP) or PDF files are allowed' });
     }
-    // Attachments live in the organisation's own Google Drive, never in our
-    // storage — each org must connect its own Drive first (Organisation
-    // Profile → Integrations). No org can ever reach another org's link:
-    // this lookup is always scoped to the authenticated request's own
-    // organization_id, same as every other tenant-scoped query in this app.
-    const linkRes = await db.query(
-      `SELECT folder_id, encrypted_refresh_token FROM organization_drive_links WHERE organization_id=$1`,
-      [req.user.organization_id]
+    // multer's stream-based body parsing (handleUpload, above) breaks
+    // AsyncLocalStorage propagation from authMiddleware — confirmed live in
+    // production, db.getTenantContext() comes back empty here even though
+    // req.user is set correctly. Re-establish the tenant context explicitly
+    // from req.user (never trust ambient context after a multer route) so
+    // the RLS-backed lookup below is reliably scoped to this request's own
+    // organisation, and never any other organisation's.
+    const orgId = req.user.organization_id;
+    const linkRes = await db.runWithTenant({ organizationId: orgId }, () =>
+      db.query(`SELECT folder_id, encrypted_refresh_token FROM organization_drive_links WHERE organization_id=$1`, [orgId])
     );
-    // TEMP DIAGNOSTIC — remove once the intermittent "not connected" issue is confirmed fixed.
-    console.log('[drive-upload-debug]', { org_id: req.user.organization_id, rows_found: linkRes.rows.length, tenant_ctx: JSON.stringify(db.getTenantContext()) });
     if (!linkRes.rows.length) {
       return res.status(403).json({
         success: false,
