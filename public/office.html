@@ -1763,6 +1763,20 @@
   </div>
 </div>
 
+<!-- Client/Agent Profile Modal: all work + full conversation history -->
+<div class="modal-backdrop hidden" id="clientProfileModal" onclick="if(event.target===this)closeModal('clientProfileModal')">
+  <div class="modal" style="max-width:920px;max-height:88vh;overflow-y:auto">
+    <div class="modal-title" style="display:flex;align-items:center;gap:10px">
+      <span id="cpTitle">Profile</span>
+      <div style="margin-left:auto;display:flex;gap:8px;flex-shrink:0">
+        <button type="button" class="btn-sm" style="background:#eef2ff;color:#4338ca" onclick="printClientProfile()">&#128424; Print</button>
+        <button type="button" class="btn-sm btn-cancel" onclick="closeModal('clientProfileModal')">Close</button>
+      </div>
+    </div>
+    <div id="cpBody"><div class="empty-msg">Loading...</div></div>
+  </div>
+</div>
+
 <!-- Add New Agent Modal -->
 <div class="modal-backdrop hidden" id="addAgentModal" onclick="if(event.target===this)closeModal('addAgentModal')">
   <div class="modal">
@@ -4479,7 +4493,7 @@ function searchClients(immediate) {
       <tr>
         <td><span class="badge b-progress">Agent</span></td>
         <td><strong>${h(a.agent_id)}</strong></td>
-        <td>${h(a.name||'--')}</td>
+        <td><a href="javascript:void(0)" onclick="openClientProfile('agent','${h(a.agent_id)}')" style="color:#2563eb;font-weight:700;text-decoration:none">${h(a.name||'--')}</a></td>
         <td>${h(a.email_id||'--')}</td>
         <td>${h(a.mobile_number||'--')}</td>
         <td><span class="badge ${a.portal_enabled&&a.portal_has_password?'b-active':'b-inactive'}">${a.portal_enabled ? (a.portal_has_password ? 'Portal On' : 'Password Missing') : 'Portal Off'}</span></td>
@@ -4494,7 +4508,7 @@ function searchClients(immediate) {
       <tr>
         <td><span class="badge b-active">Client</span></td>
         <td><strong>${h(c.client_id)}</strong></td>
-        <td>${h(c.legal_name||'--')}</td>
+        <td><a href="javascript:void(0)" onclick="openClientProfile('client','${h(c.client_id)}')" style="color:#2563eb;font-weight:700;text-decoration:none">${h(c.legal_name||'--')}</a></td>
         <td>${h(c.business_name||'--')}</td>
         <td><div>${h(c.agent_name||'--')}</div><div style="color:#64748b;font-size:12px">${h(c.mobile_number||'--')}</div></td>
         <td><span class="badge ${c.status==='Active'||!c.status?'b-active':'b-inactive'}">${h(c.status||'Active')}</span></td>
@@ -4572,16 +4586,55 @@ async function loadClientNotesEntries() {
   const data = await api(`/client-notes/${type}/${encodeURIComponent(id)}`, { cache: false });
   if (!data.success) { box.innerHTML = `<div class="empty-msg">${h(data.message || 'Could not load updates')}</div>`; return; }
   if (!data.entries.length) { box.innerHTML = '<div class="empty-msg">No updates recorded yet for this ' + type + '.</div>'; return; }
-  box.innerHTML = data.entries.map(renderClientNoteEntry).join('');
+  const latest = data.entries.slice(0, 4);
+  let html = latest.map(renderClientNoteEntry).join('');
+  if (data.entries.length > 4) {
+    html += `<div style="text-align:center;padding:6px 0 2px">
+      <button class="btn-sm" style="background:#eef2ff;color:#4338ca" onclick="closeModal('clientNotesModal');openClientProfile('${type}','${h(id)}')">
+        View all ${data.entries.length} updates &amp; full ${type} profile &rarr;
+      </button>
+    </div>`;
+  }
+  box.innerHTML = html;
+}
+
+// Shared by the quick Update Log popup and the full Client/Agent Profile —
+// filename link opens the file, the small Download button forces a save
+// (view target="_blank" only previews; cross-origin files often won't
+// download on their own even with the `download` attribute).
+function renderAttachmentChips(attachments) {
+  return (attachments || []).map(a => {
+    const isImg = /^image\//.test(a.mime_type || '');
+    const safeName = h(a.filename || 'file').replace(/'/g, "\\'");
+    return `<span style="display:inline-flex;align-items:center;gap:5px;background:#eef2f7;border-radius:7px;padding:4px 5px 4px 9px;margin:3px 5px 0 0;font-size:11.5px;color:#334155">
+      <a href="${h(a.url)}" target="_blank" rel="noopener" style="color:#334155;text-decoration:none">${isImg ? '&#128247;' : '&#128196;'} ${h(a.filename || 'file')}</a>
+      <button type="button" onclick="downloadAttachment('${h(a.url)}','${safeName}')" style="border:0;background:#4338ca;color:#fff;border-radius:5px;padding:2px 7px;font-size:10px;font-weight:800;cursor:pointer">&#11015; Download</button>
+    </span>`;
+  }).join('');
+}
+
+async function downloadAttachment(url, filename) {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Download failed');
+    const blob = await res.blob();
+    const objUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objUrl;
+    a.download = filename || 'attachment';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(objUrl), 4000);
+  } catch (e) {
+    showToast('Could not download file: ' + (e.message || 'unknown error'), 'error');
+  }
 }
 
 function renderClientNoteEntry(e) {
   const col = CN_CATEGORY_COLORS[e.category] || '#64748b';
   const dt = new Date(e.created_at).toLocaleString('en-IN', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
-  const atts = (e.attachments || []).map(a => {
-    const isImg = /^image\//.test(a.mime_type || '');
-    return `<a href="${h(a.url)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;background:#eef2f7;border-radius:7px;padding:4px 9px;margin:3px 4px 0 0;font-size:11.5px;color:#334155;text-decoration:none">${isImg ? '&#128247;' : '&#128196;'} ${h(a.filename || 'file')}</a>`;
-  }).join('');
+  const atts = renderAttachmentChips(e.attachments);
   const editedNote = e.edited_at
     ? `<div style="font-size:11px;color:#94a3b8;margin-top:4px">&#9998; Edited by ${h(e.edited_by_name || '')} on ${new Date(e.edited_at).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div>`
     : '';
@@ -4678,6 +4731,180 @@ async function deleteClientNoteEntry(id) {
   const data = await api(`/client-notes/${id}`, { method: 'DELETE' });
   showToast(data.message, data.success ? 'success' : 'error');
   loadClientNotesEntries();
+}
+
+// ── CLIENT/AGENT PROFILE (all work + full conversation history) ──
+let CP_CURRENT = null;
+
+// Indian financial year (Apr-Mar) label for a date, e.g. "FY 2025-26"
+function fyLabel(dateStr) {
+  const d = new Date(dateStr);
+  const startYear = d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1;
+  return `FY ${startYear}-${String((startYear + 1) % 100).padStart(2, '0')}`;
+}
+
+function groupNotesByFY(entries) {
+  const groups = [];
+  let currentFY = null, currentGroup = null;
+  (entries || []).forEach(e => {
+    const fy = fyLabel(e.created_at);
+    if (fy !== currentFY) { currentFY = fy; currentGroup = { fy, items: [] }; groups.push(currentGroup); }
+    currentGroup.items.push(e);
+  });
+  return groups;
+}
+
+async function openClientProfile(type, id) {
+  document.getElementById('cpTitle').textContent = type === 'agent' ? 'Agent Profile' : 'Client Profile';
+  document.getElementById('cpBody').innerHTML = '<div class="empty-msg">Loading...</div>';
+  openModal('clientProfileModal');
+  const profileUrl = type === 'agent' ? `/clients/agents/${encodeURIComponent(id)}/profile` : `/clients/${encodeURIComponent(id)}`;
+  const [profileData, notesData] = await Promise.all([
+    api(profileUrl, { cache: false }),
+    CLIENT_NOTES.enabled ? api(`/client-notes/${type}/${encodeURIComponent(id)}`, { cache: false }) : Promise.resolve({ success: false }),
+  ]);
+  if (!profileData.success) {
+    document.getElementById('cpBody').innerHTML = `<div class="empty-msg">${h(profileData.message || 'Could not load profile')}</div>`;
+    return;
+  }
+  const record = type === 'agent' ? profileData.agent : profileData.client;
+  const name = type === 'agent' ? (record.name || id) : (record.legal_name || record.business_name || id);
+  document.getElementById('cpTitle').textContent = `${type === 'agent' ? 'Agent' : 'Client'} Profile — ${name} (${id})`;
+  CP_CURRENT = {
+    type, id, name, record,
+    client_count: profileData.client_count,
+    task_summary: profileData.task_summary || [],
+    tasks: profileData.recent_tasks || [],
+    notes: notesData.success ? notesData.entries : null,
+  };
+  document.getElementById('cpBody').innerHTML = renderClientProfileBody(CP_CURRENT);
+}
+
+function renderWorkSection(cp) {
+  const summary = cp.task_summary.length
+    ? cp.task_summary.map(s => `<span class="dept-badge" style="background:#eef2ff;color:#4338ca;margin:0 6px 6px 0">${h(s.status)}: ${s.cnt}</span>`).join('')
+    : '<span style="color:#94a3b8;font-size:12.5px">No work recorded</span>';
+  const rows = (cp.tasks || []).map(t => `
+    <tr>
+      <td>${h(t.task_id)}</td>
+      <td>${h(t.work_name || '--')}</td>
+      <td><span class="badge b-active">${h(t.status || '--')}</span></td>
+      <td>${t.due_date ? new Date(t.due_date).toLocaleDateString('en-IN') : '--'}</td>
+      <td>${h(t.assigned_to_name || '--')}</td>
+    </tr>`).join('');
+  return `
+    <div style="margin-bottom:22px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+        <div style="font-weight:800;font-size:14px;color:#1e293b">All Work (${(cp.tasks || []).length})</div>
+        <button class="btn-sm" style="background:#eef2ff;color:#4338ca" onclick="printClientProfile('work')">&#128424; Print Work</button>
+      </div>
+      <div style="margin-bottom:10px">${summary}</div>
+      <div style="max-height:230px;overflow:auto;border:1px solid #e2e8f0;border-radius:10px">
+        <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+          <thead style="background:#f8fafc;position:sticky;top:0"><tr>
+            <th style="padding:8px;text-align:left">Task ID</th><th style="padding:8px;text-align:left">Work</th>
+            <th style="padding:8px;text-align:left">Status</th><th style="padding:8px;text-align:left">Due Date</th>
+            <th style="padding:8px;text-align:left">Assigned To</th>
+          </tr></thead>
+          <tbody>${rows || `<tr><td colspan="5" style="padding:14px;text-align:center;color:#94a3b8">No work recorded for this ${h(cp.type)}.</td></tr>`}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+function renderProfileNoteCard(e) {
+  const col = CN_CATEGORY_COLORS[e.category] || '#64748b';
+  const dt = new Date(e.created_at).toLocaleString('en-IN', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  const atts = renderAttachmentChips(e.attachments);
+  const editedNote = e.edited_at
+    ? `<div style="margin-top:6px;font-size:10.5px;color:#94a3b8">&#9998; Edited by ${h(e.edited_by_name || '')} on ${new Date(e.edited_at).toLocaleDateString('en-IN')}</div>` : '';
+  return `
+    <div style="position:relative;background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:13px 15px;margin-bottom:12px;box-shadow:0 6px 16px rgba(15,23,42,.08),0 1px 3px rgba(15,23,42,.05)">
+      <div style="position:absolute;left:-24px;top:18px;width:11px;height:11px;border-radius:50%;background:${col};box-shadow:0 0 0 3px #fff,0 0 0 4px ${col}44"></div>
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
+        <span class="dept-badge" style="background:${col}22;color:${col}">${h(e.category)}</span>
+        <span style="font-size:11.5px;color:#64748b">${dt}</span>
+      </div>
+      <div style="margin-top:7px;font-size:13.5px;color:#1e293b;white-space:pre-wrap">${h(e.entry_text)}</div>
+      ${atts ? `<div style="margin-top:7px">${atts}</div>` : ''}
+      <div style="margin-top:7px;font-size:11px;color:#94a3b8;font-weight:700">by ${h(e.created_by_name || '--')}</div>
+      ${editedNote}
+    </div>`;
+}
+
+function renderConversationTimeline(entries) {
+  if (!entries || !entries.length) return '<div class="empty-msg">No conversation updates recorded yet.</div>';
+  return groupNotesByFY(entries).map(g => `
+    <div style="margin-bottom:20px">
+      <div style="display:inline-block;background:linear-gradient(135deg,#4338ca,#6d28d9);color:#fff;font-weight:800;font-size:12px;padding:5px 14px;border-radius:999px;box-shadow:0 3px 10px rgba(67,56,202,.35);margin-bottom:12px">${h(g.fy)}</div>
+      <div style="border-left:3px solid #e0e7ff;padding-left:18px;margin-left:6px">
+        ${g.items.map(renderProfileNoteCard).join('')}
+      </div>
+    </div>`).join('');
+}
+
+function renderClientProfileBody(cp) {
+  const r = cp.record;
+  const header = cp.type === 'agent'
+    ? `Agent ID: <strong>${h(cp.id)}</strong> &middot; Mobile: ${h(r.mobile_number || '--')} &middot; Email: ${h(r.email_id || '--')} &middot; Clients handled: <strong>${cp.client_count ?? '--'}</strong>`
+    : `Client ID: <strong>${h(cp.id)}</strong> &middot; Mobile: ${h(r.mobile_number || '--')} &middot; Agent: ${h(r.agent_name || '--')} &middot; Status: ${h(r.status || 'Active')}`;
+  const notesSection = cp.notes === null
+    ? ''
+    : `<div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+          <div style="font-weight:800;font-size:14px;color:#1e293b">Conversation / Update Log — Full History</div>
+          <button class="btn-sm" style="background:#eef2ff;color:#4338ca" onclick="printClientProfile('conversation')">&#128424; Print Conversation</button>
+        </div>
+        ${renderConversationTimeline(cp.notes)}
+      </div>`;
+  return `
+    <div style="font-size:12.5px;color:#475569;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #e2e8f0">${header}</div>
+    ${renderWorkSection(cp)}
+    ${notesSection}`;
+}
+
+// mode: undefined/'all' = work + conversation, 'work' = work only, 'conversation' = conversation only.
+// Printed without letterhead — this is an internal work/audit record, not a client-facing document.
+function printClientProfile(mode) {
+  if (!CP_CURRENT) return;
+  const cp = CP_CURRENT;
+  const r = cp.record;
+  const title = `${cp.type === 'agent' ? 'Agent' : 'Client'} Profile - ${cp.name} (${cp.id})`;
+  const headerInfo = cp.type === 'agent'
+    ? `Agent ID: ${cp.id} | Mobile: ${r.mobile_number || '--'} | Email: ${r.email_id || '--'} | Clients handled: ${cp.client_count ?? '--'}`
+    : `Client ID: ${cp.id} | Mobile: ${r.mobile_number || '--'} | Agent: ${r.agent_name || '--'} | Status: ${r.status || 'Active'}`;
+  const workRows = (cp.tasks || []).map(t => `<tr><td>${h(t.task_id)}</td><td>${h(t.work_name || '--')}</td><td>${h(t.status || '--')}</td><td>${t.due_date ? new Date(t.due_date).toLocaleDateString('en-IN') : '--'}</td><td>${h(t.assigned_to_name || '--')}</td></tr>`).join('')
+    || '<tr><td colspan="5">No work recorded.</td></tr>';
+  let notesHtml = '<p style="color:#94a3b8">No conversation updates recorded.</p>';
+  if (cp.notes && cp.notes.length) {
+    notesHtml = groupNotesByFY(cp.notes).map(g => `
+      <h3 style="background:#4338ca;color:#fff;padding:6px 12px;border-radius:6px;font-size:13px;margin:18px 0 8px">${h(g.fy)}</h3>
+      ${g.items.map(e => `
+        <div style="border:1px solid #ccc;border-radius:8px;padding:10px 12px;margin-bottom:10px;page-break-inside:avoid">
+          <div style="font-size:11px;color:#555"><strong>${h(e.category)}</strong> &middot; ${new Date(e.created_at).toLocaleString('en-IN')} &middot; by ${h(e.created_by_name || '--')}</div>
+          <div style="margin-top:6px;font-size:13px;white-space:pre-wrap">${h(e.entry_text)}</div>
+          ${(e.attachments || []).length ? `<div style="margin-top:6px;font-size:11px;color:#555">Attachments: ${e.attachments.map(a => h(a.filename || 'file')).join(', ')}</div>` : ''}
+        </div>`).join('')}
+    `).join('');
+  }
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${h(title)}</title>
+    <style>
+      body{font-family:Arial,sans-serif;color:#1e293b;padding:28px}
+      h1{font-size:18px;margin:0 0 4px}
+      h2{font-size:14px;margin-top:22px}
+      table{width:100%;border-collapse:collapse;margin-top:8px;font-size:12px}
+      th,td{border:1px solid #ccc;padding:6px 8px;text-align:left}
+      th{background:#f1f5f9}
+    </style></head><body>
+    <h1>${h(title)}</h1>
+    <div style="font-size:12.5px;color:#475569;margin-bottom:14px">${h(headerInfo)}</div>
+    ${mode === 'conversation' ? '' : `<h2>All Work</h2><table><thead><tr><th>Task ID</th><th>Work</th><th>Status</th><th>Due Date</th><th>Assigned To</th></tr></thead><tbody>${workRows}</tbody></table>`}
+    ${mode === 'work' ? '' : `<h2>Conversation / Update Log</h2>${notesHtml}`}
+  </body></html>`;
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const win = window.open(url, '_blank');
+  if (win) { win.onload = () => { win.print(); }; }
 }
 
 function editAgentById(id) {

@@ -86,6 +86,39 @@ router.get('/agents', authMiddleware, async (req, res) => {
   }
 });
 
+// ── GET /api/clients/agents/:id/profile (work status for one agent) ─
+router.get('/agents/:id/profile', authMiddleware, async (req, res) => {
+  try {
+    const agent = await db.query('SELECT * FROM agents WHERE agent_id=$1', [req.params.id]);
+    if (!agent.rows.length) return res.status(404).json({ success: false, message: 'Agent not found' });
+
+    const clientCount = await db.query(
+      `SELECT COUNT(*) FROM clients WHERE agent_id=$1`,
+      [req.params.id]
+    );
+    const tasks = await db.query(
+      `SELECT status, COUNT(*) as cnt FROM tasks WHERE agent_id=$1 AND active_flag=true GROUP BY status ORDER BY cnt DESC`,
+      [req.params.id]
+    );
+    const recent = await db.query(
+      `SELECT task_id, work_name, status, due_date, assigned_to_name, client_id, legal_name, business_name, created_at
+       FROM tasks WHERE agent_id=$1 AND active_flag=true ORDER BY created_at DESC LIMIT 300`,
+      [req.params.id]
+    );
+
+    res.json({
+      success: true,
+      agent: agent.rows[0],
+      client_count: parseInt(clientCount.rows[0].count, 10) || 0,
+      task_summary: tasks.rows,
+      recent_tasks: recent.rows,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 // ── PUT /api/clients/agents/:id/portal ───────────────────────
 router.put('/agents/:id/portal', authMiddleware, async (req, res) => {
   const { portal_enabled, password } = req.body;
@@ -286,7 +319,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
     );
     const recent = await db.query(
       `SELECT task_id, work_name, status, due_date, assigned_to_name, created_at
-       FROM tasks WHERE client_id=$1 AND active_flag=true ORDER BY created_at DESC LIMIT 10`,
+       FROM tasks WHERE client_id=$1 AND active_flag=true ORDER BY created_at DESC LIMIT 300`,
       [req.params.id]
     );
 
