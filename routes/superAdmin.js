@@ -159,6 +159,7 @@ router.get('/organizations', superAdminAuth, async (req, res) => {
               COALESCE((SELECT access_level FROM organization_feature_access fa WHERE fa.organization_id=o.id AND fa.feature_key='billing'), 'none') AS billing_access,
               COALESCE((SELECT access_level FROM organization_feature_access fa WHERE fa.organization_id=o.id AND fa.feature_key='lead_management'), 'none') AS lead_management_access,
               COALESCE((SELECT access_level FROM organization_feature_access fa WHERE fa.organization_id=o.id AND fa.feature_key='client_conversation_log'), 'none') AS client_conversation_log_access,
+              COALESCE((SELECT access_level FROM organization_feature_access fa WHERE fa.organization_id=o.id AND fa.feature_key='client_document_management'), 'none') AS client_document_management_access,
               (SELECT COUNT(*)::int FROM emplist e WHERE e.organization_id=o.id) AS employees,
               (SELECT COUNT(*)::int FROM clients c WHERE c.organization_id=o.id) AS clients,
               (SELECT COUNT(*)::int FROM tasks t WHERE t.organization_id=o.id) AS tasks
@@ -258,6 +259,30 @@ router.put('/organizations/:id/features/client-conversation-log', superAdminAuth
   } catch (err) {
     console.error('[super-admin client conversation log access]', err);
     res.status(500).json({ success: false, message: 'Client Update Log access update failed' });
+  }
+});
+
+router.put('/organizations/:id/features/client-document-management', superAdminAuth, async (req, res) => {
+  const accessLevel = clean(req.body.access_level).toLowerCase();
+  if (!['none', 'view', 'full'].includes(accessLevel)) {
+    return res.status(400).json({ success: false, message: 'Client Document Management access must be none, view or full' });
+  }
+  try {
+    const org = await db.query(`SELECT id FROM organizations WHERE id=$1`, [req.params.id]);
+    if (!org.rows.length) return res.status(404).json({ success: false, message: 'Organisation not found' });
+    const feature = await db.query(
+      `INSERT INTO organization_feature_access
+        (organization_id, feature_key, access_level, updated_by)
+       VALUES ($1,'client_document_management',$2,$3)
+       ON CONFLICT (organization_id, feature_key)
+       DO UPDATE SET access_level=EXCLUDED.access_level, updated_by=EXCLUDED.updated_by, updated_at=NOW()
+       RETURNING *`,
+      [req.params.id, accessLevel, req.superAdmin.id]
+    );
+    res.json({ success: true, message: 'Client Document Management access updated', feature: feature.rows[0] });
+  } catch (err) {
+    console.error('[super-admin client document management access]', err);
+    res.status(500).json({ success: false, message: 'Client Document Management access update failed' });
   }
 });
 

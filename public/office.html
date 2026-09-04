@@ -1764,6 +1764,36 @@
   </div>
 </div>
 
+<!-- Client/Agent Document Management Modal -->
+<div class="modal-backdrop hidden" id="clientDocsModal" onclick="if(event.target===this)closeModal('clientDocsModal')">
+  <div class="modal" style="max-width:820px">
+    <div class="modal-title">
+      &#128193; Manage Documents <small id="cdPartyName" style="font-weight:600;color:#64748b;font-size:14px"></small>
+      <button type="button" class="btn-sm btn-cancel" onclick="closeModal('clientDocsModal')" style="margin-left:auto">Close</button>
+    </div>
+    <input type="hidden" id="cd_party_type"/>
+    <input type="hidden" id="cd_party_id"/>
+
+    <div id="cdAddForm" style="border:1px solid #e2e8f0;border-radius:10px;padding:14px;background:#fff;margin-bottom:14px">
+      <div style="font-weight:800;font-size:13px;color:#334155;margin-bottom:8px">Add Document</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <select id="cd_fy" style="padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px"></select>
+        <select id="cd_type" onchange="cdTypeChange()" style="padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;flex:1;min-width:160px"></select>
+        <input type="text" id="cd_custom_name" placeholder="Document name" class="hidden" style="padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;flex:1;min-width:160px"/>
+      </div>
+      <textarea id="cd_description" rows="2" placeholder="Description (optional)" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box;margin-bottom:8px"></textarea>
+      <input type="file" id="cd_file" accept="image/png,image/jpeg,image/webp,application/pdf" style="font-size:12px"/>
+      <div style="font-size:10.5px;color:#94a3b8;margin:4px 0 8px">Images or PDF, max 5MB</div>
+      <div id="cdPendingFile" style="margin-bottom:6px;font-size:12px;color:#64748b"></div>
+      <div id="cdErr" class="hidden" style="color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 10px;font-size:12.5px;margin-top:4px;font-weight:700"></div>
+      <button class="btn-sm" id="cdSaveBtn" style="background:#0891b2;color:#fff;margin-top:10px" onclick="submitClientDocument()">Save Document</button>
+    </div>
+    <p class="hidden" id="cdViewOnlyNote" style="font-size:12.5px;color:#94a3b8;margin-bottom:10px">This organisation has view-only access to Document Management.</p>
+
+    <div id="cdList" style="max-height:400px;overflow-y:auto"></div>
+  </div>
+</div>
+
 <!-- Client/Agent Profile Modal: all work + full conversation history -->
 <!-- z-index below the default 1000 so a task/edit modal opened from within this
      popup (Task/Mark Status, Add Client, etc.) always stacks visibly on top of it -->
@@ -2851,6 +2881,7 @@ function jsArg(v) {
 // ── META ─────────────────────────────────────────────────────
 let META = { work_names:[], statuses:[], priorities:[], employees:[] };
 let CLIENT_NOTES = { enabled:false, access_level:'none', is_admin:false, categories:[] };
+let CLIENT_DOCS = { enabled:false, access_level:'none', is_admin:false, document_types:[], fy_options:[], current_fy:'' };
 let DEPT_GROUPS = {};
 function workNameText(work) {
   return typeof work === 'string' ? work : (work?.name || '');
@@ -4510,6 +4541,7 @@ function searchClients(immediate) {
           <button class="btn-sm btn-edit" onclick="editAgentById('${h(a.agent_id)}')">Edit</button>
           <button class="btn-sm btn-green" onclick="openPortalAccessById('agent','${h(a.agent_id)}')">Portal</button>
           ${CLIENT_NOTES.enabled ? `<button class="btn-sm" style="background:#7c3aed;color:#fff" onclick="openClientNotes('agent','${h(a.agent_id)}','${h((a.name||a.agent_id)).replace(/'/g,"\\'")}')">&#128221; Update Log</button>` : ''}
+          ${CLIENT_DOCS.enabled ? `<button class="btn-sm" style="background:#0891b2;color:#fff" onclick="openClientDocuments('agent','${h(a.agent_id)}','${h((a.name||a.agent_id)).replace(/'/g,"\\'")}')">&#128193; Documents</button>` : ''}
         </td>
       </tr>`);
     const clientRows = clients.map(c => `
@@ -4525,6 +4557,7 @@ function searchClients(immediate) {
           <button class="btn-sm btn-edit" onclick="editClientById('${h(c.client_id)}')">Edit</button>
           <button class="btn-sm btn-green" onclick="openPortalAccessById('client','${h(c.client_id)}')">Portal</button>
           ${CLIENT_NOTES.enabled ? `<button class="btn-sm" style="background:#7c3aed;color:#fff" onclick="openClientNotes('client','${h(c.client_id)}','${h((c.legal_name||c.business_name||c.client_id)).replace(/'/g,"\\'")}')">&#128221; Update Log</button>` : ''}
+          ${CLIENT_DOCS.enabled ? `<button class="btn-sm" style="background:#0891b2;color:#fff" onclick="openClientDocuments('client','${h(c.client_id)}','${h((c.legal_name||c.business_name||c.client_id)).replace(/'/g,"\\'")}')">&#128193; Documents</button>` : ''}
         </td>
       </tr>`);
     const rows = [...agentRows, ...clientRows];
@@ -4632,30 +4665,34 @@ function renderAttachmentChips(attachments) {
     // account, so we go through our own server proxy instead (works for any
     // logged-in GeeBharat user, no Google login needed). Older attachments
     // that were saved before Drive linking still use their direct URL.
-    const isDrive = !!a.drive_file_id;
-    const ref = isDrive ? a.drive_file_id : a.url;
-    const safeRef = h(ref).replace(/'/g, "\\'");
+    const path = a.drive_file_id ? `/api/client-notes/attachment/${encodeURIComponent(a.drive_file_id)}` : a.url;
+    const safePath = h(path).replace(/'/g, "\\'");
     return `<span style="display:inline-flex;align-items:center;gap:5px;background:#eef2f7;border-radius:7px;padding:4px 5px 4px 9px;margin:3px 5px 0 0;font-size:11.5px;color:#334155">
-      <a href="javascript:void(0)" onclick="viewAttachment('${safeRef}','${safeName}',${isDrive})" style="color:#334155;text-decoration:none">${isImg ? '&#128247;' : '&#128196;'} ${h(a.filename || 'file')}</a>
-      <button type="button" onclick="downloadAttachment('${safeRef}','${safeName}',${isDrive})" style="border:0;background:#4338ca;color:#fff;border-radius:5px;padding:2px 7px;font-size:10px;font-weight:800;cursor:pointer">&#11015; Download</button>
+      <a href="javascript:void(0)" onclick="viewFile('${safePath}','${safeName}')" style="color:#334155;text-decoration:none">${isImg ? '&#128247;' : '&#128196;'} ${h(a.filename || 'file')}</a>
+      <button type="button" onclick="downloadFile('${safePath}','${safeName}')" style="border:0;background:#4338ca;color:#fff;border-radius:5px;padding:2px 7px;font-size:10px;font-weight:800;cursor:pointer">&#11015; Download</button>
     </span>`;
   }).join('');
 }
 
-async function fetchAttachmentBlob(ref, isDrive) {
-  if (isDrive) {
-    const res = await GBSession.fetch(`/api/client-notes/attachment/${encodeURIComponent(ref)}`, {}, 'office');
+// Shared by Client Update Log attachments and Client Document Management —
+// `path` is either a same-origin API path (needs our own auth header, e.g.
+// '/api/client-notes/attachment/xyz' or '/api/client-documents/attachment/xyz')
+// or a legacy public Blob URL (no auth needed), told apart by whether it
+// starts with http(s).
+async function fetchFileBlob(path) {
+  if (/^https?:\/\//.test(path)) {
+    const res = await fetch(path);
     if (!res.ok) throw new Error('Could not load file');
     return res.blob();
   }
-  const res = await fetch(ref); // legacy public Blob URL, no auth needed
+  const res = await GBSession.fetch(path, {}, 'office');
   if (!res.ok) throw new Error('Could not load file');
   return res.blob();
 }
 
-async function viewAttachment(ref, filename, isDrive) {
+async function viewFile(path, filename) {
   try {
-    const blob = await fetchAttachmentBlob(ref, isDrive);
+    const blob = await fetchFileBlob(path);
     const objUrl = URL.createObjectURL(blob);
     window.open(objUrl, '_blank');
     setTimeout(() => URL.revokeObjectURL(objUrl), 30000);
@@ -4664,9 +4701,9 @@ async function viewAttachment(ref, filename, isDrive) {
   }
 }
 
-async function downloadAttachment(ref, filename, isDrive) {
+async function downloadFile(path, filename) {
   try {
-    const blob = await fetchAttachmentBlob(ref, isDrive);
+    const blob = await fetchFileBlob(path);
     const objUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = objUrl;
@@ -4780,6 +4817,138 @@ async function deleteClientNoteEntry(id) {
   const data = await api(`/client-notes/${id}`, { method: 'DELETE' });
   showToast(data.message, data.success ? 'success' : 'error');
   loadClientNotesEntries();
+}
+
+// ── CLIENT/AGENT DOCUMENT MANAGEMENT ───────────────────────────
+let cdPendingFile = null;
+
+async function openClientDocuments(type, id, name) {
+  document.getElementById('cd_party_type').value = type;
+  document.getElementById('cd_party_id').value = id;
+  document.getElementById('cdPartyName').textContent = `— ${name} (${id})`;
+  const fySel = document.getElementById('cd_fy');
+  fySel.innerHTML = (CLIENT_DOCS.fy_options || []).map(fy => `<option value="${h(fy)}" ${fy === CLIENT_DOCS.current_fy ? 'selected' : ''}>${h(fy)}</option>`).join('');
+  const typeSel = document.getElementById('cd_type');
+  typeSel.innerHTML = (CLIENT_DOCS.document_types || []).map(t => `<option value="${h(t)}">${h(t)}</option>`).join('');
+  document.getElementById('cd_custom_name').value = '';
+  document.getElementById('cd_custom_name').classList.add('hidden');
+  document.getElementById('cd_description').value = '';
+  document.getElementById('cd_file').value = '';
+  cdPendingFile = null;
+  document.getElementById('cdPendingFile').textContent = '';
+  document.getElementById('cdErr').classList.add('hidden');
+  const canWrite = CLIENT_DOCS.access_level === 'full';
+  document.getElementById('cdAddForm').classList.toggle('hidden', !canWrite);
+  document.getElementById('cdViewOnlyNote').classList.toggle('hidden', canWrite);
+  openModal('clientDocsModal');
+  loadClientDocsList();
+}
+
+function cdTypeChange() {
+  const isOther = document.getElementById('cd_type').value === 'Other';
+  document.getElementById('cd_custom_name').classList.toggle('hidden', !isOther);
+}
+
+document.getElementById('cd_file')?.addEventListener('change', (e) => {
+  const files = filterOversizeFiles(e.target.files || []);
+  cdPendingFile = files[0] || null;
+  document.getElementById('cdPendingFile').textContent = cdPendingFile ? `Selected: ${cdPendingFile.name}` : '';
+});
+
+async function loadClientDocsList() {
+  const type = document.getElementById('cd_party_type').value;
+  const id = document.getElementById('cd_party_id').value;
+  const box = document.getElementById('cdList');
+  box.innerHTML = '<div class="empty-msg">Loading...</div>';
+  const data = await api(`/client-documents/${type}/${encodeURIComponent(id)}`, { cache: false });
+  if (!data.success) { box.innerHTML = `<div class="empty-msg">${h(data.message || 'Could not load documents')}</div>`; return; }
+  if (!data.documents.length) { box.innerHTML = '<div class="empty-msg">No documents uploaded yet for this ' + type + '.</div>'; return; }
+  const groups = [];
+  let curFY = null, curGroup = null;
+  data.documents.forEach(d => {
+    if (d.financial_year !== curFY) { curFY = d.financial_year; curGroup = { fy: curFY, items: [] }; groups.push(curGroup); }
+    curGroup.items.push(d);
+  });
+  box.innerHTML = groups.map(g => `
+    <div style="margin-bottom:16px">
+      <div style="display:inline-block;background:linear-gradient(135deg,#0891b2,#0e7490);color:#fff;font-weight:800;font-size:12px;padding:5px 14px;border-radius:999px;margin-bottom:10px">FY ${h(g.fy)}</div>
+      ${g.items.map(renderClientDocRow).join('')}
+    </div>`).join('');
+}
+
+function renderClientDocRow(d) {
+  const path = `/api/client-documents/attachment/${encodeURIComponent(d.drive_file_id)}`;
+  const safePath = h(path).replace(/'/g, "\\'");
+  const safeName = h(d.filename || d.document_name).replace(/'/g, "\\'");
+  const dt = new Date(d.uploaded_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  return `
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:11px 13px;margin-bottom:9px">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div>
+          <strong style="font-size:13.5px;color:#1e293b">${h(d.document_name)}</strong>
+          <div style="font-size:11px;color:#64748b;margin-top:2px">Uploaded ${dt} by ${h(d.uploaded_by_name || '--')}</div>
+          ${d.description ? `<div style="font-size:12.5px;color:#475569;margin-top:5px">${h(d.description)}</div>` : ''}
+        </div>
+        <div style="white-space:nowrap;display:flex;gap:6px;align-self:flex-start">
+          <button class="btn-sm" style="background:#eef2ff;color:#0891b2;padding:3px 9px;font-size:11px" onclick="viewFile('${safePath}','${safeName}')">View</button>
+          <button class="btn-sm" style="background:#4338ca;color:#fff;padding:3px 9px;font-size:11px" onclick="downloadFile('${safePath}','${safeName}')">Download</button>
+          ${CLIENT_DOCS.is_admin ? `<button class="btn-danger" style="padding:3px 9px;font-size:11px" onclick="deleteClientDocument(${d.id})">Delete</button>` : ''}
+        </div>
+      </div>
+    </div>`;
+}
+
+async function submitClientDocument() {
+  const err = document.getElementById('cdErr');
+  err.classList.add('hidden');
+  const typeSel = document.getElementById('cd_type').value;
+  const customName = document.getElementById('cd_custom_name').value.trim();
+  const documentName = typeSel === 'Other' ? customName : typeSel;
+  if (!documentName) { err.textContent = 'Please select a document type or enter a name.'; err.classList.remove('hidden'); return; }
+  if (!cdPendingFile) { err.textContent = 'Please choose a file to upload.'; err.classList.remove('hidden'); return; }
+  const btn = document.getElementById('cdSaveBtn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const fd = new FormData();
+    fd.append('file', cdPendingFile);
+    const up = await api('/client-documents/upload', { method: 'POST', body: fd });
+    if (!up.success) throw new Error(up.message || 'Upload failed');
+    const data = await api('/client-documents', {
+      method: 'POST',
+      body: JSON.stringify({
+        type: document.getElementById('cd_party_type').value,
+        id: document.getElementById('cd_party_id').value,
+        financial_year: document.getElementById('cd_fy').value,
+        document_name: documentName,
+        description: document.getElementById('cd_description').value.trim(),
+        drive_file_id: up.attachment.drive_file_id,
+        filename: up.attachment.filename,
+        mime_type: up.attachment.mime_type,
+        size_bytes: up.attachment.size_bytes,
+      }),
+    });
+    if (!data.success) { err.textContent = data.message || 'Could not save.'; err.classList.remove('hidden'); return; }
+    document.getElementById('cd_custom_name').value = '';
+    document.getElementById('cd_custom_name').classList.add('hidden');
+    document.getElementById('cd_type').selectedIndex = 0;
+    document.getElementById('cd_description').value = '';
+    document.getElementById('cd_file').value = '';
+    cdPendingFile = null;
+    document.getElementById('cdPendingFile').textContent = '';
+    showToast('Document saved', 'success');
+    loadClientDocsList();
+  } catch (e) {
+    err.textContent = e.message || 'Could not save.'; err.classList.remove('hidden');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save Document';
+  }
+}
+
+async function deleteClientDocument(id) {
+  if (!confirm('Delete this document permanently? This cannot be undone.')) return;
+  const data = await api(`/client-documents/${id}`, { method: 'DELETE' });
+  showToast(data.message, data.success ? 'success' : 'error');
+  loadClientDocsList();
 }
 
 // ── CLIENT/AGENT PROFILE (all work + full conversation history) ──
@@ -7973,9 +8142,19 @@ async function loadClientNotesAccess() {
   } catch { /* feature not enabled for this org — buttons stay hidden */ }
 }
 
+async function loadClientDocsAccess() {
+  try {
+    const data = await api('/client-documents/categories');
+    if (data.success) {
+      CLIENT_DOCS = { enabled: true, access_level: data.access_level, is_admin: data.is_admin, document_types: data.document_types, fy_options: data.fy_options, current_fy: data.current_fy };
+    }
+  } catch { /* feature not enabled for this org — buttons stay hidden */ }
+}
+
 async function initOfficeApp() {
   await loadMeta();
   await loadClientNotesAccess();
+  await loadClientDocsAccess();
   await loadDashboard();
   panelLoaded['dashboard'] = true;
   try {

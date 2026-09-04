@@ -346,10 +346,16 @@
               <option value="full" ${o.lead_management_access === 'full' ? 'selected' : ''}>Full Access</option>
             </select>
             <small style="display:block;color:#63728a;font-weight:800;margin-bottom:4px">Client Update Log</small>
-            <select onchange="updateClientConversationLogAccess(${o.id}, this.value)" style="width:145px;padding:7px 8px;border:1px solid #d8e0ec;border-radius:8px;font-weight:700">
+            <select onchange="updateClientConversationLogAccess(${o.id}, this.value)" style="width:145px;padding:7px 8px;border:1px solid #d8e0ec;border-radius:8px;font-weight:700;margin-bottom:8px">
               <option value="none" ${o.client_conversation_log_access === 'none' ? 'selected' : ''}>No Access</option>
               <option value="view" ${o.client_conversation_log_access === 'view' ? 'selected' : ''}>View Only</option>
               <option value="full" ${o.client_conversation_log_access === 'full' ? 'selected' : ''}>Full Access</option>
+            </select>
+            <small style="display:block;color:#63728a;font-weight:800;margin-bottom:4px">Client Documents</small>
+            <select onchange="updateClientDocumentManagementAccess(${o.id}, this.value)" style="width:145px;padding:7px 8px;border:1px solid #d8e0ec;border-radius:8px;font-weight:700">
+              <option value="none" ${o.client_document_management_access === 'none' ? 'selected' : ''}>No Access</option>
+              <option value="view" ${o.client_document_management_access === 'view' ? 'selected' : ''}>View Only</option>
+              <option value="full" ${o.client_document_management_access === 'full' ? 'selected' : ''}>Full Access</option>
             </select>
           </td>
           <td><button class="btn btn-dark" onclick="updateSubscription(${o.id})">Subscription</button></td>
@@ -466,6 +472,14 @@
         body: JSON.stringify({ access_level: accessLevel })
       });
       showMsg(data.message || (data.success ? 'Client Update Log access updated' : 'Client Update Log access update failed'), !!data.success);
+      if (data.success) loadOrganizations();
+    }
+    async function updateClientDocumentManagementAccess(id, accessLevel) {
+      const data = await api('/organizations/' + id + '/features/client-document-management', {
+        method: 'PUT',
+        body: JSON.stringify({ access_level: accessLevel })
+      });
+      showMsg(data.message || (data.success ? 'Client Document Management access updated' : 'Client Document Management access update failed'), !!data.success);
       if (data.success) loadOrganizations();
     }
     async function loadMcaFormats() {

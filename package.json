@@ -71,6 +71,8 @@
     "assessment-resume:migrate:apply": "node scripts/assessment_resume_migrate.js --apply",
     "google-drive:migrate": "node scripts/google_drive_migrate.js",
     "google-drive:migrate:apply": "node scripts/google_drive_migrate.js --apply",
+    "client-documents:migrate": "node scripts/client_documents_migrate.js",
+    "client-documents:migrate:apply": "node scripts/client_documents_migrate.js --apply",
     "task-department:backfill": "node scripts/task_department_backfill.js",
     "task-department:backfill:apply": "node scripts/task_department_backfill.js --apply",
     "work-names:import": "node scripts/work_names_master_import.js",
