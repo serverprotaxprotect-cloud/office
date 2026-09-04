@@ -1764,7 +1764,9 @@
 </div>
 
 <!-- Client/Agent Profile Modal: all work + full conversation history -->
-<div class="modal-backdrop hidden" id="clientProfileModal" onclick="if(event.target===this)closeModal('clientProfileModal')">
+<!-- z-index below the default 1000 so a task/edit modal opened from within this
+     popup (Task/Mark Status, Add Client, etc.) always stacks visibly on top of it -->
+<div class="modal-backdrop hidden" id="clientProfileModal" style="z-index:999" onclick="if(event.target===this)closeModal('clientProfileModal')">
   <div class="modal" style="max-width:920px;max-height:88vh;overflow-y:auto">
     <div class="modal-title" style="display:flex;align-items:center;gap:10px">
       <span id="cpTitle">Profile</span>
@@ -3944,6 +3946,11 @@ async function submitUpdateTask() {
   showToast(data.message, data.success ? 'success' : 'error');
   if (data.success) {
     refreshTaskPanels();
+    // If a Client/Agent Profile popup is open, refresh its work list too
+    // so the status change shows up there without closing it.
+    if (CP_CURRENT && !document.getElementById('clientProfileModal').classList.contains('hidden')) {
+      openClientProfile(CP_CURRENT.type, CP_CURRENT.id);
+    }
   }
 }
 
@@ -4660,9 +4667,9 @@ function renderClientNoteEntry(e) {
     </div>`;
 }
 
-async function uploadClientNoteFiles() {
+async function uploadClientNoteFiles(files = cnPendingFiles) {
   const uploaded = [];
-  for (const file of cnPendingFiles) {
+  for (const file of files) {
     const fd = new FormData();
     fd.append('file', file);
     const res = await api('/client-notes/upload', { method: 'POST', body: fd });
@@ -4780,6 +4787,55 @@ async function openClientProfile(type, id) {
   document.getElementById('cpBody').innerHTML = renderClientProfileBody(CP_CURRENT);
 }
 
+// Add-update form embedded directly in the profile popup (separate ids/state
+// from the quick Update Log popup's cn_* fields since both can exist in the DOM).
+let cpPendingFiles = [];
+
+function cpFileChange(el) {
+  cpPendingFiles = [...(el.files || [])];
+  const box = document.getElementById('cpPendingFiles');
+  if (box) box.textContent = cpPendingFiles.length
+    ? `${cpPendingFiles.length} file(s) selected: ${cpPendingFiles.map(f => f.name).join(', ')}`
+    : '';
+}
+
+async function submitClientNoteFromProfile() {
+  if (!CP_CURRENT) return;
+  const err = document.getElementById('cpErr');
+  err.classList.add('hidden');
+  const text = document.getElementById('cp_text').value.trim();
+  if (!text) { err.textContent = 'Please write the update before saving.'; err.classList.remove('hidden'); return; }
+  const btn = document.getElementById('cpSaveBtn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const attachments = await uploadClientNoteFiles(cpPendingFiles);
+    const data = await api('/client-notes', {
+      method: 'POST',
+      body: JSON.stringify({
+        type: CP_CURRENT.type,
+        id: CP_CURRENT.id,
+        category: document.getElementById('cp_category').value,
+        entry_text: text,
+        attachments,
+      }),
+    });
+    if (!data.success) { err.textContent = data.message || 'Could not save.'; err.classList.remove('hidden'); return; }
+    cpPendingFiles = [];
+    showToast('Update saved and locked after 10 minutes', 'success');
+    // Merge the freshly created entry straight into local state and re-render,
+    // instead of trusting an immediate re-fetch (this page fires a lot of
+    // concurrent background polling, and an immediate GET can occasionally
+    // race with it) — instant, reliable feedback either way.
+    CP_CURRENT.notes = [data.entry, ...(CP_CURRENT.notes || [])];
+    document.getElementById('cpBody').innerHTML = renderClientProfileBody(CP_CURRENT);
+  } catch (e) {
+    err.textContent = e.message || 'Could not save.'; err.classList.remove('hidden');
+  } finally {
+    const b = document.getElementById('cpSaveBtn');
+    if (b) { b.disabled = false; b.textContent = 'Save Update'; }
+  }
+}
+
 function renderWorkSection(cp) {
   const summary = cp.task_summary.length
     ? cp.task_summary.map(s => `<span class="dept-badge" style="background:#eef2ff;color:#4338ca;margin:0 6px 6px 0">${h(s.status)}: ${s.cnt}</span>`).join('')
@@ -4791,6 +4847,7 @@ function renderWorkSection(cp) {
       <td><span class="badge b-active">${h(t.status || '--')}</span></td>
       <td>${t.due_date ? new Date(t.due_date).toLocaleDateString('en-IN') : '--'}</td>
       <td>${h(t.assigned_to_name || '--')}</td>
+      <td><button class="btn-sm btn-view" style="padding:3px 9px;font-size:11px" onclick="viewTask('${h(t.task_id)}')">Task / Mark Status</button></td>
     </tr>`).join('');
   return `
     <div style="margin-bottom:22px">
@@ -4804,9 +4861,9 @@ function renderWorkSection(cp) {
           <thead style="background:#f8fafc;position:sticky;top:0"><tr>
             <th style="padding:8px;text-align:left">Task ID</th><th style="padding:8px;text-align:left">Work</th>
             <th style="padding:8px;text-align:left">Status</th><th style="padding:8px;text-align:left">Due Date</th>
-            <th style="padding:8px;text-align:left">Assigned To</th>
+            <th style="padding:8px;text-align:left">Assigned To</th><th style="padding:8px;text-align:left">Action</th>
           </tr></thead>
-          <tbody>${rows || `<tr><td colspan="5" style="padding:14px;text-align:center;color:#94a3b8">No work recorded for this ${h(cp.type)}.</td></tr>`}</tbody>
+          <tbody>${rows || `<tr><td colspan="6" style="padding:14px;text-align:center;color:#94a3b8">No work recorded for this ${h(cp.type)}.</td></tr>`}</tbody>
         </table>
       </div>
     </div>`;
@@ -4848,6 +4905,19 @@ function renderClientProfileBody(cp) {
   const header = cp.type === 'agent'
     ? `Agent ID: <strong>${h(cp.id)}</strong> &middot; Mobile: ${h(r.mobile_number || '--')} &middot; Email: ${h(r.email_id || '--')} &middot; Clients handled: <strong>${cp.client_count ?? '--'}</strong>`
     : `Client ID: <strong>${h(cp.id)}</strong> &middot; Mobile: ${h(r.mobile_number || '--')} &middot; Agent: ${h(r.agent_name || '--')} &middot; Status: ${h(r.status || 'Active')}`;
+  const canWriteNotes = cp.notes !== null && CLIENT_NOTES.access_level === 'full';
+  const addUpdateBox = canWriteNotes ? `
+    <div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px;background:#fff;margin-bottom:16px">
+      <div style="font-weight:800;font-size:12.5px;color:#334155;margin-bottom:8px">Add Update</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <select id="cp_category" style="padding:7px 9px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12.5px">${CLIENT_NOTES.categories.map(c => `<option value="${h(c)}">${h(c)}</option>`).join('')}</select>
+        <input type="file" id="cp_file" accept="image/png,image/jpeg,image/webp,application/pdf" multiple style="font-size:11.5px" onchange="cpFileChange(this)"/>
+      </div>
+      <textarea id="cp_text" rows="3" placeholder="What did the client say? What was decided?" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box"></textarea>
+      <div id="cpPendingFiles" style="margin-top:5px;font-size:11.5px;color:#64748b"></div>
+      <div id="cpErr" class="hidden" style="color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:7px 9px;font-size:12px;margin-top:7px;font-weight:700"></div>
+      <button class="btn-sm" id="cpSaveBtn" style="background:#7c3aed;color:#fff;margin-top:9px" onclick="submitClientNoteFromProfile()">Save Update</button>
+    </div>` : '';
   const notesSection = cp.notes === null
     ? ''
     : `<div>
@@ -4855,6 +4925,7 @@ function renderClientProfileBody(cp) {
           <div style="font-weight:800;font-size:14px;color:#1e293b">Conversation / Update Log — Full History</div>
           <button class="btn-sm" style="background:#eef2ff;color:#4338ca" onclick="printClientProfile('conversation')">&#128424; Print Conversation</button>
         </div>
+        ${addUpdateBox}
         ${renderConversationTimeline(cp.notes)}
       </div>`;
   return `
