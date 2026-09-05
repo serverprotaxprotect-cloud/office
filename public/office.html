@@ -4850,11 +4850,13 @@ function renderClientNoteEntry(e) {
     </div>`;
 }
 
-async function uploadClientNoteFiles(files = cnPendingFiles) {
+async function uploadClientNoteFiles(files = cnPendingFiles, partyType, partyId) {
   const uploaded = [];
   for (const file of files) {
     const fd = new FormData();
     fd.append('file', file);
+    fd.append('type', partyType);
+    fd.append('id', partyId);
     const res = await api('/client-notes/upload', { method: 'POST', body: fd });
     if (!res.success) throw new Error(res.message || `Could not upload ${file.name}`);
     uploaded.push(res.attachment);
@@ -4870,7 +4872,7 @@ async function submitClientNote() {
   const btn = document.getElementById('cnSaveBtn');
   btn.disabled = true; btn.textContent = 'Saving...';
   try {
-    const attachments = await uploadClientNoteFiles();
+    const attachments = await uploadClientNoteFiles(cnPendingFiles, document.getElementById('cn_party_type').value, document.getElementById('cn_party_id').value);
     const data = await api('/client-notes', {
       method: 'POST',
       body: JSON.stringify({
@@ -5015,6 +5017,8 @@ async function submitClientDocument() {
   try {
     const fd = new FormData();
     fd.append('file', cdPendingFile);
+    fd.append('type', document.getElementById('cd_party_type').value);
+    fd.append('id', document.getElementById('cd_party_id').value);
     const up = await api('/client-documents/upload', { method: 'POST', body: fd });
     if (!up.success) throw new Error(up.message || 'Upload failed');
     const data = await api('/client-documents', {
@@ -5374,7 +5378,7 @@ async function submitClientNoteFromProfile() {
   const btn = document.getElementById('cpSaveBtn');
   btn.disabled = true; btn.textContent = 'Saving...';
   try {
-    const attachments = await uploadClientNoteFiles(cpPendingFiles);
+    const attachments = await uploadClientNoteFiles(cpPendingFiles, CP_CURRENT.type, CP_CURRENT.id);
     const data = await api('/client-notes', {
       method: 'POST',
       body: JSON.stringify({

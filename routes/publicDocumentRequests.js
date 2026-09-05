@@ -9,6 +9,7 @@ const express = require('express');
 const multer = require('multer');
 const db = require('../db');
 const googleDrive = require('../services/googleDriveService');
+const { getOrCreateClientFolder } = require('../services/partyDriveFolder');
 const { decrypt } = require('../utils/encryption');
 
 const router = express.Router();
@@ -84,8 +85,12 @@ router.post('/:token/:requestId/submit', handleUpload, async (req, res) => {
       if (!linkRes.rows.length) { result = { status: 503, body: { success: false, message: 'This office is not able to accept uploads right now. Please contact them directly.' } }; return; }
 
       const accessToken = await googleDrive.refreshAccessToken(decrypt(linkRes.rows[0].encrypted_refresh_token));
+      const clientFolderId = await getOrCreateClientFolder({
+        organizationId: party.organization_id, accessToken, rootFolderId: linkRes.rows[0].folder_id,
+        partyType: party.party_type, partyId: party.party_id,
+      });
       const safeName = String(req.file.originalname || 'document').replace(/[^a-z0-9._-]/gi, '_');
-      const uploaded = await googleDrive.uploadFile(accessToken, linkRes.rows[0].folder_id, req.file.buffer, safeName, req.file.mimetype);
+      const uploaded = await googleDrive.uploadFile(accessToken, clientFolderId, req.file.buffer, safeName, req.file.mimetype);
 
       const upd = await db.query(
         `UPDATE document_requests

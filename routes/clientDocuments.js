@@ -4,6 +4,7 @@ const { Readable } = require('stream');
 const db = require('../db');
 const authMiddleware = require('../middleware/auth');
 const googleDrive = require('../services/googleDriveService');
+const { getOrCreateClientFolder } = require('../services/partyDriveFolder');
 const { decrypt } = require('../utils/encryption');
 
 const router = express.Router();
@@ -131,24 +132,31 @@ router.post('/upload', handleUpload, async (req, res) => {
     if (!['application/pdf', 'image/png', 'image/jpeg', 'image/webp'].includes(req.file.mimetype)) {
       return res.status(400).json({ success: false, message: 'Only image (PNG/JPG/WEBP) or PDF files are allowed' });
     }
+    const { type: partyType, id: partyId } = req.body;
+    if (!['client', 'agent'].includes(partyType) || !partyId) {
+      return res.status(400).json({ success: false, message: 'Client/Agent type and id are required' });
+    }
     // multer's stream-based body parsing breaks AsyncLocalStorage propagation
     // from authMiddleware (confirmed live in routes/clientNotes.js) — always
     // re-anchor the tenant context explicitly from req.user before any
     // RLS-backed query in a multer route.
     const orgId = req.user.organization_id;
-    const linkRes = await db.runWithTenant({ organizationId: orgId }, () =>
-      db.query(`SELECT folder_id, encrypted_refresh_token FROM organization_drive_links WHERE organization_id=$1`, [orgId])
-    );
-    if (!linkRes.rows.length) {
+    const safeName = String(req.file.originalname || 'document').replace(/[^a-z0-9._-]/gi, '_');
+    const { uploaded, notConnected } = await db.runWithTenant({ organizationId: orgId }, async () => {
+      const linkRes = await db.query(`SELECT folder_id, encrypted_refresh_token FROM organization_drive_links WHERE organization_id=$1`, [orgId]);
+      if (!linkRes.rows.length) return { notConnected: true };
+      const { folder_id, encrypted_refresh_token } = linkRes.rows[0];
+      const accessToken = await googleDrive.refreshAccessToken(decrypt(encrypted_refresh_token));
+      const clientFolderId = await getOrCreateClientFolder({ organizationId: orgId, accessToken, rootFolderId: folder_id, partyType, partyId });
+      const uploaded = await googleDrive.uploadFile(accessToken, clientFolderId, req.file.buffer, safeName, req.file.mimetype);
+      return { uploaded };
+    });
+    if (notConnected) {
       return res.status(403).json({
         success: false,
         message: "Documents need this organisation's Google Drive connected first. Ask an admin to connect it from Organisation Profile → Integrations.",
       });
     }
-    const { folder_id, encrypted_refresh_token } = linkRes.rows[0];
-    const accessToken = await googleDrive.refreshAccessToken(decrypt(encrypted_refresh_token));
-    const safeName = String(req.file.originalname || 'document').replace(/[^a-z0-9._-]/gi, '_');
-    const uploaded = await googleDrive.uploadFile(accessToken, folder_id, req.file.buffer, safeName, req.file.mimetype);
     res.json({
       success: true,
       attachment: {

@@ -85,10 +85,17 @@ async function ensureAppFolder(accessToken) {
   if (!listRes.ok) throw new Error(listData.error?.message || 'Could not search Google Drive');
   if (listData.files?.length) return listData.files[0].id;
 
+  return createFolder(accessToken, DRIVE_FOLDER_NAME);
+}
+
+// Generic folder creation, used for the root app folder above and for each
+// client/agent's own subfolder (services/partyDriveFolder.js) — a parentId
+// nests it inside another folder, omitting it creates a top-level folder.
+async function createFolder(accessToken, name, parentId) {
   const createRes = await fetch('https://www.googleapis.com/drive/v3/files?fields=id', {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: DRIVE_FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder' }),
+    body: JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder', parents: parentId ? [parentId] : undefined }),
   });
   const createData = await createRes.json();
   if (!createRes.ok) throw new Error(createData.error?.message || 'Could not create Google Drive folder');
@@ -162,6 +169,7 @@ module.exports = {
   refreshAccessToken,
   getConnectedEmail,
   ensureAppFolder,
+  createFolder,
   uploadFile,
   revokeToken,
 };
