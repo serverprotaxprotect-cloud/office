@@ -108,21 +108,29 @@ const WORK_LIST = [
   ['80G Registration', WORK_CATEGORIES[7]],
 ].map(([name, category]) => ({ name, category }));
 
+// Every checklist item carries a `kind`, so the UI (both the employee's Ask
+// Documents tab and the client-facing upload page) knows how to collect it:
+//   'file'  - a single-side upload (most documents)
+//   'file2' - a two-sided upload, front + back (Aadhaar Card)
+//   'text'  - not a document at all, just typed information (Mobile Number,
+//             DIN, profit-sharing ratio, etc.) — collected as text, not a file
+function item(name, kind) { return { name, kind: kind || 'file' }; }
+
 // Reusable item sets, so the ~20 templates below don't repeat the same
 // KYC/address-proof line items verbatim.
-const PROPRIETOR_KYC = ['Aadhaar Card', 'PAN Card', 'Passport-size Photo', 'Mobile Number', 'Email ID', 'Latest Bank Statement'];
-const DIRECTOR_KYC = ['Aadhaar Card', 'PAN Card', 'Passport-size Photo', 'Mobile Number', 'Email ID', 'Latest Bank Statement'];
-const PARTNER_KYC = ['Aadhaar Card', 'PAN Card', 'Passport-size Photo', 'Mobile Number', 'Email ID', 'Latest Bank Statement'];
-const ADDRESS_PROOF = ['Rent Agreement', 'NOC from owner', 'Electricity Bill (not older than 2 months)'];
-const BANK_DETAILS = ['Cancelled Cheque', 'Latest Bank Statement'];
+const PROPRIETOR_KYC = [item('Aadhaar Card', 'file2'), item('PAN Card'), item('Passport-size Photo'), item('Mobile Number', 'text'), item('Email ID', 'text'), item('Latest Bank Statement')];
+const DIRECTOR_KYC = [item('Aadhaar Card', 'file2'), item('PAN Card'), item('Passport-size Photo'), item('Mobile Number', 'text'), item('Email ID', 'text'), item('Latest Bank Statement')];
+const PARTNER_KYC = [item('Aadhaar Card', 'file2'), item('PAN Card'), item('Passport-size Photo'), item('Mobile Number', 'text'), item('Email ID', 'text'), item('Latest Bank Statement')];
+const ADDRESS_PROOF = [item('Rent Agreement'), item('NOC from owner'), item('Electricity Bill (not older than 2 months)')];
+const BANK_DETAILS = [item('Cancelled Cheque'), item('Latest Bank Statement')];
 
 function constitutionGroupFor(entityType) {
   switch (entityType) {
     case 'proprietorship': return null;
-    case 'partnership': return { heading: 'Partnership documents', items: ['Partnership Deed'] };
-    case 'llp': return { heading: 'LLP documents', items: ['LLP Agreement', 'Certificate of Incorporation'] };
-    case 'company': return { heading: 'Company documents', items: ['Certificate of Incorporation', 'MOA', 'AOA'] };
-    case 'ngo': return { heading: 'Trust / Society documents', items: ['Trust Deed / Society Registration Certificate', 'By-laws'] };
+    case 'partnership': return { heading: 'Partnership documents', items: [item('Partnership Deed')] };
+    case 'llp': return { heading: 'LLP documents', items: [item('LLP Agreement'), item('Certificate of Incorporation')] };
+    case 'company': return { heading: 'Company documents', items: [item('Certificate of Incorporation'), item('MOA'), item('AOA')] };
+    case 'ngo': return { heading: 'Trust / Society documents', items: [item('Trust Deed / Society Registration Certificate'), item('By-laws')] };
     default: return null;
   }
 }
@@ -161,7 +169,7 @@ const TEMPLATES = {
     groups: [
       { heading: 'Partner KYC', repeatRole: 'partner', items: PARTNER_KYC },
       { heading: 'Business address proof', repeatRole: null, items: ADDRESS_PROOF },
-      { heading: 'Partnership details', repeatRole: null, items: ['Proposed firm name', 'Profit sharing ratio', 'Capital contribution details'] },
+      { heading: 'Partnership details', repeatRole: null, items: [item('Proposed firm name', 'text'), item('Profit sharing ratio', 'text'), item('Capital contribution details', 'text')] },
     ],
   },
   'One Person Company Incorporation': {
@@ -170,7 +178,7 @@ const TEMPLATES = {
       { heading: 'Registered office address proof', repeatRole: null, items: ADDRESS_PROOF },
       { heading: 'Director KYC', repeatRole: null, items: DIRECTOR_KYC },
       { heading: 'Nominee KYC', repeatRole: null, items: DIRECTOR_KYC },
-      { heading: 'Digital Signature', repeatRole: null, items: ['DSC of the director (if not already available)'] },
+      { heading: 'Digital Signature', repeatRole: null, items: [item('DSC of the director (if not already available)')] },
     ],
   },
   'Limited Liability Partnership Incorporation': {
@@ -178,7 +186,7 @@ const TEMPLATES = {
     groups: [
       { heading: 'Registered office address proof', repeatRole: null, items: ADDRESS_PROOF },
       { heading: 'Designated Partner KYC', repeatRole: 'partner', items: PARTNER_KYC },
-      { heading: 'Digital Signature', repeatRole: null, items: ['DSC of each designated partner (if not already available)'] },
+      { heading: 'Digital Signature', repeatRole: null, items: [item('DSC of each designated partner (if not already available)')] },
     ],
   },
   'Private Limited Company Incorporation': {
@@ -186,7 +194,7 @@ const TEMPLATES = {
     groups: [
       { heading: 'Registered office address proof', repeatRole: null, items: ADDRESS_PROOF },
       { heading: 'Director KYC', repeatRole: 'director', items: DIRECTOR_KYC },
-      { heading: 'Digital Signature', repeatRole: null, items: ['DSC of each proposed director (if not already available)'] },
+      { heading: 'Digital Signature', repeatRole: null, items: [item('DSC of each proposed director (if not already available)')] },
     ],
   },
   'Nidhi Company Incorporation': {
@@ -194,8 +202,8 @@ const TEMPLATES = {
     groups: [
       { heading: 'Registered office address proof', repeatRole: null, items: ADDRESS_PROOF },
       { heading: 'Director KYC', repeatRole: 'director', items: DIRECTOR_KYC },
-      { heading: 'Digital Signature', repeatRole: null, items: ['DSC of each proposed director (if not already available)'] },
-      { heading: 'Members', repeatRole: null, items: ['List of proposed members (minimum 7)'] },
+      { heading: 'Digital Signature', repeatRole: null, items: [item('DSC of each proposed director (if not already available)')] },
+      { heading: 'Members', repeatRole: null, items: [item('List of proposed members (minimum 7)')] },
     ],
   },
   'Section 8 Company Incorporation': {
@@ -203,8 +211,8 @@ const TEMPLATES = {
     groups: [
       { heading: 'Registered office address proof', repeatRole: null, items: ADDRESS_PROOF },
       { heading: 'Director KYC', repeatRole: 'director', items: DIRECTOR_KYC },
-      { heading: 'Digital Signature', repeatRole: null, items: ['DSC of each proposed director (if not already available)'] },
-      { heading: 'NGO objects & declaration', repeatRole: null, items: ['Draft MOA stating charitable objects', 'Declaration by director (Form INC-14/15)'] },
+      { heading: 'Digital Signature', repeatRole: null, items: [item('DSC of each proposed director (if not already available)')] },
+      { heading: 'NGO objects & declaration', repeatRole: null, items: [item('Draft MOA stating charitable objects'), item('Declaration by director (Form INC-14/15)')] },
     ],
   },
   'Farmer Producer Company Registration': {
@@ -212,22 +220,22 @@ const TEMPLATES = {
     groups: [
       { heading: 'Registered office address proof', repeatRole: null, items: ADDRESS_PROOF },
       { heading: 'Director KYC', repeatRole: 'director', items: DIRECTOR_KYC },
-      { heading: 'Digital Signature', repeatRole: null, items: ['DSC of each proposed director (if not already available)'] },
-      { heading: 'Farmer members', repeatRole: null, items: ['List of farmer members with land ownership / khasra proof'] },
+      { heading: 'Digital Signature', repeatRole: null, items: [item('DSC of each proposed director (if not already available)')] },
+      { heading: 'Farmer members', repeatRole: null, items: [item('List of farmer members with land ownership / khasra proof')] },
     ],
   },
   'Company Compliance': {
     entityTypes: null,
     groups: [
-      { heading: 'Existing company documents', repeatRole: null, items: ['Certificate of Incorporation', 'PAN Card of Company', 'MOA', 'AOA', 'Last filed Balance Sheet / Financial Statements', "Auditor's Report", 'Board Resolution approving financials'] },
-      { heading: 'Director details', repeatRole: 'director', items: ['DIN', 'DSC'] },
+      { heading: 'Existing company documents', repeatRole: null, items: [item('Certificate of Incorporation'), item('PAN Card of Company'), item('MOA'), item('AOA'), item('Last filed Balance Sheet / Financial Statements'), item("Auditor's Report"), item('Board Resolution approving financials')] },
+      { heading: 'Director details', repeatRole: 'director', items: [item('DIN', 'text'), item('DSC')] },
     ],
   },
   'Digital Signature': {
     entityTypes: null,
     groups: [
-      { heading: 'Applicant KYC', repeatRole: null, items: ['Aadhaar Card', 'PAN Card', 'Passport-size Photo', 'Mobile Number', 'Email ID', 'Video verification'] },
-      { heading: 'Organisation authorisation (if applicable)', repeatRole: null, items: ['Board Resolution / Authorisation Letter', 'Organisation PAN'] },
+      { heading: 'Applicant KYC', repeatRole: null, items: [item('Aadhaar Card', 'file2'), item('PAN Card'), item('Passport-size Photo'), item('Mobile Number', 'text'), item('Email ID', 'text'), item('Video verification')] },
+      { heading: 'Organisation authorisation (if applicable)', repeatRole: null, items: [item('Board Resolution / Authorisation Letter'), item('Organisation PAN')] },
     ],
   },
   'GST Registration': {
@@ -236,54 +244,54 @@ const TEMPLATES = {
   },
   'PF Registration': {
     entityTypes: ENTITY_TYPES,
-    groupsByEntity: crossEntityGroups(() => [{ heading: 'Employee details', repeatRole: null, items: ['List of employees with salary', 'Date of establishment'] }]),
+    groupsByEntity: crossEntityGroups(() => [{ heading: 'Employee details', repeatRole: null, items: [item('List of employees with salary'), item('Date of establishment', 'text')] }]),
   },
   'ESI Registration': {
     entityTypes: ENTITY_TYPES,
-    groupsByEntity: crossEntityGroups(() => [{ heading: 'Employee details', repeatRole: null, items: ['List of employees with salary', 'Date of establishment'] }]),
+    groupsByEntity: crossEntityGroups(() => [{ heading: 'Employee details', repeatRole: null, items: [item('List of employees with salary'), item('Date of establishment', 'text')] }]),
   },
   'Udyam Registration (MSME)': {
     entityTypes: ENTITY_TYPES.filter(e => e.value !== 'ngo'),
     groupsByEntity: (() => {
-      const all = crossEntityGroups(() => [{ heading: 'Business details', repeatRole: null, items: ['PAN of business', 'GST Certificate (if registered)', 'Investment & turnover details'] }]);
+      const all = crossEntityGroups(() => [{ heading: 'Business details', repeatRole: null, items: [item('PAN of business'), item('GST Certificate (if registered)'), item('Investment & turnover details', 'text')] }]);
       delete all.ngo;
       return all;
     })(),
   },
   'Trademark Registration': {
     entityTypes: ENTITY_TYPES,
-    groupsByEntity: crossEntityGroups(() => [{ heading: 'Trademark details', repeatRole: null, items: ['Logo / brand name (image)', 'Class of goods or services', 'Power of Attorney (Form TM-48)', 'Proof of prior use (if claiming since a date)'] }]),
+    groupsByEntity: crossEntityGroups(() => [{ heading: 'Trademark details', repeatRole: null, items: [item('Logo / brand name (image)'), item('Class of goods or services', 'text'), item('Power of Attorney (Form TM-48)'), item('Proof of prior use (if claiming since a date)')] }]),
   },
   'TAX Audit': {
     entityTypes: ENTITY_TYPES,
-    groupsByEntity: crossEntityGroups(() => [{ heading: 'Financial documents', repeatRole: null, items: ['Bank Statements (full year)', 'Sales & Purchase invoices / register', 'Stock register', "Previous year's Audit Report / ITR", 'Form 26AS'] }]),
+    groupsByEntity: crossEntityGroups(() => [{ heading: 'Financial documents', repeatRole: null, items: [item('Bank Statements (full year)'), item('Sales & Purchase invoices / register'), item('Stock register'), item("Previous year's Audit Report / ITR"), item('Form 26AS')] }]),
   },
   'Audit': {
     entityTypes: ENTITY_TYPES,
-    groupsByEntity: crossEntityGroups(() => [{ heading: 'Financial documents', repeatRole: null, items: ['Bank Statements (full year)', 'Ledgers & Trial Balance', 'Fixed Asset Register', "Previous year's Audit Report"] }]),
+    groupsByEntity: crossEntityGroups(() => [{ heading: 'Financial documents', repeatRole: null, items: [item('Bank Statements (full year)'), item('Ledgers & Trial Balance'), item('Fixed Asset Register'), item("Previous year's Audit Report")] }]),
   },
   'Bookkeeping': {
     entityTypes: ENTITY_TYPES,
-    groupsByEntity: crossEntityGroups(() => [{ heading: 'Financial documents', repeatRole: null, items: ['Bank Statements (monthly)', 'Sales & Purchase invoices', 'Expense receipts', 'Previous bookkeeping records (if any)'] }]),
+    groupsByEntity: crossEntityGroups(() => [{ heading: 'Financial documents', repeatRole: null, items: [item('Bank Statements (monthly)'), item('Sales & Purchase invoices'), item('Expense receipts'), item('Previous bookkeeping records (if any)')] }]),
   },
   'DIR-3 KYC': {
     entityTypes: null,
     groups: [
-      { heading: 'Director KYC', repeatRole: 'director', items: ['Aadhaar Card', 'PAN Card', 'Passport-size Photo', 'Mobile Number', 'Email ID', 'DSC'] },
+      { heading: 'Director KYC', repeatRole: 'director', items: [item('Aadhaar Card', 'file2'), item('PAN Card'), item('Passport-size Photo'), item('Mobile Number', 'text'), item('Email ID', 'text'), item('DSC')] },
     ],
   },
   'Add Directors': {
     entityTypes: null,
     groups: [
-      { heading: 'Existing company documents', repeatRole: null, items: ['Certificate of Incorporation', 'PAN Card of Company', 'Board Resolution'] },
-      { heading: 'New Director KYC', repeatRole: 'director', items: ['Aadhaar Card', 'PAN Card', 'Passport-size Photo', 'Mobile Number', 'Email ID', 'DIN (if already allotted)', 'Consent to act as Director (Form DIR-2)'] },
+      { heading: 'Existing company documents', repeatRole: null, items: [item('Certificate of Incorporation'), item('PAN Card of Company'), item('Board Resolution')] },
+      { heading: 'New Director KYC', repeatRole: 'director', items: [item('Aadhaar Card', 'file2'), item('PAN Card'), item('Passport-size Photo'), item('Mobile Number', 'text'), item('Email ID', 'text'), item('DIN (if already allotted)', 'text'), item('Consent to act as Director (Form DIR-2)')] },
     ],
   },
   'Remove Directors': {
     entityTypes: null,
     groups: [
-      { heading: 'Existing company documents', repeatRole: null, items: ['Certificate of Incorporation', 'PAN Card of Company', 'Board Resolution'] },
-      { heading: 'Resigning Director details', repeatRole: 'director', items: ['Resignation Letter', 'DIN', 'DSC (for filing, if applicable)'] },
+      { heading: 'Existing company documents', repeatRole: null, items: [item('Certificate of Incorporation'), item('PAN Card of Company'), item('Board Resolution')] },
+      { heading: 'Resigning Director details', repeatRole: 'director', items: [item('Resignation Letter'), item('DIN', 'text'), item('DSC (for filing, if applicable)')] },
     ],
   },
 };

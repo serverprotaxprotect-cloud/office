@@ -148,21 +148,35 @@ router.get('/:type/:id', async (req, res) => {
 });
 
 // ── POST /api/document-requests (create one or more requests) ──
+// `documents` accepts either plain strings (the manual "Add anything else"
+// flow — a document with no work/group context) or richer objects built
+// from a work template: { document_name, work_name, group_heading,
+// input_kind, side }. Mixing both shapes in one request is fine.
 router.post('/', async (req, res) => {
   const { type, id, documents } = req.body;
   if (!['client', 'agent'].includes(type)) return res.status(400).json({ success: false, message: 'Invalid party type' });
   if (!id) return res.status(400).json({ success: false, message: 'Client/Agent ID required' });
-  const names = Array.isArray(documents) ? documents.map(clean).filter(Boolean) : [];
-  if (!names.length) return res.status(400).json({ success: false, message: 'At least one document is required' });
+  const docs = Array.isArray(documents) ? documents
+    .map(d => typeof d === 'string'
+      ? { document_name: clean(d), work_name: null, group_heading: null, input_kind: 'file', side: null }
+      : {
+          document_name: clean(d.document_name),
+          work_name: clean(d.work_name),
+          group_heading: clean(d.group_heading),
+          input_kind: d.input_kind === 'text' ? 'text' : 'file',
+          side: ['front', 'back'].includes(d.side) ? d.side : null,
+        })
+    .filter(d => d.document_name) : [];
+  if (!docs.length) return res.status(400).json({ success: false, message: 'At least one document is required' });
   try {
     const params = [];
-    const values = names.map((name, i) => {
-      params.push(type, id, name, actorId(req.user), actorName(req.user));
-      const base = i * 5;
-      return `(current_organization_id(),$${base + 1},$${base + 2},$${base + 3},'Pending',$${base + 4},$${base + 5},NOW())`;
+    const values = docs.map((d, i) => {
+      params.push(type, id, d.document_name, d.work_name, d.group_heading, d.input_kind, d.side, actorId(req.user), actorName(req.user));
+      const base = i * 9;
+      return `(current_organization_id(),$${base + 1},$${base + 2},$${base + 3},'Pending',$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8},$${base + 9},NOW())`;
     });
     const r = await db.query(
-      `INSERT INTO document_requests (organization_id, party_type, party_id, document_name, status, requested_by_id, requested_by_name, requested_at)
+      `INSERT INTO document_requests (organization_id, party_type, party_id, document_name, status, work_name, group_heading, input_kind, side, requested_by_id, requested_by_name, requested_at)
        VALUES ${values.join(',')} RETURNING *`,
       params
     );
@@ -196,7 +210,7 @@ router.post('/:id/review', async (req, res) => {
     const remarkText = clean(remark) || 'Please resubmit — the document was not acceptable.';
     const r = await db.query(
       `UPDATE document_requests
-          SET status='Pending', remark=$1, drive_file_id=NULL, filename=NULL, mime_type=NULL, size_bytes=NULL, submitted_at=NULL,
+          SET status='Pending', remark=$1, drive_file_id=NULL, filename=NULL, mime_type=NULL, size_bytes=NULL, submitted_at=NULL, text_value=NULL,
               reviewed_by_id=$2, reviewed_by_name=$3, reviewed_at=NOW()
         WHERE id=$4 RETURNING *`,
       [remarkText, actorId(req.user), actorName(req.user), req.params.id]

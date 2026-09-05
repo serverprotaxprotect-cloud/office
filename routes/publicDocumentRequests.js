@@ -7,6 +7,7 @@
 // any other client or organisation.
 const express = require('express');
 const multer = require('multer');
+const { PDFDocument } = require('pdf-lib');
 const db = require('../db');
 const googleDrive = require('../services/googleDriveService');
 const { getOrCreateClientFolder } = require('../services/partyDriveFolder');
@@ -15,6 +16,19 @@ const { decrypt } = require('../utils/encryption');
 const router = express.Router();
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_ATTACHMENT_BYTES } });
+
+// A password-protected PDF can't be opened by the office without the
+// client's password, so it's rejected at upload time rather than accepted
+// and discovered unusable later. PDFDocument.load() throws on an encrypted
+// file unless told to ignore encryption — that's the signal we check for.
+async function isEncryptedPdf(buffer) {
+  try {
+    await PDFDocument.load(buffer, { ignoreEncryption: false });
+    return false;
+  } catch (err) {
+    return /encrypt/i.test(err.message || '');
+  }
+}
 
 async function resolveToken(token) {
   let row = null;
@@ -40,7 +54,7 @@ router.get('/:token', async (req, res) => {
         ? (nameRes.rows[0]?.legal_name || nameRes.rows[0]?.business_name || party.party_id)
         : (nameRes.rows[0]?.name || party.party_id);
       const r = await db.query(
-        `SELECT id, document_name, status, remark, filename, submitted_at
+        `SELECT id, document_name, status, remark, filename, submitted_at, work_name, group_heading, input_kind, side, text_value
            FROM document_requests WHERE party_type=$1 AND party_id=$2 ORDER BY requested_at ASC`,
         [party.party_type, party.party_id]
       );
@@ -71,15 +85,19 @@ router.post('/:token/:requestId/submit', handleUpload, async (req, res) => {
   if (!['application/pdf', 'image/png', 'image/jpeg', 'image/webp'].includes(req.file.mimetype)) {
     return res.status(400).json({ success: false, message: 'Only image (PNG/JPG/WEBP) or PDF files are allowed' });
   }
+  if (req.file.mimetype === 'application/pdf' && await isEncryptedPdf(req.file.buffer)) {
+    return res.status(400).json({ success: false, message: 'This PDF is password-protected. Please remove the password and upload again.' });
+  }
   try {
     let result = null;
     await db.runWithTenant({ organizationId: party.organization_id }, async () => {
       const reqRow = await db.query(
-        `SELECT id, status FROM document_requests WHERE id=$1 AND party_type=$2 AND party_id=$3`,
+        `SELECT id, status, input_kind FROM document_requests WHERE id=$1 AND party_type=$2 AND party_id=$3`,
         [req.params.requestId, party.party_type, party.party_id]
       );
       if (!reqRow.rows.length) { result = { status: 404, body: { success: false, message: 'Document request not found.' } }; return; }
       if (reqRow.rows[0].status !== 'Pending') { result = { status: 400, body: { success: false, message: 'This document has already been submitted.' } }; return; }
+      if (reqRow.rows[0].input_kind === 'text') { result = { status: 400, body: { success: false, message: 'This item needs a typed answer, not a file.' } }; return; }
 
       const linkRes = await db.query(`SELECT folder_id, encrypted_refresh_token FROM organization_drive_links WHERE organization_id=$1`, [party.organization_id]);
       if (!linkRes.rows.length) { result = { status: 503, body: { success: false, message: 'This office is not able to accept uploads right now. Please contact them directly.' } }; return; }
@@ -104,6 +122,37 @@ router.post('/:token/:requestId/submit', handleUpload, async (req, res) => {
   } catch (err) {
     console.error('[public doc requests submit]', err);
     res.status(500).json({ success: false, message: err.message || 'Upload failed' });
+  }
+});
+
+// ── POST /api/public/document-requests/:token/:requestId/submit-text ──
+// For checklist items that are just information (Mobile Number, DIN, etc.)
+// rather than a document — no file, just a typed answer.
+router.post('/:token/:requestId/submit-text', express.json(), async (req, res) => {
+  const party = await resolveToken(req.params.token);
+  if (!party) return res.status(404).json({ success: false, message: 'This link is invalid or has expired.' });
+  const text = String(req.body.text_value || '').trim();
+  if (!text) return res.status(400).json({ success: false, message: 'Please enter a value.' });
+  try {
+    let result = null;
+    await db.runWithTenant({ organizationId: party.organization_id }, async () => {
+      const reqRow = await db.query(
+        `SELECT id, status, input_kind FROM document_requests WHERE id=$1 AND party_type=$2 AND party_id=$3`,
+        [req.params.requestId, party.party_type, party.party_id]
+      );
+      if (!reqRow.rows.length) { result = { status: 404, body: { success: false, message: 'Document request not found.' } }; return; }
+      if (reqRow.rows[0].status !== 'Pending') { result = { status: 400, body: { success: false, message: 'This has already been submitted.' } }; return; }
+      if (reqRow.rows[0].input_kind !== 'text') { result = { status: 400, body: { success: false, message: 'This item needs a file, not a typed answer.' } }; return; }
+      const upd = await db.query(
+        `UPDATE document_requests SET status='Submitted', text_value=$1, submitted_at=NOW(), remark=NULL WHERE id=$2 RETURNING id, document_name, status`,
+        [text, req.params.requestId]
+      );
+      result = { status: 200, body: { success: true, message: 'Submitted', request: upd.rows[0] } };
+    });
+    res.status(result.status).json(result.body);
+  } catch (err) {
+    console.error('[public doc requests submit-text]', err);
+    res.status(500).json({ success: false, message: err.message || 'Submit failed' });
   }
 });
 

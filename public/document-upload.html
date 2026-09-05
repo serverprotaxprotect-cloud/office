@@ -10,6 +10,9 @@
     .card { background:#fff; border-radius:14px; box-shadow:0 8px 32px rgba(15,23,42,.08); padding:24px; margin-bottom:16px; }
     h1 { font-size:20px; color:#0f172a; margin:0 0 4px; }
     p.sub { color:#64748b; font-size:13.5px; margin:0 0 20px; }
+    .bunch-heading { font-weight:800; font-size:13.5px; color:#3730a3; background:#eef2ff; padding:7px 12px; border-radius:8px; margin:18px 0 10px; }
+    .bunch-heading:first-child { margin-top:0; }
+    .group-tag { font-size:11px; color:#94a3b8; margin-bottom:2px; }
     .doc-row { border:1px solid #e2e8f0; border-radius:10px; padding:14px 16px; margin-bottom:12px; }
     .doc-name { font-weight:700; font-size:14.5px; color:#1e293b; }
     .badge { display:inline-block; padding:3px 10px; border-radius:999px; font-size:11px; font-weight:800; margin-left:8px; }
@@ -18,6 +21,7 @@
     .b-approved { background:#dcfce7; color:#166534; }
     .remark { background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; border-radius:8px; padding:8px 10px; font-size:12.5px; margin-top:8px; font-weight:600; }
     input[type=file] { margin-top:10px; font-size:13px; display:block; }
+    input[type=text] { margin-top:10px; font-size:13.5px; display:block; width:100%; box-sizing:border-box; padding:8px 10px; border:1.5px solid #e2e8f0; border-radius:8px; }
     button { background:#2563eb; color:#fff; border:0; border-radius:8px; padding:9px 16px; font-weight:700; font-size:13.5px; cursor:pointer; margin-top:10px; }
     button:disabled { opacity:.6; cursor:not-allowed; }
     .msg { margin-top:8px; font-size:12.5px; font-weight:700; }
@@ -25,6 +29,10 @@
     .msg.err { color:#b91c1c; }
     .empty { color:#94a3b8; text-align:center; padding:30px 0; }
     .filenote { font-size:12.5px; color:#64748b; margin-top:6px; }
+    .answernote { font-size:13px; color:#1e293b; background:#f8fafc; border-radius:7px; padding:7px 10px; margin-top:8px; }
+    .sides-row { display:flex; gap:16px; flex-wrap:wrap; margin-top:6px; }
+    .side-slot { flex:1; min-width:180px; }
+    .side-label { font-size:12px; font-weight:700; color:#475569; }
   </style>
 </head>
 <body>
@@ -54,11 +62,28 @@
         document.getElementById('partyName').textContent = data.party_name;
         const list = document.getElementById('docList');
         if (!data.requests.length) { list.innerHTML = '<div class="empty">No documents have been requested yet.</div>'; return; }
-        list.innerHTML = data.requests.map(renderRow).join('');
+        list.innerHTML = renderBunches(data.requests);
       } catch {
         document.getElementById('partyName').textContent = 'Something went wrong';
         document.getElementById('subText').textContent = 'Please try reloading this page.';
       }
+    }
+
+    // Grouped by the work they were requested for (e.g. all Private Limited
+    // Company Incorporation documents together), so it's clear what each
+    // document is needed for and whose it is — not just a flat list.
+    function renderBunches(requests) {
+      const bunches = [];
+      const byWork = {};
+      requests.forEach(r => {
+        const key = r.work_name || '';
+        if (!byWork[key]) { byWork[key] = { work_name: r.work_name, items: [] }; bunches.push(byWork[key]); }
+        byWork[key].items.push(r);
+      });
+      return bunches.map(b => {
+        const header = b.work_name ? `<div class="bunch-heading">${h(b.work_name)}</div>` : (bunches.length > 1 ? '<div class="bunch-heading">Other documents</div>' : '');
+        return header + b.items.map(renderRow).join('');
+      }).join('');
     }
 
     function renderRow(r) {
@@ -66,8 +91,20 @@
         : r.status === 'Submitted' ? '<span class="badge b-submitted">Submitted — under review</span>'
         : '<span class="badge b-approved">Approved</span>';
       const remark = r.remark ? `<div class="remark">Please resubmit: ${h(r.remark)}</div>` : '';
+      const groupTag = r.group_heading ? `<div class="group-tag">${h(r.group_heading)}</div>` : '';
+      const sideLabel = r.side ? ` (${r.side === 'front' ? 'Front side' : 'Back side'})` : '';
+
       let body = '';
-      if (r.status === 'Pending') {
+      if (r.input_kind === 'text') {
+        if (r.status === 'Pending') {
+          body = `
+            <input type="text" id="text_${r.id}" placeholder="Type your answer"/>
+            <button onclick="submitText(${r.id})" id="btn_${r.id}">Submit</button>
+            <div class="msg" id="msg_${r.id}"></div>`;
+        } else if (r.text_value) {
+          body = `<div class="answernote">${h(r.text_value)}</div>`;
+        }
+      } else if (r.status === 'Pending') {
         body = `
           <input type="file" id="file_${r.id}" accept="image/png,image/jpeg,image/webp,application/pdf"/>
           <button onclick="submitDoc(${r.id})" id="btn_${r.id}">Upload</button>
@@ -75,8 +112,10 @@
       } else if (r.filename) {
         body = `<div class="filenote">File: ${h(r.filename)}</div>`;
       }
+
       return `<div class="doc-row" id="row_${r.id}">
-        <div class="doc-name">${h(r.document_name)}${badge}</div>
+        ${groupTag}
+        <div class="doc-name">${h(r.document_name)}${sideLabel}${badge}</div>
         ${remark}
         ${body}
       </div>`;
@@ -102,6 +141,30 @@
       } catch (e) {
         msg.textContent = e.message || 'Upload failed'; msg.className = 'msg err';
         btn.disabled = false; btn.textContent = 'Upload';
+      }
+    }
+
+    async function submitText(id) {
+      const input = document.getElementById('text_' + id);
+      const msg = document.getElementById('msg_' + id);
+      const btn = document.getElementById('btn_' + id);
+      msg.textContent = ''; msg.className = 'msg';
+      const value = input.value.trim();
+      if (!value) { msg.textContent = 'Please enter a value first.'; msg.className = 'msg err'; return; }
+      btn.disabled = true; btn.textContent = 'Submitting...';
+      try {
+        const res = await fetch(`/api/public/document-requests/${encodeURIComponent(token)}/${id}/submit-text`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text_value: value }),
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message || 'Submit failed');
+        msg.textContent = 'Submitted successfully!'; msg.className = 'msg ok';
+        setTimeout(load, 1200);
+      } catch (e) {
+        msg.textContent = e.message || 'Submit failed'; msg.className = 'msg err';
+        btn.disabled = false; btn.textContent = 'Submit';
       }
     }
 

@@ -4853,7 +4853,13 @@ async function deleteClientDocument(id) {
 }
 
 // ── ASK DOCUMENTS / DOCUMENT REQUESTS (client uploads via a link) ──
+// Each pending entry: { _id, document_name, work_name, group_heading,
+// input_kind, side }. work_name/group_heading/side are null for a manually
+// added document (the "Add anything else" box); input_kind is 'file' unless
+// a template item says otherwise ('text' = typed answer, not a document);
+// side is 'front'/'back' only for a two-sided item like Aadhaar Card.
 let adrPendingDocs = [];
+let adrPendingSeq = 1;
 
 async function openAskDocuments(type, id, name) {
   document.getElementById('adr_party_type').value = type;
@@ -4943,14 +4949,14 @@ function renderAdrTemplateBox() {
       for (let n = 1; n <= count; n++) {
         html += `<div style="border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;margin-bottom:8px">
           <div style="font-size:12.5px;font-weight:800;color:#334155;margin-bottom:6px">${h(adrRoleLabel(g.repeatRole))} ${n} — ${h(g.heading)}</div>
-          ${g.items.map((item, ii) => `<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;padding:3px 0"><input type="checkbox" checked data-group="${gi}" data-instance="${n}" data-item="${ii}"/>${h(item)}</label>`).join('')}
+          ${g.items.map((it, ii) => `<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;padding:3px 0"><input type="checkbox" checked data-group="${gi}" data-instance="${n}" data-item="${ii}"/>${h(it.name)}${it.kind === 'file2' ? ' <span style=\"color:#94a3b8\">(front + back)</span>' : ''}${it.kind === 'text' ? ' <span style=\"color:#94a3b8\">(typed answer)</span>' : ''}</label>`).join('')}
         </div>`;
       }
       html += `<button type="button" class="btn-sm" style="background:#e2e8f0;color:#334155;margin-bottom:12px" onclick="adrAddRepeatInstance(${gi})">+ Add another ${h(adrRoleLabel(g.repeatRole).toLowerCase())}</button>`;
     } else {
       html += `<div style="border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;margin-bottom:8px">
         <div style="font-size:12.5px;font-weight:800;color:#334155;margin-bottom:6px">${h(g.heading)}</div>
-        ${g.items.map((item, ii) => `<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;padding:3px 0"><input type="checkbox" checked data-group="${gi}" data-instance="0" data-item="${ii}"/>${h(item)}</label>`).join('')}
+        ${g.items.map((it, ii) => `<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;padding:3px 0"><input type="checkbox" checked data-group="${gi}" data-instance="0" data-item="${ii}"/>${h(it.name)}${it.kind === 'file2' ? ' <span style=\"color:#94a3b8\">(front + back)</span>' : ''}${it.kind === 'text' ? ' <span style=\"color:#94a3b8\">(typed answer)</span>' : ''}</label>`).join('')}
       </div>`;
     }
   });
@@ -4963,10 +4969,15 @@ function adrAddRepeatInstance(gi) {
   renderAdrTemplateBox();
 }
 
+function adrPendingHas(entry) {
+  return adrPendingDocs.some(d => d.document_name === entry.document_name && d.group_heading === entry.group_heading && d.side === entry.side);
+}
+
 function adrAddTemplateChecked() {
   const box = document.getElementById('adrTemplateBox');
   const checked = [...box.querySelectorAll('input[type=checkbox]:checked')];
   if (!checked.length) { showToast('No documents checked', 'error'); return; }
+  const workName = document.getElementById('adrWork').value || null;
   let added = 0;
   checked.forEach(cb => {
     const gi = Number(cb.dataset.group);
@@ -4974,12 +4985,16 @@ function adrAddTemplateChecked() {
     const ii = Number(cb.dataset.item);
     const g = ADR_TEMPLATE_GROUPS[gi];
     if (!g) return;
-    const item = g.items[ii];
-    const label = g.repeatRole ? `${adrRoleLabel(g.repeatRole)} ${inst} — ${g.heading}: ${item}` : `${g.heading}: ${item}`;
-    if (!adrPendingDocs.includes(label)) { adrPendingDocs.push(label); added++; }
+    const it = g.items[ii];
+    const groupHeading = g.repeatRole ? `${adrRoleLabel(g.repeatRole)} ${inst} — ${g.heading}` : g.heading;
+    const sides = it.kind === 'file2' ? ['front', 'back'] : [null];
+    sides.forEach(side => {
+      const entry = { document_name: it.name, work_name: workName, group_heading: groupHeading, input_kind: it.kind === 'text' ? 'text' : 'file', side };
+      if (!adrPendingHas(entry)) { adrPendingDocs.push({ _id: adrPendingSeq++, ...entry }); added++; }
+    });
   });
   renderAdrPendingList();
-  showToast(`${added} document(s) added to the request list`, 'success');
+  showToast(`${added} item(s) added to the request list`, 'success');
 }
 
 function adrTypeChange() {
@@ -4992,23 +5007,27 @@ function adrAddToPending() {
   const customName = document.getElementById('adr_custom_name').value.trim();
   const name = typeSel === 'Other' ? customName : typeSel;
   if (!name) { showToast('Please select or enter a document name', 'error'); return; }
-  if (adrPendingDocs.includes(name)) { showToast('Already added', 'error'); return; }
-  adrPendingDocs.push(name);
+  const entry = { document_name: name, work_name: null, group_heading: null, input_kind: 'file', side: null };
+  if (adrPendingHas(entry)) { showToast('Already added', 'error'); return; }
+  adrPendingDocs.push({ _id: adrPendingSeq++, ...entry });
   document.getElementById('adr_custom_name').value = '';
   renderAdrPendingList();
 }
 
-function adrRemoveFromPending(name) {
-  adrPendingDocs = adrPendingDocs.filter(n => n !== name);
+function adrRemoveFromPending(id) {
+  adrPendingDocs = adrPendingDocs.filter(d => d._id !== id);
   renderAdrPendingList();
 }
 
 function renderAdrPendingList() {
-  document.getElementById('adrPendingList').innerHTML = adrPendingDocs.map(name => `
-    <span style="display:inline-flex;align-items:center;gap:6px;background:#fef3c7;color:#92400e;border-radius:7px;padding:4px 8px 4px 10px;font-size:12px;font-weight:700">
-      ${h(name)}
-      <button type="button" onclick="adrRemoveFromPending('${h(name).replace(/'/g,"\\'")}')" style="border:0;background:none;color:#92400e;cursor:pointer;font-weight:800">&times;</button>
-    </span>`).join('');
+  document.getElementById('adrPendingList').innerHTML = adrPendingDocs.map(d => {
+    const sideLabel = d.side ? ` (${d.side === 'front' ? 'Front' : 'Back'})` : '';
+    const label = d.group_heading ? `${d.group_heading}: ${d.document_name}${sideLabel}` : `${d.document_name}${sideLabel}`;
+    return `<span style="display:inline-flex;align-items:center;gap:6px;background:#fef3c7;color:#92400e;border-radius:7px;padding:4px 8px 4px 10px;font-size:12px;font-weight:700">
+      ${h(label)}
+      <button type="button" onclick="adrRemoveFromPending(${d._id})" style="border:0;background:none;color:#92400e;cursor:pointer;font-weight:800">&times;</button>
+    </span>`;
+  }).join('');
 }
 
 async function loadAskDocumentsLink() {
@@ -5048,7 +5067,7 @@ async function submitAskDocuments() {
       body: JSON.stringify({
         type: document.getElementById('adr_party_type').value,
         id: document.getElementById('adr_party_id').value,
-        documents: adrPendingDocs,
+        documents: adrPendingDocs.map(({ _id, ...d }) => d),
       }),
     });
     if (!data.success) { err.textContent = data.message || 'Could not send request.'; err.classList.remove('hidden'); return; }
@@ -5071,7 +5090,27 @@ async function loadDocumentRequestsList() {
   const data = await api(`/document-requests/${type}/${encodeURIComponent(id)}`, { cache: false });
   if (!data.success) { box.innerHTML = `<div class="empty-msg">${h(data.message || 'Could not load requests')}</div>`; return; }
   if (!data.requests.length) { box.innerHTML = '<div class="empty-msg">No documents requested yet.</div>'; return; }
-  box.innerHTML = data.requests.map(renderDocumentRequestRow).join('');
+  box.innerHTML = renderDocumentRequestBunches(data.requests);
+}
+
+// Requests are grouped into "bunches" by the work they were requested for
+// (e.g. all Private Limited Company Incorporation documents together) so
+// it's clear at a glance what a document is for, matching how they were
+// picked in the Ask Documents form.
+function renderDocumentRequestBunches(requests) {
+  const bunches = [];
+  const byWork = {};
+  requests.forEach(r => {
+    const key = r.work_name || '';
+    if (!byWork[key]) { byWork[key] = { work_name: r.work_name, items: [] }; bunches.push(byWork[key]); }
+    byWork[key].items.push(r);
+  });
+  return bunches.map(b => {
+    const header = b.work_name
+      ? `<div style="font-weight:800;font-size:13px;color:#334155;background:#eef2ff;padding:6px 10px;border-radius:7px;margin:14px 0 8px">${h(b.work_name)}</div>`
+      : (bunches.length > 1 ? '<div style="font-weight:800;font-size:13px;color:#334155;margin:14px 0 8px">Other requests</div>' : '');
+    return header + b.items.map(renderDocumentRequestRow).join('');
+  }).join('');
 }
 
 function renderDocumentRequestRow(r) {
@@ -5082,7 +5121,10 @@ function renderDocumentRequestRow(r) {
   const dt = new Date(r.requested_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   const remark = r.remark ? `<div style="font-size:11.5px;color:#b91c1c;margin-top:5px;font-weight:600">Asked again: ${h(r.remark)}</div>` : '';
   const canReview = (DOC_REQ.is_admin || DOC_REQ.access_level === 'full') && r.status === 'Submitted';
-  const path = r.drive_file_id ? `/api/document-requests/attachment/${encodeURIComponent(r.drive_file_id)}` : null;
+  const groupTag = r.group_heading ? `<div style="font-size:11px;color:#94a3b8">${h(r.group_heading)}</div>` : '';
+  const sideLabel = r.side ? ` (${r.side === 'front' ? 'Front' : 'Back'})` : '';
+  const answer = r.input_kind === 'text' && r.text_value ? `<div style="font-size:12.5px;color:#1e293b;background:#f8fafc;border-radius:6px;padding:5px 8px;margin-top:5px">${h(r.text_value)}</div>` : '';
+  const path = r.input_kind !== 'text' && r.drive_file_id ? `/api/document-requests/attachment/${encodeURIComponent(r.drive_file_id)}` : null;
   const safeFilename = h(r.filename || 'file').replace(/'/g, "\\'");
   const fileLink = path ? `<button class="btn-sm" style="background:#eef2ff;color:#0891b2;padding:3px 9px;font-size:11px" onclick="viewFile('${h(path)}','${safeFilename}')">View File</button>` : '';
   const reviewButtons = canReview ? `
@@ -5093,10 +5135,12 @@ function renderDocumentRequestRow(r) {
     <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:11px 13px;margin-bottom:9px">
       <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
         <div>
-          <strong style="font-size:13.5px;color:#1e293b">${h(r.document_name)}</strong>
+          ${groupTag}
+          <strong style="font-size:13.5px;color:#1e293b">${h(r.document_name)}${sideLabel}</strong>
           <span class="dept-badge" style="background:${bg};color:${col};margin-left:6px">${h(r.status)}</span>
           <div style="font-size:11px;color:#64748b;margin-top:2px">Requested ${dt} by ${h(r.requested_by_name || '--')}</div>
           ${remark}
+          ${answer}
         </div>
         <div style="white-space:nowrap;display:flex;gap:6px;align-self:flex-start;flex-wrap:wrap">
           ${fileLink}
