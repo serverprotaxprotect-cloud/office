@@ -5,6 +5,7 @@ const db = require('../db');
 const authMiddleware = require('../middleware/auth');
 const googleDrive = require('../services/googleDriveService');
 const { decrypt } = require('../utils/encryption');
+const { ENTITY_TYPES, WORK_CATEGORIES, WORK_LIST, TEMPLATES } = require('../config/workDocumentTemplates');
 
 const router = express.Router();
 
@@ -53,7 +54,16 @@ router.use(authMiddleware, requireFeature);
 
 // ── GET /api/document-requests/categories ──────────────────────
 router.get('/categories', (req, res) => {
-  res.json({ success: true, document_types: DOCUMENT_TYPES, access_level: req.docReqAccess, is_admin: isAdminView(req.user) });
+  res.json({
+    success: true,
+    document_types: DOCUMENT_TYPES,
+    access_level: req.docReqAccess,
+    is_admin: isAdminView(req.user),
+    entity_types: ENTITY_TYPES,
+    work_categories: WORK_CATEGORIES,
+    works: WORK_LIST,
+    work_templates: TEMPLATES,
+  });
 });
 
 // ── GET /api/document-requests/attachment/:fileId (staff view/download of a client-submitted file) ──

@@ -1804,8 +1804,16 @@
         </div>
         <div style="font-size:11px;color:#94a3b8;margin-top:6px">Send this link to the client (WhatsApp/Email) — no login needed on their end. It keeps working for any future document requests too.</div>
       </div>
+      <div id="adrWorkBox" style="border:1px solid #e2e8f0;border-radius:10px;padding:14px;background:#fff;margin-bottom:14px">
+        <div style="font-weight:800;font-size:13px;color:#334155;margin-bottom:8px">What is this for?</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+          <select id="adrWork" onchange="adrWorkChange()" style="flex:1;min-width:220px;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px"></select>
+          <select id="adrEntityType" onchange="adrEntityTypeChange()" class="hidden" style="padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px"></select>
+        </div>
+        <div id="adrTemplateBox"></div>
+      </div>
       <div id="adrAddForm" style="border:1px solid #e2e8f0;border-radius:10px;padding:14px;background:#fff;margin-bottom:14px">
-        <div style="font-weight:800;font-size:13px;color:#334155;margin-bottom:8px">Request New Document(s)</div>
+        <div style="font-weight:800;font-size:13px;color:#334155;margin-bottom:8px">Add anything else</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
           <select id="adr_type" onchange="adrTypeChange()" style="padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;flex:1;min-width:160px"></select>
           <input type="text" id="adr_custom_name" placeholder="Document name" class="hidden" style="padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;flex:1;min-width:160px"/>
@@ -2922,7 +2930,7 @@ function jsArg(v) {
 let META = { work_names:[], statuses:[], priorities:[], employees:[] };
 let CLIENT_NOTES = { enabled:false, access_level:'none', is_admin:false, categories:[] };
 let CLIENT_DOCS = { enabled:false, access_level:'none', is_admin:false, document_types:[], fy_options:[], current_fy:'' };
-let DOC_REQ = { enabled:false, access_level:'none', is_admin:false, document_types:[] };
+let DOC_REQ = { enabled:false, access_level:'none', is_admin:false, document_types:[], entity_types:[], work_categories:[], works:[], work_templates:{} };
 let CLIENT_KYC = { enabled:false, access_level:'none', is_admin:false, category_options:[] };
 let DEPT_GROUPS = {};
 function workNameText(work) {
@@ -4858,11 +4866,120 @@ async function openAskDocuments(type, id, name) {
   renderAdrPendingList();
   document.getElementById('adrErr').classList.add('hidden');
   const canWrite = DOC_REQ.access_level === 'full';
+  document.getElementById('adrWorkBox').classList.toggle('hidden', !canWrite);
   document.getElementById('adrAddForm').classList.toggle('hidden', !canWrite);
   document.getElementById('adrViewOnlyNote').classList.toggle('hidden', canWrite);
   document.getElementById('adrRegenBtn').classList.toggle('hidden', !DOC_REQ.is_admin);
+  renderAdrWorkOptions();
+  document.getElementById('adrEntityType').classList.add('hidden');
+  document.getElementById('adrTemplateBox').innerHTML = '';
+  ADR_TEMPLATE_GROUPS = [];
+  ADR_REPEAT_COUNTS = {};
   await loadAskDocumentsLink();
   await loadDocumentRequestsList();
+}
+
+// ── Work-based document suggestions ─────────────────────────────
+let ADR_TEMPLATE_GROUPS = [];
+let ADR_REPEAT_COUNTS = {};
+
+function renderAdrWorkOptions() {
+  const sel = document.getElementById('adrWork');
+  const byCat = {};
+  (DOC_REQ.works || []).forEach(w => { (byCat[w.category] = byCat[w.category] || []).push(w.name); });
+  let html = '<option value="">-- What is this for? (optional) --</option>';
+  (DOC_REQ.work_categories || []).forEach(cat => {
+    if (!byCat[cat]) return;
+    html += `<optgroup label="${h(cat)}">${byCat[cat].map(n => `<option value="${h(n)}">${h(n)}</option>`).join('')}</optgroup>`;
+  });
+  sel.innerHTML = html;
+}
+
+function adrRoleLabel(role) {
+  return role === 'director' ? 'Director' : role === 'partner' ? 'Partner' : 'Item';
+}
+
+function adrWorkChange() {
+  const work = document.getElementById('adrWork').value;
+  const entitySel = document.getElementById('adrEntityType');
+  const template = work ? DOC_REQ.work_templates[work] : null;
+  ADR_REPEAT_COUNTS = {};
+  entitySel.classList.add('hidden');
+  entitySel.innerHTML = '';
+  if (!template) {
+    ADR_TEMPLATE_GROUPS = [];
+    document.getElementById('adrTemplateBox').innerHTML = work
+      ? '<div style="font-size:12px;color:#94a3b8;margin-top:8px">No suggested checklist yet for this work — add documents manually below.</div>'
+      : '';
+    return;
+  }
+  if (template.entityTypes) {
+    entitySel.innerHTML = '<option value="">-- Select business type --</option>' + template.entityTypes.map(e => `<option value="${h(e.value)}">${h(e.label)}</option>`).join('');
+    entitySel.classList.remove('hidden');
+    ADR_TEMPLATE_GROUPS = [];
+    document.getElementById('adrTemplateBox').innerHTML = '';
+  } else {
+    ADR_TEMPLATE_GROUPS = template.groups || [];
+    renderAdrTemplateBox();
+  }
+}
+
+function adrEntityTypeChange() {
+  const work = document.getElementById('adrWork').value;
+  const template = DOC_REQ.work_templates[work];
+  const entityType = document.getElementById('adrEntityType').value;
+  ADR_REPEAT_COUNTS = {};
+  ADR_TEMPLATE_GROUPS = (template && entityType) ? (template.groupsByEntity[entityType] || []) : [];
+  renderAdrTemplateBox();
+}
+
+function renderAdrTemplateBox() {
+  const box = document.getElementById('adrTemplateBox');
+  if (!ADR_TEMPLATE_GROUPS.length) { box.innerHTML = ''; return; }
+  let html = '<div style="font-size:11.5px;color:#94a3b8;margin:8px 0">Suggested documents for this work — uncheck anything not needed, then add the checked ones below.</div>';
+  ADR_TEMPLATE_GROUPS.forEach((g, gi) => {
+    if (g.repeatRole) {
+      const count = ADR_REPEAT_COUNTS[gi] || 1;
+      for (let n = 1; n <= count; n++) {
+        html += `<div style="border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;margin-bottom:8px">
+          <div style="font-size:12.5px;font-weight:800;color:#334155;margin-bottom:6px">${h(adrRoleLabel(g.repeatRole))} ${n} — ${h(g.heading)}</div>
+          ${g.items.map((item, ii) => `<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;padding:3px 0"><input type="checkbox" checked data-group="${gi}" data-instance="${n}" data-item="${ii}"/>${h(item)}</label>`).join('')}
+        </div>`;
+      }
+      html += `<button type="button" class="btn-sm" style="background:#e2e8f0;color:#334155;margin-bottom:12px" onclick="adrAddRepeatInstance(${gi})">+ Add another ${h(adrRoleLabel(g.repeatRole).toLowerCase())}</button>`;
+    } else {
+      html += `<div style="border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;margin-bottom:8px">
+        <div style="font-size:12.5px;font-weight:800;color:#334155;margin-bottom:6px">${h(g.heading)}</div>
+        ${g.items.map((item, ii) => `<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;padding:3px 0"><input type="checkbox" checked data-group="${gi}" data-instance="0" data-item="${ii}"/>${h(item)}</label>`).join('')}
+      </div>`;
+    }
+  });
+  html += `<button type="button" class="btn-sm" style="background:#7c3aed;color:#fff;margin-top:4px" onclick="adrAddTemplateChecked()">Add checked documents</button>`;
+  box.innerHTML = html;
+}
+
+function adrAddRepeatInstance(gi) {
+  ADR_REPEAT_COUNTS[gi] = (ADR_REPEAT_COUNTS[gi] || 1) + 1;
+  renderAdrTemplateBox();
+}
+
+function adrAddTemplateChecked() {
+  const box = document.getElementById('adrTemplateBox');
+  const checked = [...box.querySelectorAll('input[type=checkbox]:checked')];
+  if (!checked.length) { showToast('No documents checked', 'error'); return; }
+  let added = 0;
+  checked.forEach(cb => {
+    const gi = Number(cb.dataset.group);
+    const inst = Number(cb.dataset.instance);
+    const ii = Number(cb.dataset.item);
+    const g = ADR_TEMPLATE_GROUPS[gi];
+    if (!g) return;
+    const item = g.items[ii];
+    const label = g.repeatRole ? `${adrRoleLabel(g.repeatRole)} ${inst} — ${g.heading}: ${item}` : `${g.heading}: ${item}`;
+    if (!adrPendingDocs.includes(label)) { adrPendingDocs.push(label); added++; }
+  });
+  renderAdrPendingList();
+  showToast(`${added} document(s) added to the request list`, 'success');
 }
 
 function adrTypeChange() {
@@ -8419,7 +8536,7 @@ async function loadDocRequestAccess() {
   try {
     const data = await api('/document-requests/categories');
     if (data.success) {
-      DOC_REQ = { enabled: true, access_level: data.access_level, is_admin: data.is_admin, document_types: data.document_types };
+      DOC_REQ = { enabled: true, access_level: data.access_level, is_admin: data.is_admin, document_types: data.document_types, entity_types: data.entity_types || [], work_categories: data.work_categories || [], works: data.works || [], work_templates: data.work_templates || {} };
     }
   } catch { /* feature not enabled for this org — buttons stay hidden */ }
 }
