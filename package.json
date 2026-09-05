@@ -73,6 +73,8 @@
     "google-drive:migrate:apply": "node scripts/google_drive_migrate.js --apply",
     "client-documents:migrate": "node scripts/client_documents_migrate.js",
     "client-documents:migrate:apply": "node scripts/client_documents_migrate.js --apply",
+    "document-collection:migrate": "node scripts/document_collection_migrate.js",
+    "document-collection:migrate:apply": "node scripts/document_collection_migrate.js --apply",
     "task-department:backfill": "node scripts/task_department_backfill.js",
     "task-department:backfill:apply": "node scripts/task_department_backfill.js --apply",
     "work-names:import": "node scripts/work_names_master_import.js",

@@ -1803,6 +1803,80 @@
   </div>
 </div>
 
+<!-- Ask Documents / Document Requests Modal -->
+<div class="modal-backdrop hidden" id="askDocumentsModal" onclick="if(event.target===this)closeModal('askDocumentsModal')">
+  <div class="modal" style="max-width:820px">
+    <div class="modal-title">
+      &#128203; Document Requests <small id="adrPartyName" style="font-weight:600;color:#64748b;font-size:14px"></small>
+      <button type="button" class="btn-sm btn-cancel" onclick="closeModal('askDocumentsModal')" style="margin-left:auto">Close</button>
+    </div>
+    <input type="hidden" id="adr_party_type"/>
+    <input type="hidden" id="adr_party_id"/>
+
+    <div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;background:#fffbeb;margin-bottom:14px">
+      <div style="font-weight:800;font-size:12.5px;color:#334155;margin-bottom:6px">Upload Link for this client</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <input type="text" id="adrLinkBox" readonly style="flex:1;min-width:220px;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12.5px;background:#fff"/>
+        <button class="btn-sm" style="background:#2563eb;color:#fff" onclick="copyAskDocumentsLink()">Copy Link</button>
+        <button class="btn-sm btn-danger hidden" id="adrRegenBtn" style="padding:7px 12px" onclick="regenerateAskDocumentsLink()">Regenerate</button>
+      </div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:6px">Send this link to the client (WhatsApp/Email) — no login needed on their end. It keeps working for any future document requests too.</div>
+    </div>
+
+    <div id="adrAddForm" style="border:1px solid #e2e8f0;border-radius:10px;padding:14px;background:#fff;margin-bottom:14px">
+      <div style="font-weight:800;font-size:13px;color:#334155;margin-bottom:8px">Request New Document(s)</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <select id="adr_type" onchange="adrTypeChange()" style="padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;flex:1;min-width:160px"></select>
+        <input type="text" id="adr_custom_name" placeholder="Document name" class="hidden" style="padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;flex:1;min-width:160px"/>
+        <button class="btn-sm" style="background:#e2e8f0;color:#334155" onclick="adrAddToPending()">+ Add</button>
+      </div>
+      <div id="adrPendingList" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>
+      <div id="adrErr" class="hidden" style="color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 10px;font-size:12.5px;margin-bottom:8px;font-weight:700"></div>
+      <button class="btn-sm" id="adrSendBtn" style="background:#ca8a04;color:#fff" onclick="submitAskDocuments()">Send Request</button>
+    </div>
+    <p class="hidden" id="adrViewOnlyNote" style="font-size:12.5px;color:#94a3b8;margin-bottom:10px">This organisation has view-only access to Document Collection.</p>
+
+    <div id="adrList" style="max-height:340px;overflow-y:auto"></div>
+  </div>
+</div>
+
+<!-- Client Details Sheet (KYC) Modal -->
+<div class="modal-backdrop hidden" id="clientKycModal" onclick="if(event.target===this)closeModal('clientKycModal')">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-title">
+      &#128196; Client Details <small id="kycPartyName" style="font-weight:600;color:#64748b;font-size:14px"></small>
+      <button type="button" class="btn-sm btn-cancel" onclick="closeModal('clientKycModal')" style="margin-left:auto">Close</button>
+    </div>
+    <input type="hidden" id="kyc_party_type"/>
+    <input type="hidden" id="kyc_party_id"/>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Aadhaar Number</label>
+        <div style="display:flex;gap:6px">
+          <input type="text" id="kyc_aadhaar" placeholder="Leave blank to keep unchanged" maxlength="14" style="flex:1"/>
+          <button type="button" class="btn-sm" style="background:#e2e8f0;color:#334155;padding:0 10px;display:none" id="kycShowAadhaarBtn" onclick="revealKycAadhaar()">Show</button>
+        </div>
+        <div id="kycAadhaarMasked" style="font-size:11.5px;color:#64748b;margin-top:3px"></div>
+      </div>
+      <div class="form-group"><label>Date of Birth</label><input type="date" id="kyc_dob"/></div>
+      <div class="form-group"><label>Category</label><select id="kyc_category"></select></div>
+      <div class="form-group"><label>Bank Account No</label><input type="text" id="kyc_bank_account"/></div>
+      <div class="form-group"><label>IFSC Code</label><input type="text" id="kyc_bank_ifsc"/></div>
+      <div class="form-group"><label>Bank Name</label><input type="text" id="kyc_bank_name"/></div>
+      <div class="form-group"><label>Spouse/Father's Name</label><input type="text" id="kyc_spouse_father"/></div>
+      <div class="form-group"><label>Nominee Name</label><input type="text" id="kyc_nominee_name"/></div>
+      <div class="form-group"><label>Nominee Relation</label><input type="text" id="kyc_nominee_relation"/></div>
+      <div class="form-group"><label>Nominee Mobile</label><input type="text" id="kyc_nominee_mobile"/></div>
+    </div>
+    <div id="kycErr" class="hidden" style="color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 10px;font-size:12.5px;margin-top:10px;font-weight:700"></div>
+    <p class="hidden" id="kycViewOnlyNote" style="font-size:12.5px;color:#94a3b8;margin-top:8px">This organisation has view-only access to Client Details.</p>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('clientKycModal')">Cancel</button>
+      <button class="btn btn-primary hidden" id="kycSaveBtn" onclick="submitClientKyc()">Save Details</button>
+    </div>
+  </div>
+</div>
+
 <!-- Client/Agent Profile Modal: all work + full conversation history -->
 <!-- z-index below the default 1000 so a task/edit modal opened from within this
      popup (Task/Mark Status, Add Client, etc.) always stacks visibly on top of it -->
@@ -2891,6 +2965,8 @@ function jsArg(v) {
 let META = { work_names:[], statuses:[], priorities:[], employees:[] };
 let CLIENT_NOTES = { enabled:false, access_level:'none', is_admin:false, categories:[] };
 let CLIENT_DOCS = { enabled:false, access_level:'none', is_admin:false, document_types:[], fy_options:[], current_fy:'' };
+let DOC_REQ = { enabled:false, access_level:'none', is_admin:false, document_types:[] };
+let CLIENT_KYC = { enabled:false, access_level:'none', is_admin:false, category_options:[] };
 let DEPT_GROUPS = {};
 function workNameText(work) {
   return typeof work === 'string' ? work : (work?.name || '');
@@ -4566,6 +4642,8 @@ function searchClients(immediate) {
           <button class="btn-sm btn-green" onclick="openPortalAccessById('agent','${h(a.agent_id)}')">Portal</button>
           ${CLIENT_NOTES.enabled ? `<button class="btn-sm" style="background:#7c3aed;color:#fff" onclick="openClientNotes('agent','${h(a.agent_id)}','${h((a.name||a.agent_id)).replace(/'/g,"\\'")}')">&#128221; Update Log</button>` : ''}
           ${CLIENT_DOCS.enabled ? `<button class="btn-sm" style="background:#0891b2;color:#fff" onclick="openClientDocuments('agent','${h(a.agent_id)}','${h((a.name||a.agent_id)).replace(/'/g,"\\'")}')">&#128193; Documents</button>` : ''}
+          ${DOC_REQ.enabled ? `<button class="btn-sm" style="background:#ca8a04;color:#fff" onclick="openAskDocuments('agent','${h(a.agent_id)}','${h((a.name||a.agent_id)).replace(/'/g,"\\'")}')">&#128203; Ask Documents</button>` : ''}
+          ${CLIENT_KYC.enabled ? `<button class="btn-sm" style="background:#475569;color:#fff" onclick="openClientKyc('agent','${h(a.agent_id)}','${h((a.name||a.agent_id)).replace(/'/g,"\\'")}')">&#128196; Client Details</button>` : ''}
         </td>
       </tr>`);
     const clientRows = clients.map(c => `
@@ -4582,6 +4660,8 @@ function searchClients(immediate) {
           <button class="btn-sm btn-green" onclick="openPortalAccessById('client','${h(c.client_id)}')">Portal</button>
           ${CLIENT_NOTES.enabled ? `<button class="btn-sm" style="background:#7c3aed;color:#fff" onclick="openClientNotes('client','${h(c.client_id)}','${h((c.legal_name||c.business_name||c.client_id)).replace(/'/g,"\\'")}')">&#128221; Update Log</button>` : ''}
           ${CLIENT_DOCS.enabled ? `<button class="btn-sm" style="background:#0891b2;color:#fff" onclick="openClientDocuments('client','${h(c.client_id)}','${h((c.legal_name||c.business_name||c.client_id)).replace(/'/g,"\\'")}')">&#128193; Documents</button>` : ''}
+          ${DOC_REQ.enabled ? `<button class="btn-sm" style="background:#ca8a04;color:#fff" onclick="openAskDocuments('client','${h(c.client_id)}','${h((c.legal_name||c.business_name||c.client_id)).replace(/'/g,"\\'")}')">&#128203; Ask Documents</button>` : ''}
+          ${CLIENT_KYC.enabled ? `<button class="btn-sm" style="background:#475569;color:#fff" onclick="openClientKyc('client','${h(c.client_id)}','${h((c.legal_name||c.business_name||c.client_id)).replace(/'/g,"\\'")}')">&#128196; Client Details</button>` : ''}
         </td>
       </tr>`);
     const rows = [...agentRows, ...clientRows];
@@ -4973,6 +5053,257 @@ async function deleteClientDocument(id) {
   const data = await api(`/client-documents/${id}`, { method: 'DELETE' });
   showToast(data.message, data.success ? 'success' : 'error');
   loadClientDocsList();
+}
+
+// ── ASK DOCUMENTS / DOCUMENT REQUESTS (client uploads via a link) ──
+let adrPendingDocs = [];
+
+async function openAskDocuments(type, id, name) {
+  document.getElementById('adr_party_type').value = type;
+  document.getElementById('adr_party_id').value = id;
+  document.getElementById('adrPartyName').textContent = `— ${name} (${id})`;
+  const typeSel = document.getElementById('adr_type');
+  typeSel.innerHTML = (DOC_REQ.document_types || []).map(t => `<option value="${h(t)}">${h(t)}</option>`).join('');
+  document.getElementById('adr_custom_name').value = '';
+  document.getElementById('adr_custom_name').classList.add('hidden');
+  adrPendingDocs = [];
+  renderAdrPendingList();
+  document.getElementById('adrErr').classList.add('hidden');
+  const canWrite = DOC_REQ.access_level === 'full';
+  document.getElementById('adrAddForm').classList.toggle('hidden', !canWrite);
+  document.getElementById('adrViewOnlyNote').classList.toggle('hidden', canWrite);
+  document.getElementById('adrRegenBtn').classList.toggle('hidden', !DOC_REQ.is_admin);
+  openModal('askDocumentsModal');
+  await loadAskDocumentsLink();
+  await loadDocumentRequestsList();
+}
+
+function adrTypeChange() {
+  const isOther = document.getElementById('adr_type').value === 'Other';
+  document.getElementById('adr_custom_name').classList.toggle('hidden', !isOther);
+}
+
+function adrAddToPending() {
+  const typeSel = document.getElementById('adr_type').value;
+  const customName = document.getElementById('adr_custom_name').value.trim();
+  const name = typeSel === 'Other' ? customName : typeSel;
+  if (!name) { showToast('Please select or enter a document name', 'error'); return; }
+  if (adrPendingDocs.includes(name)) { showToast('Already added', 'error'); return; }
+  adrPendingDocs.push(name);
+  document.getElementById('adr_custom_name').value = '';
+  renderAdrPendingList();
+}
+
+function adrRemoveFromPending(name) {
+  adrPendingDocs = adrPendingDocs.filter(n => n !== name);
+  renderAdrPendingList();
+}
+
+function renderAdrPendingList() {
+  document.getElementById('adrPendingList').innerHTML = adrPendingDocs.map(name => `
+    <span style="display:inline-flex;align-items:center;gap:6px;background:#fef3c7;color:#92400e;border-radius:7px;padding:4px 8px 4px 10px;font-size:12px;font-weight:700">
+      ${h(name)}
+      <button type="button" onclick="adrRemoveFromPending('${h(name).replace(/'/g,"\\'")}')" style="border:0;background:none;color:#92400e;cursor:pointer;font-weight:800">&times;</button>
+    </span>`).join('');
+}
+
+async function loadAskDocumentsLink() {
+  const type = document.getElementById('adr_party_type').value;
+  const id = document.getElementById('adr_party_id').value;
+  const data = await api(`/document-requests/${type}/${encodeURIComponent(id)}/link`, { cache: false });
+  document.getElementById('adrLinkBox').value = data.success ? data.url : 'Could not load link';
+}
+
+function copyAskDocumentsLink() {
+  const box = document.getElementById('adrLinkBox');
+  box.select();
+  navigator.clipboard?.writeText(box.value).then(() => showToast('Link copied', 'success')).catch(() => {
+    document.execCommand('copy');
+    showToast('Link copied', 'success');
+  });
+}
+
+async function regenerateAskDocumentsLink() {
+  if (!confirm('Regenerate this link? The old link will stop working immediately.')) return;
+  const type = document.getElementById('adr_party_type').value;
+  const id = document.getElementById('adr_party_id').value;
+  const data = await api(`/document-requests/${type}/${encodeURIComponent(id)}/regenerate-link`, { method: 'POST' });
+  showToast(data.message || (data.success ? 'Link regenerated' : 'Could not regenerate'), data.success ? 'success' : 'error');
+  if (data.success) document.getElementById('adrLinkBox').value = data.url;
+}
+
+async function submitAskDocuments() {
+  const err = document.getElementById('adrErr');
+  err.classList.add('hidden');
+  if (!adrPendingDocs.length) { err.textContent = 'Please add at least one document to request.'; err.classList.remove('hidden'); return; }
+  const btn = document.getElementById('adrSendBtn');
+  btn.disabled = true; btn.textContent = 'Sending...';
+  try {
+    const data = await api('/document-requests', {
+      method: 'POST',
+      body: JSON.stringify({
+        type: document.getElementById('adr_party_type').value,
+        id: document.getElementById('adr_party_id').value,
+        documents: adrPendingDocs,
+      }),
+    });
+    if (!data.success) { err.textContent = data.message || 'Could not send request.'; err.classList.remove('hidden'); return; }
+    adrPendingDocs = [];
+    renderAdrPendingList();
+    showToast(data.message, 'success');
+    loadDocumentRequestsList();
+  } catch (e) {
+    err.textContent = e.message || 'Could not send request.'; err.classList.remove('hidden');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Send Request';
+  }
+}
+
+async function loadDocumentRequestsList() {
+  const type = document.getElementById('adr_party_type').value;
+  const id = document.getElementById('adr_party_id').value;
+  const box = document.getElementById('adrList');
+  box.innerHTML = '<div class="empty-msg">Loading...</div>';
+  const data = await api(`/document-requests/${type}/${encodeURIComponent(id)}`, { cache: false });
+  if (!data.success) { box.innerHTML = `<div class="empty-msg">${h(data.message || 'Could not load requests')}</div>`; return; }
+  if (!data.requests.length) { box.innerHTML = '<div class="empty-msg">No documents requested yet.</div>'; return; }
+  box.innerHTML = data.requests.map(renderDocumentRequestRow).join('');
+}
+
+function renderDocumentRequestRow(r) {
+  const statusColors = { Pending: '#b45309', Submitted: '#1e40af', Approved: '#166534' };
+  const statusBg = { Pending: '#fef3c7', Submitted: '#dbeafe', Approved: '#dcfce7' };
+  const col = statusColors[r.status] || '#64748b';
+  const bg = statusBg[r.status] || '#f1f5f9';
+  const dt = new Date(r.requested_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  const remark = r.remark ? `<div style="font-size:11.5px;color:#b91c1c;margin-top:5px;font-weight:600">Asked again: ${h(r.remark)}</div>` : '';
+  const canReview = (DOC_REQ.is_admin || DOC_REQ.access_level === 'full') && r.status === 'Submitted';
+  const path = r.drive_file_id ? `/api/document-requests/attachment/${encodeURIComponent(r.drive_file_id)}` : null;
+  const safeFilename = h(r.filename || 'file').replace(/'/g, "\\'");
+  const fileLink = path ? `<button class="btn-sm" style="background:#eef2ff;color:#0891b2;padding:3px 9px;font-size:11px" onclick="viewFile('${h(path)}','${safeFilename}')">View File</button>` : '';
+  const reviewButtons = canReview ? `
+    <button class="btn-sm" style="background:#16a34a;color:#fff;padding:3px 9px;font-size:11px" onclick="reviewDocumentRequest(${r.id},'approve')">Approve</button>
+    <button class="btn-sm" style="background:#dc2626;color:#fff;padding:3px 9px;font-size:11px" onclick="reviewDocumentRequest(${r.id},'reject')">Ask Again</button>` : '';
+  const deleteBtn = DOC_REQ.is_admin ? `<button class="btn-danger" style="padding:3px 9px;font-size:11px" onclick="deleteDocumentRequest(${r.id})">Delete</button>` : '';
+  return `
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:11px 13px;margin-bottom:9px">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div>
+          <strong style="font-size:13.5px;color:#1e293b">${h(r.document_name)}</strong>
+          <span class="dept-badge" style="background:${bg};color:${col};margin-left:6px">${h(r.status)}</span>
+          <div style="font-size:11px;color:#64748b;margin-top:2px">Requested ${dt} by ${h(r.requested_by_name || '--')}</div>
+          ${remark}
+        </div>
+        <div style="white-space:nowrap;display:flex;gap:6px;align-self:flex-start;flex-wrap:wrap">
+          ${fileLink}
+          ${reviewButtons}
+          ${deleteBtn}
+        </div>
+      </div>
+    </div>`;
+}
+
+async function reviewDocumentRequest(id, action) {
+  let remark = '';
+  if (action === 'reject') {
+    const input = prompt('Reason for asking the client to resubmit (shown to the client):', '');
+    if (input === null) return; // cancelled
+    remark = input;
+  } else if (!confirm('Approve this document?')) {
+    return;
+  }
+  const data = await api(`/document-requests/${id}/review`, { method: 'POST', body: JSON.stringify({ action, remark }) });
+  showToast(data.message, data.success ? 'success' : 'error');
+  loadDocumentRequestsList();
+}
+
+async function deleteDocumentRequest(id) {
+  if (!confirm('Delete this document request permanently? This cannot be undone.')) return;
+  const data = await api(`/document-requests/${id}`, { method: 'DELETE' });
+  showToast(data.message, data.success ? 'success' : 'error');
+  loadDocumentRequestsList();
+}
+
+// ── CLIENT DETAILS SHEET (KYC) ──────────────────────────────────
+async function openClientKyc(type, id, name) {
+  document.getElementById('kyc_party_type').value = type;
+  document.getElementById('kyc_party_id').value = id;
+  document.getElementById('kycPartyName').textContent = `— ${name} (${id})`;
+  const catSel = document.getElementById('kyc_category');
+  catSel.innerHTML = '<option value="">-- Select --</option>' + (CLIENT_KYC.category_options || []).map(c => `<option value="${h(c)}">${h(c)}</option>`).join('');
+  ['kyc_dob', 'kyc_bank_account', 'kyc_bank_ifsc', 'kyc_bank_name', 'kyc_spouse_father', 'kyc_nominee_name', 'kyc_nominee_relation', 'kyc_nominee_mobile', 'kyc_aadhaar'].forEach(fid => {
+    document.getElementById(fid).value = '';
+  });
+  document.getElementById('kycAadhaarMasked').textContent = '';
+  document.getElementById('kycShowAadhaarBtn').style.display = 'none';
+  document.getElementById('kycErr').classList.add('hidden');
+  const canWrite = CLIENT_KYC.access_level === 'full';
+  document.getElementById('kycSaveBtn').classList.toggle('hidden', !canWrite);
+  document.getElementById('kycViewOnlyNote').classList.toggle('hidden', canWrite);
+  ['kyc_dob', 'kyc_category', 'kyc_bank_account', 'kyc_bank_ifsc', 'kyc_bank_name', 'kyc_spouse_father', 'kyc_nominee_name', 'kyc_nominee_relation', 'kyc_nominee_mobile', 'kyc_aadhaar'].forEach(fid => {
+    document.getElementById(fid).disabled = !canWrite;
+  });
+  openModal('clientKycModal');
+  const data = await api(`/client-kyc/${type}/${encodeURIComponent(id)}`, { cache: false });
+  if (data.success && data.kyc) {
+    const k = data.kyc;
+    document.getElementById('kyc_dob').value = k.date_of_birth ? String(k.date_of_birth).slice(0, 10) : '';
+    document.getElementById('kyc_category').value = k.category || '';
+    document.getElementById('kyc_bank_account').value = k.bank_account_no || '';
+    document.getElementById('kyc_bank_ifsc').value = k.bank_ifsc || '';
+    document.getElementById('kyc_bank_name').value = k.bank_name || '';
+    document.getElementById('kyc_spouse_father').value = k.spouse_father_name || '';
+    document.getElementById('kyc_nominee_name').value = k.nominee_name || '';
+    document.getElementById('kyc_nominee_relation').value = k.nominee_relation || '';
+    document.getElementById('kyc_nominee_mobile').value = k.nominee_mobile || '';
+    if (k.aadhaar_last4) {
+      document.getElementById('kycAadhaarMasked').textContent = `On file: XXXX-XXXX-${k.aadhaar_last4}`;
+      if (CLIENT_KYC.is_admin) document.getElementById('kycShowAadhaarBtn').style.display = 'inline-block';
+    }
+  }
+}
+
+async function revealKycAadhaar() {
+  const type = document.getElementById('kyc_party_type').value;
+  const id = document.getElementById('kyc_party_id').value;
+  const data = await api(`/client-kyc/${type}/${encodeURIComponent(id)}/aadhaar`, { cache: false });
+  if (data.success && data.aadhaar) {
+    document.getElementById('kyc_aadhaar').value = data.aadhaar;
+    showToast('Full Aadhaar number revealed', 'success');
+  } else {
+    showToast('No Aadhaar number on file', 'error');
+  }
+}
+
+async function submitClientKyc() {
+  const err = document.getElementById('kycErr');
+  err.classList.add('hidden');
+  const btn = document.getElementById('kycSaveBtn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const data = await api(`/client-kyc/${document.getElementById('kyc_party_type').value}/${encodeURIComponent(document.getElementById('kyc_party_id').value)}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        aadhaar: document.getElementById('kyc_aadhaar').value.trim(),
+        date_of_birth: document.getElementById('kyc_dob').value,
+        category: document.getElementById('kyc_category').value,
+        bank_account_no: document.getElementById('kyc_bank_account').value.trim(),
+        bank_ifsc: document.getElementById('kyc_bank_ifsc').value.trim(),
+        bank_name: document.getElementById('kyc_bank_name').value.trim(),
+        spouse_father_name: document.getElementById('kyc_spouse_father').value.trim(),
+        nominee_name: document.getElementById('kyc_nominee_name').value.trim(),
+        nominee_relation: document.getElementById('kyc_nominee_relation').value.trim(),
+        nominee_mobile: document.getElementById('kyc_nominee_mobile').value.trim(),
+      }),
+    });
+    if (!data.success) { err.textContent = data.message || 'Could not save.'; err.classList.remove('hidden'); return; }
+    showToast('Client details saved', 'success');
+    closeModal('clientKycModal');
+  } catch (e) {
+    err.textContent = e.message || 'Could not save.'; err.classList.remove('hidden');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save Details';
+  }
 }
 
 // ── CLIENT/AGENT PROFILE (all work + full conversation history) ──
@@ -8175,10 +8506,30 @@ async function loadClientDocsAccess() {
   } catch { /* feature not enabled for this org — buttons stay hidden */ }
 }
 
+async function loadDocRequestAccess() {
+  try {
+    const data = await api('/document-requests/categories');
+    if (data.success) {
+      DOC_REQ = { enabled: true, access_level: data.access_level, is_admin: data.is_admin, document_types: data.document_types };
+    }
+  } catch { /* feature not enabled for this org — buttons stay hidden */ }
+}
+
+async function loadClientKycAccess() {
+  try {
+    const data = await api('/client-kyc/categories');
+    if (data.success) {
+      CLIENT_KYC = { enabled: true, access_level: data.access_level, is_admin: data.is_admin, category_options: data.category_options };
+    }
+  } catch { /* feature not enabled for this org — buttons stay hidden */ }
+}
+
 async function initOfficeApp() {
   await loadMeta();
   await loadClientNotesAccess();
   await loadClientDocsAccess();
+  await loadDocRequestAccess();
+  await loadClientKycAccess();
   await loadDashboard();
   panelLoaded['dashboard'] = true;
   try {
