@@ -4888,6 +4888,10 @@ async function openAskDocuments(type, id, name) {
 // ── Work-based document suggestions ─────────────────────────────
 let ADR_TEMPLATE_GROUPS = [];
 let ADR_REPEAT_COUNTS = {};
+// Optional name typed against each repeated instance (Director 1, Director 2,
+// ...), keyed "gi_n" — carried into the group heading so it's clear whose
+// documents these are, not just a number.
+let ADR_INSTANCE_NAMES = {};
 
 function renderAdrWorkOptions() {
   const sel = document.getElementById('adrWork');
@@ -4910,6 +4914,7 @@ function adrWorkChange() {
   const entitySel = document.getElementById('adrEntityType');
   const template = work ? DOC_REQ.work_templates[work] : null;
   ADR_REPEAT_COUNTS = {};
+  ADR_INSTANCE_NAMES = {};
   entitySel.classList.add('hidden');
   entitySel.innerHTML = '';
   if (!template) {
@@ -4935,6 +4940,7 @@ function adrEntityTypeChange() {
   const template = DOC_REQ.work_templates[work];
   const entityType = document.getElementById('adrEntityType').value;
   ADR_REPEAT_COUNTS = {};
+  ADR_INSTANCE_NAMES = {};
   ADR_TEMPLATE_GROUPS = (template && entityType) ? (template.groupsByEntity[entityType] || []) : [];
   renderAdrTemplateBox();
 }
@@ -4947,8 +4953,13 @@ function renderAdrTemplateBox() {
     if (g.repeatRole) {
       const count = ADR_REPEAT_COUNTS[gi] || 1;
       for (let n = 1; n <= count; n++) {
+        const nameKey = `${gi}_${n}`;
+        const nameVal = ADR_INSTANCE_NAMES[nameKey] || '';
         html += `<div style="border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;margin-bottom:8px">
-          <div style="font-size:12.5px;font-weight:800;color:#334155;margin-bottom:6px">${h(adrRoleLabel(g.repeatRole))} ${n} — ${h(g.heading)}</div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+            <div style="font-size:12.5px;font-weight:800;color:#334155">${h(adrRoleLabel(g.repeatRole))} ${n} — ${h(g.heading)}</div>
+            <input type="text" placeholder="${h(adrRoleLabel(g.repeatRole))} ${n} name (optional)" value="${h(nameVal)}" oninput="ADR_INSTANCE_NAMES['${nameKey}']=this.value" style="flex:1;min-width:160px;padding:5px 8px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:12px"/>
+          </div>
           ${g.items.map((it, ii) => `<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;padding:3px 0"><input type="checkbox" checked data-group="${gi}" data-instance="${n}" data-item="${ii}"/>${h(it.name)}${it.kind === 'file2' ? ' <span style=\"color:#94a3b8\">(front + back)</span>' : ''}${it.kind === 'text' ? ' <span style=\"color:#94a3b8\">(typed answer)</span>' : ''}</label>`).join('')}
         </div>`;
       }
@@ -4986,7 +4997,10 @@ function adrAddTemplateChecked() {
     const g = ADR_TEMPLATE_GROUPS[gi];
     if (!g) return;
     const it = g.items[ii];
-    const groupHeading = g.repeatRole ? `${adrRoleLabel(g.repeatRole)} ${inst} — ${g.heading}` : g.heading;
+    const instName = (ADR_INSTANCE_NAMES[`${gi}_${inst}`] || '').trim();
+    const groupHeading = g.repeatRole
+      ? `${adrRoleLabel(g.repeatRole)} ${inst}${instName ? ' — ' + instName : ''} — ${g.heading}`
+      : g.heading;
     const sides = it.kind === 'file2' ? ['front', 'back'] : [null];
     sides.forEach(side => {
       const entry = { document_name: it.name, work_name: workName, group_heading: groupHeading, input_kind: it.kind === 'text' ? 'text' : 'file', side };
@@ -5094,10 +5108,18 @@ async function loadDocumentRequestsList() {
 }
 
 // Requests are grouped into "bunches" by the work they were requested for
-// (e.g. all Private Limited Company Incorporation documents together) so
-// it's clear at a glance what a document is for, matching how they were
-// picked in the Ask Documents form.
+// (e.g. all Private Limited Company Incorporation documents together), then
+// sub-grouped by group_heading (e.g. "Director 1 — Rajesh Kumar — Director
+// KYC") so it's clear at a glance what a document is for and whose it is —
+// matching how they were picked in the Ask Documents form. Each sub-group
+// gets its own "+ Add" box so more documents can be tacked onto that same
+// director/heading later, after the original request was already sent.
+let ADR_GROUP_ADD_CONTEXT = {};
+let _adrGroupSeq = 0;
+
 function renderDocumentRequestBunches(requests) {
+  ADR_GROUP_ADD_CONTEXT = {};
+  _adrGroupSeq = 0;
   const bunches = [];
   const byWork = {};
   requests.forEach(r => {
@@ -5109,8 +5131,50 @@ function renderDocumentRequestBunches(requests) {
     const header = b.work_name
       ? `<div style="font-weight:800;font-size:13px;color:#334155;background:#eef2ff;padding:6px 10px;border-radius:7px;margin:14px 0 8px">${h(b.work_name)}</div>`
       : (bunches.length > 1 ? '<div style="font-weight:800;font-size:13px;color:#334155;margin:14px 0 8px">Other requests</div>' : '');
-    return header + b.items.map(renderDocumentRequestRow).join('');
+    return header + renderDocumentRequestGroups(b.items, b.work_name);
   }).join('');
+}
+
+function renderDocumentRequestGroups(items, workName) {
+  const groups = [];
+  const byGroup = {};
+  items.forEach(r => {
+    const key = r.group_heading || '';
+    if (!byGroup[key]) { byGroup[key] = { group_heading: r.group_heading, items: [] }; groups.push(byGroup[key]); }
+    byGroup[key].items.push(r);
+  });
+  const canWrite = DOC_REQ.access_level === 'full';
+  return groups.map(g => {
+    const subHeader = g.group_heading ? `<div style="font-size:12px;font-weight:700;color:#475569;margin:8px 0 6px">${h(g.group_heading)}</div>` : '';
+    const rows = g.items.map(renderDocumentRequestRow).join('');
+    const uid = _adrGroupSeq++;
+    ADR_GROUP_ADD_CONTEXT[uid] = { workName: workName || null, groupHeading: g.group_heading || null };
+    const addRow = canWrite ? `
+      <div style="display:flex;gap:6px;margin:2px 0 14px;flex-wrap:wrap">
+        <input type="text" id="adrMore_${uid}" placeholder="Add another document to this${g.group_heading ? '' : ' request'}" style="flex:1;min-width:180px;padding:6px 9px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px"/>
+        <button class="btn-sm" style="background:#e2e8f0;color:#334155;padding:6px 12px;font-size:11.5px" onclick="adrAddMoreToGroup(${uid})">+ Add</button>
+      </div>` : '';
+    return subHeader + rows + addRow;
+  }).join('');
+}
+
+async function adrAddMoreToGroup(uid) {
+  const ctx = ADR_GROUP_ADD_CONTEXT[uid];
+  if (!ctx) return;
+  const input = document.getElementById('adrMore_' + uid);
+  const name = input.value.trim();
+  if (!name) { showToast('Enter a document name first', 'error'); return; }
+  const data = await api('/document-requests', {
+    method: 'POST',
+    body: JSON.stringify({
+      type: document.getElementById('adr_party_type').value,
+      id: document.getElementById('adr_party_id').value,
+      documents: [{ document_name: name, work_name: ctx.workName, group_heading: ctx.groupHeading, input_kind: 'file', side: null }],
+    }),
+  });
+  if (!data.success) { showToast(data.message || 'Could not add document', 'error'); return; }
+  showToast('Document added', 'success');
+  loadDocumentRequestsList();
 }
 
 function renderDocumentRequestRow(r) {
@@ -5121,7 +5185,6 @@ function renderDocumentRequestRow(r) {
   const dt = new Date(r.requested_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   const remark = r.remark ? `<div style="font-size:11.5px;color:#b91c1c;margin-top:5px;font-weight:600">Asked again: ${h(r.remark)}</div>` : '';
   const canReview = (DOC_REQ.is_admin || DOC_REQ.access_level === 'full') && r.status === 'Submitted';
-  const groupTag = r.group_heading ? `<div style="font-size:11px;color:#94a3b8">${h(r.group_heading)}</div>` : '';
   const sideLabel = r.side ? ` (${r.side === 'front' ? 'Front' : 'Back'})` : '';
   const answer = r.input_kind === 'text' && r.text_value ? `<div style="font-size:12.5px;color:#1e293b;background:#f8fafc;border-radius:6px;padding:5px 8px;margin-top:5px">${h(r.text_value)}</div>` : '';
   const path = r.input_kind !== 'text' && r.drive_file_id ? `/api/document-requests/attachment/${encodeURIComponent(r.drive_file_id)}` : null;
@@ -5135,7 +5198,6 @@ function renderDocumentRequestRow(r) {
     <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:11px 13px;margin-bottom:9px">
       <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
         <div>
-          ${groupTag}
           <strong style="font-size:13.5px;color:#1e293b">${h(r.document_name)}${sideLabel}</strong>
           <span class="dept-badge" style="background:${bg};color:${col};margin-left:6px">${h(r.status)}</span>
           <div style="font-size:11px;color:#64748b;margin-top:2px">Requested ${dt} by ${h(r.requested_by_name || '--')}</div>
