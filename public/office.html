@@ -772,7 +772,7 @@
         <button class="btn-sm btn-view" onclick="searchClients(true)">&#128269; Search</button>
       </div>
       <div class="card"><div class="tbl-wrap"><table>
-        <thead><tr><th>Type</th><th>ID</th><th>Name</th><th>Business / Email</th><th>Agent / Mobile</th><th>Status</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Type</th><th>ID</th><th>Name</th><th>Business / Email</th><th>Agent / Mobile</th><th>Status</th></tr></thead>
         <tbody id="clientTable"></tbody>
       </table></div></div>
     </div>
@@ -1746,150 +1746,107 @@
 </div>
 
 <!-- Client Update Log Modal -->
-<div class="modal-backdrop hidden" id="clientNotesModal" onclick="if(event.target===this)closeModal('clientNotesModal')">
-  <div class="modal" style="max-width:760px">
-    <div class="modal-title">
-      &#128221; Update Log <small id="cnPartyName" style="font-weight:600;color:#64748b;font-size:14px"></small>
-      <button type="button" class="btn-sm btn-cancel" onclick="closeModal('clientNotesModal')" style="margin-left:auto">Close</button>
-    </div>
-    <input type="hidden" id="cn_party_type"/>
-    <input type="hidden" id="cn_party_id"/>
-
-    <div id="cnTimeline" style="max-height:360px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:10px;padding:10px;background:#f8fafc;margin-bottom:14px"></div>
-
-    <div id="cnAddForm" style="border:1px solid #e2e8f0;border-radius:10px;padding:14px;background:#fff">
-      <div style="font-weight:800;font-size:13px;color:#334155;margin-bottom:8px">Add Update</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-        <select id="cn_category" style="padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px"></select>
-        <input type="file" id="cn_file" accept="image/png,image/jpeg,image/webp,application/pdf" multiple style="font-size:12px"/>
-      </div>
-      <div style="font-size:10.5px;color:#94a3b8;margin:-4px 0 8px">Images or PDF, max 5MB per file</div>
-      <textarea id="cn_text" rows="4" placeholder="What did the client say? What was decided? e.g. 'Client asked to file GSTR-3B on estimated figures as books not shared. Called twice, no response.'" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;resize:vertical;box-sizing:border-box"></textarea>
-      <div id="cnPendingFiles" style="margin-top:6px;font-size:12px;color:#64748b"></div>
-      <div id="cnErr" class="hidden" style="color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 10px;font-size:12.5px;margin-top:8px;font-weight:700"></div>
-      <button class="btn-sm" id="cnSaveBtn" style="background:#7c3aed;color:#fff;margin-top:10px" onclick="submitClientNote()">Save Update</button>
-    </div>
-    <p class="hidden" id="cnViewOnlyNote" style="font-size:12.5px;color:#94a3b8;margin-top:8px">This organisation has view-only access to the Update Log.</p>
-  </div>
-</div>
-
-<!-- Client/Agent Document Management Modal -->
-<div class="modal-backdrop hidden" id="clientDocsModal" onclick="if(event.target===this)closeModal('clientDocsModal')">
-  <div class="modal" style="max-width:820px">
-    <div class="modal-title">
-      &#128193; Manage Documents <small id="cdPartyName" style="font-weight:600;color:#64748b;font-size:14px"></small>
-      <button type="button" class="btn-sm btn-cancel" onclick="closeModal('clientDocsModal')" style="margin-left:auto">Close</button>
-    </div>
-    <input type="hidden" id="cd_party_type"/>
-    <input type="hidden" id="cd_party_id"/>
-
-    <div id="cdAddForm" style="border:1px solid #e2e8f0;border-radius:10px;padding:14px;background:#fff;margin-bottom:14px">
-      <div style="font-weight:800;font-size:13px;color:#334155;margin-bottom:8px">Add Document</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-        <select id="cd_fy" style="padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px"></select>
-        <select id="cd_type" onchange="cdTypeChange()" style="padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;flex:1;min-width:160px"></select>
-        <input type="text" id="cd_custom_name" placeholder="Document name" class="hidden" style="padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;flex:1;min-width:160px"/>
-      </div>
-      <textarea id="cd_description" rows="2" placeholder="Description (optional)" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box;margin-bottom:8px"></textarea>
-      <input type="file" id="cd_file" accept="image/png,image/jpeg,image/webp,application/pdf" style="font-size:12px"/>
-      <div style="font-size:10.5px;color:#94a3b8;margin:4px 0 8px">Images or PDF, max 5MB</div>
-      <div id="cdPendingFile" style="margin-bottom:6px;font-size:12px;color:#64748b"></div>
-      <div id="cdErr" class="hidden" style="color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 10px;font-size:12.5px;margin-top:4px;font-weight:700"></div>
-      <button class="btn-sm" id="cdSaveBtn" style="background:#0891b2;color:#fff;margin-top:10px" onclick="submitClientDocument()">Save Document</button>
-    </div>
-    <p class="hidden" id="cdViewOnlyNote" style="font-size:12.5px;color:#94a3b8;margin-bottom:10px">This organisation has view-only access to Document Management.</p>
-
-    <div id="cdList" style="max-height:400px;overflow-y:auto"></div>
-  </div>
-</div>
-
-<!-- Ask Documents / Document Requests Modal -->
-<div class="modal-backdrop hidden" id="askDocumentsModal" onclick="if(event.target===this)closeModal('askDocumentsModal')">
-  <div class="modal" style="max-width:820px">
-    <div class="modal-title">
-      &#128203; Document Requests <small id="adrPartyName" style="font-weight:600;color:#64748b;font-size:14px"></small>
-      <button type="button" class="btn-sm btn-cancel" onclick="closeModal('askDocumentsModal')" style="margin-left:auto">Close</button>
-    </div>
-    <input type="hidden" id="adr_party_type"/>
-    <input type="hidden" id="adr_party_id"/>
-
-    <div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;background:#fffbeb;margin-bottom:14px">
-      <div style="font-weight:800;font-size:12.5px;color:#334155;margin-bottom:6px">Upload Link for this client</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-        <input type="text" id="adrLinkBox" readonly style="flex:1;min-width:220px;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12.5px;background:#fff"/>
-        <button class="btn-sm" style="background:#2563eb;color:#fff" onclick="copyAskDocumentsLink()">Copy Link</button>
-        <button class="btn-sm btn-danger hidden" id="adrRegenBtn" style="padding:7px 12px" onclick="regenerateAskDocumentsLink()">Regenerate</button>
-      </div>
-      <div style="font-size:11px;color:#94a3b8;margin-top:6px">Send this link to the client (WhatsApp/Email) — no login needed on their end. It keeps working for any future document requests too.</div>
-    </div>
-
-    <div id="adrAddForm" style="border:1px solid #e2e8f0;border-radius:10px;padding:14px;background:#fff;margin-bottom:14px">
-      <div style="font-weight:800;font-size:13px;color:#334155;margin-bottom:8px">Request New Document(s)</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-        <select id="adr_type" onchange="adrTypeChange()" style="padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;flex:1;min-width:160px"></select>
-        <input type="text" id="adr_custom_name" placeholder="Document name" class="hidden" style="padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;flex:1;min-width:160px"/>
-        <button class="btn-sm" style="background:#e2e8f0;color:#334155" onclick="adrAddToPending()">+ Add</button>
-      </div>
-      <div id="adrPendingList" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>
-      <div id="adrErr" class="hidden" style="color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 10px;font-size:12.5px;margin-bottom:8px;font-weight:700"></div>
-      <button class="btn-sm" id="adrSendBtn" style="background:#ca8a04;color:#fff" onclick="submitAskDocuments()">Send Request</button>
-    </div>
-    <p class="hidden" id="adrViewOnlyNote" style="font-size:12.5px;color:#94a3b8;margin-bottom:10px">This organisation has view-only access to Document Collection.</p>
-
-    <div id="adrList" style="max-height:340px;overflow-y:auto"></div>
-  </div>
-</div>
-
-<!-- Client Details Sheet (KYC) Modal -->
-<div class="modal-backdrop hidden" id="clientKycModal" onclick="if(event.target===this)closeModal('clientKycModal')">
-  <div class="modal" style="max-width:640px">
-    <div class="modal-title">
-      &#128196; Client Details <small id="kycPartyName" style="font-weight:600;color:#64748b;font-size:14px"></small>
-      <button type="button" class="btn-sm btn-cancel" onclick="closeModal('clientKycModal')" style="margin-left:auto">Close</button>
-    </div>
-    <input type="hidden" id="kyc_party_type"/>
-    <input type="hidden" id="kyc_party_id"/>
-    <div class="form-grid">
-      <div class="form-group">
-        <label>Aadhaar Number</label>
-        <div style="display:flex;gap:6px">
-          <input type="text" id="kyc_aadhaar" placeholder="Leave blank to keep unchanged" maxlength="14" style="flex:1"/>
-          <button type="button" class="btn-sm" style="background:#e2e8f0;color:#334155;padding:0 10px;display:none" id="kycShowAadhaarBtn" onclick="revealKycAadhaar()">Show</button>
-        </div>
-        <div id="kycAadhaarMasked" style="font-size:11.5px;color:#64748b;margin-top:3px"></div>
-      </div>
-      <div class="form-group"><label>Date of Birth</label><input type="date" id="kyc_dob"/></div>
-      <div class="form-group"><label>Category</label><select id="kyc_category"></select></div>
-      <div class="form-group"><label>Bank Account No</label><input type="text" id="kyc_bank_account"/></div>
-      <div class="form-group"><label>IFSC Code</label><input type="text" id="kyc_bank_ifsc"/></div>
-      <div class="form-group"><label>Bank Name</label><input type="text" id="kyc_bank_name"/></div>
-      <div class="form-group"><label>Spouse/Father's Name</label><input type="text" id="kyc_spouse_father"/></div>
-      <div class="form-group"><label>Nominee Name</label><input type="text" id="kyc_nominee_name"/></div>
-      <div class="form-group"><label>Nominee Relation</label><input type="text" id="kyc_nominee_relation"/></div>
-      <div class="form-group"><label>Nominee Mobile</label><input type="text" id="kyc_nominee_mobile"/></div>
-    </div>
-    <div id="kycErr" class="hidden" style="color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 10px;font-size:12.5px;margin-top:10px;font-weight:700"></div>
-    <p class="hidden" id="kycViewOnlyNote" style="font-size:12.5px;color:#94a3b8;margin-top:8px">This organisation has view-only access to Client Details.</p>
-    <div class="modal-actions">
-      <button class="btn-cancel" onclick="closeModal('clientKycModal')">Cancel</button>
-      <button class="btn btn-primary hidden" id="kycSaveBtn" onclick="submitClientKyc()">Save Details</button>
-    </div>
-  </div>
-</div>
-
-<!-- Client/Agent Profile Modal: all work + full conversation history -->
-<!-- z-index below the default 1000 so a task/edit modal opened from within this
-     popup (Task/Mark Status, Add Client, etc.) always stacks visibly on top of it -->
+<!-- Client/Agent Profile Modal — everything about one client/agent lives
+     here now (tabs), reached only by clicking their name in the search
+     list: Overview, All Work, Update Log, Documents, Ask Documents,
+     Client Details. z-index below the default 1000 so a task/edit modal
+     opened from within this popup (Task/Mark Status, Add Client, etc.)
+     always stacks visibly on top of it. -->
 <div class="modal-backdrop hidden" id="clientProfileModal" style="z-index:999" onclick="if(event.target===this)closeModal('clientProfileModal')">
-  <div class="modal" style="max-width:920px;max-height:88vh;overflow-y:auto">
-    <div class="modal-title" style="display:flex;align-items:center;gap:10px">
+  <div class="modal" style="max-width:960px;max-height:88vh;overflow-y:auto">
+    <div class="modal-title" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <span id="cpTitle">Profile</span>
       <div style="margin-left:auto;display:flex;gap:8px;flex-shrink:0">
+        <button type="button" class="btn-sm" style="background:#e2e8f0;color:#334155" onclick="cpOpenPortal()">Portal</button>
         <button type="button" class="btn-sm" style="background:#eef2ff;color:#4338ca" onclick="printClientProfile()">&#128424; Print</button>
         <button type="button" class="btn-sm btn-cancel" onclick="closeModal('clientProfileModal')">Close</button>
       </div>
     </div>
-    <div id="cpBody"><div class="empty-msg">Loading...</div></div>
+
+    <div id="cpTabBar" style="display:flex;gap:2px;flex-wrap:wrap;border-bottom:2px solid #e2e8f0;margin-bottom:16px"></div>
+
+    <div id="cpTabPane_overview" class="cp-tab-pane"></div>
+
+    <div id="cpTabPane_work" class="cp-tab-pane hidden"></div>
+
+    <div id="cpTabPane_updatelog" class="cp-tab-pane hidden"></div>
+
+    <div id="cpTabPane_documents" class="cp-tab-pane hidden">
+      <input type="hidden" id="cd_party_type"/>
+      <input type="hidden" id="cd_party_id"/>
+      <div id="cdAddForm" style="border:1px solid #e2e8f0;border-radius:10px;padding:14px;background:#fff;margin-bottom:14px">
+        <div style="font-weight:800;font-size:13px;color:#334155;margin-bottom:8px">Add Document</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+          <select id="cd_fy" style="padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px"></select>
+          <select id="cd_type" onchange="cdTypeChange()" style="padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;flex:1;min-width:160px"></select>
+          <input type="text" id="cd_custom_name" placeholder="Document name" class="hidden" style="padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;flex:1;min-width:160px"/>
+        </div>
+        <textarea id="cd_description" rows="2" placeholder="Description (optional)" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box;margin-bottom:8px"></textarea>
+        <input type="file" id="cd_file" accept="image/png,image/jpeg,image/webp,application/pdf" style="font-size:12px"/>
+        <div style="font-size:10.5px;color:#94a3b8;margin:4px 0 8px">Images or PDF, max 5MB</div>
+        <div id="cdPendingFile" style="margin-bottom:6px;font-size:12px;color:#64748b"></div>
+        <div id="cdErr" class="hidden" style="color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 10px;font-size:12.5px;margin-top:4px;font-weight:700"></div>
+        <button class="btn-sm" id="cdSaveBtn" style="background:#0891b2;color:#fff;margin-top:10px" onclick="submitClientDocument()">Save Document</button>
+      </div>
+      <p class="hidden" id="cdViewOnlyNote" style="font-size:12.5px;color:#94a3b8;margin-bottom:10px">This organisation has view-only access to Document Management.</p>
+      <div id="cdList" style="max-height:400px;overflow-y:auto"></div>
+    </div>
+
+    <div id="cpTabPane_askdocs" class="cp-tab-pane hidden">
+      <input type="hidden" id="adr_party_type"/>
+      <input type="hidden" id="adr_party_id"/>
+      <div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;background:#fffbeb;margin-bottom:14px">
+        <div style="font-weight:800;font-size:12.5px;color:#334155;margin-bottom:6px">Upload Link for this client</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <input type="text" id="adrLinkBox" readonly style="flex:1;min-width:220px;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12.5px;background:#fff"/>
+          <button class="btn-sm" style="background:#2563eb;color:#fff" onclick="copyAskDocumentsLink()">Copy Link</button>
+          <button class="btn-sm btn-danger hidden" id="adrRegenBtn" style="padding:7px 12px" onclick="regenerateAskDocumentsLink()">Regenerate</button>
+        </div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:6px">Send this link to the client (WhatsApp/Email) — no login needed on their end. It keeps working for any future document requests too.</div>
+      </div>
+      <div id="adrAddForm" style="border:1px solid #e2e8f0;border-radius:10px;padding:14px;background:#fff;margin-bottom:14px">
+        <div style="font-weight:800;font-size:13px;color:#334155;margin-bottom:8px">Request New Document(s)</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+          <select id="adr_type" onchange="adrTypeChange()" style="padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;flex:1;min-width:160px"></select>
+          <input type="text" id="adr_custom_name" placeholder="Document name" class="hidden" style="padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;flex:1;min-width:160px"/>
+          <button class="btn-sm" style="background:#e2e8f0;color:#334155" onclick="adrAddToPending()">+ Add</button>
+        </div>
+        <div id="adrPendingList" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>
+        <div id="adrErr" class="hidden" style="color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 10px;font-size:12.5px;margin-bottom:8px;font-weight:700"></div>
+        <button class="btn-sm" id="adrSendBtn" style="background:#ca8a04;color:#fff" onclick="submitAskDocuments()">Send Request</button>
+      </div>
+      <p class="hidden" id="adrViewOnlyNote" style="font-size:12.5px;color:#94a3b8;margin-bottom:10px">This organisation has view-only access to Document Collection.</p>
+      <div id="adrList" style="max-height:340px;overflow-y:auto"></div>
+    </div>
+
+    <div id="cpTabPane_kyc" class="cp-tab-pane hidden">
+      <input type="hidden" id="kyc_party_type"/>
+      <input type="hidden" id="kyc_party_id"/>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Aadhaar Number</label>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="kyc_aadhaar" placeholder="Leave blank to keep unchanged" maxlength="14" style="flex:1"/>
+            <button type="button" class="btn-sm" style="background:#e2e8f0;color:#334155;padding:0 10px;display:none" id="kycShowAadhaarBtn" onclick="revealKycAadhaar()">Show</button>
+          </div>
+          <div id="kycAadhaarMasked" style="font-size:11.5px;color:#64748b;margin-top:3px"></div>
+        </div>
+        <div class="form-group"><label>Date of Birth</label><input type="date" id="kyc_dob"/></div>
+        <div class="form-group"><label>Category</label><select id="kyc_category"></select></div>
+        <div class="form-group"><label>Bank Account No</label><input type="text" id="kyc_bank_account"/></div>
+        <div class="form-group"><label>IFSC Code</label><input type="text" id="kyc_bank_ifsc"/></div>
+        <div class="form-group"><label>Bank Name</label><input type="text" id="kyc_bank_name"/></div>
+        <div class="form-group"><label>Spouse/Father's Name</label><input type="text" id="kyc_spouse_father"/></div>
+        <div class="form-group"><label>Nominee Name</label><input type="text" id="kyc_nominee_name"/></div>
+        <div class="form-group"><label>Nominee Relation</label><input type="text" id="kyc_nominee_relation"/></div>
+        <div class="form-group"><label>Nominee Mobile</label><input type="text" id="kyc_nominee_mobile"/></div>
+      </div>
+      <div id="kycErr" class="hidden" style="color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 10px;font-size:12.5px;margin-top:10px;font-weight:700"></div>
+      <p class="hidden" id="kycViewOnlyNote" style="font-size:12.5px;color:#94a3b8;margin-top:8px">This organisation has view-only access to Client Details.</p>
+      <div class="modal-actions">
+        <button class="btn btn-primary hidden" id="kycSaveBtn" onclick="submitClientKyc()">Save Details</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -4636,15 +4593,6 @@ function searchClients(immediate) {
         <td>${h(a.email_id||'--')}</td>
         <td>${h(a.mobile_number||'--')}</td>
         <td><span class="badge ${a.portal_enabled&&a.portal_has_password?'b-active':'b-inactive'}">${a.portal_enabled ? (a.portal_has_password ? 'Portal On' : 'Password Missing') : 'Portal Off'}</span></td>
-        <td style="white-space:nowrap">
-          <button class="btn-sm btn-view" onclick="viewSearchRow('agent','${h(a.agent_id)}')">View</button>
-          <button class="btn-sm btn-edit" onclick="editAgentById('${h(a.agent_id)}')">Edit</button>
-          <button class="btn-sm btn-green" onclick="openPortalAccessById('agent','${h(a.agent_id)}')">Portal</button>
-          ${CLIENT_NOTES.enabled ? `<button class="btn-sm" style="background:#7c3aed;color:#fff" onclick="openClientNotes('agent','${h(a.agent_id)}','${h((a.name||a.agent_id)).replace(/'/g,"\\'")}')">&#128221; Update Log</button>` : ''}
-          ${CLIENT_DOCS.enabled ? `<button class="btn-sm" style="background:#0891b2;color:#fff" onclick="openClientDocuments('agent','${h(a.agent_id)}','${h((a.name||a.agent_id)).replace(/'/g,"\\'")}')">&#128193; Documents</button>` : ''}
-          ${DOC_REQ.enabled ? `<button class="btn-sm" style="background:#ca8a04;color:#fff" onclick="openAskDocuments('agent','${h(a.agent_id)}','${h((a.name||a.agent_id)).replace(/'/g,"\\'")}')">&#128203; Ask Documents</button>` : ''}
-          ${CLIENT_KYC.enabled ? `<button class="btn-sm" style="background:#475569;color:#fff" onclick="openClientKyc('agent','${h(a.agent_id)}','${h((a.name||a.agent_id)).replace(/'/g,"\\'")}')">&#128196; Client Details</button>` : ''}
-        </td>
       </tr>`);
     const clientRows = clients.map(c => `
       <tr>
@@ -4654,36 +4602,11 @@ function searchClients(immediate) {
         <td>${h(c.business_name||'--')}</td>
         <td><div>${h(c.agent_name||'--')}</div><div style="color:#64748b;font-size:12px">${h(c.mobile_number||'--')}</div></td>
         <td><span class="badge ${c.status==='Active'||!c.status?'b-active':'b-inactive'}">${h(c.status||'Active')}</span></td>
-        <td style="white-space:nowrap">
-          <button class="btn-sm btn-view" onclick="viewSearchRow('client','${h(c.client_id)}')">View</button>
-          <button class="btn-sm btn-edit" onclick="editClientById('${h(c.client_id)}')">Edit</button>
-          <button class="btn-sm btn-green" onclick="openPortalAccessById('client','${h(c.client_id)}')">Portal</button>
-          ${CLIENT_NOTES.enabled ? `<button class="btn-sm" style="background:#7c3aed;color:#fff" onclick="openClientNotes('client','${h(c.client_id)}','${h((c.legal_name||c.business_name||c.client_id)).replace(/'/g,"\\'")}')">&#128221; Update Log</button>` : ''}
-          ${CLIENT_DOCS.enabled ? `<button class="btn-sm" style="background:#0891b2;color:#fff" onclick="openClientDocuments('client','${h(c.client_id)}','${h((c.legal_name||c.business_name||c.client_id)).replace(/'/g,"\\'")}')">&#128193; Documents</button>` : ''}
-          ${DOC_REQ.enabled ? `<button class="btn-sm" style="background:#ca8a04;color:#fff" onclick="openAskDocuments('client','${h(c.client_id)}','${h((c.legal_name||c.business_name||c.client_id)).replace(/'/g,"\\'")}')">&#128203; Ask Documents</button>` : ''}
-          ${CLIENT_KYC.enabled ? `<button class="btn-sm" style="background:#475569;color:#fff" onclick="openClientKyc('client','${h(c.client_id)}','${h((c.legal_name||c.business_name||c.client_id)).replace(/'/g,"\\'")}')">&#128196; Client Details</button>` : ''}
-        </td>
       </tr>`);
     const rows = [...agentRows, ...clientRows];
-    tb.innerHTML = rows.length ? rows.join('') : '<tr><td colspan="7" class="empty-msg">No clients or agents found. Try a different search.</td></tr>';
+    tb.innerHTML = rows.length ? rows.join('') : '<tr><td colspan="6" class="empty-msg">No clients or agents found. Try a different search.</td></tr>';
   };
   if (immediate) fn(); else _clientDbt = setTimeout(fn, 350);
-}
-
-function viewSearchRow(type, id) {
-  const row = clientSearchRows[type]?.[id];
-  if (!row) return;
-  if (type === 'agent') return viewAgent(row);
-  return viewClient(row);
-}
-
-function viewClient(c) {
-  const name = c.legal_name || c.business_name || c.client_id;
-  showToast(`${name} | Agent: ${c.agent_name||'--'} | Mobile: ${c.mobile_number||'--'}`, 'success');
-}
-
-function viewAgent(a) {
-  showToast(`${a.name||a.agent_id} | Agent ID: ${a.agent_id} | Mobile: ${a.mobile_number||'--'} | Email: ${a.email_id||'--'}`, 'success');
 }
 
 function editClientById(id) {
@@ -4696,25 +4619,6 @@ const CN_CATEGORY_COLORS = {
   'Instruction Given': '#2563eb', 'Client Unreachable': '#dc2626', 'Payment Pending': '#b45309',
   'Estimated Data Used': '#7c3aed', 'Follow-up Required': '#0891b2', 'Other': '#64748b',
 };
-let cnPendingFiles = [];
-
-function openClientNotes(type, id, name) {
-  document.getElementById('cn_party_type').value = type;
-  document.getElementById('cn_party_id').value = id;
-  document.getElementById('cnPartyName').textContent = `— ${name} (${id})`;
-  const catSel = document.getElementById('cn_category');
-  catSel.innerHTML = CLIENT_NOTES.categories.map(c => `<option value="${h(c)}">${h(c)}</option>`).join('');
-  document.getElementById('cn_text').value = '';
-  document.getElementById('cn_file').value = '';
-  cnPendingFiles = [];
-  document.getElementById('cnPendingFiles').textContent = '';
-  document.getElementById('cnErr').classList.add('hidden');
-  const canWrite = CLIENT_NOTES.access_level === 'full';
-  document.getElementById('cnAddForm').classList.toggle('hidden', !canWrite);
-  document.getElementById('cnViewOnlyNote').classList.toggle('hidden', canWrite);
-  openModal('clientNotesModal');
-  loadClientNotesEntries();
-}
 
 // Attachments (screenshots/PDFs) are capped at 5MB each — reject oversize
 // files client-side immediately instead of letting them fail after upload.
@@ -4729,34 +4633,7 @@ function filterOversizeFiles(files) {
   return accepted;
 }
 
-document.getElementById('cn_file')?.addEventListener('change', (e) => {
-  cnPendingFiles = filterOversizeFiles(e.target.files || []);
-  document.getElementById('cnPendingFiles').textContent = cnPendingFiles.length
-    ? `${cnPendingFiles.length} file(s) selected: ${cnPendingFiles.map(f => f.name).join(', ')}`
-    : '';
-});
-
-async function loadClientNotesEntries() {
-  const type = document.getElementById('cn_party_type').value;
-  const id = document.getElementById('cn_party_id').value;
-  const box = document.getElementById('cnTimeline');
-  box.innerHTML = '<div class="empty-msg">Loading...</div>';
-  const data = await api(`/client-notes/${type}/${encodeURIComponent(id)}`, { cache: false });
-  if (!data.success) { box.innerHTML = `<div class="empty-msg">${h(data.message || 'Could not load updates')}</div>`; return; }
-  if (!data.entries.length) { box.innerHTML = '<div class="empty-msg">No updates recorded yet for this ' + type + '.</div>'; return; }
-  const latest = data.entries.slice(0, 4);
-  let html = latest.map(renderClientNoteEntry).join('');
-  if (data.entries.length > 4) {
-    html += `<div style="text-align:center;padding:6px 0 2px">
-      <button class="btn-sm" style="background:#eef2ff;color:#4338ca" onclick="closeModal('clientNotesModal');openClientProfile('${type}','${h(id)}')">
-        View all ${data.entries.length} updates &amp; full ${type} profile &rarr;
-      </button>
-    </div>`;
-  }
-  box.innerHTML = html;
-}
-
-// Shared by the quick Update Log popup and the full Client/Agent Profile —
+// Shared by the Update Log tab and the full Client/Agent Profile —
 // filename link opens the file, the small Download button forces a save
 // (view target="_blank" only previews; cross-origin files often won't
 // download on their own even with the `download` attribute).
@@ -4821,36 +4698,7 @@ async function downloadFile(path, filename) {
   }
 }
 
-function renderClientNoteEntry(e) {
-  const col = CN_CATEGORY_COLORS[e.category] || '#64748b';
-  const dt = new Date(e.created_at).toLocaleString('en-IN', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
-  const atts = renderAttachmentChips(e.attachments);
-  const editedNote = e.edited_at
-    ? `<div style="font-size:11px;color:#94a3b8;margin-top:4px">&#9998; Edited by ${h(e.edited_by_name || '')} on ${new Date(e.edited_at).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div>`
-    : '';
-  const actions = e.can_edit
-    ? `<button class="btn-sm" style="background:#e2e8f0;color:#334155;padding:3px 9px;font-size:11px" onclick="editClientNoteEntry(${e.id})">Edit</button>
-       ${CLIENT_NOTES.is_admin ? `<button class="btn-danger" style="padding:3px 9px;font-size:11px" onclick="deleteClientNoteEntry(${e.id})">Delete</button>` : ''}`
-    : (e.edit_window_ends_at ? `<span style="font-size:11px;color:#94a3b8">&#128274; Locked</span>` : (CLIENT_NOTES.is_admin ? `<button class="btn-sm" style="background:#e2e8f0;color:#334155;padding:3px 9px;font-size:11px" onclick="editClientNoteEntry(${e.id})">Edit</button><button class="btn-danger" style="padding:3px 9px;font-size:11px" onclick="deleteClientNoteEntry(${e.id})">Delete</button>` : ''));
-  const windowNote = e.can_edit && e.edit_window_ends_at
-    ? `<div style="font-size:11px;color:#b45309;margin-top:4px">Editable until ${new Date(e.edit_window_ends_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})} (10 min window)</div>` : '';
-  return `
-    <div id="cnEntry_${e.id}" style="background:#fff;border:1px solid #e2e8f0;border-radius:9px;padding:11px 13px;margin-bottom:9px">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
-        <div>
-          <span class="dept-badge" style="background:${col}22;color:${col}">${h(e.category)}</span>
-          <span style="font-size:11.5px;color:#64748b;margin-left:6px">${dt} &middot; by <strong>${h(e.created_by_name || '--')}</strong></span>
-        </div>
-        <div style="white-space:nowrap">${actions}</div>
-      </div>
-      <div id="cnEntryBody_${e.id}" style="margin-top:7px;font-size:13.5px;white-space:pre-wrap;color:#1e293b">${h(e.entry_text)}</div>
-      ${atts ? `<div style="margin-top:6px">${atts}</div>` : ''}
-      ${windowNote}
-      ${editedNote}
-    </div>`;
-}
-
-async function uploadClientNoteFiles(files = cnPendingFiles, partyType, partyId) {
+async function uploadClientNoteFiles(files, partyType, partyId) {
   const uploaded = [];
   for (const file of files) {
     const fd = new FormData();
@@ -4864,74 +4712,12 @@ async function uploadClientNoteFiles(files = cnPendingFiles, partyType, partyId)
   return uploaded;
 }
 
-async function submitClientNote() {
-  const err = document.getElementById('cnErr');
-  err.classList.add('hidden');
-  const text = document.getElementById('cn_text').value.trim();
-  if (!text) { err.textContent = 'Please write the update before saving.'; err.classList.remove('hidden'); return; }
-  const btn = document.getElementById('cnSaveBtn');
-  btn.disabled = true; btn.textContent = 'Saving...';
-  try {
-    const attachments = await uploadClientNoteFiles(cnPendingFiles, document.getElementById('cn_party_type').value, document.getElementById('cn_party_id').value);
-    const data = await api('/client-notes', {
-      method: 'POST',
-      body: JSON.stringify({
-        type: document.getElementById('cn_party_type').value,
-        id: document.getElementById('cn_party_id').value,
-        category: document.getElementById('cn_category').value,
-        entry_text: text,
-        attachments,
-      }),
-    });
-    if (!data.success) { err.textContent = data.message || 'Could not save.'; err.classList.remove('hidden'); return; }
-    document.getElementById('cn_text').value = '';
-    document.getElementById('cn_file').value = '';
-    cnPendingFiles = [];
-    document.getElementById('cnPendingFiles').textContent = '';
-    showToast('Update saved and locked after 10 minutes', 'success');
-    loadClientNotesEntries();
-  } catch (e) {
-    err.textContent = e.message || 'Could not save.'; err.classList.remove('hidden');
-  } finally {
-    btn.disabled = false; btn.textContent = 'Save Update';
-  }
-}
-
-function editClientNoteEntry(id) {
-  const body = document.getElementById(`cnEntryBody_${id}`);
-  if (!body || body.dataset.editing) return;
-  const original = body.textContent;
-  body.dataset.editing = '1';
-  body.innerHTML = `
-    <textarea id="cnEditText_${id}" rows="3" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13.5px;box-sizing:border-box">${h(original)}</textarea>
-    <div style="margin-top:6px">
-      <button class="btn-sm" style="background:#7c3aed;color:#fff;padding:4px 10px;font-size:11px" onclick="saveClientNoteEdit(${id})">Save</button>
-      <button class="btn-sm" style="background:#e2e8f0;color:#334155;padding:4px 10px;font-size:11px" onclick="loadClientNotesEntries()">Cancel</button>
-    </div>`;
-}
-
-async function saveClientNoteEdit(id) {
-  const text = document.getElementById(`cnEditText_${id}`)?.value.trim();
-  if (!text) { showToast('Entry text cannot be empty', 'error'); return; }
-  const data = await api(`/client-notes/${id}`, { method: 'PUT', body: JSON.stringify({ entry_text: text }) });
-  showToast(data.message, data.success ? 'success' : 'error');
-  loadClientNotesEntries();
-}
-
-async function deleteClientNoteEntry(id) {
-  if (!confirm('Delete this update permanently? This cannot be undone.')) return;
-  const data = await api(`/client-notes/${id}`, { method: 'DELETE' });
-  showToast(data.message, data.success ? 'success' : 'error');
-  loadClientNotesEntries();
-}
-
 // ── CLIENT/AGENT DOCUMENT MANAGEMENT ───────────────────────────
 let cdPendingFile = null;
 
 async function openClientDocuments(type, id, name) {
   document.getElementById('cd_party_type').value = type;
   document.getElementById('cd_party_id').value = id;
-  document.getElementById('cdPartyName').textContent = `— ${name} (${id})`;
   const fySel = document.getElementById('cd_fy');
   fySel.innerHTML = (CLIENT_DOCS.fy_options || []).map(fy => `<option value="${h(fy)}" ${fy === CLIENT_DOCS.current_fy ? 'selected' : ''}>${h(fy)}</option>`).join('');
   const typeSel = document.getElementById('cd_type');
@@ -4946,7 +4732,6 @@ async function openClientDocuments(type, id, name) {
   const canWrite = CLIENT_DOCS.access_level === 'full';
   document.getElementById('cdAddForm').classList.toggle('hidden', !canWrite);
   document.getElementById('cdViewOnlyNote').classList.toggle('hidden', canWrite);
-  openModal('clientDocsModal');
   loadClientDocsList();
 }
 
@@ -5065,7 +4850,6 @@ let adrPendingDocs = [];
 async function openAskDocuments(type, id, name) {
   document.getElementById('adr_party_type').value = type;
   document.getElementById('adr_party_id').value = id;
-  document.getElementById('adrPartyName').textContent = `— ${name} (${id})`;
   const typeSel = document.getElementById('adr_type');
   typeSel.innerHTML = (DOC_REQ.document_types || []).map(t => `<option value="${h(t)}">${h(t)}</option>`).join('');
   document.getElementById('adr_custom_name').value = '';
@@ -5077,7 +4861,6 @@ async function openAskDocuments(type, id, name) {
   document.getElementById('adrAddForm').classList.toggle('hidden', !canWrite);
   document.getElementById('adrViewOnlyNote').classList.toggle('hidden', canWrite);
   document.getElementById('adrRegenBtn').classList.toggle('hidden', !DOC_REQ.is_admin);
-  openModal('askDocumentsModal');
   await loadAskDocumentsLink();
   await loadDocumentRequestsList();
 }
@@ -5232,7 +5015,6 @@ async function deleteDocumentRequest(id) {
 async function openClientKyc(type, id, name) {
   document.getElementById('kyc_party_type').value = type;
   document.getElementById('kyc_party_id').value = id;
-  document.getElementById('kycPartyName').textContent = `— ${name} (${id})`;
   const catSel = document.getElementById('kyc_category');
   catSel.innerHTML = '<option value="">-- Select --</option>' + (CLIENT_KYC.category_options || []).map(c => `<option value="${h(c)}">${h(c)}</option>`).join('');
   ['kyc_dob', 'kyc_bank_account', 'kyc_bank_ifsc', 'kyc_bank_name', 'kyc_spouse_father', 'kyc_nominee_name', 'kyc_nominee_relation', 'kyc_nominee_mobile', 'kyc_aadhaar'].forEach(fid => {
@@ -5247,7 +5029,6 @@ async function openClientKyc(type, id, name) {
   ['kyc_dob', 'kyc_category', 'kyc_bank_account', 'kyc_bank_ifsc', 'kyc_bank_name', 'kyc_spouse_father', 'kyc_nominee_name', 'kyc_nominee_relation', 'kyc_nominee_mobile', 'kyc_aadhaar'].forEach(fid => {
     document.getElementById(fid).disabled = !canWrite;
   });
-  openModal('clientKycModal');
   const data = await api(`/client-kyc/${type}/${encodeURIComponent(id)}`, { cache: false });
   if (data.success && data.kyc) {
     const k = data.kyc;
@@ -5302,7 +5083,6 @@ async function submitClientKyc() {
     });
     if (!data.success) { err.textContent = data.message || 'Could not save.'; err.classList.remove('hidden'); return; }
     showToast('Client details saved', 'success');
-    closeModal('clientKycModal');
   } catch (e) {
     err.textContent = e.message || 'Could not save.'; err.classList.remove('hidden');
   } finally {
@@ -5331,9 +5111,27 @@ function groupNotesByFY(entries) {
   return groups;
 }
 
+// Tabs shown in the profile modal — 'enabled' gates a tab on the org's
+// feature-access flags, same ones already used to show/hide the old
+// standalone modals.
+const CP_TABS = [
+  { key: 'overview', label: 'Overview', enabled: () => true },
+  { key: 'work', label: 'All Work', enabled: () => true },
+  { key: 'updatelog', label: 'Update Log', enabled: () => CLIENT_NOTES.enabled },
+  { key: 'documents', label: 'Documents', enabled: () => CLIENT_DOCS.enabled },
+  { key: 'askdocs', label: 'Ask Documents', enabled: () => DOC_REQ.enabled },
+  { key: 'kyc', label: 'Client Details', enabled: () => CLIENT_KYC.enabled },
+];
+let CP_ACTIVE_TAB = 'overview';
+let CP_LOADED_TABS = new Set();
+
 async function openClientProfile(type, id) {
   document.getElementById('cpTitle').textContent = type === 'agent' ? 'Agent Profile' : 'Client Profile';
-  document.getElementById('cpBody').innerHTML = '<div class="empty-msg">Loading...</div>';
+  CP_ACTIVE_TAB = 'overview';
+  CP_LOADED_TABS = new Set();
+  document.getElementById('cpTabBar').innerHTML = '';
+  CP_TABS.forEach(t => document.getElementById(`cpTabPane_${t.key}`)?.classList.toggle('hidden', t.key !== 'overview'));
+  document.getElementById('cpTabPane_overview').innerHTML = '<div class="empty-msg">Loading...</div>';
   openModal('clientProfileModal');
   const profileUrl = type === 'agent' ? `/clients/agents/${encodeURIComponent(id)}/profile` : `/clients/${encodeURIComponent(id)}`;
   const [profileData, notesData] = await Promise.all([
@@ -5341,7 +5139,7 @@ async function openClientProfile(type, id) {
     CLIENT_NOTES.enabled ? api(`/client-notes/${type}/${encodeURIComponent(id)}`, { cache: false }) : Promise.resolve({ success: false }),
   ]);
   if (!profileData.success) {
-    document.getElementById('cpBody').innerHTML = `<div class="empty-msg">${h(profileData.message || 'Could not load profile')}</div>`;
+    document.getElementById('cpTabPane_overview').innerHTML = `<div class="empty-msg">${h(profileData.message || 'Could not load profile')}</div>`;
     return;
   }
   const record = type === 'agent' ? profileData.agent : profileData.client;
@@ -5354,11 +5152,108 @@ async function openClientProfile(type, id) {
     tasks: profileData.recent_tasks || [],
     notes: notesData.success ? notesData.entries : null,
   };
-  document.getElementById('cpBody').innerHTML = renderClientProfileBody(CP_CURRENT);
+  CP_LOADED_TABS.add('overview'); CP_LOADED_TABS.add('work'); CP_LOADED_TABS.add('updatelog');
+  renderProfileTabBar();
+  renderOverviewTab();
+  renderWorkTab();
+  renderUpdateLogTab();
+  switchProfileTab('overview');
 }
 
-// Add-update form embedded directly in the profile popup (separate ids/state
-// from the quick Update Log popup's cn_* fields since both can exist in the DOM).
+function renderProfileTabBar() {
+  const bar = document.getElementById('cpTabBar');
+  if (!bar) return;
+  bar.innerHTML = CP_TABS.filter(t => t.enabled()).map(t => `
+    <button type="button" onclick="switchProfileTab('${t.key}')" id="cpTabBtn_${t.key}"
+      style="border:0;background:none;padding:10px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid ${CP_ACTIVE_TAB === t.key ? '#4338ca' : 'transparent'};color:${CP_ACTIVE_TAB === t.key ? '#4338ca' : '#64748b'}">${h(t.label)}</button>
+  `).join('');
+}
+
+function switchProfileTab(tab) {
+  CP_ACTIVE_TAB = tab;
+  CP_TABS.forEach(t => {
+    document.getElementById(`cpTabPane_${t.key}`)?.classList.toggle('hidden', t.key !== tab);
+    const btn = document.getElementById(`cpTabBtn_${t.key}`);
+    if (btn) {
+      btn.style.borderBottomColor = t.key === tab ? '#4338ca' : 'transparent';
+      btn.style.color = t.key === tab ? '#4338ca' : '#64748b';
+    }
+  });
+  loadProfileTabOnDemand(tab);
+}
+
+async function loadProfileTabOnDemand(tab) {
+  if (CP_LOADED_TABS.has(tab) || !CP_CURRENT) return;
+  CP_LOADED_TABS.add(tab);
+  const { type, id, name } = CP_CURRENT;
+  if (tab === 'documents') await openClientDocuments(type, id, name);
+  else if (tab === 'askdocs') await openAskDocuments(type, id, name);
+  else if (tab === 'kyc') await openClientKyc(type, id, name);
+}
+
+function renderOverviewTab() {
+  const pane = document.getElementById('cpTabPane_overview');
+  if (!pane || !CP_CURRENT) return;
+  const cp = CP_CURRENT;
+  const r = cp.record;
+  const rows = cp.type === 'agent'
+    ? [['Agent ID', cp.id], ['Mobile', r.mobile_number || '--'], ['Email', r.email_id || '--'], ['Clients handled', cp.client_count ?? '--']]
+    : [['Client ID', cp.id], ['Business Name', r.business_name || '--'], ['Mobile', r.mobile_number || '--'], ['Agent', r.agent_name || '--'], ['Status', r.status || 'Active']];
+  pane.innerHTML = `
+    <div style="border:1px solid #e2e8f0;border-radius:10px;padding:16px;background:#fff">
+      <div class="form-grid" style="margin-bottom:8px">
+        ${rows.map(([label, val]) => `<div class="form-group"><label>${h(label)}</label><div style="font-size:14px;font-weight:700;color:#1e293b;padding:8px 0">${h(String(val))}</div></div>`).join('')}
+      </div>
+      <button class="btn-sm" style="background:#4338ca;color:#fff" onclick="cpEditBasicDetails()">Edit Basic Details</button>
+    </div>`;
+}
+
+function renderWorkTab() {
+  const pane = document.getElementById('cpTabPane_work');
+  if (pane && CP_CURRENT) pane.innerHTML = renderWorkSection(CP_CURRENT);
+}
+
+function renderUpdateLogTab() {
+  const pane = document.getElementById('cpTabPane_updatelog');
+  if (!pane || !CP_CURRENT) return;
+  const cp = CP_CURRENT;
+  if (cp.notes === null) { pane.innerHTML = '<div class="empty-msg">Client Update Log is not enabled for this organisation.</div>'; return; }
+  const canWriteNotes = CLIENT_NOTES.access_level === 'full';
+  const addUpdateBox = canWriteNotes ? `
+    <div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px;background:#fff;margin-bottom:16px">
+      <div style="font-weight:800;font-size:12.5px;color:#334155;margin-bottom:8px">Add Update</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <select id="cp_category" style="padding:7px 9px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12.5px">${CLIENT_NOTES.categories.map(c => `<option value="${h(c)}">${h(c)}</option>`).join('')}</select>
+        <input type="file" id="cp_file" accept="image/png,image/jpeg,image/webp,application/pdf" multiple style="font-size:11.5px" onchange="cpFileChange(this)"/>
+      </div>
+      <div style="font-size:10.5px;color:#94a3b8;margin:-4px 0 8px">Images or PDF, max 5MB per file</div>
+      <textarea id="cp_text" rows="3" placeholder="What did the client say? What was decided?" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box"></textarea>
+      <div id="cpPendingFiles" style="margin-top:5px;font-size:11.5px;color:#64748b"></div>
+      <div id="cpErr" class="hidden" style="color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:7px 9px;font-size:12px;margin-top:7px;font-weight:700"></div>
+      <button class="btn-sm" id="cpSaveBtn" style="background:#7c3aed;color:#fff;margin-top:9px" onclick="submitClientNoteFromProfile()">Save Update</button>
+    </div>` : '';
+  pane.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <div style="font-weight:800;font-size:14px;color:#1e293b">Conversation / Update Log — Full History</div>
+      <button class="btn-sm" style="background:#eef2ff;color:#4338ca" onclick="printClientProfile('conversation')">&#128424; Print Conversation</button>
+    </div>
+    ${addUpdateBox}
+    ${renderConversationTimeline(cp.notes)}`;
+}
+
+function cpEditBasicDetails() {
+  if (!CP_CURRENT) return;
+  closeModal('clientProfileModal');
+  if (CP_CURRENT.type === 'agent') editAgentById(CP_CURRENT.id);
+  else editClientById(CP_CURRENT.id);
+}
+
+function cpOpenPortal() {
+  if (!CP_CURRENT) return;
+  openPortalAccessById(CP_CURRENT.type, CP_CURRENT.id);
+}
+
+// Add-update form embedded directly in the profile popup's Update Log tab.
 let cpPendingFiles = [];
 
 function cpFileChange(el) {
@@ -5397,13 +5292,48 @@ async function submitClientNoteFromProfile() {
     // concurrent background polling, and an immediate GET can occasionally
     // race with it) — instant, reliable feedback either way.
     CP_CURRENT.notes = [data.entry, ...(CP_CURRENT.notes || [])];
-    document.getElementById('cpBody').innerHTML = renderClientProfileBody(CP_CURRENT);
+    renderUpdateLogTab();
   } catch (e) {
     err.textContent = e.message || 'Could not save.'; err.classList.remove('hidden');
   } finally {
     const b = document.getElementById('cpSaveBtn');
     if (b) { b.disabled = false; b.textContent = 'Save Update'; }
   }
+}
+
+async function refreshProfileNotes() {
+  if (!CP_CURRENT) return;
+  const data = await api(`/client-notes/${CP_CURRENT.type}/${encodeURIComponent(CP_CURRENT.id)}`, { cache: false });
+  if (data.success) CP_CURRENT.notes = data.entries;
+  renderUpdateLogTab();
+}
+
+function editProfileNoteEntry(id) {
+  const body = document.getElementById(`cpNoteBody_${id}`);
+  if (!body || body.dataset.editing) return;
+  const original = body.textContent;
+  body.dataset.editing = '1';
+  body.innerHTML = `
+    <textarea id="cpEditText_${id}" rows="3" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13.5px;box-sizing:border-box">${h(original)}</textarea>
+    <div style="margin-top:6px">
+      <button class="btn-sm" style="background:#7c3aed;color:#fff;padding:4px 10px;font-size:11px" onclick="saveProfileNoteEdit(${id})">Save</button>
+      <button class="btn-sm" style="background:#e2e8f0;color:#334155;padding:4px 10px;font-size:11px" onclick="renderUpdateLogTab()">Cancel</button>
+    </div>`;
+}
+
+async function saveProfileNoteEdit(id) {
+  const text = document.getElementById(`cpEditText_${id}`)?.value.trim();
+  if (!text) { showToast('Entry text cannot be empty', 'error'); return; }
+  const data = await api(`/client-notes/${id}`, { method: 'PUT', body: JSON.stringify({ entry_text: text }) });
+  showToast(data.message, data.success ? 'success' : 'error');
+  refreshProfileNotes();
+}
+
+async function deleteProfileNoteEntry(id) {
+  if (!confirm('Delete this update permanently? This cannot be undone.')) return;
+  const data = await api(`/client-notes/${id}`, { method: 'DELETE' });
+  showToast(data.message, data.success ? 'success' : 'error');
+  refreshProfileNotes();
 }
 
 function renderWorkSection(cp) {
@@ -5445,6 +5375,12 @@ function renderProfileNoteCard(e) {
   const atts = renderAttachmentChips(e.attachments);
   const editedNote = e.edited_at
     ? `<div style="margin-top:6px;font-size:10.5px;color:#94a3b8">&#9998; Edited by ${h(e.edited_by_name || '')} on ${new Date(e.edited_at).toLocaleDateString('en-IN')}</div>` : '';
+  const actions = e.can_edit
+    ? `<button class="btn-sm" style="background:#e2e8f0;color:#334155;padding:3px 9px;font-size:11px" onclick="editProfileNoteEntry(${e.id})">Edit</button>
+       ${CLIENT_NOTES.is_admin ? `<button class="btn-danger" style="padding:3px 9px;font-size:11px" onclick="deleteProfileNoteEntry(${e.id})">Delete</button>` : ''}`
+    : (e.edit_window_ends_at ? `<span style="font-size:11px;color:#94a3b8">&#128274; Locked</span>` : (CLIENT_NOTES.is_admin ? `<button class="btn-sm" style="background:#e2e8f0;color:#334155;padding:3px 9px;font-size:11px" onclick="editProfileNoteEntry(${e.id})">Edit</button><button class="btn-danger" style="padding:3px 9px;font-size:11px" onclick="deleteProfileNoteEntry(${e.id})">Delete</button>` : ''));
+  const windowNote = e.can_edit && e.edit_window_ends_at
+    ? `<div style="margin-top:6px;font-size:10.5px;color:#b45309">Editable until ${new Date(e.edit_window_ends_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})} (10 min window)</div>` : '';
   return `
     <div style="position:relative;background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:13px 15px;margin-bottom:12px;box-shadow:0 6px 16px rgba(15,23,42,.08),0 1px 3px rgba(15,23,42,.05)">
       <div style="position:absolute;left:-24px;top:18px;width:11px;height:11px;border-radius:50%;background:${col};box-shadow:0 0 0 3px #fff,0 0 0 4px ${col}44"></div>
@@ -5452,9 +5388,13 @@ function renderProfileNoteCard(e) {
         <span class="dept-badge" style="background:${col}22;color:${col}">${h(e.category)}</span>
         <span style="font-size:11.5px;color:#64748b">${dt}</span>
       </div>
-      <div style="margin-top:7px;font-size:13.5px;color:#1e293b;white-space:pre-wrap">${h(e.entry_text)}</div>
+      <div id="cpNoteBody_${e.id}" style="margin-top:7px;font-size:13.5px;color:#1e293b;white-space:pre-wrap">${h(e.entry_text)}</div>
       ${atts ? `<div style="margin-top:7px">${atts}</div>` : ''}
-      <div style="margin-top:7px;font-size:11px;color:#94a3b8;font-weight:700">by ${h(e.created_by_name || '--')}</div>
+      <div style="margin-top:7px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+        <div style="font-size:11px;color:#94a3b8;font-weight:700">by ${h(e.created_by_name || '--')}</div>
+        <div style="white-space:nowrap">${actions}</div>
+      </div>
+      ${windowNote}
       ${editedNote}
     </div>`;
 }
@@ -5468,41 +5408,6 @@ function renderConversationTimeline(entries) {
         ${g.items.map(renderProfileNoteCard).join('')}
       </div>
     </div>`).join('');
-}
-
-function renderClientProfileBody(cp) {
-  const r = cp.record;
-  const header = cp.type === 'agent'
-    ? `Agent ID: <strong>${h(cp.id)}</strong> &middot; Mobile: ${h(r.mobile_number || '--')} &middot; Email: ${h(r.email_id || '--')} &middot; Clients handled: <strong>${cp.client_count ?? '--'}</strong>`
-    : `Client ID: <strong>${h(cp.id)}</strong> &middot; Mobile: ${h(r.mobile_number || '--')} &middot; Agent: ${h(r.agent_name || '--')} &middot; Status: ${h(r.status || 'Active')}`;
-  const canWriteNotes = cp.notes !== null && CLIENT_NOTES.access_level === 'full';
-  const addUpdateBox = canWriteNotes ? `
-    <div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px;background:#fff;margin-bottom:16px">
-      <div style="font-weight:800;font-size:12.5px;color:#334155;margin-bottom:8px">Add Update</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-        <select id="cp_category" style="padding:7px 9px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12.5px">${CLIENT_NOTES.categories.map(c => `<option value="${h(c)}">${h(c)}</option>`).join('')}</select>
-        <input type="file" id="cp_file" accept="image/png,image/jpeg,image/webp,application/pdf" multiple style="font-size:11.5px" onchange="cpFileChange(this)"/>
-      </div>
-      <div style="font-size:10.5px;color:#94a3b8;margin:-4px 0 8px">Images or PDF, max 5MB per file</div>
-      <textarea id="cp_text" rows="3" placeholder="What did the client say? What was decided?" style="width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box"></textarea>
-      <div id="cpPendingFiles" style="margin-top:5px;font-size:11.5px;color:#64748b"></div>
-      <div id="cpErr" class="hidden" style="color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:7px 9px;font-size:12px;margin-top:7px;font-weight:700"></div>
-      <button class="btn-sm" id="cpSaveBtn" style="background:#7c3aed;color:#fff;margin-top:9px" onclick="submitClientNoteFromProfile()">Save Update</button>
-    </div>` : '';
-  const notesSection = cp.notes === null
-    ? ''
-    : `<div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
-          <div style="font-weight:800;font-size:14px;color:#1e293b">Conversation / Update Log — Full History</div>
-          <button class="btn-sm" style="background:#eef2ff;color:#4338ca" onclick="printClientProfile('conversation')">&#128424; Print Conversation</button>
-        </div>
-        ${addUpdateBox}
-        ${renderConversationTimeline(cp.notes)}
-      </div>`;
-  return `
-    <div style="font-size:12.5px;color:#475569;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #e2e8f0">${header}</div>
-    ${renderWorkSection(cp)}
-    ${notesSection}`;
 }
 
 // mode: undefined/'all' = work + conversation, 'work' = work only, 'conversation' = conversation only.
