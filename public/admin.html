@@ -2230,7 +2230,7 @@ async function loadOnboardingRequests() {
   tb.innerHTML = (data.requests || []).length ? data.requests.map(r => {
     const d = r.data || {};
     const docs = r.documents || {};
-    const docLinks = Object.entries(docs).map(([k, v]) => v?.data_url ? `<a href="${v.data_url}" target="_blank">${k}</a>` : '').filter(Boolean).join(' | ') || '--';
+    const docLinks = Object.entries(docs).map(([k, v]) => v?.data_url ? `<a href="javascript:void(0)" onclick="viewOnboardingDoc(${r.id},'${k}')">${k}</a>` : '').filter(Boolean).join(' | ') || '--';
     return `<tr>
       <td>${fmtDate(r.created_at)}</td>
       <td>${d.formal_name || d.name || '--'}</td>
@@ -2245,6 +2245,35 @@ async function loadOnboardingRequests() {
       </td>
     </tr>`;
   }).join('') : '<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:18px">No joining requests yet</td></tr>';
+}
+
+// A raw `data:...;base64,...` href opened via target="_blank" gets silently
+// blocked by Chrome (top-level navigation to a data: URL is disallowed) —
+// the tab opens blank. Converting to a Blob URL first opens reliably, same
+// fix already used for viewing/printing files elsewhere in this app.
+function openDataUrlInNewTab(dataUrl, filename) {
+  try {
+    const commaIdx = dataUrl.indexOf(',');
+    const meta = dataUrl.slice(5, commaIdx);
+    const mime = (meta.split(';')[0]) || 'application/octet-stream';
+    const base64 = dataUrl.slice(commaIdx + 1);
+    const byteChars = atob(base64);
+    const bytes = new Uint8Array(byteChars.length);
+    for (let i = 0; i < byteChars.length; i++) bytes[i] = byteChars.charCodeAt(i);
+    const blob = new Blob([bytes], { type: mime });
+    const objUrl = URL.createObjectURL(blob);
+    window.open(objUrl, '_blank');
+    setTimeout(() => URL.revokeObjectURL(objUrl), 30000);
+  } catch (e) {
+    showToast('Could not open document: ' + (e.message || 'unknown error'), 'error');
+  }
+}
+
+function viewOnboardingDoc(reqId, key) {
+  const r = window.ONBOARDING_REQUESTS?.[String(reqId)];
+  const doc = r?.documents?.[key];
+  if (!doc?.data_url) { showToast('Document not found. Please refresh.', 'error'); return; }
+  openDataUrlInNewTab(doc.data_url, doc.filename || key);
 }
 
 function openOnboardingReviewById(id) {
@@ -2267,7 +2296,7 @@ function openOnboardingReview(r) {
   }).join('') + `<div><label>Login Password</label><input id="obr_login_password" placeholder="Blank = auto generate"/></div>`;
   const docs = r.documents || {};
   document.getElementById('onboardingReviewDocs').innerHTML = Object.entries(docs).map(([k, v]) =>
-    v?.data_url ? `<a class="btn-edit" href="${v.data_url}" target="_blank">${k}</a>` : ''
+    v?.data_url ? `<a class="btn-edit" href="javascript:void(0)" onclick="viewOnboardingDoc(${r.id},'${k}')">${k}</a>` : ''
   ).filter(Boolean).join('') || '<span style="color:#94a3b8">No documents uploaded</span>';
   document.getElementById('onboardingReviewError').style.display = 'none';
   document.getElementById('onboardingReviewModal').style.display = 'flex';
