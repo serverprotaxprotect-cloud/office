@@ -33,6 +33,7 @@ const clientDocumentsRoutes = require('./routes/clientDocuments');
 const documentRequestsRoutes = require('./routes/documentRequests');
 const publicDocumentRequestsRoutes = require('./routes/publicDocumentRequests');
 const clientKycRoutes = require('./routes/clientKyc');
+const employeeCampaignRoutes = require('./routes/employeeCampaigns');
 const { router: notifRoutes } = require('./routes/notifications');
 
 const app = express();
@@ -141,6 +142,7 @@ app.use('/api/client-documents', clientDocumentsRoutes);
 app.use('/api/document-requests', documentRequestsRoutes);
 app.use('/api/public/document-requests', publicDocumentRequestsRoutes);
 app.use('/api/client-kyc', clientKycRoutes);
+app.use('/api/campaigns', employeeCampaignRoutes);
 
 app.get('/api/maps/config', (req, res) => {
   if (!process.env.GOOGLE_MAPS_API_KEY) {

@@ -4,6 +4,7 @@ const multer = require('multer');
 const db = require('../db');
 const authMiddleware = require('../middleware/auth');
 const { evaluateEmployee, checkPunchOutBlock } = require('../services/performanceService');
+const { mandatoryBlock } = require('../services/employeeCampaignService');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
@@ -196,6 +197,20 @@ router.post('/mark', authMiddleware, async (req, res) => {
   const timeStr = timeStrIST(); // HH:MM:SS in IST
 
   try {
+    // A mandatory data-collection request (e.g. personal email) blocks
+    // punching until the employee has filled it in.
+    if (req.user.user_type !== 'admin') {
+      const pendingCampaign = await mandatoryBlock(emp_id);
+      if (pendingCampaign) {
+        return res.status(403).json({
+          success: false,
+          code: 'CAMPAIGN_REQUIRED',
+          message: 'Please complete the pending request on your dashboard before marking attendance.',
+          campaign: pendingCampaign,
+        });
+      }
+    }
+
     // ── One IN + One OUT per day rule ────────────────────────
     const existing = await db.query(
       `SELECT action FROM attendance_log WHERE emp_id=$1 AND date::date=$2 ORDER BY created_at ASC`,

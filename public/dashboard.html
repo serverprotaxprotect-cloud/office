@@ -563,6 +563,31 @@
   </div>
 </div>
 
+<!-- Data request (campaign) popup -->
+<div class="req-modal-backdrop" id="campaignModal" style="display:none;z-index:400;align-items:center;padding:16px;">
+  <div class="req-modal" style="border-radius:16px;max-width:440px;">
+    <div class="req-modal-title" id="cmpTitle">Request</div>
+    <div id="cmpInstruction" style="font-size:14px;color:#334155;line-height:1.5;margin-bottom:14px;"></div>
+    <div id="cmpMandatoryNote" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:9px 11px;font-size:12.5px;color:#b91c1c;margin-bottom:12px;font-weight:600;">This is required. You cannot mark attendance until it is completed.</div>
+    <div id="cmpLaterNote" style="display:none;font-size:12.5px;color:#92400e;background:#fef9c3;border:1px solid #fde68a;border-radius:8px;padding:9px 11px;margin-bottom:12px;"></div>
+    <div class="req-input-group">
+      <label id="cmpLabel">Value</label>
+      <input id="cmpInput" type="text" autocomplete="off" />
+      <textarea id="cmpTextarea" rows="3" style="display:none;"></textarea>
+    </div>
+    <div class="req-input-group" id="cmpCodeGroup" style="display:none;">
+      <label>Verification code</label>
+      <input id="cmpCode" type="text" inputmode="numeric" maxlength="6" placeholder="6-digit code" autocomplete="one-time-code" />
+      <div id="cmpResend" style="font-size:12px;color:#64748b;margin-top:6px;"></div>
+    </div>
+    <div id="cmpMsg" class="alert" style="display:none;margin-bottom:10px;"></div>
+    <div class="req-actions">
+      <button class="req-cancel" id="cmpLaterBtn" onclick="campaignRemindLater()">Remind me later</button>
+      <button class="req-submit" id="cmpActionBtn" onclick="campaignAction()">Save</button>
+    </div>
+  </div>
+</div>
+
 <div class="req-modal-backdrop" id="protocolReasonModal" style="display:none;" onclick="if(event.target===this)closeProtocolReason()">
   <div class="req-modal">
     <div class="req-modal-title">Submit Monitor Explanation</div>
@@ -869,7 +894,10 @@ async function markAttendance(action) {
       showToast(data.message, 'success');
       await loadToday();
     } else {
-      if (data.code === 'MONITOR_PUNCH_OUT_BLOCKED') {
+      if (data.code === 'CAMPAIGN_REQUIRED') {
+        showToast(data.message, 'error');
+        checkCampaigns(true);
+      } else if (data.code === 'MONITOR_PUNCH_OUT_BLOCKED') {
         showToast('Punch OUT blocked by Employee Monitor. Please complete the required action or submit an explanation for review.', 'error');
       } else {
         showToast(data.message, 'error');
@@ -1653,11 +1681,134 @@ async function logoutAllDevices() {
   await loadToday();
   setInterval(updateWorkProgress, 30000);
   loadNotices();
+  checkCampaigns(false);
   requestNotifPermission();
   startNotifPolling();
 
   document.getElementById('loadingOverlay').style.display = 'none';
 })();
+
+// ── Data requests (campaigns) popup ───────────────────────────
+let CMP_QUEUE = [];
+let CMP_CURRENT = null;
+let CMP_OTP_SENT = false;
+let CMP_RESEND_TIMER = null;
+
+async function checkCampaigns(force) {
+  try {
+    const data = await api('/campaigns/my/pending');
+    if (!data.success) return;
+    CMP_QUEUE = (data.campaigns || []).filter(c => c.mandatory || force || !c.snoozed_today);
+    if (CMP_QUEUE.length) showCampaign(CMP_QUEUE[0]);
+    else document.getElementById('campaignModal').style.display = 'none';
+  } catch { /* never block the dashboard on this */ }
+}
+
+function cmpShowMsg(text, ok) {
+  const el = document.getElementById('cmpMsg');
+  el.textContent = text;
+  el.className = 'alert ' + (ok ? 'alert-success' : 'alert-error');
+  el.style.display = text ? 'block' : 'none';
+}
+
+function showCampaign(c) {
+  CMP_CURRENT = c;
+  CMP_OTP_SENT = false;
+  clearInterval(CMP_RESEND_TIMER);
+  document.getElementById('cmpTitle').textContent = c.title;
+  document.getElementById('cmpInstruction').textContent = c.instruction || '';
+  document.getElementById('cmpLabel').textContent = c.field_label || 'Value';
+  const isArea = c.input_type === 'textarea';
+  const input = document.getElementById('cmpInput');
+  const area = document.getElementById('cmpTextarea');
+  input.style.display = isArea ? 'none' : 'block';
+  area.style.display = isArea ? 'block' : 'none';
+  input.type = c.input_type === 'email' ? 'email' : c.input_type === 'tel' ? 'tel' : c.input_type === 'date' ? 'date' : 'text';
+  input.value = ''; area.value = '';
+  input.disabled = false;
+  document.getElementById('cmpCode').value = '';
+  document.getElementById('cmpCodeGroup').style.display = 'none';
+  document.getElementById('cmpResend').textContent = '';
+  cmpShowMsg('', true);
+  document.getElementById('cmpMandatoryNote').style.display = c.mandatory ? 'block' : 'none';
+  const later = document.getElementById('cmpLaterNote');
+  if (!c.mandatory && c.due_at) {
+    later.textContent = 'This will become mandatory from ' + new Date(c.due_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) + '.';
+    later.style.display = 'block';
+  } else later.style.display = 'none';
+  document.getElementById('cmpLaterBtn').style.display = c.mandatory ? 'none' : 'block';
+  document.getElementById('cmpActionBtn').textContent = c.require_otp ? 'Send verification code' : 'Save';
+  document.getElementById('cmpActionBtn').disabled = false;
+  document.getElementById('campaignModal').style.display = 'flex';
+}
+
+function cmpValue() {
+  return (CMP_CURRENT.input_type === 'textarea' ? document.getElementById('cmpTextarea') : document.getElementById('cmpInput')).value.trim();
+}
+
+function cmpStartResendTimer() {
+  let left = 45;
+  const el = document.getElementById('cmpResend');
+  clearInterval(CMP_RESEND_TIMER);
+  const tick = () => {
+    if (left <= 0) {
+      clearInterval(CMP_RESEND_TIMER);
+      el.textContent = '';
+      const a = document.createElement('a');
+      a.href = 'javascript:void(0)'; a.textContent = 'Resend code'; a.style.color = '#2563eb';
+      a.onclick = () => campaignSendOtp(true);
+      el.appendChild(a);
+      return;
+    }
+    el.textContent = 'Resend code in ' + left + 's';
+    left--;
+  };
+  tick();
+  CMP_RESEND_TIMER = setInterval(tick, 1000);
+}
+
+async function campaignSendOtp(isResend) {
+  const value = cmpValue();
+  if (!value) { cmpShowMsg('Please enter a value.', false); return; }
+  const btn = document.getElementById('cmpActionBtn');
+  btn.disabled = true;
+  cmpShowMsg('', true);
+  const data = await api(`/campaigns/my/${CMP_CURRENT.id}/send-otp`, { method: 'POST', body: JSON.stringify({ value }) });
+  btn.disabled = false;
+  if (!data.success) { cmpShowMsg(data.message || 'Could not send the code.', false); return; }
+  CMP_OTP_SENT = true;
+  document.getElementById('cmpInput').disabled = true;
+  document.getElementById('cmpCodeGroup').style.display = 'block';
+  document.getElementById('cmpActionBtn').textContent = 'Verify & save';
+  cmpShowMsg(data.message, true);
+  cmpStartResendTimer();
+  document.getElementById('cmpCode').focus();
+}
+
+async function campaignAction() {
+  if (!CMP_CURRENT) return;
+  if (CMP_CURRENT.require_otp && !CMP_OTP_SENT) return campaignSendOtp(false);
+  const value = cmpValue();
+  if (!value) { cmpShowMsg('Please enter a value.', false); return; }
+  const code = document.getElementById('cmpCode').value.trim();
+  if (CMP_CURRENT.require_otp && !/^\d{6}$/.test(code)) { cmpShowMsg('Enter the 6-digit code sent to your email.', false); return; }
+  const btn = document.getElementById('cmpActionBtn');
+  btn.disabled = true;
+  const data = await api(`/campaigns/my/${CMP_CURRENT.id}/submit`, { method: 'POST', body: JSON.stringify({ value, code }) });
+  btn.disabled = false;
+  if (!data.success) { cmpShowMsg(data.message || 'Could not save.', false); return; }
+  showToast(data.message, 'success');
+  clearInterval(CMP_RESEND_TIMER);
+  loadProfile();
+  checkCampaigns(true);
+}
+
+async function campaignRemindLater() {
+  if (!CMP_CURRENT) return;
+  await api(`/campaigns/my/${CMP_CURRENT.id}/snooze`, { method: 'POST' });
+  clearInterval(CMP_RESEND_TIMER);
+  checkCampaigns(false);
+}
 
 // ── PWA Install Logic ─────────────────────────────────────────
 let _pwaPrompt = null;

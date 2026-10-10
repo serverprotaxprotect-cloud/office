@@ -227,6 +227,9 @@
     <div class="sidebar-item" id="s-notices" onclick="showPanel('notices')">
       <span class="s-icon">&#128226;</span> Notices
     </div>
+    <div class="sidebar-item" id="s-campaigns" onclick="showPanel('campaigns')">
+      <span class="s-icon">&#128229;</span> Data Campaigns
+    </div>
     <div class="sidebar-item" id="s-assessment" onclick="showPanel('assessment')">
       <span class="s-icon">&#128221;</span> Candidate Assessment
     </div>
@@ -669,6 +672,111 @@
           </table>
         </div>
       </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- DATA CAMPAIGNS PANEL                                    -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div class="admin-panel" id="panel-campaigns">
+      <div class="page-title">Data Campaigns <span>Collect or update employee details — individually or in groups</span></div>
+
+      <div id="cmpListView">
+        <div style="margin-bottom:14px;"><button class="btn-sm" onclick="cmpOpenCreate()" style="background:#16a34a;">+ New Campaign</button></div>
+        <div class="today-table-wrap">
+          <div class="hist-table-wrap">
+            <table>
+              <thead><tr><th>Campaign</th><th>Collects</th><th>Audience</th><th>Progress</th><th>Mandatory after</th><th>Status</th><th>Action</th></tr></thead>
+              <tbody id="cmpTable"><tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:18px">Loading...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div id="cmpCreateView" style="display:none;">
+        <div class="card" style="margin-bottom:16px;">
+          <div class="card-title">New Campaign</div>
+          <div style="margin-bottom:12px;">
+            <button class="btn-sm" onclick="cmpApplyPreset('personal_email')" style="background:#2563eb;">Preset: Collect personal email ID</button>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            <div>
+              <label class="cmp-lbl">TITLE *</label>
+              <input type="text" id="cmp_title" class="cmp-inp" placeholder="e.g. Update your personal email ID"/>
+            </div>
+            <div>
+              <label class="cmp-lbl">MESSAGE SHOWN TO EMPLOYEE</label>
+              <textarea id="cmp_instruction" rows="2" class="cmp-inp" placeholder="e.g. Please enter your personal email ID, not your company email."></textarea>
+            </div>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;">
+              <div style="flex:1;min-width:200px;">
+                <label class="cmp-lbl">WHAT TO COLLECT *</label>
+                <select id="cmp_field" class="cmp-inp" onchange="cmpFieldChanged()"></select>
+              </div>
+              <div id="cmp_custom_wrap" style="flex:2;min-width:220px;display:none;">
+                <label class="cmp-lbl">QUESTION / FIELD NAME *</label>
+                <input type="text" id="cmp_field_label" class="cmp-inp" placeholder="e.g. Emergency contact number"/>
+              </div>
+              <div id="cmp_type_wrap" style="min-width:140px;display:none;">
+                <label class="cmp-lbl">ANSWER TYPE</label>
+                <select id="cmp_input_type" class="cmp-inp">
+                  <option value="text">Text</option><option value="tel">Mobile number</option><option value="email">Email</option><option value="date">Date</option><option value="textarea">Long text</option>
+                </select>
+              </div>
+            </div>
+            <div id="cmp_email_opts" style="display:none;gap:12px;flex-wrap:wrap;">
+              <label style="display:flex;align-items:center;gap:8px;font-size:14px;"><input type="checkbox" id="cmp_otp" checked/> Verify with a code sent to the new email (OTP)</label>
+              <div style="flex:1;min-width:240px;">
+                <label class="cmp-lbl">REJECT EMAILS CONTAINING (comma separated)</label>
+                <input type="text" id="cmp_blocked" class="cmp-inp" placeholder="taxprotect, protaxprotect"/>
+              </div>
+            </div>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+              <div style="min-width:220px;">
+                <label class="cmp-lbl">BECOMES MANDATORY AFTER (days, blank = never)</label>
+                <input type="number" min="0" max="365" id="cmp_days" class="cmp-inp" placeholder="3"/>
+              </div>
+              <p style="font-size:12px;color:#64748b;margin:0;flex:1;min-width:220px;">Until then employees can choose "Remind me later". Once mandatory, they cannot mark attendance until they respond.</p>
+            </div>
+            <div>
+              <label class="cmp-lbl">WHO SHOULD RESPOND</label>
+              <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:14px;margin-bottom:8px;">
+                <label><input type="radio" name="cmp_aud" value="all" checked onchange="cmpAudChanged()"/> All active employees</label>
+                <label><input type="radio" name="cmp_aud" value="selected" onchange="cmpAudChanged()"/> Selected employees</label>
+                <label><input type="radio" name="cmp_aud" value="designation" onchange="cmpAudChanged()"/> By designation</label>
+              </div>
+              <div id="cmp_aud_list" style="display:none;max-height:220px;overflow:auto;border:1.5px solid #e2e8f0;border-radius:8px;padding:8px 12px;"></div>
+            </div>
+          </div>
+          <div id="cmpCreateErr" style="display:none;color:#b91c1c;font-size:13px;margin-top:10px;font-weight:600;"></div>
+          <div style="display:flex;gap:10px;margin-top:14px;">
+            <button class="btn-sm" onclick="cmpCreate()" style="background:#16a34a;">Create &amp; notify employees</button>
+            <button class="btn-sm" onclick="cmpBackToList()" style="background:#64748b;">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="cmpDetailView" style="display:none;">
+        <div style="margin-bottom:12px;"><button class="btn-sm" onclick="cmpBackToList()" style="background:#64748b;">&larr; All campaigns</button></div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="card-title" id="cmpDetailTitle">Campaign</div>
+          <div id="cmpDetailMeta" style="font-size:13px;color:#475569;margin-bottom:10px;"></div>
+          <div style="background:#e2e8f0;border-radius:99px;height:10px;overflow:hidden;margin-bottom:6px;"><div id="cmpProgressBar" style="height:100%;background:#16a34a;width:0%;"></div></div>
+          <div id="cmpProgressText" style="font-size:13px;font-weight:700;margin-bottom:12px;"></div>
+          <div id="cmpDetailActions" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+        </div>
+        <div class="today-table-wrap">
+          <div class="hist-table-wrap">
+            <table>
+              <thead><tr><th>Emp ID</th><th>Name</th><th>Designation</th><th>Status</th><th>Submitted value</th><th>Previous value</th><th>How / When</th><th>Action</th></tr></thead>
+              <tbody id="cmpDetailTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <style>
+        .cmp-lbl { display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:4px; }
+        .cmp-inp { width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none;box-sizing:border-box;font-family:inherit; }
+      </style>
     </div>
 
     <!-- ═══════════════════════════════════════════════════════ -->
@@ -1218,6 +1326,187 @@ function showPanel(name) {
   if (name === 'holidays')      loadHolidays();
   if (name === 'notices')       loadNotices();
   if (name === 'assessment')    initAssessment();
+  if (name === 'campaigns')     cmpBackToList();
+}
+
+// ── DATA CAMPAIGNS ───────────────────────────────────────────
+let CMP_META = null;
+let CMP_OPEN_ID = null;
+
+async function cmpLoadMeta() {
+  if (CMP_META) return CMP_META;
+  const d = await api('/campaigns/admin/meta');
+  if (d.success) CMP_META = d;
+  return CMP_META;
+}
+
+function cmpFmtDate(v) {
+  return v ? new Date(v).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '--';
+}
+
+async function cmpBackToList() {
+  CMP_OPEN_ID = null;
+  document.getElementById('cmpCreateView').style.display = 'none';
+  document.getElementById('cmpDetailView').style.display = 'none';
+  document.getElementById('cmpListView').style.display = 'block';
+  const tb = document.getElementById('cmpTable');
+  const d = await api('/campaigns/admin');
+  if (!d.success) { tb.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#dc2626;padding:18px">Unable to load campaigns</td></tr>'; return; }
+  if (!d.campaigns.length) { tb.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:18px">No campaigns yet. Create one to collect details from employees.</td></tr>'; return; }
+  const audLabel = { all: 'All employees', selected: 'Selected', designation: 'By designation' };
+  tb.innerHTML = d.campaigns.map(c => `<tr>
+    <td><strong>${escHtml(c.title)}</strong></td>
+    <td>${escHtml(c.field_label || c.field_key)}</td>
+    <td>${audLabel[c.audience_type] || c.audience_type}</td>
+    <td>${c.submitted} / ${c.total}</td>
+    <td>${c.mandatory_after_days === null ? 'Never' : c.mandatory_after_days + ' day(s)'}</td>
+    <td><span class="badge ${c.status === 'Active' ? 'badge-present' : 'badge-pending'}">${c.status}</span></td>
+    <td><button class="btn-edit" onclick="cmpOpenDetail(${c.id})">Open</button></td>
+  </tr>`).join('');
+}
+
+async function cmpOpenCreate() {
+  const meta = await cmpLoadMeta();
+  if (!meta) return showToast('Could not load options', 'error');
+  document.getElementById('cmp_field').innerHTML = meta.fields.map(f => `<option value="${f.key}">${escHtml(f.label)}</option>`).join('');
+  ['cmp_title', 'cmp_instruction', 'cmp_field_label', 'cmp_blocked', 'cmp_days'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('cmp_otp').checked = true;
+  document.querySelector('input[name="cmp_aud"][value="all"]').checked = true;
+  document.getElementById('cmpCreateErr').style.display = 'none';
+  cmpFieldChanged();
+  cmpAudChanged();
+  document.getElementById('cmpListView').style.display = 'none';
+  document.getElementById('cmpCreateView').style.display = 'block';
+}
+
+function cmpFieldChanged() {
+  const key = document.getElementById('cmp_field').value;
+  const f = (CMP_META?.fields || []).find(x => x.key === key);
+  const isCustom = key === 'custom';
+  document.getElementById('cmp_custom_wrap').style.display = isCustom ? 'block' : 'none';
+  document.getElementById('cmp_type_wrap').style.display = isCustom ? 'block' : 'none';
+  const isEmail = (isCustom ? document.getElementById('cmp_input_type').value : f?.input_type) === 'email';
+  document.getElementById('cmp_email_opts').style.display = isEmail ? 'flex' : 'none';
+}
+
+function cmpApplyPreset(key) {
+  if (key !== 'personal_email') return;
+  document.getElementById('cmp_title').value = 'Update your personal email ID';
+  document.getElementById('cmp_instruction').value = 'Please enter your personal email ID, not your Tax Protect (company) email. We will send a verification code to confirm it.';
+  document.getElementById('cmp_field').value = 'personal_email';
+  document.getElementById('cmp_otp').checked = true;
+  document.getElementById('cmp_blocked').value = 'taxprotect, protaxprotect';
+  document.getElementById('cmp_days').value = '3';
+  document.querySelector('input[name="cmp_aud"][value="all"]').checked = true;
+  cmpFieldChanged();
+  cmpAudChanged();
+}
+
+function cmpAudChanged() {
+  const aud = document.querySelector('input[name="cmp_aud"]:checked').value;
+  const box = document.getElementById('cmp_aud_list');
+  if (aud === 'all') { box.style.display = 'none'; box.innerHTML = ''; return; }
+  box.style.display = 'block';
+  if (aud === 'selected') {
+    box.innerHTML = CMP_META.employees.map(e => `<label style="display:block;padding:3px 0;font-size:13.5px;"><input type="checkbox" class="cmp-emp" value="${escHtml(e.emp_id)}"/> ${escHtml(e.emp_id)} — ${escHtml(e.formal_name || e.name)} <span style="color:#94a3b8">(${escHtml(e.designation || '--')})</span></label>`).join('');
+  } else {
+    box.innerHTML = CMP_META.designations.map(d => `<label style="display:block;padding:3px 0;font-size:13.5px;"><input type="checkbox" class="cmp-desg" value="${escHtml(d)}"/> ${escHtml(d)}</label>`).join('');
+  }
+}
+
+async function cmpCreate() {
+  const err = document.getElementById('cmpCreateErr');
+  err.style.display = 'none';
+  const field_key = document.getElementById('cmp_field').value;
+  const aud = document.querySelector('input[name="cmp_aud"]:checked').value;
+  const f = CMP_META.fields.find(x => x.key === field_key);
+  const input_type = field_key === 'custom' ? document.getElementById('cmp_input_type').value : f.input_type;
+  const payload = {
+    title: document.getElementById('cmp_title').value,
+    instruction: document.getElementById('cmp_instruction').value,
+    field_key,
+    field_label: document.getElementById('cmp_field_label').value,
+    input_type,
+    require_otp: input_type === 'email' && document.getElementById('cmp_otp').checked,
+    blocked_keywords: input_type === 'email' ? document.getElementById('cmp_blocked').value : '',
+    mandatory_after_days: document.getElementById('cmp_days').value,
+    audience_type: aud,
+    emp_ids: [...document.querySelectorAll('.cmp-emp:checked')].map(x => x.value),
+    designations: [...document.querySelectorAll('.cmp-desg:checked')].map(x => x.value),
+  };
+  const d = await api('/campaigns/admin', { method: 'POST', body: JSON.stringify(payload) });
+  if (!d.success) { err.textContent = d.message || 'Could not create campaign'; err.style.display = 'block'; return; }
+  showToast(d.message, 'success');
+  cmpOpenDetail(d.campaign.id);
+}
+
+async function cmpOpenDetail(id) {
+  CMP_OPEN_ID = id;
+  const d = await api('/campaigns/admin/' + id);
+  if (!d.success) return showToast(d.message || 'Could not load campaign', 'error');
+  const c = d.campaign;
+  document.getElementById('cmpListView').style.display = 'none';
+  document.getElementById('cmpCreateView').style.display = 'none';
+  document.getElementById('cmpDetailView').style.display = 'block';
+  document.getElementById('cmpDetailTitle').textContent = c.title;
+  const done = d.targets.filter(t => t.status === 'Submitted').length;
+  const pct = d.targets.length ? Math.round(done * 100 / d.targets.length) : 0;
+  document.getElementById('cmpDetailMeta').innerHTML =
+    `${escHtml(c.field_label || c.field_key)} &middot; ${c.require_otp ? 'OTP verified' : 'No OTP'} &middot; Mandatory after: ${c.mandatory_after_days === null ? 'never' : c.mandatory_after_days + ' day(s)'} &middot; Created ${cmpFmtDate(c.created_at)} by ${escHtml(c.created_by || '--')}` +
+    (c.instruction ? `<br><em>${escHtml(c.instruction)}</em>` : '');
+  document.getElementById('cmpProgressBar').style.width = pct + '%';
+  document.getElementById('cmpProgressText').textContent = `${done} of ${d.targets.length} submitted (${pct}%) — ${c.status}`;
+  document.getElementById('cmpDetailActions').innerHTML =
+    (c.status === 'Active' ? `<button class="btn-sm" onclick="cmpRemind()" style="background:#2563eb;">Send reminder to all pending</button>` : '') +
+    (c.status === 'Active' && c.audience_type === 'all' ? `<button class="btn-sm" onclick="cmpSync()" style="background:#7c3aed;">Add new employees</button>` : '') +
+    `<button class="btn-sm" onclick="cmpSetStatus('${c.status === 'Active' ? 'Closed' : 'Active'}')" style="background:${c.status === 'Active' ? '#dc2626' : '#16a34a'};">${c.status === 'Active' ? 'Close campaign' : 'Reopen campaign'}</button>`;
+  document.getElementById('cmpDetailTable').innerHTML = d.targets.map(t => {
+    const name = t.formal_name || t.name || '--';
+    const badge = t.status === 'Submitted'
+      ? '<span class="badge badge-present">Submitted</span>'
+      : `<span class="badge badge-pending">Pending</span>${t.mandatory ? ' <span class="badge badge-absent">Mandatory</span>' : ''}`;
+    const how = t.status === 'Submitted'
+      ? `${t.submitted_via === 'admin' ? 'By admin' : (t.verified ? 'Employee (verified)' : 'Employee')}<br><span style="color:#94a3b8;font-size:12px">${cmpFmtDate(t.submitted_at)}</span>`
+      : (t.last_reminded_at ? `<span style="color:#94a3b8;font-size:12px">Reminded ${cmpFmtDate(t.last_reminded_at)}</span>` : '--');
+    return `<tr>
+      <td>${escHtml(t.emp_id)}</td><td>${escHtml(name)}</td><td>${escHtml(t.designation || '--')}</td>
+      <td>${badge}</td>
+      <td>${escHtml(t.value || '--')}</td>
+      <td>${escHtml(t.previous_value || '--')}</td>
+      <td>${how}</td>
+      <td style="white-space:nowrap">
+        ${t.status === 'Pending' && c.status === 'Active' ? `<button class="btn-edit" onclick="cmpRemind('${escHtml(t.emp_id)}')">Remind</button>` : ''}
+        ${c.status === 'Active' ? `<button class="btn-edit" onclick="cmpSetValue('${escHtml(t.emp_id)}')">${t.status === 'Submitted' ? 'Edit' : 'Enter'}</button>` : ''}
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function cmpRemind(empId) {
+  const d = await api(`/campaigns/admin/${CMP_OPEN_ID}/remind`, { method: 'POST', body: JSON.stringify(empId ? { emp_ids: [empId] } : {}) });
+  showToast(d.message, d.success ? 'success' : 'error');
+  if (d.success) cmpOpenDetail(CMP_OPEN_ID);
+}
+
+async function cmpSync() {
+  const d = await api(`/campaigns/admin/${CMP_OPEN_ID}/sync`, { method: 'POST' });
+  showToast(d.message, d.success ? 'success' : 'error');
+  if (d.success) cmpOpenDetail(CMP_OPEN_ID);
+}
+
+async function cmpSetStatus(status) {
+  if (status === 'Closed' && !confirm('Close this campaign? Employees will stop seeing the popup. Nothing is deleted.')) return;
+  const d = await api(`/campaigns/admin/${CMP_OPEN_ID}/status`, { method: 'POST', body: JSON.stringify({ status }) });
+  showToast(d.message, d.success ? 'success' : 'error');
+  if (d.success) cmpOpenDetail(CMP_OPEN_ID);
+}
+
+async function cmpSetValue(empId) {
+  const value = prompt('Enter the value on behalf of ' + empId + ':');
+  if (value === null) return;
+  const d = await api(`/campaigns/admin/${CMP_OPEN_ID}/set`, { method: 'POST', body: JSON.stringify({ emp_id: empId, value }) });
+  showToast(d.message, d.success ? 'success' : 'error');
+  if (d.success) cmpOpenDetail(CMP_OPEN_ID);
 }
 
 // ── Salary sub-tabs ──────────────────────────────────────────
