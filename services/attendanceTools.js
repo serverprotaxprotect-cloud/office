@@ -36,16 +36,19 @@ async function markAbsentForDate(dateStr) {
         AND (e.date_of_joining IS NULL OR e.date_of_joining::date <= $1::date)
         AND COALESCE(s.attendance_exempt, FALSE) = FALSE
         AND NOT EXISTS (SELECT 1 FROM daily_attendance d WHERE d.emp_id = e.emp_id AND d.date::date = $1::date)
-        AND NOT EXISTS (SELECT 1 FROM leave_requests l WHERE l.emp_id = e.emp_id AND l.status='Approved'
+        AND NOT EXISTS (SELECT 1 FROM leave_requests l WHERE l.emp_id = e.emp_id AND l.status IN ('Approved','Pending')
                           AND $1::date BETWEEN l.from_date::date AND l.to_date::date)
+        AND NOT EXISTS (SELECT 1 FROM attendance_requests r WHERE r.emp_id = e.emp_id AND r.status IN ('Pending','Approved')
+                          AND r.request_date::date = $1::date)
      RETURNING emp_id`,
     [dateStr, m, y]
   );
   return { date: dateStr, inserted: ins.rowCount };
 }
 
-// Daily job (cron): yesterday, for every active organisation that switched it on.
-async function autoAbsentAllOrgs(dateStr = addDays(istDateStr(), -1)) {
+// Daily job (cron): the day that has just run out of grace, for every active organisation that switched it on.
+// A missed day gets GRACE_DAYS to be regularised (request / leave) before it is marked Absent.
+async function autoAbsentAllOrgs(dateStr = addDays(istDateStr(), -require('./attendanceReminders').GRACE_DAYS)) {
   const orgs = await db.runWithTenant({ bypassTenant: true }, () =>
     db.query(`SELECT id FROM organizations WHERE status='Active'`));
   const out = [];

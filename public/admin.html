@@ -479,6 +479,21 @@
           <option value="">All</option>
         </select>
         <button class="btn-sm" onclick="loadLeaves()">Refresh</button>
+        <button class="btn-sm" style="background:#059669;" onclick="toggleAdminLeaveForm()">+ Add Leave for an Employee</button>
+      </div>
+
+      <div class="card" id="adminLeaveForm" style="display:none;margin-bottom:16px;border-left:4px solid #059669;">
+        <div class="card-title">Add Leave on Behalf of an Employee</div>
+        <p style="font-size:12px;color:#64748b;margin-bottom:10px;">Use this when an employee has informed you by WhatsApp or email. The request is created as Pending; approve it from the list below so that attendance and salary are updated.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+          <div><label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:4px;">Employee</label><select id="alEmp" style="min-width:200px;"></select></div>
+          <div><label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:4px;">Leave type</label>
+            <select id="alType"><option>Casual Leave</option><option>Sick Leave</option><option>Earned Leave</option><option>Other</option></select></div>
+          <div><label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:4px;">From</label><input type="date" id="alFrom"></div>
+          <div><label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:4px;">To</label><input type="date" id="alTo"></div>
+          <div style="flex:1;min-width:200px;"><label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:4px;">Reason</label><input type="text" id="alReason" style="width:100%;" placeholder="Reason given by the employee"></div>
+          <button class="btn-sm" style="background:#059669;" onclick="submitAdminLeave()">Create Request</button>
+        </div>
       </div>
 
       <div class="today-table-wrap">
@@ -2820,6 +2835,37 @@ async function askOnboardingReupload(id) {
   });
   showToast(data.message, data.success ? 'success' : 'error');
   if (data.success) loadOnboardingRequests();
+}
+
+async function toggleAdminLeaveForm() {
+  const box = document.getElementById('adminLeaveForm');
+  box.style.display = box.style.display === 'none' ? 'block' : 'none';
+  if (box.style.display === 'none') return;
+  const sel = document.getElementById('alEmp');
+  if (sel.options.length) return;
+  const data = await api('/admin/employees');
+  sel.innerHTML = '<option value="">Select employee</option>' + (data.employees || [])
+    .filter(e => e.status === 'Active')
+    .map(e => '<option value="' + escHtml(e.emp_id) + '">' + escHtml((e.formal_name || e.name) + ' (' + e.emp_id + ')') + '</option>').join('');
+}
+
+async function submitAdminLeave() {
+  const body = {
+    emp_id: document.getElementById('alEmp').value,
+    leave_type: document.getElementById('alType').value,
+    from_date: document.getElementById('alFrom').value,
+    to_date: document.getElementById('alTo').value,
+    reason: document.getElementById('alReason').value.trim(),
+  };
+  if (!body.emp_id || !body.from_date || !body.to_date || !body.reason) { showToast('Please fill in all the fields.', 'error'); return; }
+  const data = await api('/leave/admin-apply', { method: 'POST', body: JSON.stringify(body) });
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) {
+    document.getElementById('alReason').value = '';
+    document.getElementById('adminLeaveForm').style.display = 'none';
+    document.getElementById('leaveStatusFilter').value = 'Pending';
+    loadLeaves();
+  }
 }
 
 async function loadLeaves() {

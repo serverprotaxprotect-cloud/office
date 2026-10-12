@@ -622,6 +622,17 @@ router.post('/request', authMiddleware, async (req, res) => {
   }
 });
 
+// ── GET /api/attendance/reminders (employee: missed days / today's punches) ──
+router.get('/reminders', authMiddleware, async (req, res) => {
+  try {
+    const { getReminders } = require('../services/attendanceReminders');
+    res.json({ success: true, emp_id: req.user.emp_id, name: req.user.formal_name || req.user.name, ...(await getReminders(req.user.emp_id)) });
+  } catch (err) {
+    console.error('[reminders]', err.message);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 // ── GET /api/attendance/my-requests ───────────────────────────
 router.get('/my-requests', authMiddleware, async (req, res) => {
   const { emp_id } = req.user;

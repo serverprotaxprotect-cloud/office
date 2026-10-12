@@ -98,6 +98,11 @@
     .tp-row { display:flex; gap:8px; }
     .tp-row select { flex:1; padding:10px 8px; border:1.5px solid #e2e8f0; border-radius:8px; font-size:15px; background:#fff; outline:none; }
     .tp-row select.tp-ap { font-weight:700; }
+    .rem-row { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:9px 0; border-bottom:1px solid #f1f5f9; flex-wrap:wrap; }
+    .rem-row:last-child { border-bottom:0; }
+    .rem-btns { display:flex; gap:6px; }
+    .rem-btns button { padding:7px 10px; border-radius:8px; border:1.5px solid #2563eb; background:#fff; color:#2563eb; font-size:12.5px; font-weight:700; cursor:pointer; }
+    .rem-btns button.primary { background:#2563eb; color:#fff; }
     .tp-hint { color:#dc2626; font-size:12px; font-weight:600; margin-top:4px; }
     .req-input-group { margin-bottom: 14px; }
     .req-input-group label { display:block; font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.4px; margin-bottom:4px; }
@@ -355,6 +360,9 @@
 
     <div class="card">
       <div class="card-title">Apply for Leave</div>
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:9px 11px;font-size:12.5px;color:#1e3a8a;margin-bottom:12px;">
+        Please apply for leave here, even if you have already informed us by WhatsApp or email. When you submit, your request is emailed immediately to the Owner, Director, Office Manager and HR, who will approve or reject it in the system. You will then receive their decision by email. Leave recorded in the system is what is used for your attendance and salary.
+      </div>
       <div class="leave-type-grid">
         <div class="leave-type-btn selected" id="lt-Casual" onclick="selectLeaveType('Casual Leave')">Casual Leave</div>
         <div class="leave-type-btn" id="lt-Sick"   onclick="selectLeaveType('Sick Leave')">Sick Leave</div>
@@ -573,6 +581,20 @@
     <div class="req-actions">
       <button class="req-cancel" onclick="closeAttReqModal()">Cancel</button>
       <button class="req-submit" onclick="submitAttRequest()">Submit Request</button>
+    </div>
+  </div>
+</div>
+
+<!-- Attendance reminder popup -->
+<div class="req-modal-backdrop" id="reminderModal" style="display:none;z-index:350;align-items:center;padding:16px;">
+  <div class="req-modal" style="border-radius:16px;max-width:470px;max-height:88vh;overflow:auto;">
+    <div class="req-modal-title" id="remTitle">Attendance reminder</div>
+    <div id="remBody" style="font-size:14px;color:#334155;line-height:1.55;"></div>
+    <div style="margin-top:12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:9px 11px;font-size:12.5px;color:#1e3a8a;">
+      <strong>About leave:</strong> even if you have already informed us by WhatsApp or email, please also submit your leave request in this system (Leave tab). It is required for correct attendance and salary calculation. When you apply here, your request is emailed immediately to the management, and you will receive their decision by email.
+    </div>
+    <div class="req-actions" style="margin-top:12px;">
+      <button class="req-submit" onclick="closeReminder()">I have seen this</button>
     </div>
   </div>
 </div>
@@ -1231,6 +1253,77 @@ function time12(hhmm) {
 }
 function hhmmToMins(t) { const [h, m] = t.split(':').map(Number); return h * 60 + m; }
 
+// ── Attendance reminders (missed days / today's punches) ──
+let REM_STATE = null;
+function remFmt(dateStr) {
+  return dateFromKey(dateStr).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+function remSeen(key) { try { return localStorage.getItem(key) === '1'; } catch { return false; } }
+function remMark(key) { try { localStorage.setItem(key, '1'); } catch { /* ignore */ } }
+
+async function checkReminders() {
+  try {
+    const data = await api('/attendance/reminders');
+    if (!data.success) return;
+    REM_STATE = data;
+    const today = todayStr();
+    const pastKey = 'gb_rem_' + data.emp_id + '_' + today + '_past';
+    const todayKey = data.today ? 'gb_rem_' + data.emp_id + '_' + today + '_s' + data.today.slot : null;
+    const showPast = (data.missing_days.length || data.missing_out_days.length) && !remSeen(pastKey);
+    const showToday = data.today && !remSeen(todayKey);
+    REM_STATE.keys = { past: showPast ? pastKey : null, today: showToday ? todayKey : null };
+    if (!showPast && !showToday) return;
+    // Do not stack on top of a required data request
+    const cmp = document.getElementById('campaignModal');
+    if (cmp && cmp.style.display !== 'none') return;
+
+    const first = (data.name || '').split(' ')[0] || 'Colleague';
+    let html = '<p style="margin-bottom:10px;">Dear ' + esc(first) + ',</p>';
+    if (showToday) {
+      if (data.today.kind === 'missing_in') {
+        html += '<p style="margin-bottom:8px;">Our records show that you have <strong>not punched in today</strong> (' + esc(remFmt(data.today.date)) + '). If you were present today, please submit an attendance request for today.</p>' +
+          '<div class="rem-btns" style="margin-bottom:14px;"><button class="primary" onclick="remRequest(\'' + data.today.date + '\')">Submit attendance request</button></div>';
+      } else {
+        html += '<p style="margin-bottom:8px;">You punched in today but have <strong>not punched out yet</strong>. If you have finished work, please punch out. If you are unable to, you may submit an attendance request.</p>' +
+          '<div class="rem-btns" style="margin-bottom:14px;"><button class="primary" onclick="remRequest(\'' + data.today.date + '\')">Submit attendance request</button></div>';
+      }
+    }
+    if (showPast && data.missing_days.length) {
+      html += '<p style="margin-bottom:6px;">Attendance was <strong>not marked</strong> on the following ' + (data.missing_days.length === 1 ? 'day' : 'days') + '. If you were present, please submit an attendance request. If you were on leave, please apply for leave.' +
+        (data.auto_absent ? ' Otherwise the day will be recorded as <strong>Absent</strong> on the date shown.' : ' Otherwise the day will be treated as Absent in your salary.') + '</p>';
+      data.missing_days.forEach(m => {
+        html += '<div class="rem-row"><div><strong>' + esc(remFmt(m.date)) + '</strong>' +
+          (data.auto_absent ? '<div style="font-size:11.5px;color:#b91c1c;">Will be marked Absent on ' + esc(remFmt(m.absent_on)) + '</div>' : '') + '</div>' +
+          '<div class="rem-btns"><button class="primary" onclick="remRequest(\'' + m.date + '\')">Attendance request</button><button onclick="remLeave(\'' + m.date + '\')">Apply leave</button></div></div>';
+      });
+    }
+    if (showPast && data.missing_out_days.length) {
+      html += '<p style="margin:12px 0 6px;">You did <strong>not punch out</strong> on the following ' + (data.missing_out_days.length === 1 ? 'day' : 'days') + '. Please submit an attendance request with your actual punch-out time.</p>';
+      data.missing_out_days.forEach(d => {
+        html += '<div class="rem-row"><strong>' + esc(remFmt(d)) + '</strong><div class="rem-btns"><button class="primary" onclick="remRequest(\'' + d + '\')">Attendance request</button></div></div>';
+      });
+    }
+    document.getElementById('remBody').innerHTML = html;
+    document.getElementById('reminderModal').style.display = 'flex';
+  } catch { /* reminders must never block the dashboard */ }
+}
+
+function closeReminder() {
+  if (REM_STATE?.keys?.past) remMark(REM_STATE.keys.past);
+  if (REM_STATE?.keys?.today) remMark(REM_STATE.keys.today);
+  document.getElementById('reminderModal').style.display = 'none';
+}
+function remRequest(dateStr) {
+  document.getElementById('reminderModal').style.display = 'none';
+  openAttReqModal(dateStr);
+}
+function remLeave(dateStr) {
+  document.getElementById('reminderModal').style.display = 'none';
+  switchTab('leave');
+  document.getElementById('leaveFrom').value = dateStr;
+  document.getElementById('leaveTo').value = dateStr;
+}
+
 function openAttReqModal(dateStr) {
   setAttReqDate(dateStr);
   resetReqPicker('in');
@@ -1726,9 +1819,9 @@ async function applyLeave() {
   const leaveType= document.getElementById('selectedLeaveType').value;
 
   msg.style.display = 'none';
-  if (!fromDate || !toDate) { msg.className='alert alert-error'; msg.textContent='From Date aur To Date dono select karo.'; msg.style.display='block'; return; }
-  if (new Date(toDate) < new Date(fromDate)) { msg.className='alert alert-error'; msg.textContent='To Date, From Date se pehle nahi ho sakti.'; msg.style.display='block'; return; }
-  if (!reason) { msg.className='alert alert-error'; msg.textContent='Reason likhna zaroori hai.'; msg.style.display='block'; return; }
+  if (!fromDate || !toDate) { msg.className='alert alert-error'; msg.textContent='Please select both the From Date and the To Date.'; msg.style.display='block'; return; }
+  if (new Date(toDate) < new Date(fromDate)) { msg.className='alert alert-error'; msg.textContent='The To Date cannot be earlier than the From Date.'; msg.style.display='block'; return; }
+  if (!reason) { msg.className='alert alert-error'; msg.textContent='Please enter a reason for your leave.'; msg.style.display='block'; return; }
 
   try {
     const data = await api('/leave/apply', {
@@ -1737,7 +1830,7 @@ async function applyLeave() {
     });
     if (data.success) {
       msg.className = 'alert alert-success';
-      msg.textContent = `Application submit ho gayi! (${data.days} din) - Admin se approval ka wait karo.`;
+      msg.textContent = `Your leave application (${data.days} day${data.days === 1 ? '' : 's'}) has been submitted` + (data.emailed ? ' and emailed to the management for approval. You will receive their decision by email.' : ' and sent for approval.');
       msg.style.display = 'block';
       document.getElementById('leaveFrom').value  = '';
       document.getElementById('leaveTo').value    = '';
@@ -1836,6 +1929,7 @@ async function logoutAllDevices() {
   setInterval(updateWorkProgress, 30000);
   loadNotices();
   checkCampaigns(false);
+  setTimeout(checkReminders, 1500);
   pkInit();
   gpsWarm();
   requestNotifPermission();

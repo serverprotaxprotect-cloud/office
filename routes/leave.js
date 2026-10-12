@@ -5,6 +5,7 @@ const authMiddleware  = require('../middleware/auth');
 const adminAuth = require('../middleware/adminAuth');
 const { getSettings, ymdLocal, recalcIfOpenSafe } = require('../services/salaryService');
 const { isOffDate } = require('../services/workCalendar');
+const { notifyLeaveApplied, notifyLeaveDecision } = require('../services/leaveMail');
 
 function nextDay(dateStr) {
   const d = new Date(`${dateStr}T00:00:00Z`);
@@ -77,7 +78,39 @@ router.post('/apply', authMiddleware, async (req, res) => {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'Pending',NOW())`,
       [reqId, emp_id, name, formal_name || name, leave_type, from_date, to_date, days, reason]
     );
-    res.json({ success: true, message: 'Leave application submitted', request_id: reqId, days });
+    const mail = await notifyLeaveApplied({ request_id: reqId, emp_id, employee_name: formal_name || name, leave_type, from_date, to_date, days, reason });
+    res.json({ success: true, message: 'Leave application submitted', request_id: reqId, days, emailed: mail.approvers > 0 });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ── POST /api/leave/admin-apply  (admin enters a request on the employee's behalf) ──
+// For leave the employee reported by WhatsApp / email: it is created as Pending, then approved in the usual way.
+router.post('/admin-apply', adminAuth, async (req, res) => {
+  const { emp_id, leave_type, from_date, to_date, reason } = req.body;
+  if (!emp_id || !leave_type || !from_date || !to_date || !reason)
+    return res.status(400).json({ success: false, message: 'All fields are required' });
+  if (to_date < from_date)
+    return res.status(400).json({ success: false, message: 'To Date cannot be before From Date' });
+  try {
+    await ensureLeavePayColumns();
+    const emp = await db.query(`SELECT emp_id, name, formal_name FROM emplist WHERE emp_id=$1 AND status='Active'`, [emp_id]);
+    if (!emp.rows.length) return res.status(404).json({ success: false, message: 'Active employee not found' });
+    const overlap = await db.query(
+      `SELECT id FROM leave_requests WHERE emp_id=$1 AND status != 'Rejected' AND ($2::date, $3::date) OVERLAPS (from_date::date, to_date::date)`,
+      [emp_id, from_date, to_date]);
+    if (overlap.rows.length)
+      return res.status(400).json({ success: false, message: 'Leave already exists for these dates' });
+    const days = Math.round((new Date(to_date) - new Date(from_date)) / 86400000) + 1;
+    const reqId = 'LVR-' + uuidv4().toUpperCase().slice(0, 8);
+    const name = emp.rows[0].formal_name || emp.rows[0].name;
+    await db.query(
+      `INSERT INTO leave_requests (request_id, emp_id, employee_name, formal_name, leave_type, from_date, to_date, days, reason, status, applied_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'Pending',NOW())`,
+      [reqId, emp_id, name, name, leave_type, from_date, to_date, days, `${reason} (entered by ${req.admin.name} on the employee's behalf)`]);
+    res.json({ success: true, message: 'Leave request created. It is now pending; approve it from the list below.', request_id: reqId, days });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Server error' });
@@ -151,6 +184,7 @@ router.post('/action', adminAuth, async (req, res) => {
     // If approved: mark daily_attendance as 'Leave' for working days only
     // (weekly offs and declared holidays are not leave days, so they are never charged to the leave).
     let note = '';
+    let skippedOffForMail = 0;
     if (action === 'Approved') {
       const settings = await getSettings();
       const fromStr = ymdLocal(leave.from_date), toStr = ymdLocal(leave.to_date);
@@ -180,11 +214,13 @@ router.post('/action', adminAuth, async (req, res) => {
         const rc = await recalcIfOpenSafe(leave.emp_id, ym + '-01');
         if (rc.recalculated) recalculated++; else if (rc.locked) locked++;
       }
+      skippedOffForMail = skippedOff;
       if (skippedOff) note += ` ${skippedOff} weekly off/holiday day(s) in the range were not counted as leave.`;
       if (recalculated) note += ' Salary was recalculated.';
       if (locked) note += ' Note: an already-approved month was not changed; unlock and recalculate it if pay should change.';
     }
 
+    await notifyLeaveDecision(leave, action, { payType, remark: remark || '', skippedOffDays: skippedOffForMail });
     res.json({ success: true, message: `Leave ${action} successfully.` + (typeof note === 'string' ? note : '') });
   } catch (err) {
     console.error(err);
