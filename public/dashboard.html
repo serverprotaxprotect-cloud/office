@@ -594,6 +594,19 @@
   </div>
 </div>
 
+<!-- One-time "enable fingerprint" announcement -->
+<div class="req-modal-backdrop" id="pkPromptModal" style="display:none;z-index:350;align-items:center;padding:16px;">
+  <div class="req-modal" style="border-radius:16px;max-width:420px;text-align:center;">
+    <div style="font-size:42px;line-height:1;margin-bottom:8px;">&#128274;</div>
+    <div class="req-modal-title" id="pkPromptTitle" style="margin-bottom:8px;">New: Fingerprint / Face Unlock</div>
+    <div id="pkPromptText" style="font-size:14px;color:#334155;line-height:1.55;margin-bottom:16px;"></div>
+    <div class="req-actions">
+      <button class="req-cancel" onclick="pkPromptLater()">Later</button>
+      <button class="req-submit" onclick="pkPromptEnable()">Enable now</button>
+    </div>
+  </div>
+</div>
+
 <div class="req-modal-backdrop" id="protocolReasonModal" style="display:none;" onclick="if(event.target===this)closeProtocolReason()">
   <div class="req-modal">
     <div class="req-modal-title">Submit Monitor Explanation</div>
@@ -1791,6 +1804,7 @@ async function pkInit() {
     if (flag === emp.emp_id && PK.passkeys.length === 0) localStorage.removeItem('gb_passkey_device');
     renderPasskeyCard();
     if (PK.policy !== 'off') { if (PK.deviceOn) pkPrefetchPunch(); else pkPrefetchRegister(); }
+    if (!pkInit.prompted) { pkInit.prompted = true; setTimeout(pkMaybePrompt, 1500); }
   } catch { /* never block the dashboard on this */ }
 }
 
@@ -1855,6 +1869,49 @@ async function pkEnable() {
   } finally {
     if (btn) btn.disabled = false;
   }
+}
+
+// One-time announcement: until this phone has fingerprint enabled, show a
+// friendly popup on dashboard open. "Later" brings it back the next day; after
+// 3 postponements it stops (the Fingerprint card stays on the dashboard).
+const PK_PROMPT_MAX_LATER = 3;
+function pkPromptState() {
+  try { return JSON.parse(localStorage.getItem('gb_pk_prompt_' + emp.emp_id) || '{}'); } catch { return {}; }
+}
+function pkPromptSave(state) {
+  try { localStorage.setItem('gb_pk_prompt_' + emp.emp_id, JSON.stringify(state)); } catch {}
+}
+function pkPromptToday() { return new Date().toLocaleDateString('en-CA'); }
+
+function pkShouldPrompt() {
+  if (!PK.supported || PK.policy === 'off' || PK.deviceOn) return false;
+  if (PK.passkeys.length >= PK.max) return false;
+  const s = pkPromptState();
+  if ((s.later || 0) >= PK_PROMPT_MAX_LATER) return false;
+  if (s.day === pkPromptToday()) return false;
+  return true;
+}
+
+function pkMaybePrompt() {
+  if (!pkShouldPrompt()) return;
+  // Give a pending data request (campaign) popup priority; try again next visit.
+  const cmp = document.getElementById('campaignModal');
+  if (cmp && cmp.style.display !== 'none') return;
+  document.getElementById('pkPromptText').textContent = PK.passkeys.length
+    ? 'Use your fingerprint or face unlock on this phone too. It takes 10 seconds, and then you can log in and mark attendance without typing your password.'
+    : 'Log in and mark attendance with your phone\'s fingerprint or face unlock. It takes 10 seconds to set up, and your fingerprint never leaves your phone.';
+  document.getElementById('pkPromptModal').style.display = 'flex';
+}
+
+function pkPromptLater() {
+  const s = pkPromptState();
+  pkPromptSave({ later: (s.later || 0) + 1, day: pkPromptToday() });
+  document.getElementById('pkPromptModal').style.display = 'none';
+}
+
+function pkPromptEnable() {
+  document.getElementById('pkPromptModal').style.display = 'none';
+  pkEnable();
 }
 
 async function pkRemove(id) {
