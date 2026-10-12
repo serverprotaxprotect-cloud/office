@@ -715,7 +715,8 @@ async function ensureHolidaysTable() {
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
-  await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS holidays_org_date_unique ON holidays(organization_id, holiday_date)`);
+  // The table and its unique index already exist; the app role is not the owner, so this may be refused.
+  await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS holidays_org_date_unique ON holidays(organization_id, holiday_date)`).catch(() => {});
 }
 async function ensureRequestsTable() {
   await db.query(`

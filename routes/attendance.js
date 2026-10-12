@@ -536,7 +536,8 @@ router.get('/settings', authMiddleware, async (req, res) => {
 // ── Helper: ensure holidays table ────────────────────────────
 async function ensureHolidaysTable() {
   await db.query(`CREATE TABLE IF NOT EXISTS holidays (id SERIAL PRIMARY KEY, organization_id INTEGER DEFAULT current_organization_id(), holiday_date DATE NOT NULL, holiday_name VARCHAR(100) NOT NULL, created_by VARCHAR(100), created_at TIMESTAMPTZ DEFAULT NOW())`);
-  await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS holidays_org_date_unique ON holidays(organization_id, holiday_date)`);
+  // The table and its unique index already exist; the app role is not the owner, so this may be refused.
+  await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS holidays_org_date_unique ON holidays(organization_id, holiday_date)`).catch(() => {});
 }
 
 // ── Helper: ensure attendance_requests table ─────────────────
