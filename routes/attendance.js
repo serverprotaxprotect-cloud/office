@@ -342,6 +342,7 @@ router.post('/mark', authMiddleware, async (req, res) => {
     // The log row and the daily summary are independent writes — run together.
     const writes = [logInsert];
     // Admin visibility only (which phone, and one phone used by two employees); never blocks a punch.
+    if (deviceUid && passkeyId) writes.push(passkeyService.backfillDeviceUid(passkeyId, deviceUid));
     if (deviceUid && req.user.user_type !== 'admin') {
       writes.push(passkeyService.recordSighting(req, { organizationId: req.user.organization_id, empId: emp_id }, deviceUid));
     }

@@ -39,7 +39,13 @@ router.get('/status', authMiddleware, employeeOnly, async (req, res) => {
       success: true,
       policy,
       max_devices: svc.maxFor(policy),
-      passkeys: keys.map(k => ({ id: k.id, label: k.device_label, created_at: k.created_at, last_used_at: k.last_used_at })),
+      // this_device: the phone asking is the one this fingerprint was set up on.
+      // legacy: set up before phones were identified (resolved on first use).
+      passkeys: keys.map(k => ({
+        id: k.id, label: k.device_label, created_at: k.created_at, last_used_at: k.last_used_at,
+        this_device: !!k.device_uid && k.device_uid === svc.cleanDeviceUid(req.query.device_uid),
+        legacy: !k.device_uid,
+      })),
     });
   } catch (err) { fail(res, err, 'status'); }
 });
@@ -65,6 +71,15 @@ router.post('/punch/options', authMiddleware, employeeOnly, async (req, res) => 
     if ((await svc.getPolicy(req.emp.organizationId)) === 'off') return res.status(403).json({ success: false, message: 'Not enabled.' });
     res.json({ success: true, ...(await svc.punchOptions(req, req.emp)) });
   } catch (err) { fail(res, err, 'punch-options'); }
+});
+
+// POST /api/passkeys/relink  { token, response, device_uid } — a phone that already holds the fingerprint
+// (e.g. browser data was cleared) proves it with one fingerprint scan and is re-linked.
+router.post('/relink', authMiddleware, employeeOnly, async (req, res) => {
+  try {
+    await svc.relinkDevice(req, req.emp, req.body || {});
+    res.json({ success: true, message: 'This phone is linked again.' });
+  } catch (err) { fail(res, err, 'relink'); }
 });
 
 // DELETE /api/passkeys/:id — remove one of my own devices
@@ -109,6 +124,7 @@ router.post('/login/verify', async (req, res) => {
       return res.status(403).json({ success: false, message: 'This account is not active.' });
     }
     await svc.recordSighting(req, { organizationId: cred.organization_id, empId: cred.emp_id }, req.body.device_uid);
+    await svc.backfillDeviceUid(cred.id, req.body.device_uid);
     const out = await loginCandidate(candidate, req);
     setRefreshCookie(res, out.refresh_token);
     res.json({

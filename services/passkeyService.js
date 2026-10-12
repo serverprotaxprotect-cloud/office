@@ -86,7 +86,7 @@ async function consumeChallenge(token, purpose) {
 
 async function activePasskeys(organizationId, empId) {
   const r = await bypass(() => db.query(
-    `SELECT id, credential_id, transports, device_label, created_at, last_used_at
+    `SELECT id, credential_id, transports, device_label, device_uid, created_at, last_used_at
        FROM employee_passkeys
       WHERE organization_id=$1 AND emp_id=$2 AND revoked_at IS NULL
       ORDER BY created_at`,
@@ -242,6 +242,26 @@ async function punchOptions(req, emp) {
   return { token, options };
 }
 
+// A phone is recognised by the random device ID the app keeps in its browser.
+// Older passkeys have no ID yet: it is filled in the first time they are used
+// (backfill), or by an explicit re-link that proves the phone holds the key.
+async function backfillDeviceUid(passkeyId, deviceUid) {
+  const uid = cleanDeviceUid(deviceUid);
+  if (!uid || !passkeyId) return;
+  try {
+    await bypass(() => db.query(`UPDATE employee_passkeys SET device_uid=$1 WHERE id=$2 AND device_uid IS NULL`, [uid, passkeyId]));
+  } catch (err) { console.warn('[device uid backfill skipped]', err.message); }
+}
+
+async function relinkDevice(req, emp, { token, response, device_uid }) {
+  const uid = cleanDeviceUid(device_uid);
+  if (!uid) throw new PasskeyError(400, 'Device ID missing. Please reload the page and try again.');
+  const cred = await verifyAssertion(req, { token, purpose: 'punch', response, expectEmp: emp });
+  await bypass(() => db.query(`UPDATE employee_passkeys SET device_uid=$1 WHERE id=$2`, [uid, cred.id]));
+  await recordSighting(req, emp, uid);
+  return cred;
+}
+
 async function revoke({ organizationId, empId, passkeyId, by }) {
   const r = await bypass(() => db.query(
     `UPDATE employee_passkeys SET revoked_at=NOW(), revoked_by=$4
@@ -252,7 +272,7 @@ async function revoke({ organizationId, empId, passkeyId, by }) {
 }
 
 module.exports = {
-  PasskeyError, lockedError, POLICIES, MAX_DEVICES, MAX_ENFORCED_DEVICES, maxFor, cleanDeviceUid, recordSighting, requestIp,
+  PasskeyError, lockedError, POLICIES, MAX_DEVICES, MAX_ENFORCED_DEVICES, maxFor, cleanDeviceUid, recordSighting, requestIp, backfillDeviceUid, relinkDevice,
   rpFromReq, getPolicy, activePasskeys,
   registrationOptions, verifyRegistration,
   loginOptions, punchOptions, verifyAssertion, revoke,
