@@ -63,7 +63,11 @@ router.get('/cron/monitor', async (req, res) => {
   }
   try {
     const results = await evaluateAllOrganizations();
-    res.json({ success: true, organizations: results });
+    // Yesterday's missing attendance -> Absent (only for organisations that switched AUTO_ABSENT_ENABLED on).
+    let autoAbsent = [];
+    try { autoAbsent = await require('../services/attendanceTools').autoAbsentAllOrgs(); }
+    catch (e) { console.error('[auto-absent] cron:', e.message); }
+    res.json({ success: true, organizations: results, auto_absent: autoAbsent });
   } catch (error) {
     console.error('[Employee Monitor] cron:', error);
     res.status(500).json({ success: false, message: 'Monitor execution failed' });

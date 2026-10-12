@@ -3,6 +3,14 @@ const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
 const authMiddleware  = require('../middleware/auth');
 const adminAuth = require('../middleware/adminAuth');
+const { getSettings, ymdLocal, recalcIfOpenSafe } = require('../services/salaryService');
+const { isOffDate } = require('../services/workCalendar');
+
+function nextDay(dateStr) {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
 
 const router = express.Router();
 
@@ -100,9 +108,14 @@ router.get('/all', adminAuth, async (req, res) => {
   try {
     await ensureLeavePayColumns();
     const r = await db.query(
-      `SELECT * FROM leave_requests
-       ${status ? `WHERE status=$1` : ''}
-       ORDER BY applied_at DESC`,
+      `SELECT lr.*,
+              (SELECT COUNT(*)::int FROM daily_attendance d
+                WHERE d.emp_id=lr.emp_id AND d.final_status='Leave' AND COALESCE(d.leave_pay_type,'Paid')<>'Unpaid'
+                  AND d.year=EXTRACT(YEAR FROM NOW())::int) AS paid_used_this_year,
+              (SELECT e.paid_leave_per_year FROM emplist e WHERE e.emp_id=lr.emp_id LIMIT 1) AS paid_leave_per_year
+         FROM leave_requests lr
+       ${status ? `WHERE lr.status=$1` : ''}
+       ORDER BY lr.applied_at DESC`,
       status ? [status] : []
     );
     res.json({ success: true, leaves: r.rows });
@@ -135,27 +148,44 @@ router.post('/action', adminAuth, async (req, res) => {
       [action, action === 'Approved' ? payType : null, req.admin.name, remark || null, request_id]
     );
 
-    // If approved: mark daily_attendance as 'Leave' for those dates
+    // If approved: mark daily_attendance as 'Leave' for working days only
+    // (weekly offs and declared holidays are not leave days, so they are never charged to the leave).
+    let note = '';
     if (action === 'Approved') {
-      const from = new Date(leave.from_date);
-      const to   = new Date(leave.to_date);
-      for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
-        const dateStr = d.toISOString().split('T')[0];
-        // Upsert daily_attendance with Leave status
+      const settings = await getSettings();
+      const fromStr = ymdLocal(leave.from_date), toStr = ymdLocal(leave.to_date);
+      const hol = await db.query(
+        `SELECT holiday_date::date::text AS d FROM holidays WHERE holiday_date::date BETWEEN $1::date AND $2::date`, [fromStr, toStr]);
+      const holSet = new Set(hol.rows.map(h => h.d));
+      const months = new Set();
+      let marked = 0, skippedOff = 0;
+      for (let cur = fromStr; cur <= toStr; cur = nextDay(cur)) {
+        if (isOffDate(cur, settings, holSet)) { skippedOff++; continue; }
+        // one row per employee per day: insert only when none exists, then set the leave status
         await db.query(
           `INSERT INTO daily_attendance (date, emp_id, employee_name, formal_name, final_status, leave_pay_type, month, year)
-           VALUES ($1,$2,$3,$4,'Leave',$5,EXTRACT(MONTH FROM $1::date),EXTRACT(YEAR FROM $1::date))
-           ON CONFLICT DO NOTHING`,
-          [dateStr, leave.emp_id, leave.employee_name, leave.formal_name, payType]
+           SELECT $1::date,$2::varchar,$3::varchar,$4::varchar,'Leave',$5::varchar,EXTRACT(MONTH FROM $1::date),EXTRACT(YEAR FROM $1::date)
+            WHERE NOT EXISTS (SELECT 1 FROM daily_attendance WHERE emp_id=$2::varchar AND date::date=$1::date)`,
+          [cur, leave.emp_id, leave.employee_name, leave.formal_name, payType]
         );
         await db.query(
-          `UPDATE daily_attendance SET final_status='Leave', leave_pay_type=$3 WHERE emp_id=$1 AND date::date=$2`,
-          [leave.emp_id, dateStr, payType]
+          `UPDATE daily_attendance SET final_status='Leave', leave_pay_type=$3 WHERE emp_id=$1 AND date::date=$2::date`,
+          [leave.emp_id, cur, payType]
         );
+        marked++;
+        months.add(cur.slice(0, 7));
       }
+      let recalculated = 0, locked = 0;
+      for (const ym of months) {
+        const rc = await recalcIfOpenSafe(leave.emp_id, ym + '-01');
+        if (rc.recalculated) recalculated++; else if (rc.locked) locked++;
+      }
+      if (skippedOff) note += ` ${skippedOff} weekly off/holiday day(s) in the range were not counted as leave.`;
+      if (recalculated) note += ' Salary was recalculated.';
+      if (locked) note += ' Note: an already-approved month was not changed; unlock and recalculate it if pay should change.';
     }
 
-    res.json({ success: true, message: `Leave ${action} successfully` });
+    res.json({ success: true, message: `Leave ${action} successfully.` + (typeof note === 'string' ? note : '') });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Server error' });

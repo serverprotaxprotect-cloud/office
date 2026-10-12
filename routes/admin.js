@@ -8,6 +8,16 @@ const { buildLoginResponse, hashForStorage } = require('../services/authService'
 const { setRefreshCookie, revokeUserSessions } = require('../services/sessionService');
 const { ensureOrgSetupComplete, requireOrgSetup } = require('../services/organizationSetupGuard');
 const { reconcileAttendanceAlerts } = require('../services/performanceService');
+const { recalcIfOpenSafe } = require('../services/salaryService');
+const attendanceTools = require('../services/attendanceTools');
+
+// Short sentence appended to attendance-edit responses so the admin knows what happened to salary.
+function salaryNote(rc) {
+  if (!rc) return '';
+  if (rc.recalculated) return ' Salary for this month was recalculated.';
+  if (rc.locked) return ' Note: this month\'s salary is already approved and was NOT changed. Unlock and recalculate it if the pay should change.';
+  return '';
+}
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -375,7 +385,8 @@ router.post('/attendance/update', adminAuth, async (req, res) => {
     await reconcileAttendanceAlerts(emp_id, date).catch(error => {
       console.error('[Employee Monitor] attendance reconciliation failed:', error.message);
     });
-    res.json({ success: true, message: 'Attendance updated' });
+    const rc = await recalcIfOpenSafe(emp_id, date);
+    res.json({ success: true, message: 'Attendance updated.' + salaryNote(rc), salary: rc });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Server error' });
@@ -920,8 +931,8 @@ router.put('/attendance-requests/:id', adminAuth, async (req, res) => {
         await db.query(
           `INSERT INTO attendance_log
              (log_id, date, emp_id, employee_name, formal_name, action, time, marked_by, created_at)
-           VALUES ($1,$2,$3,$4,$5,'IN',$6,'Admin-Approved',NOW())
-           ON CONFLICT DO NOTHING`,
+           SELECT $1::varchar,$2::timestamp,$3::varchar,$4::varchar,$5::varchar,'IN',$6::varchar,'Admin-Approved',NOW()
+            WHERE NOT EXISTS (SELECT 1 FROM attendance_log WHERE emp_id=$3 AND date::date=$2::date AND action='IN' AND time=$6)`,
           ['ATD-' + crypto.randomBytes(4).toString('hex').toUpperCase(),
            dateStr, r.emp_id, empName, empName, inTime]
         ).catch(() => {});
@@ -930,18 +941,71 @@ router.put('/attendance-requests/:id', adminAuth, async (req, res) => {
         await db.query(
           `INSERT INTO attendance_log
              (log_id, date, emp_id, employee_name, formal_name, action, time, marked_by, created_at)
-           VALUES ($1,$2,$3,$4,$5,'OUT',$6,'Admin-Approved',NOW())
-           ON CONFLICT DO NOTHING`,
+           SELECT $1::varchar,$2::timestamp,$3::varchar,$4::varchar,$5::varchar,'OUT',$6::varchar,'Admin-Approved',NOW()
+            WHERE NOT EXISTS (SELECT 1 FROM attendance_log WHERE emp_id=$3 AND date::date=$2::date AND action='OUT' AND time=$6)`,
           ['ATD-' + crypto.randomBytes(4).toString('hex').toUpperCase(),
            dateStr, r.emp_id, empName, empName, outTime]
         ).catch(() => {});
       }
     }
 
-    res.json({ success: true, message: `Request ${action}` });
+    let rc = null;
+    if (action === 'Approved') {
+      const approvedDate = dateKey(r.request_date);
+      await reconcileAttendanceAlerts(r.emp_id, approvedDate).catch(error => {
+        console.error('[Employee Monitor] attendance reconciliation failed:', error.message);
+      });
+      rc = await recalcIfOpenSafe(r.emp_id, approvedDate);
+    }
+    res.json({ success: true, message: `Request ${action}.` + salaryNote(rc), salary: rc });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Server error: ' + err.message });
+  }
+});
+
+// ── GET /api/admin/attendance/review?month&year ──────────────
+// Days that need a human look (missing OUT, very short days). Listing only.
+router.get('/attendance/review', adminAuth, async (req, res) => {
+  try {
+    const month = parseInt(req.query.month, 10), year = parseInt(req.query.year, 10);
+    if (!month || !year) return res.status(400).json({ success: false, message: 'month and year required' });
+    res.json({ success: true, items: await attendanceTools.reviewList(month, year) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ── GET /api/admin/attendance/report?month&year (Excel) ──────
+router.get('/attendance/report', adminAuth, async (req, res) => {
+  try {
+    const month = parseInt(req.query.month, 10), year = parseInt(req.query.year, 10);
+    if (!month || !year) return res.status(400).json({ success: false, message: 'month and year required' });
+    const { buffer, filename } = await attendanceTools.buildMonthlyReport(month, year);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ── POST /api/admin/attendance/fill-absent {date} ────────────
+// Marks "Absent" for active staff with no record on a past day (never overwrites anything).
+router.post('/attendance/fill-absent', adminAuth, async (req, res) => {
+  try {
+    const date = String(req.body.date || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ success: false, message: 'date (YYYY-MM-DD) required' });
+    const today = new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10);
+    if (date >= today) return res.status(400).json({ success: false, message: 'Only past days can be filled' });
+    const out = await attendanceTools.markAbsentForDate(date);
+    const note = out.skipped ? `Nothing added: ${date} is a ${out.skipped}.` : `${out.inserted} employee(s) marked Absent for ${date}.`;
+    res.json({ success: true, message: note, ...out });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
@@ -978,7 +1042,8 @@ router.post('/attendance/modify-time', adminAuth, async (req, res) => {
     await reconcileAttendanceAlerts(emp_id, date).catch(error => {
       console.error('[Employee Monitor] attendance reconciliation failed:', error.message);
     });
-    res.json({ success: true, message: 'Attendance time updated' });
+    const rc = await recalcIfOpenSafe(emp_id, date);
+    res.json({ success: true, message: 'Attendance time updated.' + salaryNote(rc), salary: rc });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Server error' });

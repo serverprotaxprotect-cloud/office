@@ -127,8 +127,10 @@ async function addAlertHistory(conn, payload) {
 }
 
 async function isExcludedWorkDate(empId, date) {
-  const day = new Date(`${date}T00:00:00+05:30`).getDay();
-  if (day === 0) return true;
+  // Weekly offs follow the office setting (Sunday by default; e.g. also 2nd/4th Saturday).
+  const { getSettings } = require('./salaryService');
+  const { isOffDate } = require('./workCalendar');
+  if (isOffDate(date, await getSettings(), new Set())) return true;
   const result = await db.query(
     `SELECT
        EXISTS (SELECT 1 FROM holidays WHERE holiday_date::date=$1::date) AS is_holiday,

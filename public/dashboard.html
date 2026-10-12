@@ -716,6 +716,17 @@ function dayOfWeekKey(key) {
   return dateFromKey(key).getDay();
 }
 
+// Weekly off per the office setting: WEEKLY_OFF_DAYS (default Sunday) and SATURDAY_OFF_WEEKS (e.g. 2,4).
+function isWeeklyOffKey(key) {
+  const cfg = (typeof _todayState !== 'undefined' && _todayState && _todayState.settings) || {};
+  const list = (v, lo, hi) => String(v ?? '').split(',').map(x => parseInt(x.trim(), 10)).filter(n => Number.isInteger(n) && n >= lo && n <= hi);
+  const days = String(cfg.WEEKLY_OFF_DAYS ?? '').trim() === '' ? [0] : list(cfg.WEEKLY_OFF_DAYS, 0, 6);
+  const dow = dayOfWeekKey(key);
+  if (days.includes(dow)) return true;
+  if (dow === 6) return list(cfg.SATURDAY_OFF_WEEKS, 1, 5).includes(Math.ceil(dateFromKey(key).getDate() / 7));
+  return false;
+}
+
 function esc(v) {
   return String(v ?? '').replace(/[&<>"']/g, c => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -1032,9 +1043,9 @@ async function loadHistory() {
 
     const present     = records.filter(r => r.final_status === 'Present').length;
     const late        = records.filter(r => r.late_minutes > 0).length;
-    const holidayCount = pastDays.filter(d => dayOfWeekKey(d) === 0 || holMap[d]).length;
+    const holidayCount = pastDays.filter(d => isWeeklyOffKey(d) || holMap[d]).length;
     const absentDays  = pastDays.filter(d => {
-      if (dayOfWeekKey(d) === 0 || holMap[d]) return false;
+      if (isWeeklyOffKey(d) || holMap[d]) return false;
       return !recMap[d];
     }).length;
 
@@ -1062,7 +1073,7 @@ function renderCalendar(month, year, recMap, holMap, reqMap, today, totalDays) {
   for (let day = 1; day <= totalDays; day++) {
     const dateStr  = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
     const dow      = dayOfWeekKey(dateStr);
-    const isSun    = dow === 0;
+    const isSun    = isWeeklyOffKey(dateStr);
     const isHol    = !!holMap[dateStr];
     const isFuture = dateStr > today;
     const isToday  = dateStr === today;
@@ -1078,7 +1089,7 @@ function renderCalendar(month, year, recMap, holMap, reqMap, today, totalDays) {
     if (isSun || isHol) {
       cls += ' holiday-day';
       const label = isHol ? holMap[dateStr].substring(0, 9) + (holMap[dateStr].length > 9 ? '…' : '') : 'Holiday';
-      badge = `<span class="cal-badge holiday" title="${isHol ? holMap[dateStr] : 'Sunday'}">${label}</span>`;
+      badge = `<span class="cal-badge holiday" title="${isHol ? holMap[dateStr] : 'Weekly off'}">${label}</span>`;
     } else if (rec) {
       const st  = rec.final_status || 'Pending';
       const bcl = st === 'Present' ? 'present' : st === 'Half Day' ? 'halfday' : st === 'Short Day' ? 'shortday' : st === 'Leave' ? 'leave' : 'pending';
