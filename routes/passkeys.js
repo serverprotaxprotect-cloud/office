@@ -66,6 +66,7 @@ router.post('/punch/options', authMiddleware, employeeOnly, async (req, res) => 
 // DELETE /api/passkeys/:id — remove one of my own devices
 router.delete('/:id', authMiddleware, employeeOnly, async (req, res) => {
   try {
+    if ((await svc.getPolicy(req.emp.organizationId)) === 'enforced') throw svc.lockedError();
     const n = await svc.revoke({ organizationId: req.emp.organizationId, empId: req.emp.empId, passkeyId: parseInt(req.params.id, 10), by: req.emp.empId });
     if (!n) return res.status(404).json({ success: false, message: 'Device not found.' });
     res.json({ success: true, message: 'Device removed.' });

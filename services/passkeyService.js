@@ -20,6 +20,14 @@ class PasskeyError extends Error {
   }
 }
 
+// With the "enforced" (compulsory) policy a registered phone is locked in:
+// only an admin can reset it, after which the employee enrols the new phone.
+const lockedError = () => new PasskeyError(
+  403,
+  'Fingerprint is locked to your registered phone. To change your phone, ask your admin to reset it first, then enable it on the new phone.',
+  'PASSKEY_LOCKED'
+);
+
 const bypass = (fn) => db.runWithTenant({ bypassTenant: true }, fn);
 const toB64u = (buf) => Buffer.from(buf).toString('base64url');
 const fromB64u = (s) => new Uint8Array(Buffer.from(String(s), 'base64url'));
@@ -92,6 +100,7 @@ async function registrationOptions(req, emp) {
   const policy = await getPolicy(emp.organizationId);
   if (policy === 'off') throw new PasskeyError(403, 'Fingerprint login is not enabled for your organisation.');
   const existing = await activePasskeys(emp.organizationId, emp.empId);
+  if (policy === 'enforced' && existing.length >= 1) throw lockedError();
   if (existing.length >= MAX_DEVICES) {
     throw new PasskeyError(400, `You can register up to ${MAX_DEVICES} devices. Remove an old one first.`);
   }
@@ -127,6 +136,7 @@ async function verifyRegistration(req, emp, { token, response, label }) {
   if (!v.verified || !v.registrationInfo) throw new PasskeyError(400, 'Could not verify this device. Please try again.');
   const c = v.registrationInfo.credential;
   const existing = await activePasskeys(emp.organizationId, emp.empId);
+  if ((await getPolicy(emp.organizationId)) === 'enforced' && existing.length >= 1) throw lockedError();
   if (existing.length >= MAX_DEVICES) throw new PasskeyError(400, `You can register up to ${MAX_DEVICES} devices.`);
   const cleanLabel = String(label || '').replace(/[<>]/g, '').trim().slice(0, 100) || 'My phone';
   await bypass(() => db.query(
@@ -211,7 +221,7 @@ async function revoke({ organizationId, empId, passkeyId, by }) {
 }
 
 module.exports = {
-  PasskeyError, POLICIES, MAX_DEVICES,
+  PasskeyError, lockedError, POLICIES, MAX_DEVICES,
   rpFromReq, getPolicy, activePasskeys,
   registrationOptions, verifyRegistration,
   loginOptions, punchOptions, verifyAssertion, revoke,

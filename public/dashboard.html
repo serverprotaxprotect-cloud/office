@@ -1800,7 +1800,11 @@ async function pkInit() {
     if (!d.success) return;
     PK.policy = d.policy; PK.passkeys = d.passkeys || []; PK.max = d.max_devices || 3;
     const flag = localStorage.getItem('gb_passkey_device');
-    PK.deviceOn = PK.passkeys.length > 0 && flag === emp.emp_id;
+    // Compulsory mode allows exactly one registered phone, so an enrolled
+    // employee always gets the fingerprint prompt (even if this browser's
+    // local flag was cleared); otherwise only the phone that was enabled.
+    PK.deviceOn = PK.passkeys.length > 0 && (flag === emp.emp_id || PK.policy === 'enforced');
+    if (PK.deviceOn) localStorage.setItem('gb_passkey_device', emp.emp_id);
     if (flag === emp.emp_id && PK.passkeys.length === 0) localStorage.removeItem('gb_passkey_device');
     renderPasskeyCard();
     if (PK.policy !== 'off') { if (PK.deviceOn) pkPrefetchPunch(); else pkPrefetchRegister(); }
@@ -1818,6 +1822,7 @@ async function pkPrefetchPunch() {
 
 async function pkPrefetchRegister() {
   if (PK.deviceOn || PK.policy === 'off' || PK.passkeys.length >= PK.max) return;
+  if (PK.policy === 'enforced' && PK.passkeys.length >= 1) return;
   try {
     const d = await api('/passkeys/register/options', { method: 'POST', body: '{}' });
     PK.reg = d.success ? { token: d.token, options: d.options, at: Date.now() } : null;
@@ -1897,9 +1902,12 @@ function pkMaybePrompt() {
   // Give a pending data request (campaign) popup priority; try again next visit.
   const cmp = document.getElementById('campaignModal');
   if (cmp && cmp.style.display !== 'none') return;
-  document.getElementById('pkPromptText').textContent = PK.passkeys.length
+  const base = PK.passkeys.length
     ? 'Use your fingerprint or face unlock on this phone too. It takes 10 seconds, and then you can log in and mark attendance without typing your password.'
     : 'Log in and mark attendance with your phone\'s fingerprint or face unlock. It takes 10 seconds to set up, and your fingerprint never leaves your phone.';
+  document.getElementById('pkPromptText').textContent = PK.policy === 'enforced'
+    ? base + ' Once enabled, attendance can only be marked with your fingerprint or face unlock, and only your admin can reset the phone.'
+    : base;
   document.getElementById('pkPromptModal').style.display = 'flex';
 }
 
@@ -1927,14 +1935,17 @@ function renderPasskeyCard() {
   if (!PK.supported || PK.policy === 'off') { card.style.display = 'none'; return; }
   card.style.display = 'block';
   const fmt = v => v ? new Date(v).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'never';
+  const locked = PK.policy === 'enforced';
   let html;
   if (PK.deviceOn) {
-    html = '<div style="font-size:13.5px;color:#166534;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 12px;">&#9989; Fingerprint is ON for this phone. Tap Check In / Out and confirm with your fingerprint or face unlock. You can also log in with it from the login page.</div>';
+    html = '<div style="font-size:13.5px;color:#166534;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 12px;">&#9989; Fingerprint is ON for this phone. ' +
+      (locked ? 'Attendance can only be marked after confirming with your fingerprint or face unlock. ' : 'Tap Check In / Out and confirm with your fingerprint or face unlock. ') +
+      'You can also log in with it from the login page.</div>' +
+      (locked ? '<div style="font-size:12.5px;color:#64748b;margin-top:8px;">This is locked to your registered phone. To change your phone, ask your admin to reset it, then enable it on the new phone.</div>' : '');
   } else {
-    const enforcedNote = PK.policy === 'enforced' && PK.passkeys.length
-      ? '<div style="font-size:12.5px;color:#b91c1c;margin-bottom:8px;font-weight:600;">Your organisation requires fingerprint confirmation. Please enable it on this phone.</div>' : '';
-    html = enforcedNote +
-      '<div style="font-size:13.5px;color:#334155;margin-bottom:10px;">Use your phone\'s fingerprint or face unlock to mark attendance and to log in without typing your password.</div>' +
+    html = '<div style="font-size:13.5px;color:#334155;margin-bottom:10px;">Use your phone\'s fingerprint or face unlock to mark attendance and to log in without typing your password.</div>' +
+      (locked
+        ? '<div style="font-size:12.5px;color:#92400e;margin-bottom:10px;">Once enabled, attendance can only be marked with your fingerprint or face unlock, and only your admin can reset the phone later.</div>' : '') +
       (PK.passkeys.length >= PK.max
         ? '<div style="font-size:12.5px;color:#92400e;">You already have ' + PK.max + ' devices. Remove an old one below to add this phone.</div>'
         : '<button class="btn-sm" id="pkEnableBtn" onclick="pkEnable()" style="background:#0f766e;color:#fff;">Enable on this phone</button>');
@@ -1943,7 +1954,8 @@ function renderPasskeyCard() {
     html += '<div style="margin-top:12px;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;">My devices</div>' +
       PK.passkeys.map(k => '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f1f5f9;font-size:13px;">' +
         '<div><strong>' + pkEsc(k.label) + '</strong><div style="color:#94a3b8;font-size:11.5px;">Added ' + fmt(k.created_at) + ' &middot; last used ' + fmt(k.last_used_at) + '</div></div>' +
-        '<button class="btn-sm" onclick="pkRemove(' + Number(k.id) + ')" style="color:#b91c1c;font-size:11px;">Remove</button></div>').join('');
+        (locked ? '<span style="font-size:11px;color:#94a3b8;">&#128274; Locked</span>'
+          : '<button class="btn-sm" onclick="pkRemove(' + Number(k.id) + ')" style="color:#b91c1c;font-size:11px;">Remove</button>') + '</div>').join('');
   }
   document.getElementById('passkeyBody').innerHTML = html;
 }
