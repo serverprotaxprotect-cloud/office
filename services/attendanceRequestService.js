@@ -66,7 +66,8 @@ async function processAttendanceRequest({ id, action, adminName, admin_remark, c
       const outTime = check_out_time || r.check_out_time || existingAttendance.last_out;
 
       if (!inTime && !outTime) {
-        return { status: 400, body: { success: false, message: 'Approve karne ke liye IN ya OUT time required hai' } };
+        await db.query(`UPDATE attendance_requests SET status='Pending', reviewed_by=NULL, reviewed_at=NULL WHERE id=$1`, [id]);
+        return { status: 400, body: { success: false, message: 'An IN or OUT time is required to approve this request.' } };
       }
 
       const cfg = await getSettings();
@@ -137,6 +138,21 @@ async function processAttendanceRequest({ id, action, adminName, admin_remark, c
       });
       rc = await recalcIfOpenSafe(r.emp_id, approvedDate);
     }
+
+  // Tell the employee the outcome (never let a notification problem undo the approval).
+  try {
+    const { createNotif } = require('../routes/notifications');
+    const d = new Date(`${dateKey(r.request_date)}T00:00:00`);
+    const pretty = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+    const approved = action === 'Approved';
+    const title = approved ? 'Attendance request approved' : 'Attendance request not approved';
+    let message = approved
+      ? `Your attendance request for ${pretty} has been approved and your attendance record has been updated.`
+      : `Your attendance request for ${pretty} could not be approved.`;
+    if (adminName === 'System (auto-approve)') message += ' It was approved automatically as no action was taken within the review period.';
+    if (admin_remark && adminName !== 'System (auto-approve)') message += ` Remark: ${admin_remark}`;
+    await createNotif(r.emp_id, 'attendance_request_' + action.toLowerCase(), title, message, null);
+  } catch (e) { console.error('[attendance request notify]', e.message); }
 
   return { status: 200, body: { success: true, message: `Request ${action}.` + salaryNote(rc), salary: rc } };
 }
