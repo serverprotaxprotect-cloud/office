@@ -570,17 +570,6 @@
               </select>
             </div>
             <div>
-              <label>Auto-approve pending attendance requests</label>
-              <select id="autoApproveRequests">
-                <option value="No">Off (default)</option>
-                <option value="Yes">On: approve earlier-month requests left pending</option>
-              </select>
-            </div>
-            <div>
-              <label>Auto-approve from day of month</label>
-              <input type="number" id="autoApproveDay" min="1" max="28" value="5">
-            </div>
-            <div>
               <label>Auto-mark Absent (daily)</label>
               <select id="autoAbsentEnabled">
                 <option value="No">Off (default)</option>
@@ -675,6 +664,19 @@
     <!-- ═══════════════════════════════════════════════════════ -->
     <div class="admin-panel" id="panel-att-requests">
       <div class="page-title">Attendance Requests <span>Backdated attendance approvals</span></div>
+
+      <div class="card" style="margin-bottom:16px;border-left:4px solid #4f46e5;">
+        <div class="card-title">Auto-approve Settings</div>
+        <p style="font-size:12px;color:#64748b;margin-bottom:10px;">When On, requests for an earlier month that are still Pending from the chosen day of the month onwards are approved automatically (only if OUT is after IN and the day is under 10 hours; requests less than 2 days old are never touched). Unusual requests stay Pending for you, and admins get a notification.</p>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+          <div><label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:4px;">Auto-approve</label>
+            <select id="arSetEnabled"><option value="No">Off</option><option value="Yes">On</option></select></div>
+          <div><label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:4px;">From day of month</label>
+            <input type="number" id="arSetDay" min="1" max="28" value="5" style="width:90px;"></div>
+          <button class="btn-sm" style="background:#16a34a;" onclick="saveAutoApproveSettings()">Save</button>
+          <span id="arSetMsg" style="font-size:12px;"></span>
+        </div>
+      </div>
 
       <div class="filter-row">
         <select id="attReqStatusFilter" onchange="loadAttRequests()">
@@ -1693,8 +1695,6 @@ async function loadSalarySettings() {
       document.getElementById('saturdayOffWeeks').value = data.settings.SATURDAY_OFF_WEEKS || '';
       document.getElementById('salaryHolidayWorkPay').value = data.settings.SALARY_HOLIDAY_WORK_PAY || 'none';
       document.getElementById('autoAbsentEnabled').value = data.settings.AUTO_ABSENT_ENABLED || 'No';
-      document.getElementById('autoApproveRequests').value = data.settings.AUTO_APPROVE_REQUESTS || 'No';
-      document.getElementById('autoApproveDay').value = data.settings.AUTO_APPROVE_DAY || '5';
     }
   } catch {}
 }
@@ -1714,9 +1714,7 @@ async function saveSalarySettings() {
         WEEKLY_OFF_DAYS: document.getElementById('weeklyOffDays').value,
         SATURDAY_OFF_WEEKS: document.getElementById('saturdayOffWeeks').value,
         SALARY_HOLIDAY_WORK_PAY: document.getElementById('salaryHolidayWorkPay').value,
-        AUTO_ABSENT_ENABLED: document.getElementById('autoAbsentEnabled').value,
-        AUTO_APPROVE_REQUESTS: document.getElementById('autoApproveRequests').value,
-        AUTO_APPROVE_DAY: String(Math.min(28, Math.max(1, parseInt(document.getElementById('autoApproveDay').value, 10) || 5)))
+        AUTO_ABSENT_ENABLED: document.getElementById('autoAbsentEnabled').value
       })
     });
     msg.className = data.success ? 'alert alert-success' : 'alert alert-error';
@@ -3228,7 +3226,30 @@ async function submitModifyTime() {
 }
 
 // ── ATTENDANCE REQUESTS ──────────────────────────────────────
+async function loadAutoApproveSettings() {
+  try {
+    const data = await api('/admin/settings');
+    if (!data.success) return;
+    document.getElementById('arSetEnabled').value = data.settings.AUTO_APPROVE_REQUESTS || 'No';
+    document.getElementById('arSetDay').value = data.settings.AUTO_APPROVE_DAY || '5';
+  } catch (e) { /* settings are optional here */ }
+}
+
+async function saveAutoApproveSettings() {
+  const day = Math.min(28, Math.max(1, parseInt(document.getElementById('arSetDay').value, 10) || 5));
+  document.getElementById('arSetDay').value = day;
+  const data = await api('/admin/settings', {
+    method: 'POST',
+    body: JSON.stringify({ AUTO_APPROVE_REQUESTS: document.getElementById('arSetEnabled').value, AUTO_APPROVE_DAY: String(day) })
+  });
+  const m = document.getElementById('arSetMsg');
+  m.style.color = data.success ? '#16a34a' : '#dc2626';
+  m.textContent = data.success ? 'Saved' : 'Could not save';
+  setTimeout(() => { m.textContent = ''; }, 3000);
+}
+
 async function loadAttRequests() {
+  loadAutoApproveSettings();
   const status = document.getElementById('attReqStatusFilter').value;
   try {
     const data = await api(`/admin/attendance-requests?status=${status}`);
