@@ -98,6 +98,7 @@
     .tp-row { display:flex; gap:8px; }
     .tp-row select { flex:1; padding:10px 8px; border:1.5px solid #e2e8f0; border-radius:8px; font-size:15px; background:#fff; outline:none; }
     .tp-row select.tp-ap { font-weight:700; }
+    .tp-hint { color:#dc2626; font-size:12px; font-weight:600; margin-top:4px; }
     .req-input-group { margin-bottom: 14px; }
     .req-input-group label { display:block; font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.4px; margin-bottom:4px; }
     .req-input-group input, .req-input-group textarea {
@@ -556,11 +557,13 @@
       <label id="req_in_label">Check-in Time (optional)</label>
       <input type="hidden" id="req_in_time" />
       <div id="req_in_picker" class="tp-row"></div>
+      <div class="tp-hint">Default time shown: 10:20 AM. Change it only if your actual time was different.</div>
     </div>
     <div class="req-input-group">
       <label id="req_out_label">Check-out Time (optional)</label>
       <input type="hidden" id="req_out_time" />
       <div id="req_out_picker" class="tp-row"></div>
+      <div class="tp-hint">Default time shown: 06:30 PM. Change it only if your actual time was different.</div>
     </div>
     <div class="req-input-group">
       <label>Reason *</label>
@@ -1194,7 +1197,7 @@ function setAttReqDate(dateStr) {
 }
 
 // Time picker with an explicit AM/PM choice (a native time box makes 06:30 AM vs PM easy to get wrong).
-function buildTimePicker(boxId, hiddenId, defaultAp) {
+function buildTimePicker(boxId, hiddenId, defaultAp, defHour, defMin) {
   const box = document.getElementById(boxId), hidden = document.getElementById(hiddenId);
   const opt = (v, t, sel) => '<option value="' + v + '"' + (sel ? ' selected' : '') + '>' + t + '</option>';
   let hh = opt('', 'Hour'), mm = opt('', 'Min');
@@ -1209,8 +1212,15 @@ function buildTimePicker(boxId, hiddenId, defaultAp) {
     hidden.value = String(h24).padStart(2, '0') + ':' + String(parseInt(m, 10)).padStart(2, '0');
   };
   box.querySelectorAll('select').forEach(sel => sel.addEventListener('change', update));
-  hidden.value = '';
+  if (defHour) { box.querySelector('.tp-h').value = String(defHour); box.querySelector('.tp-m').value = String(defMin || 0); }
+  update();
 }
+// Default suggestion for the request form: IN 10:20 AM, OUT 06:30 PM (employee edits it only if different).
+function resetReqPicker(which) {
+  if (which === 'in') buildTimePicker('req_in_picker', 'req_in_time', 'AM', 10, 20);
+  else buildTimePicker('req_out_picker', 'req_out_time', 'PM', 6, 30);
+}
+
 function setPickerAp(boxId, ap) {
   const sel = document.getElementById(boxId).querySelector('.tp-ap');
   sel.value = ap; sel.dispatchEvent(new Event('change'));
@@ -1223,10 +1233,8 @@ function hhmmToMins(t) { const [h, m] = t.split(':').map(Number); return h * 60 
 
 function openAttReqModal(dateStr) {
   setAttReqDate(dateStr);
-  buildTimePicker('req_in_picker', 'req_in_time', 'AM');
-  buildTimePicker('req_out_picker', 'req_out_time', 'PM');
-  document.getElementById('req_in_time').value  = '';
-  document.getElementById('req_out_time').value = '';
+  resetReqPicker('in');
+  resetReqPicker('out');
   document.getElementById('req_reason').value   = '';
   document.getElementById('req_type').value      = 'full';
   applyAttReqType();
@@ -1242,6 +1250,8 @@ function applyAttReqType() {
   const type = document.getElementById('req_type').value;
   const inWrap = document.getElementById('req_in_time').closest('.req-input-group');
   const outWrap = document.getElementById('req_out_time').closest('.req-input-group');
+  if (inWrap.style.display === 'none' || !document.getElementById('req_in_time').value) resetReqPicker('in');
+  if (outWrap.style.display === 'none' || !document.getElementById('req_out_time').value) resetReqPicker('out');
   inWrap.style.display = '';
   outWrap.style.display = '';
   document.getElementById('req_in_label').textContent = 'Check-in Time';
