@@ -6,6 +6,7 @@ const authMiddleware = require('../middleware/auth');
 const { evaluateEmployee, checkPunchOutBlock } = require('../services/performanceService');
 const { mandatoryBlock } = require('../services/employeeCampaignService');
 const passkeyService = require('../services/passkeyService');
+const { waitUntil } = require('@vercel/functions');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
@@ -70,16 +71,25 @@ function coordinateFallback(lat, lng) {
   return `${Number(lat).toFixed(6)}, ${Number(lng).toFixed(6)}`;
 }
 
+// A Google key that is rejected (billing off, key restricted, quota) fails
+// the same way on every call, so stop paying a wasted round trip on each
+// punch and fall straight through to the free provider for a while.
+let googleGeocodeDisabledUntil = 0;
+const GEOCODE_TIMEOUT_MS = 2500;
+
 async function reverseGeocodeGoogle(lat, lng) {
   const key = process.env.GOOGLE_MAPS_API_KEY;
-  if (!key) return null;
+  if (!key || Date.now() < googleGeocodeDisabledUntil) return null;
 
   const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${encodeURIComponent(`${lat},${lng}`)}&key=${encodeURIComponent(key)}`;
-  const response = await fetch(url);
+  const response = await fetch(url, { signal: AbortSignal.timeout(GEOCODE_TIMEOUT_MS) });
   const data = await response.json();
 
   if (data.status !== 'OK' || !Array.isArray(data.results) || !data.results.length) {
     console.warn('Google geocode returned:', data.status, data.error_message || '');
+    if (['REQUEST_DENIED', 'OVER_QUERY_LIMIT', 'OVER_DAILY_LIMIT'].includes(data.status)) {
+      googleGeocodeDisabledUntil = Date.now() + 6 * 60 * 60 * 1000;
+    }
     return null;
   }
 
@@ -95,7 +105,7 @@ async function reverseGeocodeGoogle(lat, lng) {
 
 async function reverseGeocodeFallback(lat, lng) {
   const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lng)}&localityLanguage=en`;
-  const response = await fetch(url);
+  const response = await fetch(url, { signal: AbortSignal.timeout(GEOCODE_TIMEOUT_MS) });
   const d = await response.json();
 
   const parts = [
@@ -198,25 +208,28 @@ router.post('/mark', authMiddleware, async (req, res) => {
   const timeStr = timeStrIST(); // HH:MM:SS in IST
 
   try {
+    // The three independent reads run together (one round trip, not three).
+    const [pendingCampaign, existing, cfg] = await Promise.all([
+      req.user.user_type !== 'admin' ? mandatoryBlock(emp_id) : null,
+      db.query(
+        `SELECT action, time FROM attendance_log WHERE emp_id=$1 AND date::date=$2 ORDER BY created_at ASC`,
+        [emp_id, today]
+      ),
+      getSettings(),
+    ]);
+
     // A mandatory data-collection request (e.g. personal email) blocks
     // punching until the employee has filled it in.
-    if (req.user.user_type !== 'admin') {
-      const pendingCampaign = await mandatoryBlock(emp_id);
-      if (pendingCampaign) {
-        return res.status(403).json({
-          success: false,
-          code: 'CAMPAIGN_REQUIRED',
-          message: 'Please complete the pending request on your dashboard before marking attendance.',
-          campaign: pendingCampaign,
-        });
-      }
+    if (pendingCampaign) {
+      return res.status(403).json({
+        success: false,
+        code: 'CAMPAIGN_REQUIRED',
+        message: 'Please complete the pending request on your dashboard before marking attendance.',
+        campaign: pendingCampaign,
+      });
     }
 
     // ── One IN + One OUT per day rule ────────────────────────
-    const existing = await db.query(
-      `SELECT action FROM attendance_log WHERE emp_id=$1 AND date::date=$2 ORDER BY created_at ASC`,
-      [emp_id, today]
-    );
     const hasIN  = existing.rows.some(p => p.action === 'IN');
     const hasOUT = existing.rows.some(p => p.action === 'OUT');
 
@@ -238,8 +251,13 @@ router.post('/mark', authMiddleware, async (req, res) => {
       }
     }
 
-    // ── Load settings ────────────────────────────────────────
-    const cfg = await getSettings();
+    // Start the address lookup now so it overlaps the fingerprint check
+    // below; it never fails and never takes more than a couple of seconds.
+    const geoLat = parseCoordinate(latitude, -90, 90);
+    const geoLng = parseCoordinate(longitude, -180, 180);
+    const locationPromise = geoLat !== null && geoLng !== null
+      ? reverseGeocode(geoLat, geoLng)
+      : Promise.resolve({ address: address || null, formatted_address: null, place_id: null, location_type: null, provider: null });
 
     // Optional fingerprint confirmation. 'optional': verified when the app
     // sends one (a bad assertion is always refused). 'enforced': employees who
@@ -289,9 +307,7 @@ router.post('/mark', authMiddleware, async (req, res) => {
           allowed_radius: geofenceRadius
         });
     }
-    const resolvedLocation = latNum !== null && lngNum !== null
-      ? await reverseGeocode(latNum, lngNum)
-      : { address: address || null, formatted_address: null, place_id: null, location_type: null, provider: null };
+    const resolvedLocation = await locationPromise;
 
     const officeStartMins = toMinutes(cfg.OFFICE_START_TIME || '10:00:00');
     const lateThreshold   = parseInt(cfg.LATE_THRESHOLD_MINUTES || '0');
@@ -300,7 +316,7 @@ router.post('/mark', authMiddleware, async (req, res) => {
 
     const logId = 'ATD-' + uuidv4().toUpperCase().replace(/-/g, '').slice(0, 8);
 
-    await db.query(
+    const logInsert = db.query(
       `INSERT INTO attendance_log
          (log_id, date, emp_id, employee_name, formal_name, action, time,
           latitude, longitude, accuracy_meters, address, formatted_address,
@@ -320,13 +336,16 @@ router.post('/mark', authMiddleware, async (req, res) => {
     const month  = istNow.getUTCMonth() + 1;
     const year   = istNow.getUTCFullYear();
 
+    // The log row and the daily summary are independent writes — run together.
+    const writes = [logInsert];
+
     if (upperAction === 'IN') {
       // ── Calculate late minutes ─────────────────────────────
       const checkInMins = toMinutes(timeStr);
       const rawLate     = checkInMins - officeStartMins - lateThreshold;
       const lateMinutes = Math.max(0, rawLate);
 
-      await db.query(
+      writes.push(db.query(
         `INSERT INTO daily_attendance
            (date, emp_id, employee_name, formal_name, first_in,
             late_minutes, early_leave_minutes, grace_minutes_granted,
@@ -334,16 +353,12 @@ router.post('/mark', authMiddleware, async (req, res) => {
          VALUES ($1,$2,$3,$4,$5,$6,0,0,'Pending',$7,$8)
          ON CONFLICT DO NOTHING`,
         [today, emp_id, name, formal_name || name, timeStr, lateMinutes, month, year]
-      );
+      ));
 
     } else {
       // ── OUT: calculate working hours and final status ──────
-      const inRow = await db.query(
-        `SELECT time FROM attendance_log
-         WHERE emp_id=$1 AND date::date=$2 AND action='IN'
-         ORDER BY created_at ASC LIMIT 1`,
-        [emp_id, today]
-      );
+      // The IN time was already read with the day's punches above.
+      const inRow = { rows: existing.rows.filter(p => p.action === 'IN').slice(0, 1) };
 
       if (inRow.rows.length > 0) {
         const inMins  = toMinutes(inRow.rows[0].time);
@@ -359,24 +374,28 @@ router.post('/mark', authMiddleware, async (req, res) => {
         else if (worked >= halfDayMins) finalStatus = 'Half Day';
         else                            finalStatus = 'Short Day';
 
-        await db.query(
+        writes.push(db.query(
           `UPDATE daily_attendance
            SET last_out=$1, working_hours=$2, final_status=$3
            WHERE emp_id=$4 AND date::date=$5`,
           [timeStr, workingHours, finalStatus, emp_id, today]
-        );
+        ));
       }
     }
+
+    await Promise.all(writes);
 
     const statusMsg = upperAction === 'IN'
       ? 'Attendance IN marked!'
       : 'Attendance OUT marked!';
 
-    try {
-      await evaluateEmployee(req.user.emp_id);
-    } catch (performanceErr) {
+    // The Employee Monitor re-check does not affect this response, so it runs
+    // after the employee already has their confirmation. waitUntil keeps the
+    // serverless function alive until it finishes.
+    const monitorCheck = evaluateEmployee(req.user.emp_id).catch(performanceErr => {
       console.error('[Employee Monitor] attendance evaluation failed:', performanceErr.message);
-    }
+    });
+    try { waitUntil(monitorCheck); } catch { /* local dev: the promise simply keeps running */ }
 
     res.json({
       success: true,

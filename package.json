@@ -88,6 +88,7 @@
     "@simplewebauthn/browser": "^13.3.0",
     "@simplewebauthn/server": "^13.3.3",
     "@vercel/blob": "^2.4.0",
+    "@vercel/functions": "^3.9.11",
     "bcryptjs": "^2.4.3",
     "compression": "^1.8.1",
     "cors": "^2.8.5",
