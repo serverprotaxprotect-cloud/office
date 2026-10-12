@@ -2,7 +2,7 @@ const db = require('../db');
 const { isOffDate } = require('./workCalendar');
 const { getSettings, ymdLocal, settingValue } = require('./salaryService');
 
-const LOOKBACK_DAYS = 31;
+const LOOKBACK_DAYS = 5;   // only the last 5 days are reminded about
 const PUNCH_IN_REMINDER_FROM = 12 * 60 + 30;   // 12:30
 const PUNCH_IN_SECOND_REMINDER_FROM = 17 * 60; // 17:00
 const PUNCH_OUT_REMINDER_FROM = 18 * 60 + 30;  // 18:30
