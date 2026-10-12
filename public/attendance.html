@@ -122,7 +122,7 @@
         } catch (e) {
           return fail(e && e.name === 'NotAllowedError' ? 'Fingerprint was cancelled. You can try again or use your password.' : 'This device could not use fingerprint login. Please use your password.');
         }
-        const v = await (await fetch('/api/passkeys/login/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: o.token, response: assertion }) })).json();
+        const v = await (await fetch('/api/passkeys/login/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: o.token, response: assertion, device_uid: (function () { try { let id = localStorage.getItem('gb_device_uid'); if (!id || !/^[A-Za-z0-9-]{16,64}$/.test(id)) { id = (crypto.randomUUID ? crypto.randomUUID() : 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 12)); localStorage.setItem('gb_device_uid', id); } return id; } catch (e) { return ''; } })() }) })).json();
         if (!v.success) return fail(v.message || 'Fingerprint login failed. Please use your password.');
         GBSession.save(v.token, v.user || v.employee, 'attendance');
         window.location.href = '/dashboard.html';

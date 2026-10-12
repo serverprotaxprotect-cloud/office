@@ -9,7 +9,9 @@ const db = require('../db');
 
 const RP_NAME = 'Gee Bharat';
 const CHALLENGE_MINUTES = 5;
-const MAX_DEVICES = 3;
+const MAX_DEVICES = 3;           // optional mode
+const MAX_ENFORCED_DEVICES = 2;  // compulsory mode: two phones, locked (only admin can remove)
+const maxFor = (policy) => (policy === 'enforced' ? MAX_ENFORCED_DEVICES : MAX_DEVICES);
 const POLICIES = ['off', 'optional', 'enforced'];
 
 class PasskeyError extends Error {
@@ -20,11 +22,11 @@ class PasskeyError extends Error {
   }
 }
 
-// With the "enforced" (compulsory) policy a registered phone is locked in:
-// only an admin can reset it, after which the employee enrols the new phone.
+// With the "enforced" (compulsory) policy registered phones are locked in:
+// an employee can add a second phone but cannot remove one — only an admin can.
 const lockedError = () => new PasskeyError(
   403,
-  'Fingerprint is locked to your registered phone. To change your phone, ask your admin to reset it first, then enable it on the new phone.',
+  'Your registered phones are locked. To change a phone, ask your admin to remove it first, then enable fingerprint on the new phone.',
   'PASSKEY_LOCKED'
 );
 
@@ -95,12 +97,39 @@ async function activePasskeys(organizationId, empId) {
 
 const transportsOf = (row) => (row.transports ? String(row.transports).split(',').filter(Boolean) : undefined);
 
+// ── Device sightings (admin visibility; alert only, never blocks anyone) ──
+// The app keeps a random ID in the browser. Seeing the same ID under two
+// different employees means one phone/browser was used for both.
+function cleanDeviceUid(v) {
+  const s = String(v || '').trim();
+  return /^[A-Za-z0-9-]{16,64}$/.test(s) ? s : null;
+}
+function requestIp(req) {
+  return String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 80);
+}
+async function recordSighting(req, emp, deviceUid) {
+  const uid = cleanDeviceUid(deviceUid);
+  if (!uid || !emp?.empId) return;
+  try {
+    await bypass(() => db.query(
+      `INSERT INTO employee_device_sightings (organization_id, emp_id, device_uid, last_ip, user_agent)
+       VALUES ($1,$2,$3,$4,$5)
+       ON CONFLICT (organization_id, emp_id, device_uid)
+       DO UPDATE SET last_seen=NOW(), seen_count = employee_device_sightings.seen_count + 1,
+                     last_ip=EXCLUDED.last_ip, user_agent=EXCLUDED.user_agent`,
+      [emp.organizationId, emp.empId, uid, requestIp(req), String(req.headers['user-agent'] || '').slice(0, 500)]
+    ));
+  } catch (err) {
+    console.warn('[device sighting skipped]', err.message);
+  }
+}
+
 // ── Registration (employee is already signed in with their password) ──
 async function registrationOptions(req, emp) {
   const policy = await getPolicy(emp.organizationId);
   if (policy === 'off') throw new PasskeyError(403, 'Fingerprint login is not enabled for your organisation.');
   const existing = await activePasskeys(emp.organizationId, emp.empId);
-  if (policy === 'enforced' && existing.length >= 1) throw lockedError();
+  if (policy === 'enforced' && existing.length >= MAX_ENFORCED_DEVICES) throw lockedError();
   if (existing.length >= MAX_DEVICES) {
     throw new PasskeyError(400, `You can register up to ${MAX_DEVICES} devices. Remove an old one first.`);
   }
@@ -119,7 +148,7 @@ async function registrationOptions(req, emp) {
   return { token, options };
 }
 
-async function verifyRegistration(req, emp, { token, response, label }) {
+async function verifyRegistration(req, emp, { token, response, label, device_uid }) {
   const ch = await consumeChallenge(token, 'register');
   if (!ch || ch.emp_id !== emp.empId || ch.organization_id !== emp.organizationId) {
     throw new PasskeyError(400, 'This request expired. Please try again.');
@@ -136,15 +165,17 @@ async function verifyRegistration(req, emp, { token, response, label }) {
   if (!v.verified || !v.registrationInfo) throw new PasskeyError(400, 'Could not verify this device. Please try again.');
   const c = v.registrationInfo.credential;
   const existing = await activePasskeys(emp.organizationId, emp.empId);
-  if ((await getPolicy(emp.organizationId)) === 'enforced' && existing.length >= 1) throw lockedError();
+  if ((await getPolicy(emp.organizationId)) === 'enforced' && existing.length >= MAX_ENFORCED_DEVICES) throw lockedError();
   if (existing.length >= MAX_DEVICES) throw new PasskeyError(400, `You can register up to ${MAX_DEVICES} devices.`);
   const cleanLabel = String(label || '').replace(/[<>]/g, '').trim().slice(0, 100) || 'My phone';
   await bypass(() => db.query(
-    `INSERT INTO employee_passkeys (organization_id, emp_id, credential_id, public_key, counter, transports, device_label, backed_up)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+    `INSERT INTO employee_passkeys (organization_id, emp_id, credential_id, public_key, counter, transports, device_label, backed_up, device_uid, user_agent, ip_address)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
     [emp.organizationId, emp.empId, c.id, toB64u(c.publicKey), c.counter || 0,
-     (c.transports || response?.response?.transports || []).join(','), cleanLabel, !!v.registrationInfo.credentialBackedUp]
+     (c.transports || response?.response?.transports || []).join(','), cleanLabel, !!v.registrationInfo.credentialBackedUp,
+     cleanDeviceUid(device_uid), String(req.headers['user-agent'] || '').slice(0, 500), requestIp(req)]
   ));
+  if (cleanDeviceUid(device_uid)) await recordSighting(req, emp, device_uid);
   return { label: cleanLabel };
 }
 
@@ -221,7 +252,7 @@ async function revoke({ organizationId, empId, passkeyId, by }) {
 }
 
 module.exports = {
-  PasskeyError, lockedError, POLICIES, MAX_DEVICES,
+  PasskeyError, lockedError, POLICIES, MAX_DEVICES, MAX_ENFORCED_DEVICES, maxFor, cleanDeviceUid, recordSighting, requestIp,
   rpFromReq, getPolicy, activePasskeys,
   registrationOptions, verifyRegistration,
   loginOptions, punchOptions, verifyAssertion, revoke,

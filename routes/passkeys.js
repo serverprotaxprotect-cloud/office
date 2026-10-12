@@ -30,11 +30,15 @@ function employeeOnly(req, res, next) {
 // GET /api/passkeys/status
 router.get('/status', authMiddleware, employeeOnly, async (req, res) => {
   try {
-    const [policy, keys] = await Promise.all([svc.getPolicy(req.emp.organizationId), svc.activePasskeys(req.emp.organizationId, req.emp.empId)]);
+    const [policy, keys] = await Promise.all([
+      svc.getPolicy(req.emp.organizationId),
+      svc.activePasskeys(req.emp.organizationId, req.emp.empId),
+      svc.recordSighting(req, req.emp, req.query.device_uid),
+    ]);
     res.json({
       success: true,
       policy,
-      max_devices: svc.MAX_DEVICES,
+      max_devices: svc.maxFor(policy),
       passkeys: keys.map(k => ({ id: k.id, label: k.device_label, created_at: k.created_at, last_used_at: k.last_used_at })),
     });
   } catch (err) { fail(res, err, 'status'); }
@@ -104,6 +108,7 @@ router.post('/login/verify', async (req, res) => {
     if (!candidate || candidate.employee_status !== 'Active' || candidate.org_status !== 'Active') {
       return res.status(403).json({ success: false, message: 'This account is not active.' });
     }
+    await svc.recordSighting(req, { organizationId: cred.organization_id, empId: cred.emp_id }, req.body.device_uid);
     const out = await loginCandidate(candidate, req);
     setRefreshCookie(res, out.refresh_token);
     res.json({
@@ -126,18 +131,40 @@ router.get('/admin/overview', adminAuth, async (req, res) => {
   try {
     const orgId = req.user.organization_id;
     const policy = await svc.getPolicy(orgId);
-    const r = await db.query(
-      `SELECT e.emp_id, e.name, e.formal_name, e.designation,
-              COUNT(p.id) FILTER (WHERE p.revoked_at IS NULL)::int AS devices,
-              MAX(p.last_used_at) AS last_used_at,
-              STRING_AGG(p.device_label, ', ') FILTER (WHERE p.revoked_at IS NULL) AS labels
-         FROM emplist e
-         LEFT JOIN employee_passkeys p ON p.emp_id = e.emp_id AND p.organization_id = e.organization_id
-        WHERE e.status='Active'
-        GROUP BY e.emp_id, e.name, e.formal_name, e.designation
-        ORDER BY e.emp_id`
-    );
-    res.json({ success: true, policy, employees: r.rows });
+    const [emps, devices, punches, sharing] = await Promise.all([
+      db.query(`SELECT emp_id, name, formal_name, designation, email_id FROM emplist WHERE status='Active' ORDER BY emp_id`),
+      db.query(`SELECT id, emp_id, device_label, user_agent, ip_address, device_uid, created_at, last_used_at
+                   FROM employee_passkeys WHERE revoked_at IS NULL ORDER BY created_at`),
+      db.query(`SELECT passkey_id, COUNT(*)::int AS punches, MAX(created_at) AS last_punch
+                   FROM attendance_log WHERE passkey_id IS NOT NULL GROUP BY passkey_id`),
+      // One phone/browser ID seen under two or more active employees (last 90 days).
+      db.query(`SELECT s.device_uid, MAX(s.last_seen) AS last_seen, MAX(s.user_agent) AS user_agent,
+                        json_agg(json_build_object('emp_id', s.emp_id, 'name', COALESCE(e.formal_name, e.name),
+                                                   'last_seen', s.last_seen, 'times', s.seen_count) ORDER BY s.last_seen DESC) AS people
+                   FROM employee_device_sightings s
+                   JOIN emplist e ON e.emp_id = s.emp_id AND e.organization_id = s.organization_id AND e.status='Active'
+                  WHERE s.last_seen > NOW() - INTERVAL '90 days'
+                  GROUP BY s.device_uid
+                 HAVING COUNT(DISTINCT s.emp_id) > 1
+                  ORDER BY MAX(s.last_seen) DESC`),
+    ]);
+    const punchBy = Object.fromEntries(punches.rows.map(p => [p.passkey_id, p]));
+    const devBy = {};
+    devices.rows.forEach(d => {
+      (devBy[d.emp_id] = devBy[d.emp_id] || []).push({
+        id: d.id, label: d.device_label, user_agent: d.user_agent, ip_address: d.ip_address,
+        created_at: d.created_at, last_used_at: d.last_used_at,
+        punches: punchBy[d.id]?.punches || 0, last_punch: punchBy[d.id]?.last_punch || null,
+        shared: sharing.rows.some(g => g.device_uid === d.device_uid),
+      });
+    });
+    const sharedEmp = new Set();
+    sharing.rows.forEach(g => g.people.forEach(p => sharedEmp.add(p.emp_id)));
+    res.json({
+      success: true, policy, max_devices: svc.maxFor(policy),
+      employees: emps.rows.map(e => ({ ...e, devices: devBy[e.emp_id] || [], shared_flag: sharedEmp.has(e.emp_id) })),
+      sharing_alerts: sharing.rows,
+    });
   } catch (err) { fail(res, err, 'admin-overview'); }
 });
 
@@ -160,7 +187,8 @@ router.post('/admin/revoke', adminAuth, async (req, res) => {
   try {
     const empId = String(req.body.emp_id || '').trim();
     if (!empId) return res.status(400).json({ success: false, message: 'Employee required.' });
-    const n = await svc.revoke({ organizationId: req.user.organization_id, empId, by: req.user.name || req.user.emp_id || 'Admin' });
+    const passkeyId = req.body.passkey_id ? parseInt(req.body.passkey_id, 10) : null;
+    const n = await svc.revoke({ organizationId: req.user.organization_id, empId, passkeyId, by: req.user.name || req.user.emp_id || 'Admin' });
     res.json({ success: true, message: n ? `Removed ${n} device(s). The employee can enable fingerprint again after logging in with their password.` : 'No active devices found.' });
   } catch (err) { fail(res, err, 'admin-revoke'); }
 });

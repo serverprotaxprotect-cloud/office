@@ -796,7 +796,7 @@
             <select id="pk_policy" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;">
               <option value="off">Off — hidden from everyone (current behaviour)</option>
               <option value="optional">Optional — employees can enable it; others punch as usual</option>
-              <option value="enforced">Compulsory — once enabled, locked: attendance only by fingerprint / face; only admin can reset the phone</option>
+              <option value="enforced">Compulsory — once enabled, locked: up to 2 phones, attendance only by fingerprint / face; only admin can remove a phone</option>
             </select>
           </div>
           <button class="btn-sm" onclick="pkSavePolicy()" style="background:#16a34a;">Save</button>
@@ -804,15 +804,21 @@
         <p style="font-size:12px;color:#64748b;margin-top:10px;line-height:1.6;">
           Fingerprint data never leaves the employee's phone; only a public key is stored here. An employee enables it from their own dashboard after logging in with a password.<br>
           <strong>Optional:</strong> up to 3 phones per employee; employees can remove their own devices; punching without fingerprint still works.<br>
-          <strong>Compulsory:</strong> one phone per employee. After an employee enables it, they cannot remove or add devices themselves, and every attendance IN/OUT needs their fingerprint or face unlock. To change a phone, use "Remove devices" below, then the employee enables it on the new phone. Employees who have not enabled it yet are not blocked, so nobody is locked out.
+          <strong>Compulsory:</strong> up to 2 phones per employee (a second phone is added by the employee, no approval needed). Employees cannot remove a phone themselves, and every attendance IN/OUT needs their fingerprint or face unlock. To change a phone, remove it below, then the employee enables it on the new phone. Employees who have not enabled it yet are not blocked, so nobody is locked out.<br><strong>Which phone was used:</strong> each employee's phones are listed with model, IP and number of punches. Websites cannot see a phone's Google/Apple account email, so a "shared phone" alert (same phone used by two employees) is shown instead.
         </p>
+      </div>
+
+      <div class="card" id="pkSharingCard" style="margin-bottom:16px;display:none;">
+        <div class="card-title">&#9888; Device sharing alerts</div>
+        <p style="font-size:12px;color:#64748b;margin:0 0 10px;line-height:1.6;">The same phone/browser was used by more than one employee in the last 90 days. This is only an alert for you to look into (it can also be a shared office device or a family phone). Nothing is blocked.</p>
+        <div id="pkSharingList"></div>
       </div>
 
       <div class="today-table-wrap">
         <div class="hist-table-wrap">
           <table>
-            <thead><tr><th>Emp ID</th><th>Name</th><th>Designation</th><th>Devices</th><th>Last used</th><th>Action</th></tr></thead>
-            <tbody id="pkTable"><tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:18px">Loading...</td></tr></tbody>
+            <thead><tr><th>Emp ID</th><th>Name / personal email</th><th>Designation</th><th>Enabled devices (phone, IP, usage)</th><th>Action</th></tr></thead>
+            <tbody id="pkTable"><tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:18px">Loading...</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -1373,15 +1379,38 @@ function showPanel(name) {
 async function pkLoadAdmin() {
   const tb = document.getElementById('pkTable');
   const d = await api('/passkeys/admin/overview');
-  if (!d.success) { tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#dc2626;padding:18px">Unable to load</td></tr>'; return; }
+  if (!d.success) { tb.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#dc2626;padding:18px">Unable to load</td></tr>'; return; }
   document.getElementById('pk_policy').value = d.policy;
   const fmt = v => v ? new Date(v).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '--';
+  const browser = ua => {
+    ua = String(ua || '');
+    const b = /Edg\//.test(ua) ? 'Edge' : /SamsungBrowser/.test(ua) ? 'Samsung Internet' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : /Firefox\//.test(ua) ? 'Firefox' : '';
+    const os = /Android ([\d.]+)/.test(ua) ? 'Android ' + ua.match(/Android ([\d.]+)/)[1] : /iPhone OS ([\d_]+)/.test(ua) ? 'iOS ' + ua.match(/iPhone OS ([\d_]+)/)[1].replace(/_/g, '.') : /Windows/.test(ua) ? 'Windows' : /Mac OS X/.test(ua) ? 'macOS' : '';
+    return [os, b].filter(Boolean).join(' \u00b7 ');
+  };
+
+  const alerts = d.sharing_alerts || [];
+  document.getElementById('pkSharingCard').style.display = alerts.length ? 'block' : 'none';
+  document.getElementById('pkSharingList').innerHTML = alerts.map(g => `
+    <div style="border:1px solid #fecaca;background:#fef2f2;border-radius:8px;padding:10px 12px;margin-bottom:8px;font-size:13px;">
+      <div style="font-weight:700;color:#b91c1c;margin-bottom:4px;">One phone/browser used by ${g.people.length} employees &middot; last seen ${fmt(g.last_seen)}</div>
+      <div style="color:#7f1d1d;font-size:12px;margin-bottom:6px;">${escHtml(browser(g.user_agent) || 'Unknown device')}</div>
+      ${g.people.map(p => `<div>${escHtml(p.emp_id)} &mdash; ${escHtml(p.name || '')} <span style="color:#94a3b8">(seen ${p.times} time(s), last ${fmt(p.last_seen)})</span></div>`).join('')}
+    </div>`).join('');
+
   tb.innerHTML = d.employees.map(e => `<tr>
-    <td>${escHtml(e.emp_id)}</td><td>${escHtml(e.formal_name || e.name)}</td><td>${escHtml(e.designation || '--')}</td>
-    <td>${e.devices ? `<span class="badge badge-present">${e.devices} device(s)</span><div style="color:#94a3b8;font-size:12px">${escHtml(e.labels || '')}</div>` : '<span class="badge badge-pending">Not enabled</span>'}</td>
-    <td>${fmt(e.last_used_at)}</td>
-    <td>${e.devices ? `<button class="btn-edit" onclick="pkRevoke('${escHtml(e.emp_id)}')">Remove devices</button>` : ''}</td>
-  </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:18px">No active employees</td></tr>';
+    <td>${escHtml(e.emp_id)}${e.shared_flag ? ' <span title="Phone shared with another employee" style="color:#b91c1c">&#9888;</span>' : ''}</td>
+    <td>${escHtml(e.formal_name || e.name)}<div style="color:#94a3b8;font-size:12px">${escHtml(e.email_id || '--')}</div></td>
+    <td>${escHtml(e.designation || '--')}</td>
+    <td>${e.devices.length ? e.devices.map(dv => `
+      <div style="padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:12.5px;">
+        <strong>${escHtml(dv.label)}</strong>${dv.shared ? ' <span class="badge badge-absent">shared phone</span>' : ''}
+        <button class="btn-edit" style="margin-left:6px" onclick="pkRevoke('${escHtml(e.emp_id)}', ${dv.id})">Remove</button>
+        <div style="color:#64748b;">${escHtml(browser(dv.user_agent) || '--')} &middot; IP ${escHtml(dv.ip_address || '--')}</div>
+        <div style="color:#94a3b8;">Added ${fmt(dv.created_at)} &middot; ${dv.punches} punch(es)${dv.last_punch ? ', last ' + fmt(dv.last_punch) : ''}</div>
+      </div>`).join('') : '<span class="badge badge-pending">Not enabled</span>'}</td>
+    <td>${e.devices.length > 1 ? `<button class="btn-edit" onclick="pkRevoke('${escHtml(e.emp_id)}')">Remove all</button>` : ''}</td>
+  </tr>`).join('') || '<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:18px">No active employees</td></tr>';
 }
 
 async function pkSavePolicy() {
@@ -1389,9 +1418,10 @@ async function pkSavePolicy() {
   showToast(d.message, d.success ? 'success' : 'error');
 }
 
-async function pkRevoke(empId) {
-  if (!confirm('Remove all fingerprint devices for ' + empId + '? They can enable it again after logging in with their password.')) return;
-  const d = await api('/passkeys/admin/revoke', { method: 'POST', body: JSON.stringify({ emp_id: empId }) });
+async function pkRevoke(empId, passkeyId) {
+  const what = passkeyId ? 'this fingerprint device' : 'all fingerprint devices';
+  if (!confirm('Remove ' + what + ' for ' + empId + '? They can enable it again after logging in with their password.')) return;
+  const d = await api('/passkeys/admin/revoke', { method: 'POST', body: JSON.stringify({ emp_id: empId, passkey_id: passkeyId || null }) });
   showToast(d.message, d.success ? 'success' : 'error');
   if (d.success) pkLoadAdmin();
 }

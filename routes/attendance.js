@@ -263,14 +263,17 @@ router.post('/mark', authMiddleware, async (req, res) => {
     // sends one (a bad assertion is always refused). 'enforced': employees who
     // have enrolled a device must confirm every punch.
     let verifiedBy = null;
+    let passkeyId = null;
+    const deviceUid = passkeyService.cleanDeviceUid(req.body.device_uid);
     const passkeyPolicy = String(cfg.PASSKEY_POLICY || 'off').toLowerCase();
     if (req.user.user_type !== 'admin' && passkeyPolicy !== 'off') {
       const expectEmp = { organizationId: req.user.organization_id, empId: emp_id };
       const pk = req.body.passkey;
       if (pk && pk.token && pk.response) {
         try {
-          await passkeyService.verifyAssertion(req, { token: pk.token, purpose: 'punch', response: pk.response, expectEmp });
+          const usedCred = await passkeyService.verifyAssertion(req, { token: pk.token, purpose: 'punch', response: pk.response, expectEmp });
           verifiedBy = 'passkey';
+          passkeyId = usedCred.id;
         } catch (pkErr) {
           if (pkErr instanceof passkeyService.PasskeyError) {
             return res.status(pkErr.status === 500 ? 500 : 403).json({ success: false, code: pkErr.code || 'PASSKEY_FAILED', message: pkErr.message });
@@ -321,15 +324,15 @@ router.post('/mark', authMiddleware, async (req, res) => {
          (log_id, date, emp_id, employee_name, formal_name, action, time,
           latitude, longitude, accuracy_meters, address, formatted_address,
           place_id, location_type, geocode_provider, distance_from_office_meters,
-          geofence_radius_meters, within_geofence, device_info, marked_by, created_at, verified_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,'Self',NOW(),$20)`,
+          geofence_radius_meters, within_geofence, device_info, marked_by, created_at, verified_by, passkey_id, device_uid)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,'Self',NOW(),$20,$21,$22)`,
       [logId, today, emp_id, name, formal_name || name, upperAction, timeStr,
        latNum, lngNum, accuracyMeters, resolvedLocation.address || address || null,
        resolvedLocation.formatted_address || null, resolvedLocation.place_id || null,
        resolvedLocation.location_type || null, resolvedLocation.provider || null,
        distanceMeters === null ? null : Math.round(distanceMeters),
        Number.isFinite(geofenceRadius) ? Math.round(geofenceRadius) : null,
-       withinGeofence, device_info || null, verifiedBy]
+       withinGeofence, device_info || null, verifiedBy, passkeyId, deviceUid]
     );
 
     const istNow = nowIST();
@@ -338,6 +341,10 @@ router.post('/mark', authMiddleware, async (req, res) => {
 
     // The log row and the daily summary are independent writes — run together.
     const writes = [logInsert];
+    // Admin visibility only (which phone, and one phone used by two employees); never blocks a punch.
+    if (deviceUid && req.user.user_type !== 'admin') {
+      writes.push(passkeyService.recordSighting(req, { organizationId: req.user.organization_id, empId: emp_id }, deviceUid));
+    }
 
     if (upperAction === 'IN') {
       // ── Calculate late minutes ─────────────────────────────

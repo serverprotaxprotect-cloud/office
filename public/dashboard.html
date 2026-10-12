@@ -963,7 +963,7 @@ async function markAttendance(action) {
   try {
     const data = await api('/attendance/mark', {
       method: 'POST',
-      body: JSON.stringify({ action, latitude, longitude, accuracy_meters, address, device_info, passkey })
+      body: JSON.stringify({ action, latitude, longitude, accuracy_meters, address, device_info, passkey, device_uid: gbDeviceUid() })
     });
 
     if (data.success) {
@@ -1778,6 +1778,19 @@ const PK = {
   supported: !!(window.PublicKeyCredential && window.SimpleWebAuthnBrowser),
 };
 const PK_FRESH_MS = 4 * 60 * 1000;
+
+// A random ID kept in this browser. It lets the admin see which phone a punch
+// came from and spot one phone being used by two employees (alert only).
+function gbDeviceUid() {
+  try {
+    let id = localStorage.getItem('gb_device_uid');
+    if (!id || !/^[A-Za-z0-9-]{16,64}$/.test(id)) {
+      id = (crypto.randomUUID ? crypto.randomUUID() : 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 12));
+      localStorage.setItem('gb_device_uid', id);
+    }
+    return id;
+  } catch { return ''; }
+}
 const pkEsc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 function pkDeviceLabel() {
@@ -1796,15 +1809,13 @@ function pkDeviceLabel() {
 async function pkInit() {
   if (!PK.supported) return;
   try {
-    const d = await api('/passkeys/status');
+    const d = await api('/passkeys/status?device_uid=' + encodeURIComponent(gbDeviceUid()));
     if (!d.success) return;
     PK.policy = d.policy; PK.passkeys = d.passkeys || []; PK.max = d.max_devices || 3;
     const flag = localStorage.getItem('gb_passkey_device');
-    // Compulsory mode allows exactly one registered phone, so an enrolled
-    // employee always gets the fingerprint prompt (even if this browser's
-    // local flag was cleared); otherwise only the phone that was enabled.
-    PK.deviceOn = PK.passkeys.length > 0 && (flag === emp.emp_id || PK.policy === 'enforced');
-    if (PK.deviceOn) localStorage.setItem('gb_passkey_device', emp.emp_id);
+    // Only the phone(s) where it was enabled get the fingerprint prompt. If this
+    // browser's local flag was cleared, tapping Enable again re-links it.
+    PK.deviceOn = PK.passkeys.length > 0 && flag === emp.emp_id;
     if (flag === emp.emp_id && PK.passkeys.length === 0) localStorage.removeItem('gb_passkey_device');
     renderPasskeyCard();
     if (PK.policy !== 'off') { if (PK.deviceOn) pkPrefetchPunch(); else pkPrefetchRegister(); }
@@ -1822,7 +1833,6 @@ async function pkPrefetchPunch() {
 
 async function pkPrefetchRegister() {
   if (PK.deviceOn || PK.policy === 'off' || PK.passkeys.length >= PK.max) return;
-  if (PK.policy === 'enforced' && PK.passkeys.length >= 1) return;
   try {
     const d = await api('/passkeys/register/options', { method: 'POST', body: '{}' });
     PK.reg = d.success ? { token: d.token, options: d.options, at: Date.now() } : null;
@@ -1859,14 +1869,20 @@ async function pkEnable() {
     try {
       att = await SimpleWebAuthnBrowser.startRegistration({ optionsJSON: r.options });
     } catch (e) {
+      if (e && e.name === 'InvalidStateError') {
+        // This phone already holds a fingerprint for this account (e.g. browser data was cleared): just re-link it.
+        localStorage.setItem('gb_passkey_device', emp.emp_id);
+        showToast('This phone was already registered. Fingerprint is active again.', 'success');
+        await pkInit();
+        return;
+      }
       const msg = e && e.name === 'NotAllowedError' ? 'Setup was cancelled. Tap "Enable" and try again.'
-        : e && e.name === 'InvalidStateError' ? 'This phone is already registered for your account.'
         : 'This phone or browser does not support fingerprint login. Open the site in Chrome (Android) or Safari (iPhone).';
       showToast(msg, 'error');
       pkPrefetchRegister();
       return;
     }
-    const v = await api('/passkeys/register/verify', { method: 'POST', body: JSON.stringify({ token: r.token, response: att, label: pkDeviceLabel() }) });
+    const v = await api('/passkeys/register/verify', { method: 'POST', body: JSON.stringify({ token: r.token, response: att, label: pkDeviceLabel(), device_uid: gbDeviceUid() }) });
     if (!v.success) { showToast(v.message || 'Could not enable fingerprint.', 'error'); pkPrefetchRegister(); return; }
     localStorage.setItem('gb_passkey_device', emp.emp_id);
     showToast(v.message, 'success');
@@ -1906,7 +1922,7 @@ function pkMaybePrompt() {
     ? 'Use your fingerprint or face unlock on this phone too. It takes 10 seconds, and then you can log in and mark attendance without typing your password.'
     : 'Log in and mark attendance with your phone\'s fingerprint or face unlock. It takes 10 seconds to set up, and your fingerprint never leaves your phone.';
   document.getElementById('pkPromptText').textContent = PK.policy === 'enforced'
-    ? base + ' Once enabled, attendance can only be marked with your fingerprint or face unlock, and only your admin can reset the phone.'
+    ? base + ' Once enabled, attendance can only be marked with your fingerprint or face unlock, and only your admin can remove a phone later.'
     : base;
   document.getElementById('pkPromptModal').style.display = 'flex';
 }
@@ -1941,11 +1957,13 @@ function renderPasskeyCard() {
     html = '<div style="font-size:13.5px;color:#166534;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 12px;">&#9989; Fingerprint is ON for this phone. ' +
       (locked ? 'Attendance can only be marked after confirming with your fingerprint or face unlock. ' : 'Tap Check In / Out and confirm with your fingerprint or face unlock. ') +
       'You can also log in with it from the login page.</div>' +
-      (locked ? '<div style="font-size:12.5px;color:#64748b;margin-top:8px;">This is locked to your registered phone. To change your phone, ask your admin to reset it, then enable it on the new phone.</div>' : '');
+      (locked ? '<div style="font-size:12.5px;color:#64748b;margin-top:8px;">Your registered phones are locked' + (PK.passkeys.length < PK.max ? '. You can add a second phone: log in on it and tap Enable.' : ' (' + PK.max + ' phones).') + ' To change a phone, ask your admin to remove it first.</div>' : '');
   } else {
     html = '<div style="font-size:13.5px;color:#334155;margin-bottom:10px;">Use your phone\'s fingerprint or face unlock to mark attendance and to log in without typing your password.</div>' +
       (locked
-        ? '<div style="font-size:12.5px;color:#92400e;margin-bottom:10px;">Once enabled, attendance can only be marked with your fingerprint or face unlock, and only your admin can reset the phone later.</div>' : '') +
+        ? '<div style="font-size:12.5px;color:#92400e;margin-bottom:10px;">' + (PK.passkeys.length
+            ? 'Fingerprint is already set up on another phone of yours. Tap Enable to use this phone too (up to ' + PK.max + ' phones).'
+            : 'Once enabled, attendance can only be marked with your fingerprint or face unlock, and only your admin can remove a phone later (you can add up to ' + PK.max + ' phones).') + '</div>' : '') +
       (PK.passkeys.length >= PK.max
         ? '<div style="font-size:12.5px;color:#92400e;">You already have ' + PK.max + ' devices. Remove an old one below to add this phone.</div>'
         : '<button class="btn-sm" id="pkEnableBtn" onclick="pkEnable()" style="background:#0f766e;color:#fff;">Enable on this phone</button>');
