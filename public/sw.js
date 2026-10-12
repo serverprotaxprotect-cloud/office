@@ -1,5 +1,5 @@
 // Gee Bharat Attendance Service Worker
-const CACHE_NAME   = 'gee-bharat-attendance-v20';
+const CACHE_NAME   = 'gee-bharat-attendance-v21';
 const OFFLINE_URL  = '/offline.html';
 
 // Static assets to cache immediately on install

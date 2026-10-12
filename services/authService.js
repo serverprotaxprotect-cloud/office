@@ -303,7 +303,14 @@ async function hashForStorage(password) {
   return hashPassword(password);
 }
 
+async function loginCandidate(candidate, req = null) {
+  const { token, refresh_token, session_id, payload } = await signUser(candidate, req);
+  await recordSession(token, payload);
+  return { token, refresh_token, session_id, user: payload };
+}
+
 module.exports = {
+  loginCandidate,
   buildLoginResponse,
   selectOrganization,
   hashForStorage,

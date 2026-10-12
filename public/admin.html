@@ -230,6 +230,9 @@
     <div class="sidebar-item" id="s-campaigns" onclick="showPanel('campaigns')">
       <span class="s-icon">&#128229;</span> Data Campaigns
     </div>
+    <div class="sidebar-item" id="s-fingerprint" onclick="showPanel('fingerprint')">
+      <span class="s-icon">&#128274;</span> Fingerprint Login
+    </div>
     <div class="sidebar-item" id="s-assessment" onclick="showPanel('assessment')">
       <span class="s-icon">&#128221;</span> Candidate Assessment
     </div>
@@ -780,6 +783,40 @@
     </div>
 
     <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- FINGERPRINT PANEL                                       -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div class="admin-panel" id="panel-fingerprint">
+      <div class="page-title">Fingerprint Login <span>Let employees mark attendance and log in with phone fingerprint / face unlock</span></div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title">Setting</div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+          <div style="min-width:260px;">
+            <label style="display:block;font-size:12px;font-weight:700;color:#64748b;margin-bottom:4px;">FINGERPRINT FOR EMPLOYEES</label>
+            <select id="pk_policy" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;">
+              <option value="off">Off — hidden from everyone (current behaviour)</option>
+              <option value="optional">Optional — employees can enable it; others punch as usual</option>
+              <option value="enforced">Required once enabled — enrolled employees must confirm every punch</option>
+            </select>
+          </div>
+          <button class="btn-sm" onclick="pkSavePolicy()" style="background:#16a34a;">Save</button>
+        </div>
+        <p style="font-size:12px;color:#64748b;margin-top:10px;line-height:1.6;">
+          Fingerprint data never leaves the employee's phone; only a public key is stored here. An employee enables it from their own dashboard after logging in with a password. Up to 3 phones per employee. If an employee changes or loses a phone, remove their devices below and they can enable it again on the new phone. With "Required once enabled", employees who have not enabled it are not affected, so nobody is locked out.
+        </p>
+      </div>
+
+      <div class="today-table-wrap">
+        <div class="hist-table-wrap">
+          <table>
+            <thead><tr><th>Emp ID</th><th>Name</th><th>Designation</th><th>Devices</th><th>Last used</th><th>Action</th></tr></thead>
+            <tbody id="pkTable"><tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:18px">Loading...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
     <!-- NOTICES PANEL                                           -->
     <!-- ═══════════════════════════════════════════════════════ -->
     <div class="admin-panel" id="panel-notices">
@@ -1327,6 +1364,34 @@ function showPanel(name) {
   if (name === 'notices')       loadNotices();
   if (name === 'assessment')    initAssessment();
   if (name === 'campaigns')     cmpBackToList();
+  if (name === 'fingerprint')   pkLoadAdmin();
+}
+
+// ── FINGERPRINT LOGIN (admin) ────────────────────────────────
+async function pkLoadAdmin() {
+  const tb = document.getElementById('pkTable');
+  const d = await api('/passkeys/admin/overview');
+  if (!d.success) { tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#dc2626;padding:18px">Unable to load</td></tr>'; return; }
+  document.getElementById('pk_policy').value = d.policy;
+  const fmt = v => v ? new Date(v).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '--';
+  tb.innerHTML = d.employees.map(e => `<tr>
+    <td>${escHtml(e.emp_id)}</td><td>${escHtml(e.formal_name || e.name)}</td><td>${escHtml(e.designation || '--')}</td>
+    <td>${e.devices ? `<span class="badge badge-present">${e.devices} device(s)</span><div style="color:#94a3b8;font-size:12px">${escHtml(e.labels || '')}</div>` : '<span class="badge badge-pending">Not enabled</span>'}</td>
+    <td>${fmt(e.last_used_at)}</td>
+    <td>${e.devices ? `<button class="btn-edit" onclick="pkRevoke('${escHtml(e.emp_id)}')">Remove devices</button>` : ''}</td>
+  </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:18px">No active employees</td></tr>';
+}
+
+async function pkSavePolicy() {
+  const d = await api('/passkeys/admin/policy', { method: 'POST', body: JSON.stringify({ policy: document.getElementById('pk_policy').value }) });
+  showToast(d.message, d.success ? 'success' : 'error');
+}
+
+async function pkRevoke(empId) {
+  if (!confirm('Remove all fingerprint devices for ' + empId + '? They can enable it again after logging in with their password.')) return;
+  const d = await api('/passkeys/admin/revoke', { method: 'POST', body: JSON.stringify({ emp_id: empId }) });
+  showToast(d.message, d.success ? 'success' : 'error');
+  if (d.success) pkLoadAdmin();
 }
 
 // ── DATA CAMPAIGNS ───────────────────────────────────────────

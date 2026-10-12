@@ -78,6 +78,14 @@
       </button>
     </form>
 
+    <div id="passkeyLoginBox" style="display:none;margin-top:14px;text-align:center;">
+      <div style="font-size:12px;color:#94a3b8;margin-bottom:8px;">or</div>
+      <button type="button" class="btn-primary" id="passkeyLoginBtn" onclick="loginWithFingerprint()" style="background:#0f766e;">
+        <span id="passkeyLoginText">&#128274; Login with fingerprint / face unlock</span>
+      </button>
+      <div id="passkeyLoginError" class="alert alert-error" style="display:none;margin-top:10px;text-align:left;"></div>
+    </div>
+
     <p class="login-footer" style="margin-top:16px;">
       <a href="/" style="color:#64748b;text-decoration:none;font-size:13px;">&#8592; Back to Portal Selection</a>
     </p>
@@ -85,7 +93,44 @@
   </div>
 
   <script src="/assets/auth-session.js"></script>
+  <script src="/assets/simplewebauthn-browser.umd.min.js"></script>
   <script>
+    // Fingerprint login is offered only on a device where it was enabled
+    // (flag set at registration) and only if the browser supports passkeys.
+    (function initPasskeyLogin() {
+      try {
+        if (window.PublicKeyCredential && window.SimpleWebAuthnBrowser && localStorage.getItem('gb_passkey_device')) {
+          document.getElementById('passkeyLoginBox').style.display = 'block';
+        }
+      } catch {}
+    })();
+
+    async function loginWithFingerprint() {
+      const btn = document.getElementById('passkeyLoginBtn');
+      const txt = document.getElementById('passkeyLoginText');
+      const err = document.getElementById('passkeyLoginError');
+      err.style.display = 'none';
+      const original = txt.innerHTML;
+      btn.disabled = true; txt.textContent = 'Waiting for fingerprint...';
+      const fail = (m) => { err.textContent = m; err.style.display = 'block'; btn.disabled = false; txt.innerHTML = original; };
+      try {
+        const o = await (await fetch('/api/passkeys/login/options', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).json();
+        if (!o.success) return fail(o.message || 'Fingerprint login is not available right now.');
+        let assertion;
+        try {
+          assertion = await SimpleWebAuthnBrowser.startAuthentication({ optionsJSON: o.options });
+        } catch (e) {
+          return fail(e && e.name === 'NotAllowedError' ? 'Fingerprint was cancelled. You can try again or use your password.' : 'This device could not use fingerprint login. Please use your password.');
+        }
+        const v = await (await fetch('/api/passkeys/login/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: o.token, response: assertion }) })).json();
+        if (!v.success) return fail(v.message || 'Fingerprint login failed. Please use your password.');
+        GBSession.save(v.token, v.user || v.employee, 'attendance');
+        window.location.href = '/dashboard.html';
+      } catch {
+        fail('Network error. Please try again.');
+      }
+    }
+
     GBSession.restore('attendance').then(ok => {
       const savedUser = GBSession.userFor('attendance');
       const tokenUser = GBSession.decode(GBSession.tokenFor('attendance'));

@@ -5,6 +5,7 @@ const db = require('../db');
 const authMiddleware = require('../middleware/auth');
 const { evaluateEmployee, checkPunchOutBlock } = require('../services/performanceService');
 const { mandatoryBlock } = require('../services/employeeCampaignService');
+const passkeyService = require('../services/passkeyService');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
@@ -239,6 +240,33 @@ router.post('/mark', authMiddleware, async (req, res) => {
 
     // ── Load settings ────────────────────────────────────────
     const cfg = await getSettings();
+
+    // Optional fingerprint confirmation. 'optional': verified when the app
+    // sends one (a bad assertion is always refused). 'enforced': employees who
+    // have enrolled a device must confirm every punch.
+    let verifiedBy = null;
+    const passkeyPolicy = String(cfg.PASSKEY_POLICY || 'off').toLowerCase();
+    if (req.user.user_type !== 'admin' && passkeyPolicy !== 'off') {
+      const expectEmp = { organizationId: req.user.organization_id, empId: emp_id };
+      const pk = req.body.passkey;
+      if (pk && pk.token && pk.response) {
+        try {
+          await passkeyService.verifyAssertion(req, { token: pk.token, purpose: 'punch', response: pk.response, expectEmp });
+          verifiedBy = 'passkey';
+        } catch (pkErr) {
+          if (pkErr instanceof passkeyService.PasskeyError) {
+            return res.status(pkErr.status === 500 ? 500 : 403).json({ success: false, code: pkErr.code || 'PASSKEY_FAILED', message: pkErr.message });
+          }
+          throw pkErr;
+        }
+      } else if (passkeyPolicy === 'enforced') {
+        const enrolled = await passkeyService.activePasskeys(expectEmp.organizationId, emp_id);
+        if (enrolled.length) {
+          return res.status(403).json({ success: false, code: 'PASSKEY_REQUIRED', message: 'Please confirm with your fingerprint to mark attendance.' });
+        }
+      }
+    }
+
     const latNum = parseCoordinate(latitude, -90, 90);
     const lngNum = parseCoordinate(longitude, -180, 180);
 
@@ -277,15 +305,15 @@ router.post('/mark', authMiddleware, async (req, res) => {
          (log_id, date, emp_id, employee_name, formal_name, action, time,
           latitude, longitude, accuracy_meters, address, formatted_address,
           place_id, location_type, geocode_provider, distance_from_office_meters,
-          geofence_radius_meters, within_geofence, device_info, marked_by, created_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,'Self',NOW())`,
+          geofence_radius_meters, within_geofence, device_info, marked_by, created_at, verified_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,'Self',NOW(),$20)`,
       [logId, today, emp_id, name, formal_name || name, upperAction, timeStr,
        latNum, lngNum, accuracyMeters, resolvedLocation.address || address || null,
        resolvedLocation.formatted_address || null, resolvedLocation.place_id || null,
        resolvedLocation.location_type || null, resolvedLocation.provider || null,
        distanceMeters === null ? null : Math.round(distanceMeters),
        Number.isFinite(geofenceRadius) ? Math.round(geofenceRadius) : null,
-       withinGeofence, device_info || null]
+       withinGeofence, device_info || null, verifiedBy]
     );
 
     const istNow = nowIST();

@@ -435,6 +435,12 @@
       </div>
     </div>
 
+    <!-- Fingerprint / face unlock card (shown only when the organisation enables it) -->
+    <div class="card" id="passkeyCard" style="display:none;">
+      <div class="card-title">&#128274; Fingerprint / Face Unlock</div>
+      <div id="passkeyBody"></div>
+    </div>
+
     <!-- PWA Install Card -->
     <div class="card" id="pwaCard" style="display:none;">
       <div class="card-title">&#128640; App Install Karein</div>
@@ -607,6 +613,7 @@
 </div>
 
 <script src="/assets/auth-session.js"></script>
+<script src="/assets/simplewebauthn-browser.umd.min.js"></script>
 <script>
 // ── Auth guard ──────────────────────────────────────────
 let token = GBSession.tokenFor('attendance');
@@ -855,7 +862,11 @@ async function markAttendance(action) {
   const btnOut = document.getElementById('btnOut');
   btnIn.disabled = btnOut.disabled = true;
 
-  showToast('Getting location...', '');
+  // Fingerprint prompt starts right here, inside the tap (iOS needs the user
+  // gesture), and runs in parallel with the GPS fix so it adds no waiting.
+  const pkTry = pkStartPunchPrompt();
+
+  showToast(pkTry ? 'Confirm with your fingerprint...' : 'Getting location...', '');
 
   let latitude = null, longitude = null, address = null, accuracy_meters = null;
 
@@ -884,17 +895,36 @@ async function markAttendance(action) {
 
   const device_info = navigator.userAgent;
 
+  let passkey = null;
+  if (pkTry) {
+    const r = await pkTry;
+    if (r.ok) {
+      passkey = { token: r.token, response: r.response };
+    } else if (PK.policy === 'enforced') {
+      showToast(r.message, 'error');
+      await loadToday();
+      return;
+    }
+    // optional policy: a cancelled/unavailable fingerprint falls back to the normal punch
+  }
+
   try {
     const data = await api('/attendance/mark', {
       method: 'POST',
-      body: JSON.stringify({ action, latitude, longitude, accuracy_meters, address, device_info })
+      body: JSON.stringify({ action, latitude, longitude, accuracy_meters, address, device_info, passkey })
     });
 
     if (data.success) {
       showToast(data.message, 'success');
       await loadToday();
     } else {
-      if (data.code === 'CAMPAIGN_REQUIRED') {
+      if (data.code === 'PASSKEY_REQUIRED') {
+        showToast('Fingerprint confirmation is required. If this is a new phone, enable it in the Fingerprint card below.', 'error');
+        document.getElementById('passkeyCard')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else if (data.code === 'PASSKEY_FAILED' || data.code === 'PASSKEY_EXPIRED' || data.code === 'PASSKEY_UNKNOWN' || data.code === 'PASSKEY_MISMATCH') {
+        showToast(data.message, 'error');
+        pkInit();
+      } else if (data.code === 'CAMPAIGN_REQUIRED') {
         showToast(data.message, 'error');
         checkCampaigns(true);
       } else if (data.code === 'MONITOR_PUNCH_OUT_BLOCKED') {
@@ -1682,11 +1712,152 @@ async function logoutAllDevices() {
   setInterval(updateWorkProgress, 30000);
   loadNotices();
   checkCampaigns(false);
+  pkInit();
   requestNotifPermission();
   startNotifPolling();
 
   document.getElementById('loadingOverlay').style.display = 'none';
 })();
+
+// ── Fingerprint / face unlock (WebAuthn passkeys) ─────────────
+const PK = {
+  policy: 'off', passkeys: [], max: 3, deviceOn: false, punch: null, reg: null,
+  supported: !!(window.PublicKeyCredential && window.SimpleWebAuthnBrowser),
+};
+const PK_FRESH_MS = 4 * 60 * 1000;
+const pkEsc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function pkDeviceLabel() {
+  const ua = navigator.userAgent;
+  if (/iPhone/i.test(ua)) return 'iPhone';
+  if (/iPad/i.test(ua)) return 'iPad';
+  if (/Android/i.test(ua)) {
+    const m = ua.match(/;\s*([^;)]+?)\s+Build/i);
+    return m ? m[1].slice(0, 60) : 'Android phone';
+  }
+  if (/Windows/i.test(ua)) return 'Windows PC';
+  if (/Mac/i.test(ua)) return 'Mac';
+  return 'My device';
+}
+
+async function pkInit() {
+  if (!PK.supported) return;
+  try {
+    const d = await api('/passkeys/status');
+    if (!d.success) return;
+    PK.policy = d.policy; PK.passkeys = d.passkeys || []; PK.max = d.max_devices || 3;
+    const flag = localStorage.getItem('gb_passkey_device');
+    PK.deviceOn = PK.passkeys.length > 0 && flag === emp.emp_id;
+    if (flag === emp.emp_id && PK.passkeys.length === 0) localStorage.removeItem('gb_passkey_device');
+    renderPasskeyCard();
+    if (PK.policy !== 'off') { if (PK.deviceOn) pkPrefetchPunch(); else pkPrefetchRegister(); }
+  } catch { /* never block the dashboard on this */ }
+}
+
+async function pkPrefetchPunch() {
+  if (!PK.deviceOn || PK.policy === 'off') return;
+  try {
+    const d = await api('/passkeys/punch/options', { method: 'POST', body: '{}' });
+    PK.punch = d.success ? { token: d.token, options: d.options, at: Date.now() } : null;
+  } catch { PK.punch = null; }
+}
+
+async function pkPrefetchRegister() {
+  if (PK.deviceOn || PK.policy === 'off' || PK.passkeys.length >= PK.max) return;
+  try {
+    const d = await api('/passkeys/register/options', { method: 'POST', body: '{}' });
+    PK.reg = d.success ? { token: d.token, options: d.options, at: Date.now() } : null;
+  } catch { PK.reg = null; }
+}
+
+// Called synchronously from the Check In/Out tap. Returns null when
+// fingerprint is not applicable (then the normal punch is used).
+function pkStartPunchPrompt() {
+  const p = PK.punch;
+  if (!PK.supported || !PK.deviceOn || PK.policy === 'off') return null;
+  if (!p || Date.now() - p.at > PK_FRESH_MS) { pkPrefetchPunch(); return null; }
+  PK.punch = null;
+  const run = SimpleWebAuthnBrowser.startAuthentication({ optionsJSON: p.options }).then(
+    response => ({ ok: true, token: p.token, response }),
+    e => ({ ok: false, message: e && e.name === 'NotAllowedError' ? 'Fingerprint confirmation was cancelled.' : 'Could not use fingerprint on this device.' })
+  );
+  run.then(() => pkPrefetchPunch());
+  return run;
+}
+
+async function pkEnable() {
+  const btn = document.getElementById('pkEnableBtn');
+  if (btn) btn.disabled = true;
+  try {
+    let r = PK.reg && Date.now() - PK.reg.at < PK_FRESH_MS ? PK.reg : null;
+    PK.reg = null;
+    if (!r) {
+      const d = await api('/passkeys/register/options', { method: 'POST', body: '{}' });
+      if (!d.success) { showToast(d.message || 'Could not start fingerprint setup.', 'error'); return; }
+      r = { token: d.token, options: d.options };
+    }
+    let att;
+    try {
+      att = await SimpleWebAuthnBrowser.startRegistration({ optionsJSON: r.options });
+    } catch (e) {
+      const msg = e && e.name === 'NotAllowedError' ? 'Setup was cancelled. Tap "Enable" and try again.'
+        : e && e.name === 'InvalidStateError' ? 'This phone is already registered for your account.'
+        : 'This phone or browser does not support fingerprint login. Open the site in Chrome (Android) or Safari (iPhone).';
+      showToast(msg, 'error');
+      pkPrefetchRegister();
+      return;
+    }
+    const v = await api('/passkeys/register/verify', { method: 'POST', body: JSON.stringify({ token: r.token, response: att, label: pkDeviceLabel() }) });
+    if (!v.success) { showToast(v.message || 'Could not enable fingerprint.', 'error'); pkPrefetchRegister(); return; }
+    localStorage.setItem('gb_passkey_device', emp.emp_id);
+    showToast(v.message, 'success');
+    await pkInit();
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function pkRemove(id) {
+  if (!confirm('Remove this device? You will not be able to use its fingerprint for attendance or login until you enable it again.')) return;
+  const d = await api('/passkeys/' + id, { method: 'DELETE' });
+  showToast(d.message || (d.success ? 'Removed' : 'Could not remove'), d.success ? 'success' : 'error');
+  pkInit();
+}
+
+function renderPasskeyCard() {
+  const card = document.getElementById('passkeyCard');
+  if (!card) return;
+  if (!PK.supported || PK.policy === 'off') { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  const fmt = v => v ? new Date(v).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'never';
+  let html;
+  if (PK.deviceOn) {
+    html = '<div style="font-size:13.5px;color:#166534;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 12px;">&#9989; Fingerprint is ON for this phone. Tap Check In / Out and confirm with your fingerprint or face unlock. You can also log in with it from the login page.</div>';
+  } else {
+    const enforcedNote = PK.policy === 'enforced' && PK.passkeys.length
+      ? '<div style="font-size:12.5px;color:#b91c1c;margin-bottom:8px;font-weight:600;">Your organisation requires fingerprint confirmation. Please enable it on this phone.</div>' : '';
+    html = enforcedNote +
+      '<div style="font-size:13.5px;color:#334155;margin-bottom:10px;">Use your phone\'s fingerprint or face unlock to mark attendance and to log in without typing your password.</div>' +
+      (PK.passkeys.length >= PK.max
+        ? '<div style="font-size:12.5px;color:#92400e;">You already have ' + PK.max + ' devices. Remove an old one below to add this phone.</div>'
+        : '<button class="btn-sm" id="pkEnableBtn" onclick="pkEnable()" style="background:#0f766e;color:#fff;">Enable on this phone</button>');
+  }
+  if (PK.passkeys.length) {
+    html += '<div style="margin-top:12px;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;">My devices</div>' +
+      PK.passkeys.map(k => '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f1f5f9;font-size:13px;">' +
+        '<div><strong>' + pkEsc(k.label) + '</strong><div style="color:#94a3b8;font-size:11.5px;">Added ' + fmt(k.created_at) + ' &middot; last used ' + fmt(k.last_used_at) + '</div></div>' +
+        '<button class="btn-sm" onclick="pkRemove(' + Number(k.id) + ')" style="color:#b91c1c;font-size:11px;">Remove</button></div>').join('');
+  }
+  document.getElementById('passkeyBody').innerHTML = html;
+}
+
+// Keep the prefetched challenges fresh (they expire after 5 minutes).
+setInterval(() => { if (document.visibilityState === 'visible') { pkPrefetchPunch(); pkPrefetchRegister(); } }, 3.5 * 60 * 1000);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  if (PK.deviceOn && (!PK.punch || Date.now() - PK.punch.at > PK_FRESH_MS)) pkPrefetchPunch();
+  if (!PK.deviceOn && PK.policy !== 'off' && (!PK.reg || Date.now() - PK.reg.at > PK_FRESH_MS)) pkPrefetchRegister();
+});
 
 // ── Data requests (campaigns) popup ───────────────────────────
 let CMP_QUEUE = [];

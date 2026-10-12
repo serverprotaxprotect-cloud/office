@@ -85,6 +85,8 @@
     "gst:import": "node scripts/gst_import.js C:/Users/HP/Downloads/GST_CLIENTS.xlsx --apply"
   },
   "dependencies": {
+    "@simplewebauthn/browser": "^13.3.0",
+    "@simplewebauthn/server": "^13.3.3",
     "@vercel/blob": "^2.4.0",
     "bcryptjs": "^2.4.3",
     "compression": "^1.8.1",
