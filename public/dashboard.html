@@ -95,6 +95,9 @@
       max-height: 85vh; overflow-y: auto;
     }
     .req-modal-title { font-size: 17px; font-weight: 700; margin-bottom: 16px; }
+    .tp-row { display:flex; gap:8px; }
+    .tp-row select { flex:1; padding:10px 8px; border:1.5px solid #e2e8f0; border-radius:8px; font-size:15px; background:#fff; outline:none; }
+    .tp-row select.tp-ap { font-weight:700; }
     .req-input-group { margin-bottom: 14px; }
     .req-input-group label { display:block; font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.4px; margin-bottom:4px; }
     .req-input-group input, .req-input-group textarea {
@@ -551,11 +554,13 @@
     </div>
     <div class="req-input-group">
       <label id="req_in_label">Check-in Time (optional)</label>
-      <input type="time" id="req_in_time" />
+      <input type="hidden" id="req_in_time" />
+      <div id="req_in_picker" class="tp-row"></div>
     </div>
     <div class="req-input-group">
       <label id="req_out_label">Check-out Time (optional)</label>
-      <input type="time" id="req_out_time" />
+      <input type="hidden" id="req_out_time" />
+      <div id="req_out_picker" class="tp-row"></div>
     </div>
     <div class="req-input-group">
       <label>Reason *</label>
@@ -1188,8 +1193,38 @@ function setAttReqDate(dateStr) {
   document.getElementById('req_date_input').max = todayStr();
 }
 
+// Time picker with an explicit AM/PM choice (a native time box makes 06:30 AM vs PM easy to get wrong).
+function buildTimePicker(boxId, hiddenId, defaultAp) {
+  const box = document.getElementById(boxId), hidden = document.getElementById(hiddenId);
+  const opt = (v, t, sel) => '<option value="' + v + '"' + (sel ? ' selected' : '') + '>' + t + '</option>';
+  let hh = opt('', 'Hour'), mm = opt('', 'Min');
+  for (let h = 1; h <= 12; h++) hh += opt(h, String(h).padStart(2, '0'));
+  for (let m = 0; m < 60; m++) mm += opt(m, String(m).padStart(2, '0'));
+  box.innerHTML = '<select class="tp-h">' + hh + '</select><select class="tp-m">' + mm + '</select>' +
+    '<select class="tp-ap">' + opt('AM', 'AM', defaultAp === 'AM') + opt('PM', 'PM', defaultAp === 'PM') + '</select>';
+  const update = () => {
+    const h = box.querySelector('.tp-h').value, m = box.querySelector('.tp-m').value, ap = box.querySelector('.tp-ap').value;
+    if (h === '' || m === '') { hidden.value = ''; return; }
+    let h24 = parseInt(h, 10) % 12; if (ap === 'PM') h24 += 12;
+    hidden.value = String(h24).padStart(2, '0') + ':' + String(parseInt(m, 10)).padStart(2, '0');
+  };
+  box.querySelectorAll('select').forEach(sel => sel.addEventListener('change', update));
+  hidden.value = '';
+}
+function setPickerAp(boxId, ap) {
+  const sel = document.getElementById(boxId).querySelector('.tp-ap');
+  sel.value = ap; sel.dispatchEvent(new Event('change'));
+}
+function time12(hhmm) {
+  const [h, m] = hhmm.split(':').map(Number);
+  return String(h % 12 || 12).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ' ' + (h >= 12 ? 'PM' : 'AM');
+}
+function hhmmToMins(t) { const [h, m] = t.split(':').map(Number); return h * 60 + m; }
+
 function openAttReqModal(dateStr) {
   setAttReqDate(dateStr);
+  buildTimePicker('req_in_picker', 'req_in_time', 'AM');
+  buildTimePicker('req_out_picker', 'req_out_time', 'PM');
   document.getElementById('req_in_time').value  = '';
   document.getElementById('req_out_time').value = '';
   document.getElementById('req_reason').value   = '';
@@ -1248,6 +1283,22 @@ async function submitAttRequest() {
     msg.style.display = 'block'; return;
   }
   msg.style.display = 'none';
+  if (inTime && outTime) {
+    let diff = hhmmToMins(outTime) - hhmmToMins(inTime);
+    if (diff <= 0) {
+      const alt = hhmmToMins(outTime) + 720;
+      if (alt < 1440 && alt > hhmmToMins(inTime) && confirm('Check-out ' + time12(outTime) + ' is before check-in ' + time12(inTime) + '.\n\nDid you mean ' + time12(String(Math.floor(alt / 60)).padStart(2, '0') + ':' + String(alt % 60).padStart(2, '0')) + '?\n\nOK = use the corrected time, Cancel = go back and fix it.')) {
+        setPickerAp('req_out_picker', 'PM');
+        return submitAttRequest();
+      }
+      msg.className = 'alert alert-error'; msg.textContent = 'Check-out time must be after check-in time. Please check AM / PM.';
+      msg.style.display = 'block'; return;
+    }
+    if (diff >= 600 && !confirm('This is ' + Math.floor(diff / 60) + ' h ' + (diff % 60) + ' m, which is very long. Check AM / PM. Continue anyway? (HR will have to approve it manually.)')) return;
+    if (!confirm('You entered ' + time12(inTime) + ' to ' + time12(outTime) + ' (' + Math.floor(diff / 60) + ' h ' + (diff % 60) + ' m). Submit this request?')) return;
+  } else if (inTime || outTime) {
+    if (!confirm('You entered ' + time12(inTime || outTime) + '. Is this correct (check AM / PM)?')) return;
+  }
   try {
     const data = await api('/attendance/request', {
       method: 'POST',

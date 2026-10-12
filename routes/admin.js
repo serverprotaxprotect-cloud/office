@@ -10,6 +10,7 @@ const { ensureOrgSetupComplete, requireOrgSetup } = require('../services/organiz
 const { reconcileAttendanceAlerts } = require('../services/performanceService');
 const { recalcIfOpenSafe } = require('../services/salaryService');
 const attendanceTools = require('../services/attendanceTools');
+const { processAttendanceRequest } = require('../services/attendanceRequestService');
 
 // Short sentence appended to attendance-edit responses so the admin knows what happened to salary.
 function salaryNote(rc) {
@@ -853,112 +854,8 @@ router.put('/attendance-requests/:id', adminAuth, async (req, res) => {
   if (!['Approved', 'Rejected'].includes(action))
     return res.status(400).json({ success: false, message: 'Invalid action' });
   try {
-    const reqRow = await db.query(
-      `SELECT id, emp_id, employee_name, TO_CHAR(request_date, 'YYYY-MM-DD') AS request_date,
-              check_in_time, check_out_time, reason, status, admin_remark,
-              reviewed_by, reviewed_at, created_at
-       FROM attendance_requests
-       WHERE id=$1`,
-      [id]
-    );
-    if (!reqRow.rows.length) return res.status(404).json({ success: false, message: 'Request not found' });
-    const r = reqRow.rows[0];
-
-    await db.query(
-      `UPDATE attendance_requests SET status=$1, reviewed_by=$2, reviewed_at=NOW(), admin_remark=$3 WHERE id=$4`,
-      [action, req.admin.name, admin_remark || null, id]
-    );
-
-    if (action === 'Approved') {
-      const dateStr = dateKey(r.request_date);
-      const [yearNum, monthNum] = dateStr.split('-').map(Number);
-      const month = monthNum;
-      const year  = yearNum;
-
-      const empRow = await db.query(`SELECT name, formal_name FROM emplist WHERE emp_id=$1`, [r.emp_id]);
-      const empName = empRow.rows[0]?.formal_name || empRow.rows[0]?.name || r.employee_name;
-
-      const existsRow = await db.query(
-        `SELECT emp_id, first_in, last_out FROM daily_attendance WHERE emp_id=$1 AND date::date=$2`,
-        [r.emp_id, dateStr]
-      );
-      const existingAttendance = existsRow.rows[0] || {};
-      const inTime  = check_in_time  || r.check_in_time  || existingAttendance.first_in;
-      const outTime = check_out_time || r.check_out_time || existingAttendance.last_out;
-
-      if (!inTime && !outTime) {
-        return res.status(400).json({ success: false, message: 'Approve karne ke liye IN ya OUT time required hai' });
-      }
-
-      const cfg = await getSettings();
-      const fullDayMins = parseInt(cfg.FULL_DAY_MINUTES || '480');
-      const halfDayMins = parseInt(cfg.HALF_DAY_MINUTES || '240');
-      const officeStartMins = toMinutes(cfg.OFFICE_START_TIME || '10:00:00');
-      const lateThreshold = parseInt(cfg.LATE_THRESHOLD_MINUTES || '0');
-      const lateMinutes = inTime ? Math.max(0, toMinutes(inTime) - officeStartMins - lateThreshold) : 0;
-      let workingHours = null;
-      let finalStatus = 'Pending';
-      if (inTime && outTime) {
-        const worked = Math.max(0, toMinutes(outTime) - toMinutes(inTime));
-        workingHours = `${Math.floor(worked/60)}h ${worked%60}m`;
-        finalStatus = worked >= fullDayMins ? 'Present' : worked >= halfDayMins ? 'Half Day' : 'Short Day';
-      }
-
-      if (existsRow.rows.length > 0) {
-        await db.query(
-          `UPDATE daily_attendance SET
-             first_in=COALESCE($1, first_in), last_out=COALESCE($2, last_out),
-             working_hours=COALESCE($3, working_hours), final_status=$4,
-             late_minutes=$5,
-             remark='Backdated - Approved', approved_by=$6, approved_at=NOW()
-           WHERE emp_id=$7 AND date::date=$8`,
-          [inTime || null, outTime || null, workingHours, finalStatus,
-           lateMinutes, req.admin.name, r.emp_id, dateStr]
-        );
-      } else {
-        await db.query(
-          `INSERT INTO daily_attendance
-             (date, emp_id, employee_name, formal_name, first_in, last_out,
-              working_hours, final_status, late_minutes, month, year, remark, approved_by, approved_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'Backdated - Approved',$12,NOW())`,
-          [dateStr, r.emp_id, empName, empName,
-           inTime || null, outTime || null, workingHours, finalStatus,
-           lateMinutes, month, year, req.admin.name]
-        );
-      }
-
-      const crypto = require('crypto');
-      if (inTime) {
-        await db.query(
-          `INSERT INTO attendance_log
-             (log_id, date, emp_id, employee_name, formal_name, action, time, marked_by, created_at)
-           SELECT $1::varchar,$2::timestamp,$3::varchar,$4::varchar,$5::varchar,'IN',$6::varchar,'Admin-Approved',NOW()
-            WHERE NOT EXISTS (SELECT 1 FROM attendance_log WHERE emp_id=$3 AND date::date=$2::date AND action='IN' AND time=$6)`,
-          ['ATD-' + crypto.randomBytes(4).toString('hex').toUpperCase(),
-           dateStr, r.emp_id, empName, empName, inTime]
-        ).catch(() => {});
-      }
-      if (outTime) {
-        await db.query(
-          `INSERT INTO attendance_log
-             (log_id, date, emp_id, employee_name, formal_name, action, time, marked_by, created_at)
-           SELECT $1::varchar,$2::timestamp,$3::varchar,$4::varchar,$5::varchar,'OUT',$6::varchar,'Admin-Approved',NOW()
-            WHERE NOT EXISTS (SELECT 1 FROM attendance_log WHERE emp_id=$3 AND date::date=$2::date AND action='OUT' AND time=$6)`,
-          ['ATD-' + crypto.randomBytes(4).toString('hex').toUpperCase(),
-           dateStr, r.emp_id, empName, empName, outTime]
-        ).catch(() => {});
-      }
-    }
-
-    let rc = null;
-    if (action === 'Approved') {
-      const approvedDate = dateKey(r.request_date);
-      await reconcileAttendanceAlerts(r.emp_id, approvedDate).catch(error => {
-        console.error('[Employee Monitor] attendance reconciliation failed:', error.message);
-      });
-      rc = await recalcIfOpenSafe(r.emp_id, approvedDate);
-    }
-    res.json({ success: true, message: `Request ${action}.` + salaryNote(rc), salary: rc });
+    const out = await processAttendanceRequest({ id, action, adminName: req.admin.name, admin_remark, check_in_time, check_out_time });
+    res.status(out.status).json(out.body);
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Server error: ' + err.message });

@@ -594,6 +594,16 @@ router.post('/request', authMiddleware, async (req, res) => {
     return res.status(400).json({ success: false, message: 'Future date ke liye request allowed nahi hai' });
   try {
     await ensureRequestsTable();
+    // OUT must be after IN (the common mistake is entering AM instead of PM). For a single time, compare with the day's existing punch.
+    const mins = t => { const [h, m] = String(t).split(':').map(Number); return h * 60 + (m || 0); };
+    let inChk = check_in_time || null, outChk = check_out_time || null;
+    if (!inChk || !outChk) {
+      const ex = await db.query(`SELECT first_in, last_out FROM daily_attendance WHERE emp_id=$1 AND date::date=$2::date LIMIT 1`, [emp_id, request_date]);
+      inChk = inChk || ex.rows[0]?.first_in || null;
+      outChk = outChk || ex.rows[0]?.last_out || null;
+    }
+    if (inChk && outChk && mins(outChk) <= mins(inChk))
+      return res.status(400).json({ success: false, message: 'Check-out time must be after check-in time. Please check AM / PM.' });
     const existing = await db.query(
       `SELECT id FROM attendance_requests WHERE emp_id=$1 AND request_date=$2 AND status='Pending'`,
       [emp_id, request_date]

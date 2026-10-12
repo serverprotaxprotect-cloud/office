@@ -67,7 +67,10 @@ router.get('/cron/monitor', async (req, res) => {
     let autoAbsent = [];
     try { autoAbsent = await require('../services/attendanceTools').autoAbsentAllOrgs(); }
     catch (e) { console.error('[auto-absent] cron:', e.message); }
-    res.json({ success: true, organizations: results, auto_absent: autoAbsent });
+    let autoApprove = [];
+    try { autoApprove = await require('../services/attendanceRequestService').autoApproveAllOrgs(); }
+    catch (e) { console.error('[auto-approve] cron:', e.message); }
+    res.json({ success: true, organizations: results, auto_absent: autoAbsent, auto_approve: autoApprove });
   } catch (error) {
     console.error('[Employee Monitor] cron:', error);
     res.status(500).json({ success: false, message: 'Monitor execution failed' });

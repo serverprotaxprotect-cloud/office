@@ -570,6 +570,17 @@
               </select>
             </div>
             <div>
+              <label>Auto-approve pending attendance requests</label>
+              <select id="autoApproveRequests">
+                <option value="No">Off (default)</option>
+                <option value="Yes">On: approve earlier-month requests left pending</option>
+              </select>
+            </div>
+            <div>
+              <label>Auto-approve from day of month</label>
+              <input type="number" id="autoApproveDay" min="1" max="28" value="5">
+            </div>
+            <div>
               <label>Auto-mark Absent (daily)</label>
               <select id="autoAbsentEnabled">
                 <option value="No">Off (default)</option>
@@ -1682,6 +1693,8 @@ async function loadSalarySettings() {
       document.getElementById('saturdayOffWeeks').value = data.settings.SATURDAY_OFF_WEEKS || '';
       document.getElementById('salaryHolidayWorkPay').value = data.settings.SALARY_HOLIDAY_WORK_PAY || 'none';
       document.getElementById('autoAbsentEnabled').value = data.settings.AUTO_ABSENT_ENABLED || 'No';
+      document.getElementById('autoApproveRequests').value = data.settings.AUTO_APPROVE_REQUESTS || 'No';
+      document.getElementById('autoApproveDay').value = data.settings.AUTO_APPROVE_DAY || '5';
     }
   } catch {}
 }
@@ -1701,7 +1714,9 @@ async function saveSalarySettings() {
         WEEKLY_OFF_DAYS: document.getElementById('weeklyOffDays').value,
         SATURDAY_OFF_WEEKS: document.getElementById('saturdayOffWeeks').value,
         SALARY_HOLIDAY_WORK_PAY: document.getElementById('salaryHolidayWorkPay').value,
-        AUTO_ABSENT_ENABLED: document.getElementById('autoAbsentEnabled').value
+        AUTO_ABSENT_ENABLED: document.getElementById('autoAbsentEnabled').value,
+        AUTO_APPROVE_REQUESTS: document.getElementById('autoApproveRequests').value,
+        AUTO_APPROVE_DAY: String(Math.min(28, Math.max(1, parseInt(document.getElementById('autoApproveDay').value, 10) || 5)))
       })
     });
     msg.className = data.success ? 'alert alert-success' : 'alert alert-error';
