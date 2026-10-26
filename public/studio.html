@@ -12,7 +12,7 @@
 <style>
   :root {
     --bg:#0d0e12; --bg2:#12141a; --panel:#171a22; --panel2:#1d212b; --line:#2a2f3c; --ink:#eceef4; --muted:#8c93a7;
-    --accent:#ffb020; --accent-ink:#1a1204; --brand:#7c5cff; --rec:#ff4d4f; --ok:#34d399; --bad:#ff5d5d;
+    --accent:#ffb020; --accent-ink:#1a1204; --brand:#7c5cff; --rec:#ff4d4f; --ok:#34d399; --bad:#ff5d5d; --warn:#fbbf24;
     --paper:#f6f1e4; --paper-ink:#22201a; --shadow:0 10px 30px rgba(0,0,0,.35);
     --display:'Oswald','Arial Narrow',Impact,sans-serif; --ui:'Inter',system-ui,'Segoe UI',Arial,sans-serif; --mono:'Courier Prime','Courier New',monospace;
   }
@@ -25,7 +25,6 @@
   body { font-family:var(--ui); background:var(--bg); color:var(--ink); -webkit-font-smoothing:antialiased; }
   button { font-family:inherit; }
 
-  /* ---- header: the "control room" bar ---- */
   header { display:flex; align-items:center; gap:14px; padding:10px 18px; background:linear-gradient(180deg,#14151b,#0d0e12); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:30; }
   :root[data-theme="light"] header { background:linear-gradient(180deg,#26233a,#1b1a2b); }
   .logo { display:flex; align-items:center; gap:10px; }
@@ -55,7 +54,6 @@
   h2.page { font-family:var(--display); font-weight:600; letter-spacing:1.2px; text-transform:uppercase; font-size:22px; margin:0 0 4px; }
   .sub { color:var(--muted); font-size:13px; margin-bottom:16px; }
 
-  /* ---- stage tiles (film strip) ---- */
   .strip { display:grid; grid-template-columns:repeat(6,minmax(120px,1fr)); gap:10px; margin-bottom:18px; }
   .stage { --c:#8c93a7; position:relative; text-align:left; border:1px solid var(--line); background:var(--panel); color:var(--ink); border-radius:12px; padding:20px 14px 12px; cursor:pointer; overflow:hidden; transition:transform .12s, border-color .12s, box-shadow .12s; }
   .stage::before, .stage::after { content:''; position:absolute; left:0; right:0; height:7px; background:repeating-linear-gradient(90deg,var(--line) 0 6px,transparent 6px 13px); opacity:.9; }
@@ -65,7 +63,6 @@
   .stage .n { display:block; font-family:var(--display); font-size:34px; font-weight:600; line-height:1; color:var(--c); }
   .stage .l { display:block; font-size:12px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; margin-top:5px; }
 
-  /* ---- list + detail ---- */
   .work { display:grid; grid-template-columns:minmax(300px,380px) 1fr; gap:16px; align-items:start; }
   .listcol { display:flex; flex-direction:column; gap:10px; }
   .tcard { background:var(--panel); border:1px solid var(--line); border-left:5px solid var(--c,#8c93a7); border-radius:12px; padding:12px 14px; cursor:pointer; transition:.12s; }
@@ -75,7 +72,11 @@
   .meta { color:var(--muted); font-size:12.5px; margin-top:6px; line-height:1.5; }
   .chip { display:inline-block; font-size:11px; font-weight:700; padding:3px 9px; border-radius:999px; background:var(--panel2); color:var(--ink); border:1px solid var(--line); margin:2px 5px 0 0; }
   .chip.st { background:var(--c); color:#fff; border-color:transparent; }
-  .detail { background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:0; box-shadow:var(--shadow); overflow:hidden; }
+  .chip.fmt { background:rgba(124,92,255,.18); border-color:rgba(124,92,255,.5); }
+  .chip.rv-p { background:rgba(251,191,36,.18); border-color:rgba(251,191,36,.6); color:var(--warn); }
+  .chip.rv-a { background:rgba(52,211,153,.15); border-color:rgba(52,211,153,.5); color:var(--ok); }
+  .chip.rv-c { background:rgba(255,93,93,.15); border-color:rgba(255,93,93,.5); color:var(--bad); }
+  .detail { background:var(--panel); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow); overflow:hidden; }
   .detail .dh { padding:18px 20px 14px; border-bottom:1px solid var(--line); background:linear-gradient(135deg,var(--panel2),var(--panel)); }
   .detail h3 { font-family:var(--display); font-weight:600; letter-spacing:.6px; font-size:26px; margin:6px 0 4px; line-height:1.15; }
   .pipe { display:flex; gap:6px; margin:12px 0 4px; }
@@ -84,11 +85,11 @@
   .actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; align-items:center; }
   .actions label { margin:0; }
   .dbody { padding:16px 20px 22px; }
-  .facts { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:18px; }
+  .facts { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:14px; }
   .fact { background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:9px 12px; }
   .fact span { display:block; font-size:10.5px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--muted); }
   .fact b { font-size:14px; }
-  .sect { font-family:var(--display); letter-spacing:1.5px; text-transform:uppercase; font-size:13px; color:var(--accent); margin:18px 0 8px; display:flex; align-items:center; gap:8px; }
+  .sect { font-family:var(--display); letter-spacing:1.5px; text-transform:uppercase; font-size:13px; color:var(--accent); margin:20px 0 8px; display:flex; align-items:center; gap:8px; }
   .sect::after { content:''; flex:1; height:1px; background:var(--line); }
   .hook { font-size:18px; font-weight:600; line-height:1.5; border-left:4px solid var(--accent); padding:4px 0 4px 14px; }
   .scriptpaper { background:var(--paper); color:var(--paper-ink); font-family:var(--mono); font-size:16px; line-height:1.75; border-radius:10px; padding:18px 22px; white-space:pre-wrap; box-shadow:inset 0 0 0 1px rgba(0,0,0,.08); }
@@ -97,8 +98,27 @@
   .kp li::before { content:'\2713'; color:var(--ok); font-weight:800; }
   .empty { text-align:center; color:var(--muted); padding:60px 20px; }
   .empty .big { font-size:46px; margin-bottom:8px; }
+  .meter { display:flex; align-items:center; gap:10px; margin:8px 0 0; font-size:13px; font-weight:600; flex-wrap:wrap; }
+  .meter .bar { flex:1; min-width:120px; height:8px; background:var(--line); border-radius:6px; overflow:hidden; }
+  .meter .bar i { display:block; height:100%; background:var(--ok); }
+  .meter.over .bar i { background:var(--bad); } .meter.near .bar i { background:var(--warn); }
+  .banner { border-radius:12px; padding:12px 14px; margin:0 0 14px; font-size:14px; border:1px solid var(--line); }
+  .banner.p { background:rgba(251,191,36,.12); border-color:rgba(251,191,36,.5); }
+  .banner.a { background:rgba(52,211,153,.12); border-color:rgba(52,211,153,.45); }
+  .banner.c { background:rgba(255,93,93,.12); border-color:rgba(255,93,93,.45); }
+  .cl { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:6px 14px; }
+  .cl label.ck { display:flex; align-items:center; gap:9px; margin:0; padding:7px 10px; background:var(--panel2); border:1px solid var(--line); border-radius:9px; font-size:13.5px; font-weight:500; letter-spacing:0; text-transform:none; color:var(--ink); cursor:pointer; }
+  .cl label.ck input { width:auto; accent-color:var(--accent); }
+  .cl label.ck.done { border-color:rgba(52,211,153,.5); }
+  .thread { display:flex; flex-direction:column; gap:8px; }
+  .th { border-radius:10px; padding:9px 12px; font-size:13.5px; background:var(--panel2); border:1px solid var(--line); }
+  .th small { color:var(--muted); display:block; margin-bottom:2px; font-weight:600; }
+  .th.log { background:transparent; border:0; border-left:3px solid var(--line); border-radius:0; color:var(--muted); font-size:12.5px; padding:2px 10px; }
+  .copyrow { display:flex; gap:8px; align-items:flex-start; }
+  .copyrow > div { flex:1; }
+  .box { background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-size:14px; white-space:pre-wrap; word-break:break-word; }
+  .child { display:flex; align-items:center; gap:10px; padding:8px 10px; background:var(--panel2); border:1px solid var(--line); border-radius:9px; margin-bottom:6px; cursor:pointer; }
 
-  /* ---- controls ---- */
   .btn { background:var(--accent); color:var(--accent-ink); border:0; border-radius:9px; padding:10px 16px; font-weight:700; font-size:13.5px; cursor:pointer; }
   .btn:hover { filter:brightness(1.08); }
   .btn.alt { background:transparent; color:var(--ink); border:1.5px solid var(--line); }
@@ -124,13 +144,27 @@
   :root[data-theme="light"] .msg.err { color:#b91c1c; } :root[data-theme="light"] .msg.ok { color:#047857; }
   .center { max-width:430px; margin:56px auto; }
   .guide { background:var(--panel2); border:1px dashed var(--line); border-radius:12px; padding:12px 14px; font-size:13px; margin-bottom:14px; line-height:1.55; }
+  details.more { border:1px solid var(--line); border-radius:10px; padding:2px 12px 10px; margin-top:12px; }
+  details.more summary { cursor:pointer; font-weight:700; padding:10px 0; font-size:13.5px; }
+
+  .cal { display:grid; grid-template-columns:repeat(7,1fr); gap:6px; }
+  .cal .dow { text-align:center; font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:1px; padding:4px 0; }
+  .cal .day { min-height:96px; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:6px; overflow:hidden; }
+  .cal .day.today { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
+  .cal .day.out { opacity:.4; }
+  .cal .day .d { font-size:12px; font-weight:700; color:var(--muted); margin-bottom:4px; }
+  .cal .ev { display:block; width:100%; text-align:left; font-size:11.5px; font-weight:600; padding:3px 6px; border-radius:6px; margin-bottom:3px; border:0; color:#fff; background:var(--c); cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
   .backdrop { position:fixed; inset:0; background:rgba(0,0,0,.7); backdrop-filter:blur(3px); display:none; align-items:flex-start; justify-content:center; padding:20px 14px; overflow:auto; z-index:60; }
   .backdrop.open { display:flex; }
-  .modal { background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:20px 22px; width:min(820px,100%); margin:auto; box-shadow:var(--shadow); }
+  .modal { background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:20px 22px; width:min(860px,100%); margin:auto; box-shadow:var(--shadow); }
   .modal h2 { font-family:var(--display); letter-spacing:1px; text-transform:uppercase; font-size:22px; margin:0; flex:1; }
+  .fmtpick { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .fmtpick label.opt { margin:0; padding:10px; border:1.5px solid var(--line); border-radius:10px; cursor:pointer; text-transform:none; letter-spacing:0; font-size:13px; color:var(--ink); font-weight:600; }
+  .fmtpick label.opt small { display:block; color:var(--muted); font-weight:500; margin-top:3px; font-size:11.5px; }
+  .fmtpick input { width:auto; margin-right:6px; accent-color:var(--accent); }
+  .fmtpick label.opt.sel { border-color:var(--accent); background:var(--panel2); }
 
-  /* ---- teleprompter ---- */
   #tp { position:fixed; inset:0; background:#000; color:#fff; z-index:100; display:none; flex-direction:column; }
   #tp.open { display:flex; }
   #tpBar { display:flex; gap:8px; align-items:center; padding:10px 12px; background:#101218; flex-wrap:wrap; border-bottom:1px solid #222; }
@@ -140,8 +174,10 @@
   #tpScroll { flex:1; overflow-y:scroll; padding:40vh 7vw 80vh; scrollbar-width:none; }
   #tpScroll::-webkit-scrollbar { display:none; }
   #tpText { font-family:var(--ui); font-weight:700; line-height:1.5; white-space:pre-wrap; text-align:center; }
+  #tpText.mirror { transform:scaleX(-1); }
   .tp-h { color:var(--accent); font-family:var(--display); font-size:.55em; letter-spacing:3px; text-transform:uppercase; display:block; margin:1.4em 0 .3em; }
   #tpLine { position:absolute; left:0; right:0; top:40%; height:2px; background:rgba(255,176,32,.55); pointer-events:none; box-shadow:0 0 12px rgba(255,176,32,.6); z-index:101; }
+  #tpCount { position:absolute; inset:0; display:none; align-items:center; justify-content:center; font-family:var(--display); font-size:34vw; color:var(--accent); background:rgba(0,0,0,.75); z-index:102; }
 
   @media (max-width:980px) { .strip { grid-template-columns:repeat(3,1fr); } .work { grid-template-columns:1fr; } }
   @media (max-width:760px) {
@@ -150,6 +186,7 @@
     #side.show { display:flex !important; gap:6px; } #side .sec { display:none; }
     #side button { width:auto; margin:0; padding:9px 12px; }
     main { padding:14px 12px 60px; } .grid2 { grid-template-columns:1fr; } .rec { display:none; } .chip-user { display:none; }
+    .fmtpick { grid-template-columns:1fr; } .cal .day { min-height:70px; padding:3px; } .cal .ev { font-size:10px; padding:2px 4px; }
   }
 </style>
 </head>
@@ -181,10 +218,11 @@
     <button class="go" id="tpPlay" onclick="tpToggle()">&#9654; Start</button>
     <button onclick="tpSpeed(-1)">Slower</button><span id="tpSpeedLbl"></span><button onclick="tpSpeed(1)">Faster</button>
     <button onclick="tpSize(-6)">A-</button><button onclick="tpSize(6)">A+</button>
+    <button onclick="tpMirror()">Mirror</button>
     <button onclick="tpStep(-1)">&larr; Prev</button><button onclick="tpStep(1)">Next &rarr;</button>
     <span id="tpTitle"></span>
   </div>
-  <div id="tpLine"></div>
+  <div id="tpLine"></div><div id="tpCount"></div>
   <div id="tpScroll"><div id="tpText"></div></div>
 </div>
 
@@ -192,11 +230,28 @@
 const STATUSES = ['Idea','Script Ready','Ready to Shoot','Shot','Editing','Published'];
 const STAGE_COLOR = { 'Idea':'#8c93a7', 'Script Ready':'#4c9aff', 'Ready to Shoot':'#ffb020', 'Shot':'#ff4d4f', 'Editing':'#a970ff', 'Published':'#34d399', 'Archived':'#6b7280' };
 const STAGE_HINT = { 'Idea':'Rough topics', 'Script Ready':'Script written', 'Ready to Shoot':'Waiting for camera', 'Shot':'Recorded', 'Editing':'In edit', 'Published':'Live' };
-const PLATFORMS = ['YouTube','Instagram Reel','YouTube Shorts','LinkedIn','Facebook','Other'];
+const FORMATS = {
+  Shorts: { label:'Shorts / Reels', desc:'Instagram Reels, YouTube Shorts, Facebook Reels', target:60 },
+  Long:   { label:'Long video', desc:'YouTube long format', target:300 },
+  Both:   { label:'Long + Shorts', desc:'A long video that shorts are cut from', target:420 },
+};
 const CATEGORIES = ['GST','Income Tax','ROC / MCA','Audit','Accounting','Startup','Labour Law','General'];
+const FACT_ITEMS = [['section','Section / rule number is correct'],['source','Notification or circular link added'],['date','Effective date and due date checked'],['disclaimer','Disclaimer added ("general information, not advice")'],['na','Not applicable (general topic)']];
+const SHOOT_ITEMS = [['script','Script read once'],['mic','Microphone checked'],['light','Light and background ready'],['outfit','Outfit ready'],['battery','Camera / phone charged'],['space','Storage space free']];
+const PUB_ITEMS = [['title','Title written'],['description','Description written'],['hashtags','Hashtags added'],['thumbnail','Thumbnail ready'],['captions','Captions / subtitles added'],['cta','End screen / call to action added']];
+const TEMPLATES = {
+  'Shorts: Myth vs Fact': { fmt:'Shorts', hook:'Most people think [common belief]. But that is wrong!', script:'HOOK (first 3 seconds):\nMost people think [common belief]. But that is wrong!\n\nMYTH:\n[What people believe]\n\nFACT:\n[What the law actually says, with section or rule number]\n\nWHY IT MATTERS:\n[Penalty, interest or benefit in one line]\n\nCALL TO ACTION:\nFollow for more simple tax and compliance tips.', key_points:'Section or rule number\nOne example with a number\nDisclaimer line' },
+  'Shorts: Due date alert': { fmt:'Shorts', hook:'[Return or form name] is due on [date]. Have you filed it?', script:'HOOK (first 3 seconds):\n[Return or form name] is due on [date]. Have you filed it?\n\nWHO MUST FILE:\n[Who this applies to]\n\nWHAT HAPPENS IF YOU MISS IT:\n[Late fee or interest in one line]\n\nWHAT TO DO NOW:\n[1-2 simple steps]\n\nCALL TO ACTION:\nSave this video and share it with someone who needs the reminder.', key_points:'Exact due date\nLate fee amount\nWho is covered' },
+  'Shorts: Common mistake': { fmt:'Shorts', hook:'Stop making this mistake in [topic]!', script:'HOOK (first 3 seconds):\nStop making this mistake in [topic]!\n\nTHE MISTAKE:\n[What people do wrong]\n\nTHE RIGHT WAY:\n[What to do instead]\n\nRESULT:\n[Money or time saved]\n\nCALL TO ACTION:\nComment if you want a full video on this.', key_points:'One real example\nSection or rule number' },
+  'Long: Explainer': { fmt:'Long', hook:'In this video you will learn [topic] in simple words, with examples.', script:'INTRO (30 seconds):\nIn this video you will learn [topic] in simple words, with examples.\n\nWHY THIS MATTERS:\n[Who is affected, what is at stake]\n\nTHE BASICS:\n[Definition in plain language]\n\nSTEP BY STEP:\n1. [Step one]\n2. [Step two]\n3. [Step three]\n\nEXAMPLE:\n[A worked example with numbers]\n\nCOMMON MISTAKES:\n[Two or three mistakes to avoid]\n\nSUMMARY:\n[Three takeaways]\n\nCALL TO ACTION:\nLike, subscribe and tell us in the comments what you want explained next.', key_points:'Section or rule number\nDue date\nPenalty or interest\nOne worked example\nDisclaimer line' },
+  'Long: Notification explained': { fmt:'Long', hook:'A new notification just changed [topic]. Here is what it means for you.', script:'INTRO:\nA new notification just changed [topic]. Here is what it means for you.\n\nWHAT CHANGED:\n[Old rule versus new rule]\n\nEFFECTIVE FROM:\n[Date]\n\nWHO IS AFFECTED:\n[Who must act]\n\nWHAT YOU SHOULD DO:\n[Clear steps]\n\nQUESTIONS PEOPLE ASK:\n[Two or three FAQs]\n\nCALL TO ACTION:\nSubscribe so you never miss a compliance update.', key_points:'Notification number and date\nEffective date\nWhat to do now' },
+  'Long: Case study': { fmt:'Long', hook:'A client came to us with [problem]. This is how we solved it.', script:'INTRO:\nA client came to us with [problem]. This is how we solved it.\n\nTHE SITUATION:\n[Background without any client name]\n\nTHE PROBLEM:\n[What was going wrong]\n\nWHAT WE DID:\n[Steps taken]\n\nTHE OUTCOME:\n[Result]\n\nLESSONS FOR YOU:\n[Three lessons]\n\nCALL TO ACTION:\nIf you face something similar, reach out to us.', key_points:'Do not reveal client identity\nSection or rule numbers\nDisclaimer line' },
+  'Both: Long video with shorts plan': { fmt:'Both', hook:'In this video: [topic], explained with examples.', script:'INTRO:\nIn this video: [topic], explained with examples.\n\nPART 1 - [first idea]   (SHORT 1 can be cut from here)\n[Explanation]\n\nPART 2 - [second idea]   (SHORT 2 can be cut from here)\n[Explanation]\n\nPART 3 - [common mistake]   (SHORT 3 can be cut from here)\n[Explanation]\n\nSUMMARY:\n[Three takeaways]\n\nCALL TO ACTION:\nSubscribe for more.', key_points:'Mark the best 20-60 second moments for shorts\nSection or rule number\nDisclaimer line' },
+};
 const $ = id => document.getElementById(id);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 let mode = null, me = null, topics = [], members = [], ideas = [], view = 'board', stage = null, selId = null;
+let calMonth = new Date().toISOString().slice(0, 7), shootDate = null, thread = [];
 
 // ---------- theme ----------
 function applyTheme(t) { document.documentElement.setAttribute('data-theme', t); $('themeBtn').innerHTML = t === 'light' ? '&#9790;' : '&#9728;'; }
@@ -222,6 +277,7 @@ async function api(path, opts = {}) {
   return data;
 }
 const msgBox = (text, ok) => `<div class="msg ${ok ? 'ok' : 'err'}">${esc(text)}</div>`;
+const isAdmin = () => mode === 'admin';
 
 // ---------- Boot ----------
 async function boot() {
@@ -279,33 +335,62 @@ async function loadAll() {
   const t = await api('/topics' + (view === 'archive' ? '?archived=1' : ''));
   topics = t.topics || [];
   const i = await api('/ideas'); ideas = i.ideas || [];
-  if (mode === 'admin') { const m = await api('/members'); members = m.members || []; }
+  if (isAdmin()) { const m = await api('/members'); members = m.members || []; }
 }
+
+// ---------- Helpers ----------
+const topicById = id => topics.find(t => t.id === id);
+function parseTarget(label, fmt) {
+  const m = String(label || '').match(/(\d+(?:\.\d+)?)\s*(sec|s|min|m)\b/i);
+  if (m) return Math.round(parseFloat(m[1]) * (/^m/i.test(m[2]) ? 60 : 1));
+  return FORMATS[fmt]?.target || null;
+}
+function speakSeconds(text) { const w = (String(text || '').match(/\S+/g) || []).length; return Math.round(w / 130 * 60); }
+function fmtSec(sec) { const m = Math.floor(sec / 60), s = sec % 60; return m ? `${m} min ${s} sec` : `${s} sec`; }
+function meterHtml(script, label, fmt, id) {
+  const sec = speakSeconds(script);
+  const target = parseTarget(label, fmt);
+  const pct = target ? Math.min(100, Math.round(sec / target * 100)) : 0;
+  const cls = !target ? '' : (sec > target * 1.1 ? 'over' : (sec > target * 0.9 ? 'near' : ''));
+  const note = !target ? '' : (sec > target * 1.1 ? ` · ${fmtSec(sec - target)} over the ${fmtSec(target)} target` : ` · target ${fmtSec(target)}`);
+  const shortWarn = fmt === 'Shorts' && sec > 90 ? ' · Shorts work best under 90 seconds' : '';
+  return `<div class="meter ${cls}" ${id ? `id="${id}"` : ''}><span>&#9201; About ${fmtSec(sec)} when spoken${esc(note)}${shortWarn}</span><div class="bar"><i style="width:${pct}%"></i></div></div>`;
+}
+function reviewChip(t) {
+  if (t.review_status === 'Pending') return '<span class="chip rv-p">Needs review</span>';
+  if (t.review_status === 'Approved') return '<span class="chip rv-a">Approved</span>';
+  if (t.review_status === 'Changes') return '<span class="chip rv-c">Changes asked</span>';
+  return '';
+}
+const fmtChip = t => t.content_format ? `<span class="chip fmt">${esc(FORMATS[t.content_format]?.label || t.content_format)}</span>` : '';
 
 // ---------- Render ----------
 function render() {
-  const isAdmin = mode === 'admin';
-  const tabs = isAdmin
-    ? [['board', 'Board'], ['ideas', 'Ideas', ideas.length], ...(me.can_manage_team ? [['team', 'Studio Team']] : []), ['archive', 'Archived']]
-    : [['mine', 'My Topics'], ['idea', 'Send an Idea']];
+  const pendingReviews = topics.filter(t => t.review_status === 'Pending').length;
+  const tabs = isAdmin()
+    ? [['board', 'Board', pendingReviews], ['calendar', 'Calendar'], ['shoot', 'Shoot Day'], ['ideas', 'Ideas', ideas.length], ...(me.can_manage_team ? [['team', 'Studio Team']] : []), ['archive', 'Archived']]
+    : [['mine', 'My Topics'], ['calendar', 'Calendar'], ['shoot', 'Shoot Day'], ['idea', 'Send an Idea']];
   if (!tabs.some(t => t[0] === view)) view = tabs[0][0];
-  const icons = { board: '&#127916;', ideas: '&#128161;', team: '&#128101;', archive: '&#128452;', mine: '&#127916;', idea: '&#128161;' };
+  const icons = { board: '&#127916;', calendar: '&#128197;', shoot: '&#127909;', ideas: '&#128161;', team: '&#128101;', archive: '&#128452;', mine: '&#127916;', idea: '&#128161;' };
   const side = $('side');
   side.innerHTML = '<div class="sec">Production</div>' + tabs.map(([k, l, n]) =>
     `<button class="${view === k ? 'on' : ''}" onclick="setView('${k}')"><span class="ic">${icons[k]}</span>${l}${n ? `<span class="badge">${n}</span>` : ''}</button>`).join('');
   side.style.display = 'block'; side.classList.add('show');
   let html = '';
   if (view === 'board' || view === 'mine') html = workHtml();
+  else if (view === 'calendar') html = calendarHtml();
+  else if (view === 'shoot') html = shootHtml();
   else if (view === 'archive') html = `<h2 class="page">Archived</h2><div class="sub">Topics that were put away.</div><div class="listcol" style="max-width:560px">${topics.filter(t => t.status === 'Archived').map(cardHtml).join('') || '<div class="empty">Nothing archived.</div>'}</div>`;
   else if (view === 'ideas') html = ideasAdminHtml();
   else if (view === 'team') html = '<h2 class="page">Studio Team</h2><div class="sub">Who works in the studio.</div><div id="teamBox">Loading…</div>';
   else if (view === 'idea') html = ideaFormHtml();
   $('app').innerHTML = html;
   if (view === 'team') renderTeam();
+  if ((view === 'board' || view === 'mine') && selId) loadThread(selId);
 }
 async function setView(v) { view = v; selId = null; if (v === 'archive') await loadAll(); render(); }
 
-// ---------- Stages, list, detail ----------
+// ---------- Board: stages, list, detail ----------
 function pickStage(s) { stage = s; selId = null; render(); }
 function pickTopic(id) {
   selId = id;
@@ -313,69 +398,219 @@ function pickTopic(id) {
   render();
   if (window.innerWidth <= 980) $('detailBox')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
+function openFromElsewhere(id) {
+  const t = topicById(id); if (!t) return;
+  view = isAdmin() ? 'board' : 'mine'; stage = t.status === 'Archived' ? 'Idea' : t.status; selId = id; render();
+}
 function cardHtml(t) {
   const c = STAGE_COLOR[t.status] || '#8c93a7';
   return `<div class="tcard ${t.id === selId ? 'sel' : ''}" style="--c:${c}" onclick="pickTopic(${t.id})"><b>${esc(t.title)}</b>
-    <span class="chip st" style="--c:${c}">${esc(t.status)}</span>${t.platform ? `<span class="chip">${esc(t.platform)}</span>` : ''}${t.category ? `<span class="chip">${esc(t.category)}</span>` : ''}
+    <span class="chip st" style="--c:${c}">${esc(t.status)}</span>${fmtChip(t)}${reviewChip(t)}${t.category ? `<span class="chip">${esc(t.category)}</span>` : ''}
     <div class="meta">${t.shoot_date ? '&#128197; ' + esc(t.shoot_date) + ' · ' : ''}${t.presenter_name ? '&#127908; ' + esc(t.presenter_name) : 'No presenter yet'}${t.writer_name ? ' · &#9998; ' + esc(t.writer_name) : ''}</div></div>`;
 }
 function workHtml() {
-  const isAdmin = mode === 'admin';
   if (!stage) { const first = STATUSES.find(s => topics.some(t => t.status === s)); stage = first || 'Idea'; }
   const tiles = STATUSES.map(s => {
     const n = topics.filter(t => t.status === s).length;
     return `<button class="stage ${stage === s ? 'on' : ''}" style="--c:${STAGE_COLOR[s]}" onclick="pickStage('${s}')"><span class="n">${n}</span><span class="l">${s}</span><span class="muted" style="font-size:11px">${STAGE_HINT[s]}</span></button>`;
   }).join('');
   const list = topics.filter(t => t.status === stage);
-  if (selId && !list.some(t => t.id === selId)) selId = null;
+  if (selId && !topics.some(t => t.id === selId && t.status === stage)) selId = null;
   if (!selId && list.length) selId = list[0].id;
-  const sel = topics.find(t => t.id === selId);
-  return `<div class="row" style="margin-bottom:6px"><div style="flex:1"><h2 class="page">${isAdmin ? 'Production Board' : 'My Topics'}</h2>
-      <div class="sub" style="margin:0 0 10px">${isAdmin ? 'Pick a stage to see its topics, then open one to read, edit or move it forward.' : 'Topics assigned to you. Pick a stage, then open a topic.'}</div></div>
-      ${isAdmin ? '<button class="btn" onclick="openTopic(0)">+ New Topic</button>' : ''}</div>
+  const sel = topicById(selId);
+  return `<div class="row" style="margin-bottom:6px"><div style="flex:1"><h2 class="page">${isAdmin() ? 'Production Board' : 'My Topics'}</h2>
+      <div class="sub" style="margin:0 0 10px">${isAdmin() ? 'Pick a stage to see its topics, then open one to read, edit or move it forward.' : 'Topics assigned to you. Pick a stage, then open a topic.'}</div></div>
+      ${isAdmin() ? '<button class="btn" onclick="openTopic(0)">+ New Topic</button>' : ''}</div>
     <div class="strip">${tiles}</div>
     <div class="work"><div class="listcol">${list.map(cardHtml).join('') || `<div class="card empty"><div class="big">&#127902;</div>No topics in <b>${esc(stage)}</b> yet.</div>`}</div>
     <div id="detailBox">${sel ? detailHtml(sel) : `<div class="detail"><div class="empty"><div class="big">&#127916;</div>Select a topic to see its details here.</div></div>`}</div></div>`;
 }
+function checklistHtml(t, group, items, allowed) {
+  const g = (t.checks && t.checks[group]) || {};
+  return `<div class="cl">${items.map(([k, label]) => `<label class="ck ${g[k] ? 'done' : ''}"><input type="checkbox" ${g[k] ? 'checked' : ''} ${allowed ? '' : 'disabled'} onchange="toggleCheck(${t.id},'${group}','${k}',this.checked)">${esc(label)}</label>`).join('')}</div>`;
+}
+function reviewBlock(t) {
+  const adm = isAdmin();
+  const isWriter = !adm && me.role === 'Writer' && t.writer_id;
+  let h = '';
+  if (t.review_status === 'Pending') {
+    h = `<div class="banner p"><b>Waiting for review.</b> ${adm ? 'Read the script, then approve it or ask for changes.' : 'You will be notified when it is reviewed.'}
+      ${adm ? `<div class="actions"><button class="btn ok" onclick="reviewAction(${t.id},'approve')">&#10003; Approve script</button><button class="btn alt" onclick="reviewAction(${t.id},'changes')">Ask for changes</button></div>` : ''}</div>`;
+  } else if (t.review_status === 'Approved') {
+    h = `<div class="banner a"><b>Script approved</b>${t.reviewed_by ? ' by ' + esc(t.reviewed_by) : ''}.${t.review_note ? ' ' + esc(t.review_note) : ''}</div>`;
+  } else if (t.review_status === 'Changes') {
+    h = `<div class="banner c"><b>Changes asked:</b> ${esc(t.review_note || '')}${(adm || isWriter) ? `<div class="actions"><button class="btn" onclick="reviewAction(${t.id},'submit')">Send for review again</button></div>` : ''}</div>`;
+  } else if ((adm || isWriter) && t.script) {
+    h = `<div class="actions" style="margin:0 0 14px"><button class="btn alt" onclick="reviewAction(${t.id},'submit')">Send script for review</button>
+      <span class="muted">${me.review_required ? 'Approval is required before shooting.' : 'Optional: ask for a second pair of eyes.'}</span></div>`;
+  }
+  return h;
+}
 function detailHtml(t) {
   const c = STAGE_COLOR[t.status];
   const idx = STATUSES.indexOf(t.status);
-  const isAdmin = mode === 'admin';
-  const canEdit = isAdmin || (me.role === 'Writer' && t.writer_id) || (me.role === 'Presenter' && t.presenter_id);
+  const adm = isAdmin();
+  const canEdit = adm || (me.role === 'Writer' && t.writer_id) || (me.role === 'Presenter' && t.presenter_id);
   const kp = String(t.key_points || '').split(/\r?\n/).map(x => x.replace(/^[\s\-•*]+/, '').trim()).filter(Boolean);
+  const isWriter = adm || (me.role === 'Writer' && t.writer_id);
+  const isPresenter = adm || (me.role === 'Presenter' && t.presenter_id);
+  const children = topics.filter(x => x.parent_id === t.id);
+  const parent = t.parent_id ? topicById(t.parent_id) : null;
+  const pubFields = [['pub_title', 'Title'], ['pub_description', 'Description'], ['pub_hashtags', 'Hashtags'], ['thumbnail_text', 'Thumbnail text']].filter(([k]) => t[k]);
   return `<div class="detail" style="--c:${c}">
-    <div class="dh"><span class="chip st" style="--c:${c}">${esc(t.status)}</span>${t.platform ? `<span class="chip">${esc(t.platform)}</span>` : ''}${t.category ? `<span class="chip">${esc(t.category)}</span>` : ''}
+    <div class="dh"><span class="chip st" style="--c:${c}">${esc(t.status)}</span>${fmtChip(t)}${reviewChip(t)}${t.category ? `<span class="chip">${esc(t.category)}</span>` : ''}
       <h3>${esc(t.title)}</h3>
+      ${parent ? `<div class="muted">Short cut from the long video: <a href="#" style="color:var(--accent)" onclick="openFromElsewhere(${parent.id});return false">${esc(parent.title)}</a></div>` : ''}
       <div class="pipe">${STATUSES.map((s, i) => `<i class="${i <= idx ? 'd' : ''}" title="${s}"></i>`).join('')}</div>
       <div class="actions">
-        ${isAdmin ? `<label>Move to</label><select class="statusSel" onchange="quickStatus(${t.id}, this.value)">${STATUSES.concat(['Archived']).map(s => `<option ${s === t.status ? 'selected' : ''}>${s}</option>`).join('')}</select>` : ''}
+        ${adm ? `<label>Move to</label><select class="statusSel" onchange="quickStatus(${t.id}, this.value)">${STATUSES.concat(['Archived']).map(s => `<option ${s === t.status ? 'selected' : ''}>${s}</option>`).join('')}</select>` : ''}
         ${canEdit ? `<button class="btn" onclick="openTopic(${t.id})">&#9998; Edit</button>` : ''}
         <button class="btn vio" onclick="openTeleprompter(${t.id})">&#127909; Teleprompter</button>
-        ${!isAdmin && me.role === 'Presenter' && ['Script Ready', 'Ready to Shoot'].includes(t.status) ? `<button class="btn ok" onclick="markShot(${t.id})">&#10003; Mark as shot</button>` : ''}
-        ${!isAdmin && me.role === 'Writer' && t.status === 'Idea' ? `<button class="btn ok" onclick="markScriptReady(${t.id})">&#10003; Script is ready</button>` : ''}
+        ${!adm && me.role === 'Presenter' && ['Script Ready', 'Ready to Shoot'].includes(t.status) ? `<button class="btn ok" onclick="markShot(${t.id})">&#10003; Mark as shot</button>` : ''}
+        ${!adm && me.role === 'Presenter' && t.status === 'Shot' ? `<button class="btn alt" onclick="retake(${t.id})">Retake needed</button>` : ''}
+        ${!adm && me.role === 'Writer' && t.status === 'Idea' && t.review_status === 'None' ? `<button class="btn ok" onclick="markScriptReady(${t.id})">&#10003; Script is ready</button>` : ''}
       </div></div>
     <div class="dbody">
+      ${reviewBlock(t)}
       <div class="facts">
         <div class="fact"><span>Shoot date</span><b>${t.shoot_date ? esc(t.shoot_date) : 'Not set'}</b></div>
+        <div class="fact"><span>Publish date</span><b>${t.publish_date ? esc(t.publish_date) : 'Not set'}</b></div>
         <div class="fact"><span>Duration</span><b>${t.duration_label ? esc(t.duration_label) : '—'}</b></div>
         <div class="fact"><span>Presenter</span><b>${t.presenter_name ? esc(t.presenter_name) : 'Not assigned'}</b></div>
         <div class="fact"><span>Writer</span><b>${t.writer_name ? esc(t.writer_name) : 'Not assigned'}</b></div>
       </div>
       ${t.hook ? `<div class="sect">Opening line</div><div class="hook">${esc(t.hook)}</div>` : ''}
       <div class="sect">Script</div>
-      ${t.script ? `<div class="scriptpaper">${esc(t.script)}</div>` : '<div class="muted">No script written yet.</div>'}
+      ${t.script ? `<div class="scriptpaper">${esc(t.script)}</div>${meterHtml(t.script, t.duration_label, t.content_format)}` : '<div class="muted">No script written yet.</div>'}
       ${kp.length ? `<div class="sect">Key points to cover</div><ul class="kp">${kp.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
       ${t.reference_url ? `<div class="sect">Reference</div><a href="${esc(t.reference_url)}" target="_blank" rel="noopener" style="color:var(--accent);word-break:break-all">${esc(t.reference_url)}</a>` : ''}
-      ${t.presenter_note ? `<div class="sect">Note from the presenter</div><div>${esc(t.presenter_note)}</div>` : ''}
-      ${t.video_url ? `<div class="sect">Final video</div><a href="${esc(t.video_url)}" target="_blank" rel="noopener" style="color:var(--accent);word-break:break-all">${esc(t.video_url)}</a>` : ''}
+
+      <div class="sect">Fact-check before review</div>
+      ${checklistHtml(t, 'fact', FACT_ITEMS, isWriter)}
+
+      <div class="sect">Ready for the shoot</div>
+      ${checklistHtml(t, 'shoot', SHOOT_ITEMS, isPresenter)}
+      ${t.presenter_note ? `<div class="box" style="margin-top:10px"><b>Note from the presenter:</b> ${esc(t.presenter_note)}</div>` : ''}
+
+      <div class="sect">Publishing kit</div>
+      ${pubFields.length ? pubFields.map(([k, l]) => `<div class="copyrow" style="margin-bottom:8px"><div><label style="margin-top:0">${l}</label><div class="box" id="pk_${k}">${esc(t[k])}</div></div><button class="btn sm alt" style="margin-top:22px" onclick="copyBox('pk_${k}',this)">Copy</button></div>`).join('') : '<div class="muted" style="margin-bottom:8px">No title, description or hashtags written yet. Add them with Edit.</div>'}
+      ${checklistHtml(t, 'publish', PUB_ITEMS, adm)}
+      ${t.video_url ? `<div style="margin-top:10px">Final video: <a href="${esc(t.video_url)}" target="_blank" rel="noopener" style="color:var(--accent);word-break:break-all">${esc(t.video_url)}</a></div>` : ''}
+
+      ${(t.content_format === 'Long' || t.content_format === 'Both' || children.length) ? `<div class="sect">Shorts from this video (${children.length})</div>
+        ${children.map(x => `<div class="child" onclick="openFromElsewhere(${x.id})"><span class="chip st" style="--c:${STAGE_COLOR[x.status]}">${esc(x.status)}</span><b style="font-size:14px">${esc(x.title)}</b></div>`).join('') || '<div class="muted">No shorts yet.</div>'}
+        ${adm ? `<button class="btn sm alt" onclick="addShort(${t.id})">+ Add a short from this video</button>` : ''}` : ''}
+
+      <div class="sect">Comments &amp; activity</div>
+      <div class="thread" id="threadBox"><div class="muted">Loading…</div></div>
+      <div class="row" style="margin-top:10px"><input id="cmtText" placeholder="Write a comment…" style="flex:1" onkeydown="if(event.key==='Enter')sendComment(${t.id})"><button class="btn sm" onclick="sendComment(${t.id})">Send</button></div>
     </div></div>`;
+}
+async function loadThread(id) {
+  const d = await api(`/topics/${id}/thread`);
+  const box = $('threadBox'); if (!box) return;
+  const items = d.items || [];
+  box.innerHTML = items.map(i => i.kind === 'comment'
+    ? `<div class="th"><small>${esc(i.author_name || '')} · ${esc(new Date(i.created_at).toLocaleString('en-GB'))}</small>${esc(i.body)}</div>`
+    : `<div class="th log">${esc(i.body)} <span style="opacity:.7">· ${esc(i.author_name || '')}, ${esc(new Date(i.created_at).toLocaleDateString('en-GB'))}</span></div>`).join('') || '<div class="muted">No comments yet.</div>';
+}
+async function sendComment(id) {
+  const el = $('cmtText'); if (!el || !el.value.trim()) return;
+  const d = await api(`/topics/${id}/comments`, { method: 'POST', body: JSON.stringify({ body: el.value }) });
+  if (!d.success) { alert(d.message || 'Could not send.'); return; }
+  el.value = ''; loadThread(id);
+}
+function copyBox(id, btn) {
+  const text = $(id).textContent;
+  (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(() => { btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = 'Copy'; }, 1500); }).catch(() => {
+    const r = document.createRange(); r.selectNodeContents($(id)); const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+  });
+}
+async function toggleCheck(id, group, key, on) {
+  const t = topicById(id); const cur = { ...((t.checks && t.checks[group]) || {}) }; cur[key] = on;
+  const d = await api('/topics/' + id, { method: 'PUT', body: JSON.stringify({ checks: { [group]: cur } }) });
+  if (!d.success) { alert(d.message || 'Could not save.'); }
+  await loadAll(); render();
 }
 async function quickStatus(id, status) {
   const d = await api('/topics/' + id, { method: 'PUT', body: JSON.stringify({ status }) });
-  if (!d.success) { alert(d.message || 'Could not change the status.'); return; }
+  if (!d.success) { alert(d.message || 'Could not change the stage.'); await loadAll(); render(); return; }
   if (status !== 'Archived') stage = status;
-  selId = id;
+  selId = id; await loadAll(); render();
+}
+async function reviewAction(id, action) {
+  let note = '';
+  if (action === 'changes') { note = prompt('What needs to change in this script?') || ''; if (!note.trim()) return; }
+  if (action === 'approve') note = prompt('Add a note for the team (optional):') || '';
+  const d = await api(`/topics/${id}/review`, { method: 'POST', body: JSON.stringify({ action, note }) });
+  if (!d.success) { alert(d.message || 'Could not do that.'); return; }
+  if (d.topic) { stage = d.topic.status; selId = id; }
   await loadAll(); render();
+}
+async function retake(id) {
+  const note = prompt('What needs to be shot again? (optional)') || '';
+  const d = await api('/topics/' + id, { method: 'PUT', body: JSON.stringify({ retake: true, presenter_note: note }) });
+  if (!d.success) { alert(d.message || 'Could not do that.'); return; }
+  stage = 'Ready to Shoot'; selId = id; await loadAll(); render();
+}
+async function addShort(parentId) {
+  const p = topicById(parentId);
+  const title = prompt('Title of the short (for example: "ITC rule in 30 seconds")');
+  if (!title || !title.trim()) return;
+  const d = await api('/topics', { method: 'POST', body: JSON.stringify({ title: title.trim(), content_format: 'Shorts', parent_id: parentId, category: p?.category, presenter_id: p?.presenter_id, writer_id: p?.writer_id }) });
+  if (!d.success) { alert(d.message || 'Could not create.'); return; }
+  await loadAll(); stage = 'Idea'; selId = d.topic.id; render();
+}
+
+// ---------- Calendar ----------
+function calendarHtml() {
+  const [y, m] = calMonth.split('-').map(Number);
+  const first = new Date(y, m - 1, 1), days = new Date(y, m, 0).getDate(), lead = (first.getDay() + 6) % 7;
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const title = first.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  let cells = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d => `<div class="dow">${d}</div>`).join('');
+  for (let i = 0; i < lead; i++) cells += '<div class="day out"></div>';
+  for (let d = 1; d <= days; d++) {
+    const ds = `${calMonth}-${String(d).padStart(2, '0')}`;
+    const evs = topics.filter(t => t.status !== 'Archived' && (t.shoot_date === ds || t.publish_date === ds));
+    cells += `<div class="day ${ds === todayStr ? 'today' : ''}"><div class="d">${d}</div>${evs.map(t => `<button class="ev" style="--c:${STAGE_COLOR[t.status]}" title="${esc(t.title)}" onclick="openFromElsewhere(${t.id})">${t.shoot_date === ds ? '&#127916;' : '&#128640;'} ${esc(t.title)}</button>`).join('')}</div>`;
+  }
+  return `<div class="row" style="margin-bottom:8px"><div style="flex:1"><h2 class="page">Content Calendar</h2><div class="sub" style="margin:0">&#127916; shoot day · &#128640; publish day. Click a topic to open it.</div></div>
+    <button class="btn alt sm" onclick="calMove(-1)">&larr;</button><b style="min-width:150px;text-align:center">${esc(title)}</b><button class="btn alt sm" onclick="calMove(1)">&rarr;</button><button class="btn sm" onclick="calToday()">Today</button></div>
+    <div class="cal">${cells}</div>`;
+}
+function calMove(d) { const [y, m] = calMonth.split('-').map(Number); const n = new Date(y, m - 1 + d, 1); calMonth = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`; render(); }
+function calToday() { calMonth = new Date().toISOString().slice(0, 7); render(); }
+
+// ---------- Shoot day ----------
+function kitKey(d) { return 'studio_kit_' + d; }
+function shootHtml() {
+  const all = topics.filter(t => t.status !== 'Archived' && t.status !== 'Published');
+  if (!shootDate) {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const up = all.filter(t => t.shoot_date && t.shoot_date >= todayStr).map(t => t.shoot_date).sort()[0];
+    shootDate = up || todayStr;
+  }
+  const day = all.filter(t => t.shoot_date === shootDate);
+  const unscheduled = all.filter(t => !t.shoot_date && t.status === 'Ready to Shoot');
+  let kit = {}; try { kit = JSON.parse(localStorage.getItem(kitKey(shootDate)) || '{}'); } catch { /* none */ }
+  const withScript = day.filter(t => t.script || t.hook || t.key_points);
+  return `<h2 class="page">Shoot Day</h2><div class="sub">Plan one day of shooting. Start the teleprompter and it runs through all the scripts, one after the other.</div>
+    <div class="row" style="margin-bottom:14px"><label style="margin:0">Date</label><input type="date" value="${esc(shootDate)}" style="width:auto" onchange="shootDate=this.value;render()">
+      <button class="btn vio" ${withScript.length ? '' : 'disabled style="opacity:.5"'} onclick="startQueue()">&#127909; Start teleprompter (${withScript.length} script${withScript.length === 1 ? '' : 's'})</button></div>
+    <div class="grid2" style="gap:14px;align-items:start">
+      <div class="card"><h3 style="margin-top:0">Topics for this day (${day.length})</h3>
+        ${day.map(t => `<div class="child" onclick="openFromElsewhere(${t.id})"><span class="chip st" style="--c:${STAGE_COLOR[t.status]}">${esc(t.status)}</span><div style="flex:1"><b style="font-size:14px">${esc(t.title)}</b><div class="muted">${fmtChip(t) ? esc(FORMATS[t.content_format]?.label) + ' · ' : ''}${t.presenter_name ? esc(t.presenter_name) : 'No presenter'}${t.script ? ' · ' + esc(fmtSec(speakSeconds(t.script))) : ' · no script'}</div></div></div>`).join('') || '<div class="muted">Nothing is planned for this date. Set a shoot date on a topic with Edit.</div>'}
+        ${isAdmin() && unscheduled.length ? `<h4 style="margin-bottom:6px">Ready to shoot, no date yet</h4>${unscheduled.map(t => `<div class="child"><div style="flex:1"><b style="font-size:14px">${esc(t.title)}</b></div><button class="btn sm" onclick="setShootDay(${t.id})">Add to this day</button></div>`).join('')}` : ''}</div>
+      <div class="card"><h3 style="margin-top:0">Shoot kit for the day</h3><div class="cl" style="grid-template-columns:1fr">${SHOOT_ITEMS.slice(1).map(([k, l]) => `<label class="ck ${kit[k] ? 'done' : ''}"><input type="checkbox" ${kit[k] ? 'checked' : ''} onchange="toggleKit('${k}',this.checked)">${esc(l)}</label>`).join('')}</div>
+        <div class="muted" style="margin-top:8px">Saved on this device only.</div></div></div>`;
+}
+function toggleKit(k, on) { let kit = {}; try { kit = JSON.parse(localStorage.getItem(kitKey(shootDate)) || '{}'); } catch {} kit[k] = on; try { localStorage.setItem(kitKey(shootDate), JSON.stringify(kit)); } catch {} render(); }
+async function setShootDay(id) { const d = await api('/topics/' + id, { method: 'PUT', body: JSON.stringify({ shoot_date: shootDate }) }); if (!d.success) alert(d.message || 'Could not set the date.'); await loadAll(); render(); }
+function startQueue() {
+  const day = topics.filter(t => t.status !== 'Archived' && t.shoot_date === shootDate && (t.script || t.hook || t.key_points));
+  if (!day.length) return;
+  openTeleprompter(day[0].id, day);
 }
 
 // ---------- Ideas ----------
@@ -404,29 +639,53 @@ function memberOpts(sel) {
   return '<option value="">Not assigned</option>' + members.filter(m => m.status === 'Active')
     .map(m => `<option value="${m.id}" ${m.id === sel ? 'selected' : ''}>${esc(m.name)} (${esc(m.role)}${m.member_type === 'guest' ? ', outside' : ''})</option>`).join('');
 }
+function pickFormat(f) { document.querySelectorAll('.fmtpick label.opt').forEach(l => l.classList.toggle('sel', l.dataset.f === f)); updateMeter(); }
+function curFormat() { const r = document.querySelector('input[name="f_format"]:checked'); return r ? r.value : ''; }
+function updateMeter() {
+  const el = $('modalMeter'); if (!el) return;
+  el.outerHTML = meterHtml($('f_script')?.value, $('f_duration_label')?.value, curFormat(), 'modalMeter');
+}
+function applyTemplate() {
+  const key = $('f_template').value; if (!key) return;
+  const t = TEMPLATES[key];
+  const has = ($('f_script').value.trim() || $('f_hook').value.trim());
+  if (has && !confirm('This will replace the hook, script and key points you have written. Continue?')) return;
+  $('f_hook').value = t.hook; $('f_script').value = t.script; $('f_key_points').value = t.key_points;
+  const r = document.querySelector(`input[name="f_format"][value="${t.fmt}"]`); if (r && isAdmin()) { r.checked = true; pickFormat(t.fmt); }
+  updateMeter();
+}
 function openTopic(id) {
-  const t = id ? topics.find(x => x.id === id) : { title: '', status: stage || 'Idea' };
+  const t = id ? topicById(id) : { title: '', status: stage || 'Idea', content_format: 'Long' };
   if (!t) return;
-  const isAdmin = mode === 'admin';
-  const canWrite = isAdmin || (me.role === 'Writer' && t.writer_id);
+  const adm = isAdmin();
+  const canWrite = adm || (me.role === 'Writer' && t.writer_id);
   const ro = canWrite ? '' : 'readonly';
   let h = `<div class="row"><h2>${id ? 'Edit topic' : 'New topic'}</h2><button class="btn sm alt" onclick="closeTopic()">Close</button></div>`;
-  if (isAdmin) {
-    h += `<label>Title</label><input id="f_title" value="${esc(t.title)}">
+  if (adm) {
+    h += `<label>What is this content for?</label><div class="fmtpick">${Object.entries(FORMATS).map(([k, v]) =>
+      `<label class="opt ${t.content_format === k ? 'sel' : ''}" data-f="${k}"><input type="radio" name="f_format" value="${k}" ${t.content_format === k ? 'checked' : ''} onchange="pickFormat('${k}')">${v.label}<small>${v.desc}</small></label>`).join('')}</div>
+      <label>Title</label><input id="f_title" value="${esc(t.title)}">
       <div class="grid2"><div><label>Category</label><select id="f_category">${opts(CATEGORIES, t.category, 'Select')}</select></div>
-      <div><label>Platform</label><select id="f_platform">${opts(PLATFORMS, t.platform, 'Select')}</select></div>
+      <div><label>Expected duration</label><input id="f_duration_label" value="${esc(t.duration_label || '')}" placeholder="for example 60 sec or 5 min" oninput="updateMeter()"></div>
       <div><label>Shoot date</label><input type="date" id="f_shoot_date" value="${esc(t.shoot_date || '')}"></div>
-      <div><label>Expected duration</label><input id="f_duration_label" value="${esc(t.duration_label || '')}" placeholder="for example 60 sec or 5 min"></div>
+      <div><label>Publish date</label><input type="date" id="f_publish_date" value="${esc(t.publish_date || '')}"></div>
       <div><label>Presenter</label><select id="f_presenter_id">${memberOpts(t.presenter_id)}</select></div>
       <div><label>Writer</label><select id="f_writer_id">${memberOpts(t.writer_id)}</select></div>
       <div><label>Stage</label><select id="f_status">${STATUSES.concat(['Archived']).map(s => `<option ${s === t.status ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
       <div><label>Reference link</label><input id="f_reference_url" value="${esc(t.reference_url || '')}" placeholder="circular / notification link"></div></div>`;
   }
+  if (canWrite) h += `<label>Start from a template</label><div class="row"><select id="f_template" style="flex:1"><option value="">Choose a template…</option>${Object.keys(TEMPLATES).map(k => `<option>${esc(k)}</option>`).join('')}</select><button class="btn sm alt" onclick="applyTemplate()">Use template</button></div>`;
   h += `<label>Opening line (hook)</label><textarea id="f_hook" ${ro} rows="2">${esc(t.hook || '')}</textarea>
-    <label>Script</label><textarea class="mono" id="f_script" ${ro} rows="10">${esc(t.script || '')}</textarea>
+    <label>Script</label><textarea class="mono" id="f_script" ${ro} rows="11" oninput="updateMeter()">${esc(t.script || '')}</textarea>
+    ${meterHtml(t.script, t.duration_label, t.content_format, 'modalMeter')}
     <label>Key points to cover (one per line)</label><textarea id="f_key_points" ${ro} rows="4">${esc(t.key_points || '')}</textarea>`;
-  if (isAdmin) h += `<label>Final video link</label><input id="f_video_url" value="${esc(t.video_url || '')}">`;
-  if (id && (isAdmin || me.role === 'Presenter')) h += `<label>Note from the presenter</label><textarea id="f_presenter_note" rows="2" ${isAdmin || t.presenter_id ? '' : 'readonly'}>${esc(t.presenter_note || '')}</textarea>`;
+  if (canWrite) h += `<details class="more"><summary>Publishing details: title, description, hashtags</summary>
+      <label>Title for upload</label><input id="f_pub_title" value="${esc(t.pub_title || '')}">
+      <label>Description</label><textarea id="f_pub_description" rows="4">${esc(t.pub_description || '')}</textarea>
+      <label>Hashtags</label><input id="f_pub_hashtags" value="${esc(t.pub_hashtags || '')}" placeholder="#GST #IncomeTax #CA">
+      <label>Thumbnail text</label><input id="f_thumbnail_text" value="${esc(t.thumbnail_text || '')}"></details>`;
+  if (adm) h += `<label>Final video link</label><input id="f_video_url" value="${esc(t.video_url || '')}">`;
+  if (id && (adm || me.role === 'Presenter')) h += `<label>Note from the presenter</label><textarea id="f_presenter_note" rows="2" ${adm || t.presenter_id ? '' : 'readonly'}>${esc(t.presenter_note || '')}</textarea>`;
   h += `<div id="tMsg"></div><div class="row" style="margin-top:16px"><button class="btn" onclick="saveTopic(${id})">Save</button><button class="btn alt" onclick="closeTopic()">Cancel</button></div>`;
   $('topicBody').innerHTML = h;
   $('topicModal').classList.add('open');
@@ -435,10 +694,11 @@ function closeTopic() { $('topicModal').classList.remove('open'); }
 function val(id) { const el = $(id); return el ? el.value : undefined; }
 async function saveTopic(id, extra = {}) {
   const body = { ...extra };
-  for (const k of ['title', 'category', 'platform', 'shoot_date', 'duration_label', 'presenter_id', 'writer_id', 'status', 'reference_url', 'hook', 'script', 'key_points', 'video_url', 'presenter_note']) {
+  for (const k of ['title', 'category', 'shoot_date', 'publish_date', 'duration_label', 'presenter_id', 'writer_id', 'status', 'reference_url', 'hook', 'script', 'key_points', 'video_url', 'presenter_note', 'pub_title', 'pub_description', 'pub_hashtags', 'thumbnail_text']) {
     const v = val('f_' + k); if (v !== undefined && !(k in body)) body[k] = v;
   }
-  if (mode !== 'admin') for (const k of ['title', 'category', 'platform', 'shoot_date', 'presenter_id', 'writer_id', 'status', 'video_url']) if (!(k in extra)) delete body[k];
+  const f = curFormat(); if (f && !('content_format' in body)) body.content_format = f;
+  if (!isAdmin()) for (const k of ['title', 'category', 'shoot_date', 'publish_date', 'presenter_id', 'writer_id', 'status', 'video_url', 'content_format']) if (!(k in extra)) delete body[k];
   const d = id ? await api('/topics/' + id, { method: 'PUT', body: JSON.stringify(body) }) : await api('/topics', { method: 'POST', body: JSON.stringify(body) });
   if (!d.success) { if ($('tMsg')) $('tMsg').innerHTML = msgBox(d.message || 'Could not save.', false); else alert(d.message || 'Could not save.'); return; }
   if (d.topic) { if (d.topic.status !== 'Archived') stage = d.topic.status; selId = d.topic.id; }
@@ -453,6 +713,10 @@ async function renderTeam() {
   const m = await api('/members'); members = m.members || [];
   $('teamBox').innerHTML = `
     <div class="guide"><b>Who can use Studio?</b> Choose employees of your office, or add someone from outside. Employees see a Studio option in their sidebar. Outside people sign in at <b>${esc(location.origin)}/studio.html</b> and see nothing else. Everyone sees only the topics assigned to them.</div>
+    <div class="card" style="margin-bottom:14px"><label class="ck" style="display:flex;gap:10px;align-items:center;margin:0;text-transform:none;letter-spacing:0;font-size:14px;color:var(--ink)">
+      <input type="checkbox" style="width:auto;accent-color:var(--accent)" ${me.review_required ? 'checked' : ''} onchange="saveReviewSetting(this.checked)">
+      Require approval of the script before a topic can go to shoot</label>
+      <div class="muted" style="margin-top:6px">When this is on, a topic cannot be moved to "Ready to Shoot" or later until an admin has approved its script.</div></div>
     <div class="grid2" style="gap:12px">
       <div class="card"><h3 style="margin-top:0">Give an employee access</h3>
         <label>Employee</label><select id="addEmp"><option value="">Select employee</option>${(emps.employees || []).map(e => `<option value="${esc(e.emp_id)}">${esc(e.name)} (${esc(e.emp_id)})</option>`).join('')}</select>
@@ -474,6 +738,7 @@ async function renderTeam() {
           ${x.member_type === 'guest' ? `<button class="btn sm alt" onclick="updMember(${x.id},{reset_password:true})">Reset password</button>` : ''}</div></td></tr>`).join('') || '<tr><td colspan="6" class="muted">No one yet.</td></tr>'}
     </table></div></div>`;
 }
+async function saveReviewSetting(on) { const d = await api('/settings', { method: 'PUT', body: JSON.stringify({ review_required: on }) }); if (d.success) me.review_required = on; else alert(d.message || 'Could not save.'); }
 async function addEmployee() {
   const d = await api('/members/employee', { method: 'POST', body: JSON.stringify({ emp_id: $('addEmp').value, role: $('addEmpRole').value }) });
   await renderTeam(); $('teamMsg').innerHTML = msgBox(d.message || 'Could not add.', d.success);
@@ -492,9 +757,9 @@ async function updMember(id, body) {
 }
 
 // ---------- Teleprompter ----------
-let tpList = [], tpIdx = 0, tpRun = false, tpSpd = 3, tpFont = 44, tpRaf = null, tpAcc = 0;
-function openTeleprompter(id) {
-  tpList = topics.filter(t => t.status !== 'Archived' && (t.script || t.hook || t.key_points));
+let tpList = [], tpIdx = 0, tpRun = false, tpSpd = 3, tpFont = 44, tpRaf = null, tpAcc = 0, tpCounting = false;
+function openTeleprompter(id, list) {
+  tpList = list || topics.filter(t => t.status !== 'Archived' && (t.script || t.hook || t.key_points));
   tpIdx = Math.max(0, tpList.findIndex(t => t.id === id));
   if (!tpList.length || !tpList.some(t => t.id === id)) { alert('This topic does not have a script yet.'); return; }
   $('tp').classList.add('open'); tpLoad();
@@ -508,17 +773,30 @@ function tpLoad() {
   if (t.key_points) parts.push(`<span class="tp-h">Key points</span>${esc(t.key_points)}`);
   $('tpText').innerHTML = parts.join('<br>');
   $('tpText').style.fontSize = tpFont + 'px';
-  $('tpScroll').scrollTop = 0; tpRun = false; tpAcc = 0; $('tpPlay').textContent = '▶ Start'; $('tpSpeedLbl').textContent = 'Speed ' + tpSpd;
+  $('tpScroll').scrollTop = 0; tpRun = false; tpAcc = 0; tpCounting = false; $('tpCount').style.display = 'none';
+  $('tpPlay').textContent = '▶ Start'; $('tpSpeedLbl').textContent = 'Speed ' + tpSpd;
   cancelAnimationFrame(tpRaf);
 }
+function tpScrollLoop() {
+  let last = performance.now();
+  const step = now => { if (!tpRun) return; tpAcc += (now - last) / 1000 * tpSpd * 12; last = now; const whole = Math.floor(tpAcc); if (whole) { $('tpScroll').scrollTop += whole; tpAcc -= whole; } tpRaf = requestAnimationFrame(step); };
+  tpRaf = requestAnimationFrame(step);
+}
 function tpToggle() {
-  tpRun = !tpRun; $('tpPlay').textContent = tpRun ? '❚❚ Pause' : '▶ Start';
-  if (tpRun) { let last = performance.now(); const step = now => { if (!tpRun) return; tpAcc += (now - last) / 1000 * tpSpd * 12; last = now; const whole = Math.floor(tpAcc); if (whole) { $('tpScroll').scrollTop += whole; tpAcc -= whole; } tpRaf = requestAnimationFrame(step); }; tpRaf = requestAnimationFrame(step); }
+  if (tpCounting) return;
+  if (tpRun) { tpRun = false; $('tpPlay').textContent = '▶ Start'; return; }
+  // 3-2-1 countdown, then roll
+  tpCounting = true; let n = 3; const box = $('tpCount'); box.style.display = 'flex'; box.textContent = n;
+  const iv = setInterval(() => {
+    n--; if (n > 0) { box.textContent = n; return; }
+    clearInterval(iv); box.style.display = 'none'; tpCounting = false; tpRun = true; $('tpPlay').textContent = '❚❚ Pause'; tpScrollLoop();
+  }, 1000);
 }
 function tpSpeed(d) { tpSpd = Math.min(10, Math.max(1, tpSpd + d)); $('tpSpeedLbl').textContent = 'Speed ' + tpSpd; }
 function tpSize(d) { tpFont = Math.min(120, Math.max(20, tpFont + d)); $('tpText').style.fontSize = tpFont + 'px'; }
+function tpMirror() { $('tpText').classList.toggle('mirror'); }
 function tpStep(d) { tpIdx = (tpIdx + d + tpList.length) % tpList.length; tpLoad(); }
-function tpClose() { tpRun = false; cancelAnimationFrame(tpRaf); $('tp').classList.remove('open'); }
+function tpClose() { tpRun = false; tpCounting = false; $('tpCount').style.display = 'none'; cancelAnimationFrame(tpRaf); $('tp').classList.remove('open'); }
 $('tpScroll').addEventListener('click', tpToggle);
 
 boot();
