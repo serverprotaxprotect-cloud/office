@@ -357,6 +357,11 @@
               <option value="view" ${o.client_document_management_access === 'view' ? 'selected' : ''}>View Only</option>
               <option value="full" ${o.client_document_management_access === 'full' ? 'selected' : ''}>Full Access</option>
             </select>
+            <small style="display:block;color:#63728a;font-weight:800;margin-bottom:4px">Gee Bharat Studio</small>
+            <select onchange="updateContentStudioAccess(${o.id}, this.value)" style="width:145px;padding:7px 8px;border:1px solid #d8e0ec;border-radius:8px;font-weight:700;margin-bottom:8px">
+              <option value="none" ${o.content_studio_access === 'none' ? 'selected' : ''}>Off</option>
+              <option value="full" ${o.content_studio_access !== 'none' ? 'selected' : ''}>On</option>
+            </select>
             <small style="display:block;color:#63728a;font-weight:800;margin-bottom:4px">Document Collection</small>
             <select onchange="updateClientDocumentCollectionAccess(${o.id}, this.value)" style="width:145px;padding:7px 8px;border:1px solid #d8e0ec;border-radius:8px;font-weight:700">
               <option value="none" ${o.client_document_collection_access === 'none' ? 'selected' : ''}>No Access</option>
@@ -455,6 +460,14 @@
       });
       showMsg(data.message || (data.success ? 'Updated' : 'Update failed'), !!data.success);
       if (data.success) loadAll();
+    }
+    async function updateContentStudioAccess(id, accessLevel) {
+      const data = await api('/organizations/' + id + '/features/content-studio', {
+        method: 'PUT',
+        body: JSON.stringify({ access_level: accessLevel })
+      });
+      showMsg(data.message || (data.success ? 'Gee Bharat Studio access updated' : 'Gee Bharat Studio access update failed'), !!data.success);
+      if (data.success) loadOrganizations();
     }
     async function updateBillingAccess(id, accessLevel) {
       const data = await api('/organizations/' + id + '/features/billing', {

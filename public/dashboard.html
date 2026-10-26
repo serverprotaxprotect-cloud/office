@@ -447,6 +447,13 @@
       </div>
     </div>
 
+    <!-- Gee Bharat Studio (shown only to employees an admin has given access to) -->
+    <div class="card" id="studioCard" style="display:none;">
+      <div class="card-title">&#127916; Gee Bharat Studio</div>
+      <p style="font-size:13px;color:#64748b;margin:0 0 10px;">Your video topics, scripts and teleprompter.</p>
+      <a href="/studio.html" class="btn-primary" style="display:inline-block;text-align:center;text-decoration:none;">Open Studio</a>
+    </div>
+
     <!-- Fingerprint / face unlock card (shown only when the organisation enables it) -->
     <div class="card" id="passkeyCard" style="display:none;">
       <div class="card-title">&#128274; Fingerprint / Face Unlock</div>
@@ -1930,6 +1937,7 @@ async function logoutAllDevices() {
   loadNotices();
   checkCampaigns(false);
   setTimeout(checkReminders, 1500);
+  api('/studio/access').then(d => { if (d && d.success && d.allowed) document.getElementById('studioCard').style.display = ''; }).catch(() => {});
   pkInit();
   gpsWarm();
   requestNotifPermission();

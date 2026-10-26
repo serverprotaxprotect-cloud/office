@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gee Bharat Studio</title>
+<link rel="icon" href="/icons/icon-192.png">
+<script src="/assets/auth-session.js"></script>
+<style>
+  :root {
+    --bg:#f4f6fb; --card:#fff; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --brand:#4f46e5; --brand-ink:#fff;
+    --ok:#16a34a; --warn:#d97706; --bad:#dc2626; --soft:#eef2ff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg:#0b1220; --card:#131c2e; --ink:#e5e9f2; --muted:#94a3b8; --line:#243049; --soft:#1b2540; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:'Segoe UI',system-ui,Arial,sans-serif; background:var(--bg); color:var(--ink); }
+  header { background:linear-gradient(135deg,#312e81,#4f46e5); color:#fff; padding:14px 16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  header h1 { margin:0; font-size:18px; letter-spacing:.2px; flex:1; min-width:160px; }
+  header small { opacity:.8; display:block; font-weight:400; font-size:12px; }
+  header button, header a { background:rgba(255,255,255,.16); color:#fff; border:0; border-radius:8px; padding:8px 12px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; }
+  main { padding:14px 16px 60px; max-width:1500px; margin:0 auto; }
+  .tabs { display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap; }
+  .tabs button { border:1.5px solid var(--line); background:var(--card); color:var(--ink); padding:8px 14px; border-radius:999px; font-weight:700; font-size:13px; cursor:pointer; }
+  .tabs button.on { background:var(--brand); border-color:var(--brand); color:var(--brand-ink); }
+  .btn { background:var(--brand); color:var(--brand-ink); border:0; border-radius:8px; padding:9px 14px; font-weight:700; font-size:13px; cursor:pointer; }
+  .btn.alt { background:var(--card); color:var(--brand); border:1.5px solid var(--brand); }
+  .btn.bad { background:var(--bad); }
+  .btn.ok { background:var(--ok); }
+  .btn.sm { padding:6px 10px; font-size:12px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; }
+  .muted { color:var(--muted); font-size:12.5px; }
+  .board { display:grid; grid-auto-flow:column; grid-auto-columns:minmax(240px,1fr); gap:12px; overflow-x:auto; padding-bottom:10px; }
+  .col { background:var(--soft); border-radius:12px; padding:10px; min-height:120px; }
+  .col h3 { margin:0 0 8px; font-size:13px; display:flex; justify-content:space-between; }
+  .tcard { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px; margin-bottom:8px; cursor:pointer; }
+  .tcard:hover { border-color:var(--brand); }
+  .tcard b { display:block; font-size:14px; margin-bottom:4px; }
+  .chip { display:inline-block; font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; background:var(--soft); color:var(--brand); margin:2px 4px 0 0; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  @media (max-width:640px) { .grid2 { grid-template-columns:1fr; } }
+  label { display:block; font-size:11.5px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.3px; margin:10px 0 4px; }
+  input, select, textarea { width:100%; padding:10px; border:1.5px solid var(--line); border-radius:8px; font:inherit; font-size:14px; background:var(--card); color:var(--ink); }
+  textarea { resize:vertical; min-height:90px; }
+  .backdrop { position:fixed; inset:0; background:rgba(15,23,42,.6); display:none; align-items:flex-start; justify-content:center; padding:16px; overflow:auto; z-index:50; }
+  .backdrop.open { display:flex; }
+  .modal { background:var(--card); border-radius:14px; padding:18px; width:min(760px,100%); margin:auto; }
+  .modal h2 { margin:0 0 6px; font-size:18px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  th { color:var(--muted); font-size:11.5px; text-transform:uppercase; }
+  .msg { padding:10px 12px; border-radius:8px; font-size:13px; margin:10px 0; }
+  .msg.err { background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; }
+  .msg.ok { background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; }
+  .center { max-width:420px; margin:48px auto; }
+  pre.script { white-space:pre-wrap; font:inherit; background:var(--soft); border-radius:10px; padding:12px; margin:0; line-height:1.6; }
+  /* Teleprompter */
+  #tp { position:fixed; inset:0; background:#000; color:#fff; z-index:100; display:none; flex-direction:column; }
+  #tp.open { display:flex; }
+  #tpBar { display:flex; gap:8px; align-items:center; padding:10px 12px; background:#111827; flex-wrap:wrap; }
+  #tpBar button { background:#374151; color:#fff; border:0; border-radius:8px; padding:9px 13px; font-size:14px; font-weight:700; cursor:pointer; }
+  #tpBar button.go { background:#16a34a; }
+  #tpBar span { font-size:13px; opacity:.85; }
+  #tpScroll { flex:1; overflow-y:scroll; padding:40vh 7vw 80vh; scrollbar-width:none; }
+  #tpScroll::-webkit-scrollbar { display:none; }
+  #tpText { font-weight:700; line-height:1.5; white-space:pre-wrap; text-align:center; }
+  .tp-h { color:#facc15; font-size:.6em; letter-spacing:1px; text-transform:uppercase; display:block; margin:1.2em 0 .3em; }
+  .guide { background:var(--soft); border-radius:10px; padding:10px 12px; font-size:13px; margin-bottom:12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Gee Bharat Studio<small id="who">Content planning &amp; shoot scripts</small></h1>
+  <a href="/" id="backLink" style="display:none">&larr; Back</a>
+  <button id="logoutBtn" style="display:none" onclick="logout()">Sign out</button>
+</header>
+<main id="app"></main>
+
+<div class="backdrop" id="topicModal"><div class="modal" id="topicBody"></div></div>
+<div class="backdrop" id="pwModal"><div class="modal" style="max-width:420px">
+  <h2>Choose a new password</h2>
+  <p class="muted">For your security, please replace the temporary password you were given.</p>
+  <label>New password (at least 8 characters)</label><input type="password" id="newPw" autocomplete="new-password">
+  <div id="pwMsg"></div>
+  <div class="row" style="margin-top:12px"><button class="btn" onclick="savePassword()">Save password</button></div>
+</div></div>
+
+<div id="tp">
+  <div id="tpBar">
+    <button onclick="tpClose()">&times; Close</button>
+    <button class="go" id="tpPlay" onclick="tpToggle()">&#9654; Start</button>
+    <button onclick="tpSpeed(-1)">Slower</button><span id="tpSpeedLbl"></span><button onclick="tpSpeed(1)">Faster</button>
+    <button onclick="tpSize(-6)">A-</button><button onclick="tpSize(6)">A+</button>
+    <button onclick="tpStep(-1)">&larr; Prev</button><button onclick="tpStep(1)">Next &rarr;</button>
+    <span id="tpTitle"></span>
+  </div>
+  <div id="tpScroll"><div id="tpText"></div></div>
+</div>
+
+<script>
+const STATUSES = ['Idea','Script Ready','Ready to Shoot','Shot','Editing','Published'];
+const PLATFORMS = ['YouTube','Instagram Reel','YouTube Shorts','LinkedIn','Facebook','Other'];
+const CATEGORIES = ['GST','Income Tax','ROC / MCA','Audit','Accounting','Startup','Labour Law','General'];
+const $ = id => document.getElementById(id);
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+let mode = null;             // 'guest' | 'admin' | 'employee'
+let me = null, topics = [], members = [], ideas = [], view = 'board';
+
+// ---------- API ----------
+function guestToken() { try { return localStorage.getItem('studio_guest_token') || ''; } catch { return ''; } }
+async function api(path, opts = {}) {
+  const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+  let res;
+  if (mode === 'guest') {
+    headers.Authorization = 'Bearer ' + guestToken();
+    res = await fetch('/api/studio' + path, { ...opts, headers });
+  } else {
+    const scope = mode === 'admin' ? 'admin' : 'attendance';
+    headers.Authorization = 'Bearer ' + GBSession.tokenFor(scope);
+    res = await GBSession.fetch('/api/studio' + path, { ...opts, headers }, scope);
+  }
+  let data = {};
+  try { data = await res.json(); } catch { /* empty */ }
+  data.http = res.status;
+  return data;
+}
+const msgBox = (text, ok) => `<div class="msg ${ok ? 'ok' : 'err'}">${esc(text)}</div>`;
+
+// ---------- Boot ----------
+async function boot() {
+  if (guestToken()) mode = 'guest';
+  else if (GBSession.tokenFor('admin') && GBSession.userFor('admin').is_admin) mode = 'admin';
+  else if (GBSession.tokenFor('attendance')) mode = 'employee';
+  if (!mode) return showLogin();
+  const a = await api('/access');
+  if (a.http === 401) { if (mode === 'guest') { localStorage.removeItem('studio_guest_token'); } return showLogin('Your session has ended. Please sign in again.'); }
+  if (!a.success) return showNotice(a.message || 'Gee Bharat Studio is not available for you.');
+  me = a;
+  $('who').textContent = `${a.name} · ${a.role || ''}`;
+  $('logoutBtn').style.display = mode === 'guest' ? '' : 'none';
+  $('backLink').style.display = mode === 'guest' ? 'none' : '';
+  $('backLink').href = mode === 'admin' ? '/admin.html' : '/dashboard.html';
+  if (a.must_change_password) $('pwModal').classList.add('open');
+  await loadAll();
+  render();
+}
+function showNotice(text) {
+  $('app').innerHTML = `<div class="card center"><h2 style="margin-top:0">Gee Bharat Studio</h2><p>${esc(text)}</p></div>`;
+  $('backLink').style.display = mode && mode !== 'guest' ? '' : 'none';
+  $('backLink').href = mode === 'admin' ? '/admin.html' : '/dashboard.html';
+}
+function showLogin(note) {
+  $('app').innerHTML = `<div class="card center">
+    <h2 style="margin-top:0">Sign in to Gee Bharat Studio</h2>
+    <p class="muted">For outside team members who were given a Studio login. Employees and admins: please open Studio from your dashboard.</p>
+    ${note ? msgBox(note, false) : ''}
+    <label>Login ID (email or mobile)</label><input id="lgId" autocomplete="username">
+    <label>Password</label><input id="lgPw" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')guestLogin()">
+    <div id="lgMsg"></div>
+    <div class="row" style="margin-top:12px"><button class="btn" onclick="guestLogin()">Sign in</button></div></div>`;
+}
+async function guestLogin() {
+  const r = await fetch('/api/studio/guest-login', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ login_id: $('lgId').value, password: $('lgPw').value }) });
+  const d = await r.json().catch(() => ({}));
+  if (!d.success) { $('lgMsg').innerHTML = msgBox(d.message || 'Sign-in failed.', false); return; }
+  localStorage.setItem('studio_guest_token', d.token);
+  mode = null; boot();
+}
+function logout() { localStorage.removeItem('studio_guest_token'); location.reload(); }
+async function savePassword() {
+  const d = await api('/guest-change-password', { method: 'POST', body: JSON.stringify({ new_password: $('newPw').value }) });
+  if (!d.success) { $('pwMsg').innerHTML = msgBox(d.message || 'Could not save.', false); return; }
+  $('pwModal').classList.remove('open');
+}
+
+// ---------- Data ----------
+async function loadAll() {
+  const t = await api('/topics' + (view === 'archive' ? '?archived=1' : ''));
+  topics = t.topics || [];
+  if (mode === 'admin') {
+    const m = await api('/members'); members = m.members || [];
+    const i = await api('/ideas'); ideas = i.ideas || [];
+  } else {
+    const i = await api('/ideas'); ideas = i.ideas || [];
+  }
+}
+
+// ---------- Render ----------
+function render() {
+  const isAdmin = mode === 'admin';
+  const tabs = isAdmin
+    ? [['board', 'Board'], ['ideas', `Ideas${ideas.length ? ' (' + ideas.length + ')' : ''}`], ...(me.can_manage_team ? [['team', 'Studio Team']] : []), ['archive', 'Archived']]
+    : [['mine', 'My Topics'], ['idea', 'Send an Idea']];
+  if (!tabs.some(t => t[0] === view)) view = tabs[0][0];
+  let html = `<div class="tabs">${tabs.map(([k, l]) => `<button class="${view === k ? 'on' : ''}" onclick="setView('${k}')">${l}</button>`).join('')}</div>`;
+  if (view === 'board') html += boardHtml();
+  else if (view === 'archive') html += listHtml(topics.filter(t => t.status === 'Archived'));
+  else if (view === 'ideas') html += ideasAdminHtml();
+  else if (view === 'team') html += '<div id="teamBox">Loading…</div>';
+  else if (view === 'mine') html += myTopicsHtml();
+  else if (view === 'idea') html += ideaFormHtml();
+  $('app').innerHTML = html;
+  if (view === 'team') renderTeam();
+}
+async function setView(v) { view = v; if (v === 'archive') await loadAll(); render(); }
+
+function cardHtml(t) {
+  return `<div class="tcard" onclick="openTopic(${t.id})"><b>${esc(t.title)}</b>
+    ${t.platform ? `<span class="chip">${esc(t.platform)}</span>` : ''}${t.category ? `<span class="chip">${esc(t.category)}</span>` : ''}
+    <div class="muted" style="margin-top:6px">${t.shoot_date ? 'Shoot: ' + esc(t.shoot_date) + ' · ' : ''}${t.presenter_name ? 'Presenter: ' + esc(t.presenter_name) : 'No presenter yet'}${t.writer_name ? ' · Writer: ' + esc(t.writer_name) : ''}</div></div>`;
+}
+function boardHtml() {
+  const cols = STATUSES.map(s => {
+    const items = topics.filter(t => t.status === s);
+    return `<div class="col"><h3><span>${s}</span><span>${items.length}</span></h3>${items.map(cardHtml).join('') || '<div class="muted">Nothing here</div>'}</div>`;
+  }).join('');
+  return `<div class="row" style="margin-bottom:12px"><button class="btn" onclick="openTopic(0)">+ New Topic</button></div><div class="board">${cols}</div>`;
+}
+function listHtml(list) {
+  return `<div class="card">${list.map(cardHtml).join('') || '<span class="muted">Nothing here.</span>'}</div>`;
+}
+function myTopicsHtml() {
+  if (!topics.length) return `<div class="card"><b>No topics assigned to you yet.</b><p class="muted">When a topic is assigned to you, it will appear here${mode === 'employee' ? ' and you will receive a notification' : ''}.</p></div>`;
+  return STATUSES.map(s => {
+    const items = topics.filter(t => t.status === s);
+    return items.length ? `<h3 style="margin:14px 0 8px">${s}</h3>${items.map(cardHtml).join('')}` : '';
+  }).join('');
+}
+function ideaFormHtml() {
+  return `<div class="card"><h3 style="margin-top:0">Send an idea</h3>
+    <p class="muted">Have a topic you think we should make a video on? Write it in a line or two.</p>
+    <textarea id="ideaText" placeholder="For example: What changes in GST return filing from this month?"></textarea>
+    <div id="ideaMsg"></div><div class="row" style="margin-top:10px"><button class="btn" onclick="sendIdea()">Send idea</button></div>
+    ${ideas.length ? `<h4>Your earlier ideas</h4>${ideas.map(i => `<div class="muted" style="padding:4px 0">• ${esc(i.idea_text)} <b>(${esc(i.status)})</b></div>`).join('')}` : ''}</div>`;
+}
+async function sendIdea() {
+  const d = await api('/ideas', { method: 'POST', body: JSON.stringify({ idea_text: $('ideaText').value }) });
+  $('ideaMsg').innerHTML = msgBox(d.message || 'Could not send.', d.success);
+  if (d.success) { $('ideaText').value = ''; const i = await api('/ideas'); ideas = i.ideas || []; setTimeout(render, 1200); }
+}
+function ideasAdminHtml() {
+  return `<div class="card"><h3 style="margin-top:0">Ideas from the team</h3>${ideas.map(i => `<div class="row" style="padding:8px 0;border-bottom:1px solid var(--line)">
+    <div style="flex:1"><b>${esc(i.idea_text)}</b><div class="muted">From ${esc(i.submitted_by_name || 'someone')}</div></div>
+    <button class="btn sm" onclick="convertIdea(${i.id})">Make a topic</button><button class="btn sm alt" onclick="dismissIdea(${i.id})">Dismiss</button></div>`).join('') || '<span class="muted">No new ideas.</span>'}</div>`;
+}
+async function convertIdea(id) { const d = await api(`/ideas/${id}/convert`, { method: 'POST' }); if (d.success) { await loadAll(); view = 'board'; render(); openTopic(d.topic_id); } }
+async function dismissIdea(id) { await api(`/ideas/${id}/dismiss`, { method: 'POST' }); await loadAll(); render(); }
+
+// ---------- Topic modal ----------
+function opts(list, sel, blank) { return (blank ? `<option value="">${blank}</option>` : '') + list.map(x => `<option ${x === sel ? 'selected' : ''}>${esc(x)}</option>`).join(''); }
+function memberOpts(role, sel) {
+  return '<option value="">Not assigned</option>' + members.filter(m => m.status === 'Active')
+    .map(m => `<option value="${m.id}" ${m.id === sel ? 'selected' : ''}>${esc(m.name)} (${esc(m.role)}${m.member_type === 'guest' ? ', outside' : ''})</option>`).join('');
+}
+function openTopic(id) {
+  const t = id ? topics.find(x => x.id === id) : { title: '', status: 'Idea' };
+  if (!t) return;
+  const isAdmin = mode === 'admin';
+  const canWrite = isAdmin || (me.role === 'Writer' && t.writer_id);
+  const ro = canWrite ? '' : 'readonly';
+  let h = `<div class="row"><h2 style="flex:1">${id ? esc(t.title) : 'New topic'}</h2><button class="btn sm alt" onclick="closeTopic()">Close</button></div>`;
+  if (isAdmin) {
+    h += `<label>Title</label><input id="f_title" value="${esc(t.title)}">
+      <div class="grid2"><div><label>Category</label><select id="f_category">${opts(CATEGORIES, t.category, 'Select')}</select></div>
+      <div><label>Platform</label><select id="f_platform">${opts(PLATFORMS, t.platform, 'Select')}</select></div>
+      <div><label>Shoot date</label><input type="date" id="f_shoot_date" value="${esc(t.shoot_date || '')}"></div>
+      <div><label>Expected duration</label><input id="f_duration_label" value="${esc(t.duration_label || '')}" placeholder="for example 60 sec or 5 min"></div>
+      <div><label>Presenter</label><select id="f_presenter_id">${memberOpts('Presenter', t.presenter_id)}</select></div>
+      <div><label>Writer</label><select id="f_writer_id">${memberOpts('Writer', t.writer_id)}</select></div>
+      <div><label>Status</label><select id="f_status">${STATUSES.concat(['Archived']).map(s => `<option ${s === t.status ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
+      <div><label>Reference link</label><input id="f_reference_url" value="${esc(t.reference_url || '')}" placeholder="circular / notification link"></div></div>`;
+  } else {
+    h += `<div class="row" style="margin:6px 0">${t.platform ? `<span class="chip">${esc(t.platform)}</span>` : ''}${t.category ? `<span class="chip">${esc(t.category)}</span>` : ''}<span class="chip">${esc(t.status)}</span>${t.shoot_date ? `<span class="chip">Shoot: ${esc(t.shoot_date)}</span>` : ''}${t.duration_label ? `<span class="chip">${esc(t.duration_label)}</span>` : ''}</div>
+      ${t.reference_url ? `<div class="muted">Reference: <a href="${esc(t.reference_url)}" target="_blank" rel="noopener">${esc(t.reference_url)}</a></div>` : ''}`;
+  }
+  h += `<label>Opening line (hook)</label><textarea id="f_hook" ${ro} rows="2">${esc(t.hook || '')}</textarea>
+    <label>Script</label><textarea id="f_script" ${ro} rows="9">${esc(t.script || '')}</textarea>
+    <label>Key points to cover</label><textarea id="f_key_points" ${ro} rows="4">${esc(t.key_points || '')}</textarea>`;
+  if (isAdmin) h += `<label>Final video link</label><input id="f_video_url" value="${esc(t.video_url || '')}">`;
+  if (id && (isAdmin || me.role === 'Presenter')) h += `<label>Note from the presenter</label><textarea id="f_presenter_note" rows="2" ${isAdmin || t.presenter_id ? '' : 'readonly'}>${esc(t.presenter_note || '')}</textarea>`;
+  h += '<div id="tMsg"></div><div class="row" style="margin-top:12px">';
+  if (canWrite || isAdmin || (t.presenter_id && me.role === 'Presenter')) h += `<button class="btn" onclick="saveTopic(${id})">Save</button>`;
+  if (id) h += `<button class="btn ok" onclick="openTeleprompter(${id})">Teleprompter</button>`;
+  if (id && me.role === 'Presenter' && ['Script Ready', 'Ready to Shoot'].includes(t.status) && mode !== 'admin') h += `<button class="btn alt" onclick="markShot(${id})">Mark as shot</button>`;
+  if (id && me.role === 'Writer' && t.status === 'Idea' && mode !== 'admin') h += `<button class="btn alt" onclick="markScriptReady(${id})">Script is ready</button>`;
+  h += '</div>';
+  $('topicBody').innerHTML = h;
+  $('topicModal').classList.add('open');
+}
+function closeTopic() { $('topicModal').classList.remove('open'); }
+function val(id) { const el = $(id); return el ? el.value : undefined; }
+async function saveTopic(id, extra = {}) {
+  const body = { ...extra };
+  for (const k of ['title', 'category', 'platform', 'shoot_date', 'duration_label', 'presenter_id', 'writer_id', 'status', 'reference_url', 'hook', 'script', 'key_points', 'video_url', 'presenter_note']) {
+    const v = val('f_' + k); if (v !== undefined && !(k in body)) body[k] = v;
+  }
+  if (mode !== 'admin') for (const k of ['title', 'category', 'platform', 'shoot_date', 'presenter_id', 'writer_id', 'status', 'video_url']) delete body[k];
+  const d = id ? await api('/topics/' + id, { method: 'PUT', body: JSON.stringify(body) }) : await api('/topics', { method: 'POST', body: JSON.stringify(body) });
+  if (!d.success) { $('tMsg').innerHTML = msgBox(d.message || 'Could not save.', false); return; }
+  await loadAll(); closeTopic(); render();
+}
+const markShot = id => saveTopic(id, { status: 'Shot' });
+const markScriptReady = id => saveTopic(id, { status: 'Script Ready' });
+
+// ---------- Team ----------
+async function renderTeam() {
+  const emps = await api('/employees');
+  const m = await api('/members'); members = m.members || [];
+  $('teamBox').innerHTML = `
+    <div class="guide"><b>Who can use Studio?</b> Choose employees of your office, or add someone from outside. Employees see a Studio option in their dashboard. Outside people sign in at <b>${esc(location.origin)}/studio.html</b> and see nothing else. Everyone sees only the topics assigned to them.</div>
+    <div class="grid2">
+      <div class="card"><h3 style="margin-top:0">Give an employee access</h3>
+        <label>Employee</label><select id="addEmp"><option value="">Select employee</option>${(emps.employees || []).map(e => `<option value="${esc(e.emp_id)}">${esc(e.name)} (${esc(e.emp_id)})</option>`).join('')}</select>
+        <label>Role</label><select id="addEmpRole"><option>Presenter</option><option>Writer</option></select>
+        <div class="row" style="margin-top:10px"><button class="btn" onclick="addEmployee()">Give access</button></div></div>
+      <div class="card"><h3 style="margin-top:0">Add a person from outside</h3>
+        <label>Name</label><input id="gName"><label>Email</label><input id="gEmail" type="email"><label>Mobile (optional)</label><input id="gMobile">
+        <label>Role</label><select id="gRole"><option>Presenter</option><option>Writer</option></select>
+        <div class="row" style="margin-top:10px"><button class="btn" onclick="addGuest()">Create login</button></div></div>
+    </div>
+    <div id="teamMsg"></div>
+    <div class="card" style="margin-top:12px"><h3 style="margin-top:0">Studio team</h3><div style="overflow:auto"><table>
+      <tr><th>Name</th><th>Type</th><th>Role</th><th>Status</th><th>Last sign-in</th><th></th></tr>
+      ${members.map(x => `<tr><td><b>${esc(x.name)}</b><div class="muted">${esc(x.member_type === 'guest' ? (x.login_id || '') : x.emp_id)}</div></td>
+        <td>${x.member_type === 'guest' ? 'Outside' : 'Employee'}</td>
+        <td><select onchange="updMember(${x.id},{role:this.value})"><option ${x.role === 'Presenter' ? 'selected' : ''}>Presenter</option><option ${x.role === 'Writer' ? 'selected' : ''}>Writer</option></select></td>
+        <td>${esc(x.status)}</td><td class="muted">${x.last_login_at ? esc(new Date(x.last_login_at).toLocaleString('en-GB')) : '—'}</td>
+        <td class="row">${x.status === 'Active' ? `<button class="btn sm bad" onclick="updMember(${x.id},{status:'Disabled'})">Disable</button>` : `<button class="btn sm ok" onclick="updMember(${x.id},{status:'Active'})">Enable</button>`}
+          ${x.member_type === 'guest' ? `<button class="btn sm alt" onclick="updMember(${x.id},{reset_password:true})">Reset password</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">No one yet.</td></tr>'}
+    </table></div></div>`;
+}
+async function addEmployee() {
+  const d = await api('/members/employee', { method: 'POST', body: JSON.stringify({ emp_id: $('addEmp').value, role: $('addEmpRole').value }) });
+  await renderTeam(); $('teamMsg').innerHTML = msgBox(d.message || 'Could not add.', d.success);
+}
+async function addGuest() {
+  const d = await api('/members/guest', { method: 'POST', body: JSON.stringify({ name: $('gName').value, email: $('gEmail').value, mobile: $('gMobile').value, role: $('gRole').value }) });
+  await renderTeam();
+  $('teamMsg').innerHTML = d.success
+    ? msgBox(`${d.message} Login ID: ${d.login_id} · Temporary password: ${d.temp_password} ${d.emailed ? '(also sent to their email)' : '(no email was sent; please share it with them securely)'}. Please note it now; it will not be shown again.`, true)
+    : msgBox(d.message || 'Could not create.', false);
+}
+async function updMember(id, body) {
+  const d = await api('/members/' + id, { method: 'PUT', body: JSON.stringify(body) });
+  await renderTeam();
+  $('teamMsg').innerHTML = d.temp_password ? msgBox(`New temporary password: ${d.temp_password}. Please share it securely; it will not be shown again.`, true) : (d.success ? '' : msgBox(d.message || 'Could not update.', false));
+}
+
+// ---------- Teleprompter ----------
+let tpList = [], tpIdx = 0, tpRun = false, tpSpd = 3, tpFont = 40, tpRaf = null, tpAcc = 0;
+function openTeleprompter(id) {
+  closeTopic();
+  tpList = (view === 'archive' ? topics : topics).filter(t => t.status !== 'Archived' && (t.script || t.hook || t.key_points));
+  tpIdx = Math.max(0, tpList.findIndex(t => t.id === id));
+  if (!tpList.length) { alert('This topic does not have a script yet.'); return; }
+  $('tp').classList.add('open'); tpLoad();
+}
+function tpLoad() {
+  const t = tpList[tpIdx];
+  $('tpTitle').textContent = `${tpIdx + 1}/${tpList.length} · ${t.title}`;
+  const parts = [];
+  if (t.hook) parts.push(`<span class="tp-h">Opening line</span>${esc(t.hook)}`);
+  if (t.script) parts.push(`<span class="tp-h">Script</span>${esc(t.script)}`);
+  if (t.key_points) parts.push(`<span class="tp-h">Key points</span>${esc(t.key_points)}`);
+  $('tpText').innerHTML = parts.join('<br>');
+  $('tpText').style.fontSize = tpFont + 'px';
+  $('tpScroll').scrollTop = 0; tpRun = false; tpAcc = 0; $('tpPlay').textContent = '▶ Start'; $('tpSpeedLbl').textContent = 'Speed ' + tpSpd;
+  cancelAnimationFrame(tpRaf);
+}
+function tpToggle() {
+  tpRun = !tpRun; $('tpPlay').textContent = tpRun ? '❚❚ Pause' : '▶ Start';
+  if (tpRun) { let last = performance.now(); const step = now => { if (!tpRun) return; tpAcc += (now - last) / 1000 * tpSpd * 12; last = now; const whole = Math.floor(tpAcc); if (whole) { $('tpScroll').scrollTop += whole; tpAcc -= whole; } tpRaf = requestAnimationFrame(step); }; tpRaf = requestAnimationFrame(step); }
+}
+function tpSpeed(d) { tpSpd = Math.min(10, Math.max(1, tpSpd + d)); $('tpSpeedLbl').textContent = 'Speed ' + tpSpd; }
+function tpSize(d) { tpFont = Math.min(120, Math.max(20, tpFont + d)); $('tpText').style.fontSize = tpFont + 'px'; }
+function tpStep(d) { tpIdx = (tpIdx + d + tpList.length) % tpList.length; tpLoad(); }
+function tpClose() { tpRun = false; cancelAnimationFrame(tpRaf); $('tp').classList.remove('open'); }
+$('tpScroll').addEventListener('click', tpToggle);
+
+boot();
+</script>
+</body>
+</html>

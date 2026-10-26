@@ -145,6 +145,7 @@ app.use('/api/public/document-requests', publicDocumentRequestsRoutes);
 app.use('/api/client-kyc', clientKycRoutes);
 app.use('/api/campaigns', employeeCampaignRoutes);
 app.use('/api/passkeys', passkeyRoutes);
+app.use('/api/studio', require('./routes/studio'));
 
 app.get('/api/maps/config', (req, res) => {
   if (!process.env.GOOGLE_MAPS_API_KEY) {

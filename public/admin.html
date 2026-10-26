@@ -230,6 +230,9 @@
     <div class="sidebar-item" id="s-campaigns" onclick="showPanel('campaigns')">
       <span class="s-icon">&#128229;</span> Data Campaigns
     </div>
+    <div class="sidebar-item" id="s-studio" style="display:none;" onclick="window.location.href='/studio.html'">
+      <span class="s-icon">&#127916;</span> Gee Bharat Studio
+    </div>
     <div class="sidebar-item" id="s-fingerprint" onclick="showPanel('fingerprint')">
       <span class="s-icon">&#128274;</span> Fingerprint Login
     </div>
@@ -2836,6 +2839,14 @@ async function askOnboardingReupload(id) {
   showToast(data.message, data.success ? 'success' : 'error');
   if (data.success) loadOnboardingRequests();
 }
+
+// Gee Bharat Studio is shown only to organisations the super admin has switched it on for.
+(async function checkStudioMenu() {
+  try {
+    const d = await api('/studio/access');
+    if (d && d.success && d.allowed) document.getElementById('s-studio').style.display = '';
+  } catch (e) { /* feature not enabled: menu stays hidden */ }
+})();
 
 async function toggleAdminLeaveForm() {
   const box = document.getElementById('adminLeaveForm');
