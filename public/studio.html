@@ -5,101 +5,174 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Gee Bharat Studio</title>
 <link rel="icon" href="/icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Inter:wght@400;500;600;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
 <script src="/assets/auth-session.js"></script>
 <style>
   :root {
-    --bg:#f4f6fb; --card:#fff; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --brand:#4f46e5; --brand-ink:#fff;
-    --ok:#16a34a; --warn:#d97706; --bad:#dc2626; --soft:#eef2ff;
+    --bg:#0d0e12; --bg2:#12141a; --panel:#171a22; --panel2:#1d212b; --line:#2a2f3c; --ink:#eceef4; --muted:#8c93a7;
+    --accent:#ffb020; --accent-ink:#1a1204; --brand:#7c5cff; --rec:#ff4d4f; --ok:#34d399; --bad:#ff5d5d;
+    --paper:#f6f1e4; --paper-ink:#22201a; --shadow:0 10px 30px rgba(0,0,0,.35);
+    --display:'Oswald','Arial Narrow',Impact,sans-serif; --ui:'Inter',system-ui,'Segoe UI',Arial,sans-serif; --mono:'Courier Prime','Courier New',monospace;
   }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) { --bg:#0b1220; --card:#131c2e; --ink:#e5e9f2; --muted:#94a3b8; --line:#243049; --soft:#1b2540; }
+  :root[data-theme="light"] {
+    --bg:#efece4; --bg2:#f6f3ec; --panel:#ffffff; --panel2:#f7f4ee; --line:#ddd7c8; --ink:#1b1d24; --muted:#6c7080;
+    --accent:#d97706; --accent-ink:#fff; --brand:#5b3df5; --shadow:0 8px 24px rgba(60,50,20,.12);
   }
   * { box-sizing:border-box; }
-  body { margin:0; font-family:'Segoe UI',system-ui,Arial,sans-serif; background:var(--bg); color:var(--ink); }
-  header { background:linear-gradient(135deg,#312e81,#4f46e5); color:#fff; padding:14px 16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
-  header h1 { margin:0; font-size:18px; letter-spacing:.2px; flex:1; min-width:160px; }
-  header small { opacity:.8; display:block; font-weight:400; font-size:12px; }
-  header button, header a { background:rgba(255,255,255,.16); color:#fff; border:0; border-radius:8px; padding:8px 12px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; }
-  .shell { display:flex; min-height:calc(100vh - 62px); }
-  #side { width:210px; flex-shrink:0; background:#1e1b4b; padding:14px 8px; display:none; }
-  #side .sec { color:#a5b4fc; font-size:10.5px; font-weight:700; letter-spacing:1px; text-transform:uppercase; padding:6px 12px 8px; }
-  #side button { display:flex; align-items:center; gap:10px; width:100%; text-align:left; background:transparent; color:#e0e7ff; border:0; border-radius:8px; padding:11px 12px; font:inherit; font-size:14px; font-weight:600; cursor:pointer; margin-bottom:2px; }
-  #side button:hover { background:rgba(255,255,255,.08); }
-  #side button.on { background:#4f46e5; color:#fff; }
-  #side .ic { width:20px; text-align:center; }
-  #side .badge { margin-left:auto; background:#ef4444; color:#fff; font-size:11px; font-weight:800; border-radius:10px; padding:1px 7px; }
-  main { flex:1; min-width:0; padding:16px 18px 60px; }
-  @media (max-width:760px) {
-    .shell { flex-direction:column; }
-    #side { width:100%; display:none; padding:8px; overflow-x:auto; white-space:nowrap; }
-    #side.show { display:flex !important; gap:6px; }
-    #side .sec { display:none; }
-    #side button { width:auto; margin:0; padding:9px 12px; }
-  }
-  .tabs { display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap; }
-  .tabs button { border:1.5px solid var(--line); background:var(--card); color:var(--ink); padding:8px 14px; border-radius:999px; font-weight:700; font-size:13px; cursor:pointer; }
-  .tabs button.on { background:var(--brand); border-color:var(--brand); color:var(--brand-ink); }
-  .btn { background:var(--brand); color:var(--brand-ink); border:0; border-radius:8px; padding:9px 14px; font-weight:700; font-size:13px; cursor:pointer; }
-  .btn.alt { background:var(--card); color:var(--brand); border:1.5px solid var(--brand); }
-  .btn.bad { background:var(--bad); }
-  .btn.ok { background:var(--ok); }
-  .btn.sm { padding:6px 10px; font-size:12px; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; }
-  .muted { color:var(--muted); font-size:12.5px; }
-  .board { display:grid; grid-auto-flow:column; grid-auto-columns:minmax(240px,1fr); gap:12px; overflow-x:auto; padding-bottom:10px; }
-  .col { background:var(--soft); border-radius:12px; padding:10px; min-height:120px; }
-  .col h3 { margin:0 0 8px; font-size:13px; display:flex; justify-content:space-between; }
-  .tcard { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px; margin-bottom:8px; cursor:pointer; }
-  .tcard:hover { border-color:var(--brand); }
-  .tcard b { display:block; font-size:14px; margin-bottom:4px; }
-  .chip { display:inline-block; font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; background:var(--soft); color:var(--brand); margin:2px 4px 0 0; }
-  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-  @media (max-width:640px) { .grid2 { grid-template-columns:1fr; } }
-  label { display:block; font-size:11.5px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.3px; margin:10px 0 4px; }
-  input, select, textarea { width:100%; padding:10px; border:1.5px solid var(--line); border-radius:8px; font:inherit; font-size:14px; background:var(--card); color:var(--ink); }
+  html,body { margin:0; }
+  body { font-family:var(--ui); background:var(--bg); color:var(--ink); -webkit-font-smoothing:antialiased; }
+  button { font-family:inherit; }
+
+  /* ---- header: the "control room" bar ---- */
+  header { display:flex; align-items:center; gap:14px; padding:10px 18px; background:linear-gradient(180deg,#14151b,#0d0e12); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:30; }
+  :root[data-theme="light"] header { background:linear-gradient(180deg,#26233a,#1b1a2b); }
+  .logo { display:flex; align-items:center; gap:10px; }
+  .clap { width:34px; height:30px; position:relative; }
+  .clap i { position:absolute; left:0; right:0; height:11px; background:repeating-linear-gradient(115deg,#fff 0 7px,#14151b 7px 14px); border-radius:3px; }
+  .clap i:first-child { top:0; transform:rotate(-8deg); transform-origin:left bottom; }
+  .clap b { position:absolute; left:0; right:0; bottom:0; height:19px; background:#2b2f3c; border:2px solid #fff; border-radius:3px; }
+  .brand { font-family:var(--display); font-size:22px; letter-spacing:2px; text-transform:uppercase; color:#fff; line-height:1; }
+  .brand small { display:block; font-family:var(--ui); font-size:10.5px; letter-spacing:.4px; text-transform:none; color:#9aa1b5; margin-top:3px; }
+  .rec { display:flex; align-items:center; gap:7px; font-family:var(--display); letter-spacing:2px; font-size:13px; color:#ff8d8d; margin-left:6px; }
+  .rec::before { content:''; width:10px; height:10px; border-radius:50%; background:var(--rec); box-shadow:0 0 12px var(--rec); animation:blink 1.6s infinite; }
+  @keyframes blink { 50% { opacity:.25; } }
+  .hspace { flex:1; }
+  .chip-user { color:#d7dbe8; font-size:13px; font-weight:600; background:rgba(255,255,255,.07); padding:7px 12px; border-radius:999px; }
+  header .hb { background:rgba(255,255,255,.09); color:#fff; border:0; border-radius:8px; padding:8px 12px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; }
+  header .hb:hover { background:rgba(255,255,255,.18); }
+
+  .shell { display:flex; min-height:calc(100vh - 56px); }
+  #side { width:218px; flex-shrink:0; background:var(--bg2); border-right:1px solid var(--line); padding:16px 10px; display:none; }
+  #side .sec { color:var(--muted); font-size:10.5px; font-weight:700; letter-spacing:1.4px; text-transform:uppercase; padding:4px 12px 10px; }
+  #side button { display:flex; align-items:center; gap:11px; width:100%; text-align:left; background:transparent; color:var(--ink); border:0; border-radius:10px; padding:11px 12px; font-size:14px; font-weight:600; cursor:pointer; margin-bottom:3px; }
+  #side button:hover { background:var(--panel2); }
+  #side button.on { background:linear-gradient(90deg,var(--accent),#ff8a1f); color:var(--accent-ink); }
+  #side .ic { width:20px; text-align:center; font-size:16px; }
+  #side .badge { margin-left:auto; background:var(--rec); color:#fff; font-size:11px; font-weight:800; border-radius:10px; padding:1px 7px; }
+  main { flex:1; min-width:0; padding:20px 22px 70px; }
+  h2.page { font-family:var(--display); font-weight:600; letter-spacing:1.2px; text-transform:uppercase; font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--muted); font-size:13px; margin-bottom:16px; }
+
+  /* ---- stage tiles (film strip) ---- */
+  .strip { display:grid; grid-template-columns:repeat(6,minmax(120px,1fr)); gap:10px; margin-bottom:18px; }
+  .stage { --c:#8c93a7; position:relative; text-align:left; border:1px solid var(--line); background:var(--panel); color:var(--ink); border-radius:12px; padding:20px 14px 12px; cursor:pointer; overflow:hidden; transition:transform .12s, border-color .12s, box-shadow .12s; }
+  .stage::before, .stage::after { content:''; position:absolute; left:0; right:0; height:7px; background:repeating-linear-gradient(90deg,var(--line) 0 6px,transparent 6px 13px); opacity:.9; }
+  .stage::before { top:0; } .stage::after { bottom:0; }
+  .stage:hover { transform:translateY(-2px); border-color:var(--c); }
+  .stage.on { border-color:var(--c); box-shadow:0 0 0 2px var(--c) inset, var(--shadow); background:linear-gradient(180deg,color-mix(in srgb,var(--c) 18%,var(--panel)),var(--panel)); }
+  .stage .n { display:block; font-family:var(--display); font-size:34px; font-weight:600; line-height:1; color:var(--c); }
+  .stage .l { display:block; font-size:12px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; margin-top:5px; }
+
+  /* ---- list + detail ---- */
+  .work { display:grid; grid-template-columns:minmax(300px,380px) 1fr; gap:16px; align-items:start; }
+  .listcol { display:flex; flex-direction:column; gap:10px; }
+  .tcard { background:var(--panel); border:1px solid var(--line); border-left:5px solid var(--c,#8c93a7); border-radius:12px; padding:12px 14px; cursor:pointer; transition:.12s; }
+  .tcard:hover { background:var(--panel2); }
+  .tcard.sel { outline:2px solid var(--accent); background:var(--panel2); }
+  .tcard b { display:block; font-size:15px; margin-bottom:6px; line-height:1.3; }
+  .meta { color:var(--muted); font-size:12.5px; margin-top:6px; line-height:1.5; }
+  .chip { display:inline-block; font-size:11px; font-weight:700; padding:3px 9px; border-radius:999px; background:var(--panel2); color:var(--ink); border:1px solid var(--line); margin:2px 5px 0 0; }
+  .chip.st { background:var(--c); color:#fff; border-color:transparent; }
+  .detail { background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:0; box-shadow:var(--shadow); overflow:hidden; }
+  .detail .dh { padding:18px 20px 14px; border-bottom:1px solid var(--line); background:linear-gradient(135deg,var(--panel2),var(--panel)); }
+  .detail h3 { font-family:var(--display); font-weight:600; letter-spacing:.6px; font-size:26px; margin:6px 0 4px; line-height:1.15; }
+  .pipe { display:flex; gap:6px; margin:12px 0 4px; }
+  .pipe i { flex:1; height:6px; border-radius:4px; background:var(--line); }
+  .pipe i.d { background:var(--c); }
+  .actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; align-items:center; }
+  .actions label { margin:0; }
+  .dbody { padding:16px 20px 22px; }
+  .facts { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:18px; }
+  .fact { background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:9px 12px; }
+  .fact span { display:block; font-size:10.5px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--muted); }
+  .fact b { font-size:14px; }
+  .sect { font-family:var(--display); letter-spacing:1.5px; text-transform:uppercase; font-size:13px; color:var(--accent); margin:18px 0 8px; display:flex; align-items:center; gap:8px; }
+  .sect::after { content:''; flex:1; height:1px; background:var(--line); }
+  .hook { font-size:18px; font-weight:600; line-height:1.5; border-left:4px solid var(--accent); padding:4px 0 4px 14px; }
+  .scriptpaper { background:var(--paper); color:var(--paper-ink); font-family:var(--mono); font-size:16px; line-height:1.75; border-radius:10px; padding:18px 22px; white-space:pre-wrap; box-shadow:inset 0 0 0 1px rgba(0,0,0,.08); }
+  .kp { list-style:none; margin:0; padding:0; }
+  .kp li { display:flex; gap:10px; padding:7px 0; border-bottom:1px dashed var(--line); font-size:14.5px; }
+  .kp li::before { content:'\2713'; color:var(--ok); font-weight:800; }
+  .empty { text-align:center; color:var(--muted); padding:60px 20px; }
+  .empty .big { font-size:46px; margin-bottom:8px; }
+
+  /* ---- controls ---- */
+  .btn { background:var(--accent); color:var(--accent-ink); border:0; border-radius:9px; padding:10px 16px; font-weight:700; font-size:13.5px; cursor:pointer; }
+  .btn:hover { filter:brightness(1.08); }
+  .btn.alt { background:transparent; color:var(--ink); border:1.5px solid var(--line); }
+  .btn.alt:hover { border-color:var(--accent); color:var(--accent); }
+  .btn.bad { background:var(--bad); color:#fff; } .btn.ok { background:var(--ok); color:#06241a; } .btn.vio { background:var(--brand); color:#fff; }
+  .btn.sm { padding:6px 11px; font-size:12px; }
+  label { display:block; font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.8px; margin:12px 0 5px; }
+  input, select, textarea { width:100%; padding:10px 12px; border:1.5px solid var(--line); border-radius:9px; font:inherit; font-size:14px; background:var(--bg2); color:var(--ink); }
+  input:focus, select:focus, textarea:focus { outline:none; border-color:var(--accent); }
   textarea { resize:vertical; min-height:90px; }
-  .backdrop { position:fixed; inset:0; background:rgba(15,23,42,.6); display:none; align-items:flex-start; justify-content:center; padding:16px; overflow:auto; z-index:50; }
-  .backdrop.open { display:flex; }
-  .modal { background:var(--card); border-radius:14px; padding:18px; width:min(760px,100%); margin:auto; }
-  .modal h2 { margin:0 0 6px; font-size:18px; }
+  textarea.mono { font-family:var(--mono); font-size:15px; line-height:1.6; }
+  .statusSel { width:auto; padding:8px 10px; font-weight:700; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:0 12px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px; }
+  .muted { color:var(--muted); font-size:12.5px; }
   .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
   table { width:100%; border-collapse:collapse; font-size:13px; }
-  th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:middle; }
-  th { color:var(--muted); font-size:11.5px; text-transform:uppercase; }
-  .msg { padding:10px 12px; border-radius:8px; font-size:13px; margin:10px 0; }
-  .msg.err { background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; }
-  .msg.ok { background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; }
-  .center { max-width:420px; margin:48px auto; }
-  pre.script { white-space:pre-wrap; font:inherit; background:var(--soft); border-radius:10px; padding:12px; margin:0; line-height:1.6; }
-  /* Teleprompter */
+  th, td { text-align:left; padding:10px 8px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  th { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.8px; }
+  .msg { padding:10px 12px; border-radius:9px; font-size:13px; margin:10px 0; }
+  .msg.err { background:rgba(255,93,93,.12); color:#ff9a9a; border:1px solid rgba(255,93,93,.35); }
+  .msg.ok { background:rgba(52,211,153,.12); color:#5eead4; border:1px solid rgba(52,211,153,.35); }
+  :root[data-theme="light"] .msg.err { color:#b91c1c; } :root[data-theme="light"] .msg.ok { color:#047857; }
+  .center { max-width:430px; margin:56px auto; }
+  .guide { background:var(--panel2); border:1px dashed var(--line); border-radius:12px; padding:12px 14px; font-size:13px; margin-bottom:14px; line-height:1.55; }
+
+  .backdrop { position:fixed; inset:0; background:rgba(0,0,0,.7); backdrop-filter:blur(3px); display:none; align-items:flex-start; justify-content:center; padding:20px 14px; overflow:auto; z-index:60; }
+  .backdrop.open { display:flex; }
+  .modal { background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:20px 22px; width:min(820px,100%); margin:auto; box-shadow:var(--shadow); }
+  .modal h2 { font-family:var(--display); letter-spacing:1px; text-transform:uppercase; font-size:22px; margin:0; flex:1; }
+
+  /* ---- teleprompter ---- */
   #tp { position:fixed; inset:0; background:#000; color:#fff; z-index:100; display:none; flex-direction:column; }
   #tp.open { display:flex; }
-  #tpBar { display:flex; gap:8px; align-items:center; padding:10px 12px; background:#111827; flex-wrap:wrap; }
-  #tpBar button { background:#374151; color:#fff; border:0; border-radius:8px; padding:9px 13px; font-size:14px; font-weight:700; cursor:pointer; }
-  #tpBar button.go { background:#16a34a; }
+  #tpBar { display:flex; gap:8px; align-items:center; padding:10px 12px; background:#101218; flex-wrap:wrap; border-bottom:1px solid #222; }
+  #tpBar button { background:#2a2f3c; color:#fff; border:0; border-radius:8px; padding:9px 13px; font-size:14px; font-weight:700; cursor:pointer; }
+  #tpBar button.go { background:var(--ok); color:#06241a; }
   #tpBar span { font-size:13px; opacity:.85; }
   #tpScroll { flex:1; overflow-y:scroll; padding:40vh 7vw 80vh; scrollbar-width:none; }
   #tpScroll::-webkit-scrollbar { display:none; }
-  #tpText { font-weight:700; line-height:1.5; white-space:pre-wrap; text-align:center; }
-  .tp-h { color:#facc15; font-size:.6em; letter-spacing:1px; text-transform:uppercase; display:block; margin:1.2em 0 .3em; }
-  .guide { background:var(--soft); border-radius:10px; padding:10px 12px; font-size:13px; margin-bottom:12px; }
+  #tpText { font-family:var(--ui); font-weight:700; line-height:1.5; white-space:pre-wrap; text-align:center; }
+  .tp-h { color:var(--accent); font-family:var(--display); font-size:.55em; letter-spacing:3px; text-transform:uppercase; display:block; margin:1.4em 0 .3em; }
+  #tpLine { position:absolute; left:0; right:0; top:40%; height:2px; background:rgba(255,176,32,.55); pointer-events:none; box-shadow:0 0 12px rgba(255,176,32,.6); z-index:101; }
+
+  @media (max-width:980px) { .strip { grid-template-columns:repeat(3,1fr); } .work { grid-template-columns:1fr; } }
+  @media (max-width:760px) {
+    .shell { flex-direction:column; }
+    #side { width:100%; padding:8px; overflow-x:auto; white-space:nowrap; border-right:0; border-bottom:1px solid var(--line); }
+    #side.show { display:flex !important; gap:6px; } #side .sec { display:none; }
+    #side button { width:auto; margin:0; padding:9px 12px; }
+    main { padding:14px 12px 60px; } .grid2 { grid-template-columns:1fr; } .rec { display:none; } .chip-user { display:none; }
+  }
 </style>
 </head>
 <body>
 <header>
-  <h1>Gee Bharat Studio<small id="who">Content planning &amp; shoot scripts</small></h1>
-  <a href="/" id="backLink" style="display:none">&larr; Back</a>
-  <button id="logoutBtn" style="display:none" onclick="logout()">Sign out</button>
+  <div class="logo"><div class="clap"><i></i><b></b></div>
+    <div class="brand">Gee Bharat Studio<small>Plan it. Script it. Shoot it.</small></div></div>
+  <div class="rec">ON AIR</div>
+  <div class="hspace"></div>
+  <span class="chip-user" id="whoChip" style="display:none"></span>
+  <button class="hb" id="themeBtn" onclick="toggleTheme()" title="Switch light / dark">&#9728;</button>
+  <a class="hb" href="/" id="backLink" style="display:none">&larr; Back</a>
+  <button class="hb" id="logoutBtn" style="display:none" onclick="logout()">Sign out</button>
 </header>
 <div class="shell"><nav id="side"></nav><main id="app"></main></div>
 
 <div class="backdrop" id="topicModal"><div class="modal" id="topicBody"></div></div>
-<div class="backdrop" id="pwModal"><div class="modal" style="max-width:420px">
+<div class="backdrop" id="pwModal"><div class="modal" style="max-width:430px">
   <h2>Choose a new password</h2>
   <p class="muted">For your security, please replace the temporary password you were given.</p>
   <label>New password (at least 8 characters)</label><input type="password" id="newPw" autocomplete="new-password">
   <div id="pwMsg"></div>
-  <div class="row" style="margin-top:12px"><button class="btn" onclick="savePassword()">Save password</button></div>
+  <div class="row" style="margin-top:14px"><button class="btn" onclick="savePassword()">Save password</button></div>
 </div></div>
 
 <div id="tp">
@@ -111,17 +184,24 @@
     <button onclick="tpStep(-1)">&larr; Prev</button><button onclick="tpStep(1)">Next &rarr;</button>
     <span id="tpTitle"></span>
   </div>
+  <div id="tpLine"></div>
   <div id="tpScroll"><div id="tpText"></div></div>
 </div>
 
 <script>
 const STATUSES = ['Idea','Script Ready','Ready to Shoot','Shot','Editing','Published'];
+const STAGE_COLOR = { 'Idea':'#8c93a7', 'Script Ready':'#4c9aff', 'Ready to Shoot':'#ffb020', 'Shot':'#ff4d4f', 'Editing':'#a970ff', 'Published':'#34d399', 'Archived':'#6b7280' };
+const STAGE_HINT = { 'Idea':'Rough topics', 'Script Ready':'Script written', 'Ready to Shoot':'Waiting for camera', 'Shot':'Recorded', 'Editing':'In edit', 'Published':'Live' };
 const PLATFORMS = ['YouTube','Instagram Reel','YouTube Shorts','LinkedIn','Facebook','Other'];
 const CATEGORIES = ['GST','Income Tax','ROC / MCA','Audit','Accounting','Startup','Labour Law','General'];
 const $ = id => document.getElementById(id);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
-let mode = null;             // 'guest' | 'admin' | 'employee'
-let me = null, topics = [], members = [], ideas = [], view = 'board';
+let mode = null, me = null, topics = [], members = [], ideas = [], view = 'board', stage = null, selId = null;
+
+// ---------- theme ----------
+function applyTheme(t) { document.documentElement.setAttribute('data-theme', t); $('themeBtn').innerHTML = t === 'light' ? '&#9790;' : '&#9728;'; }
+function toggleTheme() { const t = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light'; try { localStorage.setItem('studio_theme', t); } catch {} applyTheme(t); }
+try { applyTheme(localStorage.getItem('studio_theme') || 'dark'); } catch { applyTheme('dark'); }
 
 // ---------- API ----------
 function guestToken() { try { return localStorage.getItem('studio_guest_token') || ''; } catch { return ''; } }
@@ -150,33 +230,34 @@ async function boot() {
   else if (GBSession.tokenFor('attendance')) mode = 'employee';
   if (!mode) return showLogin();
   const a = await api('/access');
-  if (a.http === 401) { if (mode === 'guest') { localStorage.removeItem('studio_guest_token'); } return showLogin('Your session has ended. Please sign in again.'); }
+  if (a.http === 401) { if (mode === 'guest') localStorage.removeItem('studio_guest_token'); return showLogin('Your session has ended. Please sign in again.'); }
   if (!a.success) return showNotice(a.message || 'Gee Bharat Studio is not available for you.');
   me = a;
-  $('who').textContent = `${a.name} · ${a.role || ''}`;
+  $('whoChip').style.display = ''; $('whoChip').textContent = `${a.name} · ${a.role || ''}`;
   $('logoutBtn').style.display = mode === 'guest' ? '' : 'none';
   $('backLink').style.display = mode === 'guest' ? 'none' : '';
-  $('backLink').href = /office.html/.test(document.referrer) ? '/office.html' : (mode === 'admin' ? '/admin.html' : '/dashboard.html');
+  $('backLink').href = /office\.html/.test(document.referrer) ? '/office.html' : (mode === 'admin' ? '/admin.html' : '/dashboard.html');
   if (a.must_change_password) $('pwModal').classList.add('open');
   await loadAll();
   render();
 }
+function hideSide() { $('side').style.display = 'none'; $('side').classList.remove('show'); }
 function showNotice(text) {
-  $('side').style.display = 'none'; $('side').classList.remove('show');
-  $('app').innerHTML = `<div class="card center"><h2 style="margin-top:0">Gee Bharat Studio</h2><p>${esc(text)}</p></div>`;
+  hideSide();
+  $('app').innerHTML = `<div class="card center"><h2 class="page">Gee Bharat Studio</h2><p>${esc(text)}</p></div>`;
   $('backLink').style.display = mode && mode !== 'guest' ? '' : 'none';
   $('backLink').href = mode === 'admin' ? '/admin.html' : '/dashboard.html';
 }
 function showLogin(note) {
-  $('side').style.display = 'none'; $('side').classList.remove('show');
+  hideSide();
   $('app').innerHTML = `<div class="card center">
-    <h2 style="margin-top:0">Sign in to Gee Bharat Studio</h2>
+    <h2 class="page">Sign in</h2>
     <p class="muted">For outside team members who were given a Studio login. Employees and admins: please open Studio from your dashboard.</p>
     ${note ? msgBox(note, false) : ''}
     <label>Login ID (email or mobile)</label><input id="lgId" autocomplete="username">
     <label>Password</label><input id="lgPw" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')guestLogin()">
     <div id="lgMsg"></div>
-    <div class="row" style="margin-top:12px"><button class="btn" onclick="guestLogin()">Sign in</button></div></div>`;
+    <div class="row" style="margin-top:14px"><button class="btn" onclick="guestLogin()">Enter the studio</button></div></div>`;
 }
 async function guestLogin() {
   const r = await fetch('/api/studio/guest-login', { method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -197,119 +278,156 @@ async function savePassword() {
 async function loadAll() {
   const t = await api('/topics' + (view === 'archive' ? '?archived=1' : ''));
   topics = t.topics || [];
-  if (mode === 'admin') {
-    const m = await api('/members'); members = m.members || [];
-    const i = await api('/ideas'); ideas = i.ideas || [];
-  } else {
-    const i = await api('/ideas'); ideas = i.ideas || [];
-  }
+  const i = await api('/ideas'); ideas = i.ideas || [];
+  if (mode === 'admin') { const m = await api('/members'); members = m.members || []; }
 }
 
 // ---------- Render ----------
 function render() {
   const isAdmin = mode === 'admin';
   const tabs = isAdmin
-    ? [['board', 'Board'], ['ideas', `Ideas${ideas.length ? ' (' + ideas.length + ')' : ''}`], ...(me.can_manage_team ? [['team', 'Studio Team']] : []), ['archive', 'Archived']]
+    ? [['board', 'Board'], ['ideas', 'Ideas', ideas.length], ...(me.can_manage_team ? [['team', 'Studio Team']] : []), ['archive', 'Archived']]
     : [['mine', 'My Topics'], ['idea', 'Send an Idea']];
   if (!tabs.some(t => t[0] === view)) view = tabs[0][0];
-  const icons = { board: '&#128203;', ideas: '&#128161;', team: '&#128101;', archive: '&#128452;', mine: '&#127916;', idea: '&#128161;' };
+  const icons = { board: '&#127916;', ideas: '&#128161;', team: '&#128101;', archive: '&#128452;', mine: '&#127916;', idea: '&#128161;' };
   const side = $('side');
-  side.innerHTML = '<div class="sec">Gee Bharat Studio</div>' + tabs.map(([k, l]) =>
-    '<button class="' + (view === k ? 'on' : '') + '" onclick="setView(\'' + k + '\')"><span class="ic">' + icons[k] + '</span>' + l.replace(/ \((\d+)\)$/, '') +
-    (/\((\d+)\)$/.test(l) ? '<span class="badge">' + l.match(/\((\d+)\)$/)[1] + '</span>' : '') + '</button>').join('');
+  side.innerHTML = '<div class="sec">Production</div>' + tabs.map(([k, l, n]) =>
+    `<button class="${view === k ? 'on' : ''}" onclick="setView('${k}')"><span class="ic">${icons[k]}</span>${l}${n ? `<span class="badge">${n}</span>` : ''}</button>`).join('');
   side.style.display = 'block'; side.classList.add('show');
   let html = '';
-  if (view === 'board') html += boardHtml();
-  else if (view === 'archive') html += listHtml(topics.filter(t => t.status === 'Archived'));
-  else if (view === 'ideas') html += ideasAdminHtml();
-  else if (view === 'team') html += '<div id="teamBox">Loading…</div>';
-  else if (view === 'mine') html += myTopicsHtml();
-  else if (view === 'idea') html += ideaFormHtml();
+  if (view === 'board' || view === 'mine') html = workHtml();
+  else if (view === 'archive') html = `<h2 class="page">Archived</h2><div class="sub">Topics that were put away.</div><div class="listcol" style="max-width:560px">${topics.filter(t => t.status === 'Archived').map(cardHtml).join('') || '<div class="empty">Nothing archived.</div>'}</div>`;
+  else if (view === 'ideas') html = ideasAdminHtml();
+  else if (view === 'team') html = '<h2 class="page">Studio Team</h2><div class="sub">Who works in the studio.</div><div id="teamBox">Loading…</div>';
+  else if (view === 'idea') html = ideaFormHtml();
   $('app').innerHTML = html;
   if (view === 'team') renderTeam();
 }
-async function setView(v) { view = v; if (v === 'archive') await loadAll(); render(); }
+async function setView(v) { view = v; selId = null; if (v === 'archive') await loadAll(); render(); }
 
+// ---------- Stages, list, detail ----------
+function pickStage(s) { stage = s; selId = null; render(); }
+function pickTopic(id) {
+  selId = id;
+  if (view === 'archive') { openTopic(id); return; }
+  render();
+  if (window.innerWidth <= 980) $('detailBox')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 function cardHtml(t) {
-  return `<div class="tcard" onclick="openTopic(${t.id})"><b>${esc(t.title)}</b>
-    ${t.platform ? `<span class="chip">${esc(t.platform)}</span>` : ''}${t.category ? `<span class="chip">${esc(t.category)}</span>` : ''}
-    <div class="muted" style="margin-top:6px">${t.shoot_date ? 'Shoot: ' + esc(t.shoot_date) + ' · ' : ''}${t.presenter_name ? 'Presenter: ' + esc(t.presenter_name) : 'No presenter yet'}${t.writer_name ? ' · Writer: ' + esc(t.writer_name) : ''}</div></div>`;
+  const c = STAGE_COLOR[t.status] || '#8c93a7';
+  return `<div class="tcard ${t.id === selId ? 'sel' : ''}" style="--c:${c}" onclick="pickTopic(${t.id})"><b>${esc(t.title)}</b>
+    <span class="chip st" style="--c:${c}">${esc(t.status)}</span>${t.platform ? `<span class="chip">${esc(t.platform)}</span>` : ''}${t.category ? `<span class="chip">${esc(t.category)}</span>` : ''}
+    <div class="meta">${t.shoot_date ? '&#128197; ' + esc(t.shoot_date) + ' · ' : ''}${t.presenter_name ? '&#127908; ' + esc(t.presenter_name) : 'No presenter yet'}${t.writer_name ? ' · &#9998; ' + esc(t.writer_name) : ''}</div></div>`;
 }
-function boardHtml() {
-  const cols = STATUSES.map(s => {
-    const items = topics.filter(t => t.status === s);
-    return `<div class="col"><h3><span>${s}</span><span>${items.length}</span></h3>${items.map(cardHtml).join('') || '<div class="muted">Nothing here</div>'}</div>`;
+function workHtml() {
+  const isAdmin = mode === 'admin';
+  if (!stage) { const first = STATUSES.find(s => topics.some(t => t.status === s)); stage = first || 'Idea'; }
+  const tiles = STATUSES.map(s => {
+    const n = topics.filter(t => t.status === s).length;
+    return `<button class="stage ${stage === s ? 'on' : ''}" style="--c:${STAGE_COLOR[s]}" onclick="pickStage('${s}')"><span class="n">${n}</span><span class="l">${s}</span><span class="muted" style="font-size:11px">${STAGE_HINT[s]}</span></button>`;
   }).join('');
-  return `<div class="row" style="margin-bottom:12px"><button class="btn" onclick="openTopic(0)">+ New Topic</button></div><div class="board">${cols}</div>`;
+  const list = topics.filter(t => t.status === stage);
+  if (selId && !list.some(t => t.id === selId)) selId = null;
+  if (!selId && list.length) selId = list[0].id;
+  const sel = topics.find(t => t.id === selId);
+  return `<div class="row" style="margin-bottom:6px"><div style="flex:1"><h2 class="page">${isAdmin ? 'Production Board' : 'My Topics'}</h2>
+      <div class="sub" style="margin:0 0 10px">${isAdmin ? 'Pick a stage to see its topics, then open one to read, edit or move it forward.' : 'Topics assigned to you. Pick a stage, then open a topic.'}</div></div>
+      ${isAdmin ? '<button class="btn" onclick="openTopic(0)">+ New Topic</button>' : ''}</div>
+    <div class="strip">${tiles}</div>
+    <div class="work"><div class="listcol">${list.map(cardHtml).join('') || `<div class="card empty"><div class="big">&#127902;</div>No topics in <b>${esc(stage)}</b> yet.</div>`}</div>
+    <div id="detailBox">${sel ? detailHtml(sel) : `<div class="detail"><div class="empty"><div class="big">&#127916;</div>Select a topic to see its details here.</div></div>`}</div></div>`;
 }
-function listHtml(list) {
-  return `<div class="card">${list.map(cardHtml).join('') || '<span class="muted">Nothing here.</span>'}</div>`;
+function detailHtml(t) {
+  const c = STAGE_COLOR[t.status];
+  const idx = STATUSES.indexOf(t.status);
+  const isAdmin = mode === 'admin';
+  const canEdit = isAdmin || (me.role === 'Writer' && t.writer_id) || (me.role === 'Presenter' && t.presenter_id);
+  const kp = String(t.key_points || '').split(/\r?\n/).map(x => x.replace(/^[\s\-•*]+/, '').trim()).filter(Boolean);
+  return `<div class="detail" style="--c:${c}">
+    <div class="dh"><span class="chip st" style="--c:${c}">${esc(t.status)}</span>${t.platform ? `<span class="chip">${esc(t.platform)}</span>` : ''}${t.category ? `<span class="chip">${esc(t.category)}</span>` : ''}
+      <h3>${esc(t.title)}</h3>
+      <div class="pipe">${STATUSES.map((s, i) => `<i class="${i <= idx ? 'd' : ''}" title="${s}"></i>`).join('')}</div>
+      <div class="actions">
+        ${isAdmin ? `<label>Move to</label><select class="statusSel" onchange="quickStatus(${t.id}, this.value)">${STATUSES.concat(['Archived']).map(s => `<option ${s === t.status ? 'selected' : ''}>${s}</option>`).join('')}</select>` : ''}
+        ${canEdit ? `<button class="btn" onclick="openTopic(${t.id})">&#9998; Edit</button>` : ''}
+        <button class="btn vio" onclick="openTeleprompter(${t.id})">&#127909; Teleprompter</button>
+        ${!isAdmin && me.role === 'Presenter' && ['Script Ready', 'Ready to Shoot'].includes(t.status) ? `<button class="btn ok" onclick="markShot(${t.id})">&#10003; Mark as shot</button>` : ''}
+        ${!isAdmin && me.role === 'Writer' && t.status === 'Idea' ? `<button class="btn ok" onclick="markScriptReady(${t.id})">&#10003; Script is ready</button>` : ''}
+      </div></div>
+    <div class="dbody">
+      <div class="facts">
+        <div class="fact"><span>Shoot date</span><b>${t.shoot_date ? esc(t.shoot_date) : 'Not set'}</b></div>
+        <div class="fact"><span>Duration</span><b>${t.duration_label ? esc(t.duration_label) : '—'}</b></div>
+        <div class="fact"><span>Presenter</span><b>${t.presenter_name ? esc(t.presenter_name) : 'Not assigned'}</b></div>
+        <div class="fact"><span>Writer</span><b>${t.writer_name ? esc(t.writer_name) : 'Not assigned'}</b></div>
+      </div>
+      ${t.hook ? `<div class="sect">Opening line</div><div class="hook">${esc(t.hook)}</div>` : ''}
+      <div class="sect">Script</div>
+      ${t.script ? `<div class="scriptpaper">${esc(t.script)}</div>` : '<div class="muted">No script written yet.</div>'}
+      ${kp.length ? `<div class="sect">Key points to cover</div><ul class="kp">${kp.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+      ${t.reference_url ? `<div class="sect">Reference</div><a href="${esc(t.reference_url)}" target="_blank" rel="noopener" style="color:var(--accent);word-break:break-all">${esc(t.reference_url)}</a>` : ''}
+      ${t.presenter_note ? `<div class="sect">Note from the presenter</div><div>${esc(t.presenter_note)}</div>` : ''}
+      ${t.video_url ? `<div class="sect">Final video</div><a href="${esc(t.video_url)}" target="_blank" rel="noopener" style="color:var(--accent);word-break:break-all">${esc(t.video_url)}</a>` : ''}
+    </div></div>`;
 }
-function myTopicsHtml() {
-  if (!topics.length) return `<div class="card"><b>No topics assigned to you yet.</b><p class="muted">When a topic is assigned to you, it will appear here${mode === 'employee' ? ' and you will receive a notification' : ''}.</p></div>`;
-  return STATUSES.map(s => {
-    const items = topics.filter(t => t.status === s);
-    return items.length ? `<h3 style="margin:14px 0 8px">${s}</h3>${items.map(cardHtml).join('')}` : '';
-  }).join('');
+async function quickStatus(id, status) {
+  const d = await api('/topics/' + id, { method: 'PUT', body: JSON.stringify({ status }) });
+  if (!d.success) { alert(d.message || 'Could not change the status.'); return; }
+  if (status !== 'Archived') stage = status;
+  selId = id;
+  await loadAll(); render();
 }
+
+// ---------- Ideas ----------
 function ideaFormHtml() {
-  return `<div class="card"><h3 style="margin-top:0">Send an idea</h3>
-    <p class="muted">Have a topic you think we should make a video on? Write it in a line or two.</p>
-    <textarea id="ideaText" placeholder="For example: What changes in GST return filing from this month?"></textarea>
-    <div id="ideaMsg"></div><div class="row" style="margin-top:10px"><button class="btn" onclick="sendIdea()">Send idea</button></div>
-    ${ideas.length ? `<h4>Your earlier ideas</h4>${ideas.map(i => `<div class="muted" style="padding:4px 0">• ${esc(i.idea_text)} <b>(${esc(i.status)})</b></div>`).join('')}` : ''}</div>`;
+  return `<h2 class="page">Send an Idea</h2><div class="sub">Have a topic we should make a video on? Tell us.</div>
+    <div class="card" style="max-width:640px"><textarea id="ideaText" placeholder="For example: What changes in GST return filing from this month?"></textarea>
+    <div id="ideaMsg"></div><div class="row" style="margin-top:12px"><button class="btn" onclick="sendIdea()">Send idea</button></div>
+    ${ideas.length ? `<h4 style="margin-bottom:6px">Your earlier ideas</h4>${ideas.map(i => `<div class="muted" style="padding:4px 0">&bull; ${esc(i.idea_text)} <b>(${esc(i.status)})</b></div>`).join('')}` : ''}</div>`;
 }
 async function sendIdea() {
   const d = await api('/ideas', { method: 'POST', body: JSON.stringify({ idea_text: $('ideaText').value }) });
   $('ideaMsg').innerHTML = msgBox(d.message || 'Could not send.', d.success);
-  if (d.success) { $('ideaText').value = ''; const i = await api('/ideas'); ideas = i.ideas || []; setTimeout(render, 1200); }
+  if (d.success) { $('ideaText').value = ''; const i = await api('/ideas'); ideas = i.ideas || []; setTimeout(render, 1300); }
 }
 function ideasAdminHtml() {
-  return `<div class="card"><h3 style="margin-top:0">Ideas from the team</h3>${ideas.map(i => `<div class="row" style="padding:8px 0;border-bottom:1px solid var(--line)">
+  return `<h2 class="page">Ideas</h2><div class="sub">Suggestions from the team.</div><div class="card" style="max-width:760px">${ideas.map(i => `<div class="row" style="padding:10px 0;border-bottom:1px solid var(--line)">
     <div style="flex:1"><b>${esc(i.idea_text)}</b><div class="muted">From ${esc(i.submitted_by_name || 'someone')}</div></div>
     <button class="btn sm" onclick="convertIdea(${i.id})">Make a topic</button><button class="btn sm alt" onclick="dismissIdea(${i.id})">Dismiss</button></div>`).join('') || '<span class="muted">No new ideas.</span>'}</div>`;
 }
-async function convertIdea(id) { const d = await api(`/ideas/${id}/convert`, { method: 'POST' }); if (d.success) { await loadAll(); view = 'board'; render(); openTopic(d.topic_id); } }
+async function convertIdea(id) { const d = await api(`/ideas/${id}/convert`, { method: 'POST' }); if (d.success) { await loadAll(); view = 'board'; stage = 'Idea'; selId = d.topic_id; render(); } }
 async function dismissIdea(id) { await api(`/ideas/${id}/dismiss`, { method: 'POST' }); await loadAll(); render(); }
 
-// ---------- Topic modal ----------
+// ---------- Topic modal (edit) ----------
 function opts(list, sel, blank) { return (blank ? `<option value="">${blank}</option>` : '') + list.map(x => `<option ${x === sel ? 'selected' : ''}>${esc(x)}</option>`).join(''); }
-function memberOpts(role, sel) {
+function memberOpts(sel) {
   return '<option value="">Not assigned</option>' + members.filter(m => m.status === 'Active')
     .map(m => `<option value="${m.id}" ${m.id === sel ? 'selected' : ''}>${esc(m.name)} (${esc(m.role)}${m.member_type === 'guest' ? ', outside' : ''})</option>`).join('');
 }
 function openTopic(id) {
-  const t = id ? topics.find(x => x.id === id) : { title: '', status: 'Idea' };
+  const t = id ? topics.find(x => x.id === id) : { title: '', status: stage || 'Idea' };
   if (!t) return;
   const isAdmin = mode === 'admin';
   const canWrite = isAdmin || (me.role === 'Writer' && t.writer_id);
   const ro = canWrite ? '' : 'readonly';
-  let h = `<div class="row"><h2 style="flex:1">${id ? esc(t.title) : 'New topic'}</h2><button class="btn sm alt" onclick="closeTopic()">Close</button></div>`;
+  let h = `<div class="row"><h2>${id ? 'Edit topic' : 'New topic'}</h2><button class="btn sm alt" onclick="closeTopic()">Close</button></div>`;
   if (isAdmin) {
     h += `<label>Title</label><input id="f_title" value="${esc(t.title)}">
       <div class="grid2"><div><label>Category</label><select id="f_category">${opts(CATEGORIES, t.category, 'Select')}</select></div>
       <div><label>Platform</label><select id="f_platform">${opts(PLATFORMS, t.platform, 'Select')}</select></div>
       <div><label>Shoot date</label><input type="date" id="f_shoot_date" value="${esc(t.shoot_date || '')}"></div>
       <div><label>Expected duration</label><input id="f_duration_label" value="${esc(t.duration_label || '')}" placeholder="for example 60 sec or 5 min"></div>
-      <div><label>Presenter</label><select id="f_presenter_id">${memberOpts('Presenter', t.presenter_id)}</select></div>
-      <div><label>Writer</label><select id="f_writer_id">${memberOpts('Writer', t.writer_id)}</select></div>
-      <div><label>Status</label><select id="f_status">${STATUSES.concat(['Archived']).map(s => `<option ${s === t.status ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
+      <div><label>Presenter</label><select id="f_presenter_id">${memberOpts(t.presenter_id)}</select></div>
+      <div><label>Writer</label><select id="f_writer_id">${memberOpts(t.writer_id)}</select></div>
+      <div><label>Stage</label><select id="f_status">${STATUSES.concat(['Archived']).map(s => `<option ${s === t.status ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
       <div><label>Reference link</label><input id="f_reference_url" value="${esc(t.reference_url || '')}" placeholder="circular / notification link"></div></div>`;
-  } else {
-    h += `<div class="row" style="margin:6px 0">${t.platform ? `<span class="chip">${esc(t.platform)}</span>` : ''}${t.category ? `<span class="chip">${esc(t.category)}</span>` : ''}<span class="chip">${esc(t.status)}</span>${t.shoot_date ? `<span class="chip">Shoot: ${esc(t.shoot_date)}</span>` : ''}${t.duration_label ? `<span class="chip">${esc(t.duration_label)}</span>` : ''}</div>
-      ${t.reference_url ? `<div class="muted">Reference: <a href="${esc(t.reference_url)}" target="_blank" rel="noopener">${esc(t.reference_url)}</a></div>` : ''}`;
   }
   h += `<label>Opening line (hook)</label><textarea id="f_hook" ${ro} rows="2">${esc(t.hook || '')}</textarea>
-    <label>Script</label><textarea id="f_script" ${ro} rows="9">${esc(t.script || '')}</textarea>
-    <label>Key points to cover</label><textarea id="f_key_points" ${ro} rows="4">${esc(t.key_points || '')}</textarea>`;
+    <label>Script</label><textarea class="mono" id="f_script" ${ro} rows="10">${esc(t.script || '')}</textarea>
+    <label>Key points to cover (one per line)</label><textarea id="f_key_points" ${ro} rows="4">${esc(t.key_points || '')}</textarea>`;
   if (isAdmin) h += `<label>Final video link</label><input id="f_video_url" value="${esc(t.video_url || '')}">`;
   if (id && (isAdmin || me.role === 'Presenter')) h += `<label>Note from the presenter</label><textarea id="f_presenter_note" rows="2" ${isAdmin || t.presenter_id ? '' : 'readonly'}>${esc(t.presenter_note || '')}</textarea>`;
-  h += '<div id="tMsg"></div><div class="row" style="margin-top:12px">';
-  if (canWrite || isAdmin || (t.presenter_id && me.role === 'Presenter')) h += `<button class="btn" onclick="saveTopic(${id})">Save</button>`;
-  if (id) h += `<button class="btn ok" onclick="openTeleprompter(${id})">Teleprompter</button>`;
-  if (id && me.role === 'Presenter' && ['Script Ready', 'Ready to Shoot'].includes(t.status) && mode !== 'admin') h += `<button class="btn alt" onclick="markShot(${id})">Mark as shot</button>`;
-  if (id && me.role === 'Writer' && t.status === 'Idea' && mode !== 'admin') h += `<button class="btn alt" onclick="markScriptReady(${id})">Script is ready</button>`;
-  h += '</div>';
+  h += `<div id="tMsg"></div><div class="row" style="margin-top:16px"><button class="btn" onclick="saveTopic(${id})">Save</button><button class="btn alt" onclick="closeTopic()">Cancel</button></div>`;
   $('topicBody').innerHTML = h;
   $('topicModal').classList.add('open');
 }
@@ -320,9 +438,10 @@ async function saveTopic(id, extra = {}) {
   for (const k of ['title', 'category', 'platform', 'shoot_date', 'duration_label', 'presenter_id', 'writer_id', 'status', 'reference_url', 'hook', 'script', 'key_points', 'video_url', 'presenter_note']) {
     const v = val('f_' + k); if (v !== undefined && !(k in body)) body[k] = v;
   }
-  if (mode !== 'admin') for (const k of ['title', 'category', 'platform', 'shoot_date', 'presenter_id', 'writer_id', 'status', 'video_url']) delete body[k];
+  if (mode !== 'admin') for (const k of ['title', 'category', 'platform', 'shoot_date', 'presenter_id', 'writer_id', 'status', 'video_url']) if (!(k in extra)) delete body[k];
   const d = id ? await api('/topics/' + id, { method: 'PUT', body: JSON.stringify(body) }) : await api('/topics', { method: 'POST', body: JSON.stringify(body) });
-  if (!d.success) { $('tMsg').innerHTML = msgBox(d.message || 'Could not save.', false); return; }
+  if (!d.success) { if ($('tMsg')) $('tMsg').innerHTML = msgBox(d.message || 'Could not save.', false); else alert(d.message || 'Could not save.'); return; }
+  if (d.topic) { if (d.topic.status !== 'Archived') stage = d.topic.status; selId = d.topic.id; }
   await loadAll(); closeTopic(); render();
 }
 const markShot = id => saveTopic(id, { status: 'Shot' });
@@ -333,26 +452,26 @@ async function renderTeam() {
   const emps = await api('/employees');
   const m = await api('/members'); members = m.members || [];
   $('teamBox').innerHTML = `
-    <div class="guide"><b>Who can use Studio?</b> Choose employees of your office, or add someone from outside. Employees see a Studio option in their dashboard. Outside people sign in at <b>${esc(location.origin)}/studio.html</b> and see nothing else. Everyone sees only the topics assigned to them.</div>
-    <div class="grid2">
+    <div class="guide"><b>Who can use Studio?</b> Choose employees of your office, or add someone from outside. Employees see a Studio option in their sidebar. Outside people sign in at <b>${esc(location.origin)}/studio.html</b> and see nothing else. Everyone sees only the topics assigned to them.</div>
+    <div class="grid2" style="gap:12px">
       <div class="card"><h3 style="margin-top:0">Give an employee access</h3>
         <label>Employee</label><select id="addEmp"><option value="">Select employee</option>${(emps.employees || []).map(e => `<option value="${esc(e.emp_id)}">${esc(e.name)} (${esc(e.emp_id)})</option>`).join('')}</select>
         <label>Role</label><select id="addEmpRole"><option>Presenter</option><option>Writer</option></select>
-        <div class="row" style="margin-top:10px"><button class="btn" onclick="addEmployee()">Give access</button></div></div>
+        <div class="row" style="margin-top:12px"><button class="btn" onclick="addEmployee()">Give access</button></div></div>
       <div class="card"><h3 style="margin-top:0">Add a person from outside</h3>
         <label>Name</label><input id="gName"><label>Email</label><input id="gEmail" type="email"><label>Mobile (optional)</label><input id="gMobile">
         <label>Role</label><select id="gRole"><option>Presenter</option><option>Writer</option></select>
-        <div class="row" style="margin-top:10px"><button class="btn" onclick="addGuest()">Create login</button></div></div>
+        <div class="row" style="margin-top:12px"><button class="btn" onclick="addGuest()">Create login</button></div></div>
     </div>
     <div id="teamMsg"></div>
-    <div class="card" style="margin-top:12px"><h3 style="margin-top:0">Studio team</h3><div style="overflow:auto"><table>
+    <div class="card" style="margin-top:14px"><h3 style="margin-top:0">Studio team</h3><div style="overflow:auto"><table>
       <tr><th>Name</th><th>Type</th><th>Role</th><th>Status</th><th>Last sign-in</th><th></th></tr>
       ${members.map(x => `<tr><td><b>${esc(x.name)}</b><div class="muted">${esc(x.member_type === 'guest' ? (x.login_id || '') : x.emp_id)}</div></td>
         <td>${x.member_type === 'guest' ? 'Outside' : 'Employee'}</td>
-        <td><select onchange="updMember(${x.id},{role:this.value})"><option ${x.role === 'Presenter' ? 'selected' : ''}>Presenter</option><option ${x.role === 'Writer' ? 'selected' : ''}>Writer</option></select></td>
+        <td><select class="statusSel" onchange="updMember(${x.id},{role:this.value})"><option ${x.role === 'Presenter' ? 'selected' : ''}>Presenter</option><option ${x.role === 'Writer' ? 'selected' : ''}>Writer</option></select></td>
         <td>${esc(x.status)}</td><td class="muted">${x.last_login_at ? esc(new Date(x.last_login_at).toLocaleString('en-GB')) : '—'}</td>
-        <td class="row">${x.status === 'Active' ? `<button class="btn sm bad" onclick="updMember(${x.id},{status:'Disabled'})">Disable</button>` : `<button class="btn sm ok" onclick="updMember(${x.id},{status:'Active'})">Enable</button>`}
-          ${x.member_type === 'guest' ? `<button class="btn sm alt" onclick="updMember(${x.id},{reset_password:true})">Reset password</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">No one yet.</td></tr>'}
+        <td><div class="row">${x.status === 'Active' ? `<button class="btn sm bad" onclick="updMember(${x.id},{status:'Disabled'})">Disable</button>` : `<button class="btn sm ok" onclick="updMember(${x.id},{status:'Active'})">Enable</button>`}
+          ${x.member_type === 'guest' ? `<button class="btn sm alt" onclick="updMember(${x.id},{reset_password:true})">Reset password</button>` : ''}</div></td></tr>`).join('') || '<tr><td colspan="6" class="muted">No one yet.</td></tr>'}
     </table></div></div>`;
 }
 async function addEmployee() {
@@ -373,12 +492,11 @@ async function updMember(id, body) {
 }
 
 // ---------- Teleprompter ----------
-let tpList = [], tpIdx = 0, tpRun = false, tpSpd = 3, tpFont = 40, tpRaf = null, tpAcc = 0;
+let tpList = [], tpIdx = 0, tpRun = false, tpSpd = 3, tpFont = 44, tpRaf = null, tpAcc = 0;
 function openTeleprompter(id) {
-  closeTopic();
-  tpList = (view === 'archive' ? topics : topics).filter(t => t.status !== 'Archived' && (t.script || t.hook || t.key_points));
+  tpList = topics.filter(t => t.status !== 'Archived' && (t.script || t.hook || t.key_points));
   tpIdx = Math.max(0, tpList.findIndex(t => t.id === id));
-  if (!tpList.length) { alert('This topic does not have a script yet.'); return; }
+  if (!tpList.length || !tpList.some(t => t.id === id)) { alert('This topic does not have a script yet.'); return; }
   $('tp').classList.add('open'); tpLoad();
 }
 function tpLoad() {
