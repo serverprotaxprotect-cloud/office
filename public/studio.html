@@ -183,7 +183,20 @@
   #tpLine { position:absolute; left:0; right:0; top:40%; height:2px; background:rgba(255,176,32,.55); pointer-events:none; box-shadow:0 0 12px rgba(255,176,32,.6); z-index:101; }
   #tpCount { position:absolute; inset:0; display:none; align-items:center; justify-content:center; font-family:var(--display); font-size:34vw; color:var(--accent); background:rgba(0,0,0,.75); z-index:102; }
 
-  @media (max-width:980px) { .strip { grid-template-columns:repeat(3,1fr); } .work { grid-template-columns:1fr; } }
+  /* Board layout: the title and stage tiles stay put; the topic list and the detail box scroll on their own */
+  main.fixed { overflow:hidden; height:calc(100vh - 56px); padding-bottom:0; }
+  .boardpage { display:flex; flex-direction:column; height:100%; min-height:0; }
+  .boardtop { flex:none; }
+  .boardpage .work { flex:1; min-height:0; align-items:stretch; grid-template-rows:minmax(0,1fr); }
+  .boardpage .listcol, .boardpage #detailBox { overflow-y:auto; min-height:0; padding:2px 6px 28px 2px; scrollbar-width:thin; }
+  .boardpage .listcol { display:flex; flex-direction:column; gap:10px; align-content:flex-start; }
+  @media (max-width:980px) {
+    .strip { grid-template-columns:repeat(3,1fr); } .work { grid-template-columns:1fr; }
+    main.fixed { overflow:visible; height:auto; padding-bottom:60px; }
+    .boardpage { height:auto; }
+    .boardpage .listcol, .boardpage #detailBox { overflow:visible; padding:0; }
+    .boardtop { position:sticky; top:0; background:var(--bg); z-index:5; padding-bottom:6px; }
+  }
   @media (max-width:760px) {
     .shell { flex-direction:column; }
     #side { width:100%; position:static; height:auto; padding:6px 8px; overflow-x:auto; white-space:nowrap; }
@@ -256,6 +269,7 @@ const TEMPLATES = {
 const $ = id => document.getElementById(id);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 let mode = null, me = null, topics = [], members = [], ideas = [], view = 'board', stage = null, selId = null;
+let resetDetailScroll = false;
 let calMonth = new Date().toISOString().slice(0, 7), shootDate = null, thread = [];
 
 // ---------- theme ----------
@@ -381,6 +395,10 @@ function render() {
   side.innerHTML = '<div class="sec">Production</div>' + tabs.map(([k, l, n]) =>
     `<button class="${view === k ? 'on' : ''}" onclick="setView('${k}')"><span class="ic">${icons[k]}</span>${l}${n ? `<span class="badge">${n}</span>` : ''}</button>`).join('');
   side.style.display = 'block'; side.classList.add('show');
+  const ls = document.querySelector('.listcol'), ds = $('detailBox');
+  const keepList = ls ? ls.scrollTop : 0, keepDetail = ds ? ds.scrollTop : 0;
+  const fixedView = view === 'board' || view === 'mine';
+  $('app').classList.toggle('fixed', fixedView);
   let html = '';
   if (view === 'board' || view === 'mine') html = workHtml();
   else if (view === 'calendar') html = calendarHtml();
@@ -390,21 +408,27 @@ function render() {
   else if (view === 'team') html = '<h2 class="page">Studio Team</h2><div class="sub">Who works in the studio.</div><div id="teamBox">Loading…</div>';
   else if (view === 'idea') html = ideaFormHtml();
   $('app').innerHTML = html;
+  if (fixedView) {
+    const nl = document.querySelector('.listcol'), nd = $('detailBox');
+    if (nl) nl.scrollTop = keepList;
+    if (nd) nd.scrollTop = resetDetailScroll ? 0 : keepDetail;
+    resetDetailScroll = false;
+  }
   if (view === 'team') renderTeam();
   if ((view === 'board' || view === 'mine') && selId) loadThread(selId);
 }
-async function setView(v) { view = v; selId = null; if (v === 'archive') await loadAll(); render(); }
+async function setView(v) { view = v; selId = null; resetDetailScroll = true; if (v === 'archive') await loadAll(); render(); }
 
 // ---------- Board: stages, list, detail ----------
-function pickStage(s) { stage = s; selId = null; render(); }
+function pickStage(s) { stage = s; selId = null; resetDetailScroll = true; render(); }
 function pickTopic(id) {
-  selId = id;
+  selId = id; resetDetailScroll = true;
   if (view === 'archive') { openTopic(id); return; }
   render();
   if (window.innerWidth <= 980) $('detailBox')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 function openFromElsewhere(id) {
-  const t = topicById(id); if (!t) return;
+  const t = topicById(id); if (!t) return; resetDetailScroll = true;
   view = isAdmin() ? 'board' : 'mine'; stage = t.status === 'Archived' ? 'Idea' : t.status; selId = id; render();
 }
 function cardHtml(t) {
@@ -423,12 +447,12 @@ function workHtml() {
   if (selId && !topics.some(t => t.id === selId && t.status === stage)) selId = null;
   if (!selId && list.length) selId = list[0].id;
   const sel = topicById(selId);
-  return `<div class="row" style="margin-bottom:6px"><div style="flex:1"><h2 class="page">${isAdmin() ? 'Production Board' : 'My Topics'}</h2>
+  return `<div class="boardpage"><div class="boardtop"><div class="row" style="margin-bottom:6px"><div style="flex:1"><h2 class="page">${isAdmin() ? 'Production Board' : 'My Topics'}</h2>
       <div class="sub" style="margin:0 0 10px">${isAdmin() ? 'Pick a stage to see its topics, then open one to read, edit or move it forward.' : 'Topics assigned to you. Pick a stage, then open a topic.'}</div></div>
       ${isAdmin() ? '<button class="btn" onclick="openTopic(0)">+ New Topic</button>' : ''}</div>
-    <div class="strip">${tiles}</div>
+    <div class="strip">${tiles}</div></div>
     <div class="work"><div class="listcol">${list.map(cardHtml).join('') || `<div class="card empty"><div class="big">&#127902;</div>No topics in <b>${esc(stage)}</b> yet.</div>`}</div>
-    <div id="detailBox">${sel ? detailHtml(sel) : `<div class="detail"><div class="empty"><div class="big">&#127916;</div>Select a topic to see its details here.</div></div>`}</div></div>`;
+    <div id="detailBox">${sel ? detailHtml(sel) : `<div class="detail"><div class="empty"><div class="big">&#127916;</div>Select a topic to see its details here.</div></div>`}</div></div></div>`;
 }
 function checklistHtml(t, group, items, allowed) {
   const g = (t.checks && t.checks[group]) || {};
