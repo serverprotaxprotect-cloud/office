@@ -20,7 +20,22 @@
   header h1 { margin:0; font-size:18px; letter-spacing:.2px; flex:1; min-width:160px; }
   header small { opacity:.8; display:block; font-weight:400; font-size:12px; }
   header button, header a { background:rgba(255,255,255,.16); color:#fff; border:0; border-radius:8px; padding:8px 12px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; }
-  main { padding:14px 16px 60px; max-width:1500px; margin:0 auto; }
+  .shell { display:flex; min-height:calc(100vh - 62px); }
+  #side { width:210px; flex-shrink:0; background:#1e1b4b; padding:14px 8px; display:none; }
+  #side .sec { color:#a5b4fc; font-size:10.5px; font-weight:700; letter-spacing:1px; text-transform:uppercase; padding:6px 12px 8px; }
+  #side button { display:flex; align-items:center; gap:10px; width:100%; text-align:left; background:transparent; color:#e0e7ff; border:0; border-radius:8px; padding:11px 12px; font:inherit; font-size:14px; font-weight:600; cursor:pointer; margin-bottom:2px; }
+  #side button:hover { background:rgba(255,255,255,.08); }
+  #side button.on { background:#4f46e5; color:#fff; }
+  #side .ic { width:20px; text-align:center; }
+  #side .badge { margin-left:auto; background:#ef4444; color:#fff; font-size:11px; font-weight:800; border-radius:10px; padding:1px 7px; }
+  main { flex:1; min-width:0; padding:16px 18px 60px; }
+  @media (max-width:760px) {
+    .shell { flex-direction:column; }
+    #side { width:100%; display:none; padding:8px; overflow-x:auto; white-space:nowrap; }
+    #side.show { display:flex !important; gap:6px; }
+    #side .sec { display:none; }
+    #side button { width:auto; margin:0; padding:9px 12px; }
+  }
   .tabs { display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap; }
   .tabs button { border:1.5px solid var(--line); background:var(--card); color:var(--ink); padding:8px 14px; border-radius:999px; font-weight:700; font-size:13px; cursor:pointer; }
   .tabs button.on { background:var(--brand); border-color:var(--brand); color:var(--brand-ink); }
@@ -76,7 +91,7 @@
   <a href="/" id="backLink" style="display:none">&larr; Back</a>
   <button id="logoutBtn" style="display:none" onclick="logout()">Sign out</button>
 </header>
-<main id="app"></main>
+<div class="shell"><nav id="side"></nav><main id="app"></main></div>
 
 <div class="backdrop" id="topicModal"><div class="modal" id="topicBody"></div></div>
 <div class="backdrop" id="pwModal"><div class="modal" style="max-width:420px">
@@ -147,11 +162,13 @@ async function boot() {
   render();
 }
 function showNotice(text) {
+  $('side').style.display = 'none'; $('side').classList.remove('show');
   $('app').innerHTML = `<div class="card center"><h2 style="margin-top:0">Gee Bharat Studio</h2><p>${esc(text)}</p></div>`;
   $('backLink').style.display = mode && mode !== 'guest' ? '' : 'none';
   $('backLink').href = mode === 'admin' ? '/admin.html' : '/dashboard.html';
 }
 function showLogin(note) {
+  $('side').style.display = 'none'; $('side').classList.remove('show');
   $('app').innerHTML = `<div class="card center">
     <h2 style="margin-top:0">Sign in to Gee Bharat Studio</h2>
     <p class="muted">For outside team members who were given a Studio login. Employees and admins: please open Studio from your dashboard.</p>
@@ -195,7 +212,13 @@ function render() {
     ? [['board', 'Board'], ['ideas', `Ideas${ideas.length ? ' (' + ideas.length + ')' : ''}`], ...(me.can_manage_team ? [['team', 'Studio Team']] : []), ['archive', 'Archived']]
     : [['mine', 'My Topics'], ['idea', 'Send an Idea']];
   if (!tabs.some(t => t[0] === view)) view = tabs[0][0];
-  let html = `<div class="tabs">${tabs.map(([k, l]) => `<button class="${view === k ? 'on' : ''}" onclick="setView('${k}')">${l}</button>`).join('')}</div>`;
+  const icons = { board: '&#128203;', ideas: '&#128161;', team: '&#128101;', archive: '&#128452;', mine: '&#127916;', idea: '&#128161;' };
+  const side = $('side');
+  side.innerHTML = '<div class="sec">Gee Bharat Studio</div>' + tabs.map(([k, l]) =>
+    '<button class="' + (view === k ? 'on' : '') + '" onclick="setView(\'' + k + '\')"><span class="ic">' + icons[k] + '</span>' + l.replace(/ \((\d+)\)$/, '') +
+    (/\((\d+)\)$/.test(l) ? '<span class="badge">' + l.match(/\((\d+)\)$/)[1] + '</span>' : '') + '</button>').join('');
+  side.style.display = 'block'; side.classList.add('show');
+  let html = '';
   if (view === 'board') html += boardHtml();
   else if (view === 'archive') html += listHtml(topics.filter(t => t.status === 'Archived'));
   else if (view === 'ideas') html += ideasAdminHtml();
