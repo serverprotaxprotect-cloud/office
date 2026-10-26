@@ -395,6 +395,7 @@
     <div class="sb-item" id="sb-completed" onclick="showPanel('completed')"><span class="ic">&#9745;</span>Completed</div>
     <div class="sb-item" id="sb-notifications" onclick="showPanel('notifications')"><span class="ic">&#128276;</span>Notifications</div>
     <div class="sb-item" id="sb-chat" onclick="showPanel('chat')"><span class="ic">&#128172;</span>Smart Chat</div>
+    <div class="sb-item" id="sb-studio" style="display:none;" onclick="window.location.href='/studio.html'"><span class="ic">&#127916;</span>Gee Bharat Studio</div>
     <div class="sb-item" id="sb-protocol" onclick="showPanel('protocol')"><span class="ic">&#9888;</span>Employee Monitor</div>
     <div class="sb-section" id="sec-clients">Clients</div>
     <div class="sb-item" id="sb-clients" onclick="showPanel('clients')"><span class="ic">&#128100;</span>Client/Agent Search</div>
@@ -8664,6 +8665,10 @@ async function initOfficeApp() {
   await loadClientKycAccess();
   await loadDashboard();
   panelLoaded['dashboard'] = true;
+  // Gee Bharat Studio: shown only when the office has it and this person has been given access
+  api('/studio/access', { cache: false }).then(d => {
+    if (d && d.success && d.allowed) document.getElementById('sb-studio').style.display = '';
+  }).catch(() => {});
   try {
     const nd = await api('/tasks/notifications');
     if (nd.success && nd.total_alerts > 0) {

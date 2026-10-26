@@ -141,7 +141,7 @@ async function boot() {
   $('who').textContent = `${a.name} · ${a.role || ''}`;
   $('logoutBtn').style.display = mode === 'guest' ? '' : 'none';
   $('backLink').style.display = mode === 'guest' ? 'none' : '';
-  $('backLink').href = mode === 'admin' ? '/admin.html' : '/dashboard.html';
+  $('backLink').href = /office.html/.test(document.referrer) ? '/office.html' : (mode === 'admin' ? '/admin.html' : '/dashboard.html');
   if (a.must_change_password) $('pwModal').classList.add('open');
   await loadAll();
   render();
