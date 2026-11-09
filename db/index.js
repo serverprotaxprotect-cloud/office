@@ -26,6 +26,10 @@ async function applyTenantContext(rawQuery) {
 }
 
 function wrapClient(client) {
+  // A pooled client is handed out many times. Wrap it only once: wrapping again on every checkout stacks
+  // another layer on top, and each layer repeats the tenant setup, so queries get slower and slower.
+  if (client.__tenantWrapped) return client;
+  client.__tenantWrapped = true;
   const rawQuery = client.query.bind(client);
   client.query = async (text, params) => {
     const sql = typeof text === 'string' ? text.trim().toUpperCase() : '';

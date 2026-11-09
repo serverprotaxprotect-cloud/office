@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GeeBharat Billing</title>
+<script src="/assets/auth-session.js"></script>
+<style>
+  :root { --primary:#2155f3; --sidebar:#13203a; --sidebar2:#1d2f57; --page:#f1f5f9; --text:#0f172a; --muted:#64748b; --line:#e2e8f0; --ok:#059669; --bad:#dc2626; --warn:#b45309; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:Inter,'Segoe UI',Arial,sans-serif; background:var(--page); color:var(--text); font-size:13px; overflow:hidden; }
+  .top { height:56px; background:linear-gradient(90deg,var(--sidebar),var(--sidebar2)); color:#fff; display:flex; align-items:center; justify-content:space-between; padding:0 20px; box-shadow:0 2px 12px rgba(0,0,0,.2); position:relative; z-index:10; }
+  .brand { font-weight:800; font-size:16px; } .brand small { font-size:12px; color:rgba(255,255,255,.6); margin-left:8px; font-weight:500; }
+  .user { display:flex; align-items:center; gap:10px; font-size:12px; }
+  .pill { background:rgba(255,255,255,.12); padding:7px 12px; border-radius:20px; font-weight:700; }
+  .layout { display:grid; grid-template-columns:220px 1fr; height:calc(100vh - 56px); }
+  .side { background:var(--sidebar); padding:14px 0; overflow:auto; }
+  .nav { padding:11px 18px; border-left:3px solid transparent; cursor:pointer; font-weight:600; display:flex; gap:10px; align-items:center; color:#94a3b8; transition:.15s; }
+  .nav:hover { background:rgba(255,255,255,.05); color:#e2e8f0; }
+  .nav.active { background:rgba(33,85,243,.18); color:#7ba2ff; border-left-color:var(--primary); }
+  .nav .badge { margin-left:auto; background:#ef4444; color:#fff; font-size:11px; font-weight:800; border-radius:10px; padding:1px 7px; }
+  .main { padding:20px; overflow:auto; min-width:0; }
+  .title { font-size:22px; font-weight:800; margin-bottom:4px; color:#0b1f3a; } .sub { color:var(--muted); margin-bottom:16px; }
+  .card { background:#fff; border-radius:12px; padding:16px; margin-bottom:14px; box-shadow:0 2px 8px rgba(0,0,0,.06); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px; }
+  .metric { background:#fff; border-radius:10px; padding:14px 16px; box-shadow:0 2px 8px rgba(0,0,0,.06); border-left:4px solid var(--primary); }
+  .metric strong { font-size:22px; color:var(--primary); display:block; line-height:1.15; } .metric span { font-size:12px; color:var(--muted); margin-top:4px; display:block; }
+  .metric.warn { border-left-color:#f59e0b; } .metric.warn strong { color:#b45309; } .metric.ok { border-left-color:#059669; } .metric.ok strong { color:#047857; } .metric.red { border-left-color:#dc2626; } .metric.red strong { color:#b91c1c; }
+  .toolbar { display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-bottom:12px; } .toolbar .spacer { flex:1; }
+  .tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+  .tab { padding:7px 13px; border-radius:999px; background:#fff; border:1.5px solid var(--line); font-weight:700; cursor:pointer; color:#334155; }
+  .tab.on { background:var(--primary); border-color:var(--primary); color:#fff; }
+  input, select, textarea { width:100%; border:1.5px solid var(--line); border-radius:8px; padding:8px 10px; font:inherit; background:#f8fafc; color:#0f172a; outline:none; }
+  input:focus, select:focus, textarea:focus { border-color:var(--primary); background:#fff; }
+  label { display:block; font-size:11px; text-transform:uppercase; font-weight:800; color:#475569; margin:0 0 4px; letter-spacing:.3px; }
+  .f { min-width:150px; } .f.w2 { min-width:260px; }
+  .btn { border:0; border-radius:8px; padding:8px 13px; font-weight:800; cursor:pointer; background:#eaf1ff; color:#1d4ed8; font-size:12px; white-space:nowrap; font-family:inherit; }
+  .btn:hover { filter:brightness(.97); } .btn.primary { background:var(--primary); color:#fff; } .btn.green { background:#dcfce7; color:#166534; } .btn.red { background:#fee2e2; color:#b91c1c; } .btn.dark { background:rgba(255,255,255,.14); color:#fff; } .btn.amber { background:#fef3c7; color:#92400e; } .btn:disabled { opacity:.5; cursor:not-allowed; } .btn.sm { padding:5px 9px; font-size:11px; }
+  .table-wrap { overflow:auto; background:#fff; border-radius:12px; padding:6px 10px; box-shadow:0 2px 8px rgba(0,0,0,.06); max-height:calc(100vh - 290px); }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; min-width:760px; }
+  th { position:sticky; top:0; background:#f8fafc; text-align:left; padding:9px 10px; font-size:11px; text-transform:uppercase; color:#475569; border-bottom:2px solid var(--line); white-space:nowrap; z-index:2; }
+  td { padding:9px 10px; border-bottom:1px solid #f1f5f9; vertical-align:middle; } tr:hover td { background:#f8fafc; } td.num, th.num { text-align:right; white-space:nowrap; }
+  .muted { color:var(--muted); } small { color:var(--muted); }
+  .chip { display:inline-block; padding:3px 9px; border-radius:20px; font-size:11px; font-weight:800; background:#eaf1ff; color:#1d4ed8; white-space:nowrap; }
+  .chip.green { background:#dcfce7; color:#15803d; } .chip.yellow { background:#fef3c7; color:#a16207; } .chip.red { background:#fee2e2; color:#b91c1c; } .chip.grey { background:#e2e8f0; color:#475569; } .chip.violet { background:#ede9fe; color:#6d28d9; }
+  .modal { position:fixed; inset:0; background:rgba(15,23,42,.55); display:none; align-items:flex-start; justify-content:center; z-index:50; padding:24px 14px; overflow:auto; }
+  .modal.show { display:flex; } .modal-card { background:#fff; border-radius:14px; width:100%; max-width:760px; margin:auto; padding:18px; box-shadow:0 20px 60px rgba(15,23,42,.3); } .modal-card.wide { max-width:1000px; }
+  .modal-head { display:flex; align-items:center; gap:10px; margin-bottom:12px; } .modal-head h2 { flex:1; font-size:18px; }
+  .row2 { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:10px; margin-bottom:10px; }
+  .box { background:#f8fafc; border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-bottom:10px; }
+  .box h4 { font-size:12px; text-transform:uppercase; color:#475569; margin-bottom:6px; letter-spacing:.4px; }
+  .msg { padding:9px 12px; border-radius:8px; margin:8px 0; font-size:13px; } .msg.err { background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; } .msg.ok { background:#ecfdf5; color:#047857; border:1px solid #a7f3d0; } .msg.info { background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; }
+  #toast { position:fixed; right:18px; bottom:18px; z-index:80; display:none; padding:11px 16px; border-radius:10px; color:#fff; font-weight:700; box-shadow:0 8px 24px rgba(0,0,0,.25); max-width:420px; }
+  .picker { position:relative; } .plist { position:absolute; left:0; right:0; top:100%; background:#fff; border:1.5px solid var(--line); border-radius:8px; z-index:30; max-height:230px; overflow:auto; display:none; box-shadow:0 8px 24px rgba(0,0,0,.12); }
+  .plist div { padding:8px 10px; cursor:pointer; border-bottom:1px solid #f1f5f9; } .plist div:hover { background:#eff4ff; }
+  .selbar { position:sticky; bottom:0; background:#13203a; color:#fff; border-radius:12px; padding:10px 14px; display:flex; gap:10px; align-items:center; margin-top:10px; flex-wrap:wrap; }
+  .timeline { border-left:3px solid var(--line); margin-left:6px; padding-left:12px; } .timeline div { margin-bottom:7px; } .timeline small { display:block; }
+  .alloc-input { width:110px; text-align:right; }
+  @media (max-width:900px) { .layout { grid-template-columns:1fr; } .side { display:flex; overflow:auto; padding:0; } .nav { white-space:nowrap; border-left:0; border-bottom:3px solid transparent; } .nav.active { border-bottom-color:var(--primary); } .main { padding:12px; } body { overflow:auto; } .layout { height:auto; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">GeeBharat <small>Billing</small></div>
+  <div class="user"><span class="pill" id="orgChip">Loading…</span><a class="btn dark" href="/office.html" style="text-decoration:none">&larr; Back to Office</a></div>
+</header>
+<div class="layout">
+  <aside class="side" id="side"></aside>
+  <main class="main" id="main"><div class="muted">Loading…</div></main>
+</div>
+<div class="modal" id="modal"><div class="modal-card" id="modalCard"></div></div>
+<div id="toast"></div>
+
+<script>
+// ───────────── helpers ─────────────
+const h = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const rs = v => '₹' + Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const $ = id => document.getElementById(id);
+const today = () => new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10);
+const num = v => Number(v || 0);
+let me = null, access = {}, firms = [], org = {}, view = 'dashboard';
+const state = { work: { state: 'unbilled', search: '', client: '', client_name: '', firm_id: '', status: '', date_from: '', date_to: '' }, selected: new Map(), payTab: null, payments: [] };
+
+function toast(text, ok = true) {
+  const t = $('toast'); t.textContent = text; t.style.background = ok ? '#059669' : '#dc2626'; t.style.display = 'block';
+  clearTimeout(toast.t); toast.t = setTimeout(() => { t.style.display = 'none'; }, 4200);
+}
+async function api(path, opts = {}) {
+  const headers = { Authorization: 'Bearer ' + GBSession.tokenFor('office'), ...(opts.headers || {}) };
+  if (!(opts.body instanceof FormData)) headers['Content-Type'] = 'application/json';
+  const res = await GBSession.fetch('/api/billing' + path, { ...opts, headers }, 'office');
+  if (res.status === 401) { location.href = '/office.html'; throw new Error('Please sign in again'); }
+  if (opts.raw) return res;
+  const data = await res.json().catch(() => ({ success: false, message: 'Invalid server response' }));
+  if (!res.ok || !data.success) { const e = new Error(data.message || 'Request failed'); e.code = data.code; throw e; }
+  return data;
+}
+const post = (p, body) => api(p, { method: 'POST', body: JSON.stringify(body || {}) });
+const put = (p, body) => api(p, { method: 'PUT', body: JSON.stringify(body || {}) });
+function qs(o) { const p = new URLSearchParams(); Object.entries(o).forEach(([k, v]) => { if (v !== '' && v != null) p.set(k, v); }); const s = p.toString(); return s ? '?' + s : ''; }
+
+function openModal(html, wide) { $('modalCard').className = 'modal-card' + (wide ? ' wide' : ''); $('modalCard').innerHTML = html; $('modal').classList.add('show'); }
+function closeModal() { $('modal').classList.remove('show'); $('modalCard').innerHTML = ''; }
+$('modal').addEventListener('mousedown', e => { if (e.target === $('modal')) closeModal(); });
+const modalHead = (t, extra = '') => `<div class="modal-head"><h2>${h(t)}</h2>${extra}<button class="btn red" onclick="closeModal()">Close</button></div>`;
+const chip = (text, kind) => `<span class="chip ${kind || ''}">${h(text)}</span>`;
+const payChip = s => chip(s, { 'Paid': 'green', 'Partly paid': 'yellow', 'Unpaid': 'red', 'Cancelled': 'grey' }[s] || '');
+const statusChip = s => chip(s, { Requested: 'yellow', Approved: 'violet', Paid: 'green', Rejected: 'red', Cancelled: 'grey', Query: 'red' }[s] || '');
+const firmOptions = (sel, blank) => (blank ? `<option value="">${blank}</option>` : '') + firms.map(f => `<option value="${f.id}" ${String(sel) === String(f.id) ? 'selected' : ''}>${h(f.name)}</option>`).join('');
+function msgIn(id, text, kind) { const el = $(id); if (el) el.innerHTML = text ? `<div class="msg ${kind || 'err'}">${h(text)}</div>` : ''; }
+
+// Client picker: type to search, click to choose
+function pickerHtml(id, label, placeholder = 'Type client name or ID') {
+  return `<div class="f w2 picker"><label>${h(label)}</label><input id="${id}_t" placeholder="${h(placeholder)}" autocomplete="off" oninput="pickerSearch('${id}')"><input type="hidden" id="${id}_v"><div class="plist" id="${id}_l"></div></div>`;
+}
+let pickTimer = null;
+function pickerSearch(id) {
+  clearTimeout(pickTimer); $(id + '_v').value = '';
+  const text = $(id + '_t').value.trim(); const list = $(id + '_l');
+  if (text.length < 2) { list.style.display = 'none'; return; }
+  pickTimer = setTimeout(async () => {
+    try {
+      const d = await api('/clients' + qs({ search: text }));
+      list.innerHTML = d.clients.map(c => `<div onclick="pickerChoose('${id}','${h(c.client_id)}','${h(c.name || c.client_id).replace(/'/g, '&#39;')}')"><strong>${h(c.name || c.client_id)}</strong> <small>${h(c.client_id)}</small></div>`).join('') || '<div class="muted">No client found</div>';
+      list.style.display = 'block';
+    } catch (e) { list.style.display = 'none'; }
+  }, 250);
+}
+function pickerChoose(id, clientId, name) {
+  $(id + '_v').value = clientId; $(id + '_t').value = `${name} (${clientId})`; $(id + '_l').style.display = 'none';
+  const cb = pickerCallbacks[id]; if (cb) cb(clientId, name);
+}
+const pickerCallbacks = {};
+document.addEventListener('click', e => { if (!e.target.closest('.picker')) document.querySelectorAll('.plist').forEach(l => { l.style.display = 'none'; }); });
+const pickerValue = id => $(id + '_v')?.value || '';
+
+// ───────────── shell ─────────────
+const NAV_MANAGER = [['dashboard', 'Dashboard'], ['work', 'Work'], ['bills', 'Bills'], ['receipts', 'Receipts'], ['payments', 'Payments'], ['clients', 'Client Summary'], ['reports', 'Reports'], ['settings', 'Settings']];
+const NAV_STAFF = [['payments', 'Payment Requests']];
+async function renderNav() {
+  const items = access.manager ? NAV_MANAGER : NAV_STAFF;
+  $('side').innerHTML = items.map(([k, l]) => `<div class="nav ${view === k ? 'active' : ''}" onclick="go('${k}')">${l}${k === 'payments' && state.waiting ? `<span class="badge">${state.waiting}</span>` : ''}</div>`).join('');
+}
+function go(v) { view = v; renderNav(); ({ dashboard, work, bills, receipts, payments, clients, reports, settings })[v](); }
+async function boot() {
+  try {
+    const d = await api('/me');
+    me = d.user; access = d.access; firms = d.firms; org = d.org || {};
+    $('orgChip').textContent = `${me.name}${me.role ? ' · ' + me.role : ''}`;
+    view = access.manager ? 'dashboard' : 'payments';
+    await renderNav(); go(view);
+  } catch (e) {
+    $('main').innerHTML = `<div class="card" style="max-width:520px;margin:60px auto"><h2>Billing is not available</h2><p class="muted" style="margin:10px 0 14px">${h(e.message)}</p><a class="btn primary" href="/office.html" style="text-decoration:none">Back to Office</a></div>`;
+  }
+}
+
+// ───────────── Dashboard ─────────────
+async function dashboard() {
+  $('main').innerHTML = '<div class="title">Billing Dashboard</div><div class="sub">Where your work, bills, money and payments stand today.</div><div id="dash" class="muted">Loading…</div>';
+  try {
+    const d = await api('/dashboard');
+    state.waiting = (d.payments.waiting || 0); renderNav();
+    $('dash').innerHTML = `
+      <div class="grid">
+        <div class="metric warn"><strong>${d.unbilled.n}</strong><span>Unbilled work · ${rs(d.unbilled.amount)}</span></div>
+        <div class="metric red"><strong>${rs(d.outstanding.amount)}</strong><span>To receive from clients · ${d.outstanding.bills} bills</span></div>
+        <div class="metric ok"><strong>${rs(d.advance_held)}</strong><span>Client advances held</span></div>
+        <div class="metric warn"><strong>${rs(d.to_recover.amount)}</strong><span>Paid for clients, not yet billed · ${d.to_recover.n}</span></div>
+        <div class="metric"><strong>${d.payments.waiting}</strong><span>Payments waiting for approval · ${rs(d.payments.waiting_amount)}</span></div>
+        <div class="metric"><strong>${d.payments.to_pay}</strong><span>Approved, to be paid · ${rs(d.payments.to_pay_amount)}</span></div>
+      </div>
+      <div class="card" style="margin-top:14px"><h3 style="margin-bottom:8px">This financial year, by firm</h3>
+        <div class="table-wrap" style="box-shadow:none;padding:0;max-height:none"><table style="min-width:520px"><thead><tr><th>Firm</th><th class="num">Billed</th><th class="num">Received</th><th class="num">Outstanding</th></tr></thead><tbody>
+        ${d.firms.map(f => `<tr><td><strong>${h(f.name)}</strong></td><td class="num">${rs(f.billed)}</td><td class="num">${rs(f.received)}</td><td class="num">${rs(f.outstanding)}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">No firm yet. Add your firms in Settings.</td></tr>'}</tbody></table></div></div>
+      <div class="card"><h3 style="margin-bottom:8px">Billed this month</h3>
+        ${d.billed_this_month.map(f => `<div style="padding:4px 0">${h(f.firm_name)}: <strong>${rs(f.total)}</strong> <small>(${f.bills} bill${f.bills === 1 ? '' : 's'})</small></div>`).join('') || '<span class="muted">Nothing billed this month.</span>'}</div>
+      ${firms.length ? '' : '<div class="msg info">Start by adding your firms in <a href="#" onclick="go(\'settings\');return false">Settings</a>.</div>'}`;
+  } catch (e) { $('dash').innerHTML = msgBoxHtml(e.message); }
+}
+const msgBoxHtml = (t, k = 'err') => `<div class="msg ${k}">${h(t)}</div>`;
+
+// ───────────── Work ─────────────
+const WORK_STATES = [['unbilled', 'Unbilled'], ['billed', 'Billed'], ['unpaid', 'Billed, unpaid'], ['partial', 'Part paid'], ['paid', 'Paid'], ['hold', 'Will not be billed'], ['all', 'All']];
+function work() {
+  const w = state.work;
+  $('main').innerHTML = `<div class="title">Work</div><div class="sub">Every work item, with its billing state. Select unbilled work of one client and mark which firm billed it.</div>
+    <div class="tabs">${WORK_STATES.map(([k, l]) => `<div class="tab ${w.state === k ? 'on' : ''}" onclick="setWorkState('${k}')">${l}</div>`).join('')}</div>
+    <div class="toolbar">
+      <div class="f w2"><label>Search</label><input id="wSearch" value="${h(w.search)}" placeholder="Client, work or task ID" onkeydown="if(event.key==='Enter')loadWork()"></div>
+      ${pickerHtml('wClient', 'Client')}
+      <div class="f"><label>Billed by firm</label><select id="wFirm"><option value="">All firms</option>${firmOptions(w.firm_id)}</select></div>
+      <div class="f"><label>Work status</label><select id="wStatus"><option value="">Any</option>${['Completed', 'Pending', 'In Progress', 'Filed'].map(s => `<option ${w.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
+      <div class="f"><label>From</label><input type="date" id="wFrom" value="${h(w.date_from)}"></div>
+      <div class="f"><label>To</label><input type="date" id="wTo" value="${h(w.date_to)}"></div>
+      <button class="btn primary" onclick="loadWork()">Load</button>
+    </div>
+    <div id="workBox"><div class="muted">Loading…</div></div><div id="selBar"></div>`;
+  if (w.client) { $('wClient_v').value = w.client; $('wClient_t').value = w.client_name; }
+  loadWork();
+}
+function setWorkState(s) { state.work.state = s; state.selected.clear(); work(); }
+async function loadWork() {
+  const w = state.work;
+  w.search = $('wSearch').value; w.client = pickerValue('wClient'); w.client_name = $('wClient_t').value; w.firm_id = $('wFirm').value; w.status = $('wStatus').value; w.date_from = $('wFrom').value; w.date_to = $('wTo').value;
+  try {
+    const d = await api('/work' + qs({ state: w.state, search: w.search, client_id: w.client, firm_id: w.firm_id, status: w.status, date_from: w.date_from, date_to: w.date_to, limit: 200 }));
+    state.works = d.works;
+    const billedView = w.state !== 'unbilled' && w.state !== 'hold';
+    const canSelect = w.state === 'unbilled' || w.state === 'hold';
+    $('workBox').innerHTML = `<div class="muted" style="margin-bottom:6px">${d.total} work item(s) · ${rs(d.amount)}${d.total > d.works.length ? ` (showing the first ${d.works.length}; narrow the filters)` : ''}</div>
+      <div class="table-wrap"><table><thead><tr>${canSelect ? '<th></th>' : ''}<th>Client</th><th>Work</th><th>Status</th><th>Assigned</th><th class="num">Fees</th><th class="num">Challan</th><th class="num">Other</th><th>Billing</th><th>Payment</th><th></th></tr></thead><tbody>
+      ${d.works.map(r => `<tr>
+        ${canSelect ? `<td><input type="checkbox" style="width:auto" ${state.selected.has(r.task_id) ? 'checked' : ''} onchange="toggleWork('${h(r.task_id)}',this.checked,this)"></td>` : ''}
+        <td><strong>${h(r.client_name)}</strong><br><small>${h(r.client_id)}</small></td>
+        <td>${h(r.work_name)}<br><small>${h(r.task_id)}${r.completion_date ? ' · done ' + h(r.completion_date) : r.due_date ? ' · due ' + h(r.due_date) : ''}</small></td>
+        <td>${chip(r.status || '-')}</td><td>${h(r.assigned_to_name || '-')}</td>
+        <td class="num">${r.bill_id ? rs(r.b_fees) : rs(r.fees)}</td><td class="num">${r.bill_id ? rs(r.b_challan) : rs(r.challan)}</td><td class="num">${r.bill_id ? rs(r.b_other) : rs(r.other)}</td>
+        <td>${r.bill_id ? `<strong>${h(r.firm_name)}</strong><br><a href="#" onclick="openBill(${r.bill_id});return false">${h(r.bill_no)}</a> <small>${h(r.bill_date)}</small>` : r.bill_state === 'hold' ? chip(r.hold_flag || 'No fees', 'grey') + (r.hold_reason ? `<br><small>${h(r.hold_reason)}</small>` : '') : chip('Unbilled', 'yellow')}</td>
+        <td>${r.bill_id ? payChip(r.pay_state) + `<br><small>Bill ${rs(r.bill_total)} · received ${rs(r.bill_received)}</small>` : '-'}${num(r.paid_out) ? `<br><small>Paid out for this work: ${rs(r.paid_out)}</small>` : ''}</td>
+        <td>${r.bill_state === 'hold' && r.hold_flag ? `<button class="btn sm" onclick="unholdWork('${h(r.task_id)}')">Bring back</button>` : ''}</td></tr>`).join('') || `<tr><td colspan="11" class="muted">Nothing here.</td></tr>`}</tbody></table></div>`;
+    renderSelBar();
+  } catch (e) { $('workBox').innerHTML = msgBoxHtml(e.message); }
+}
+function toggleWork(id, on, el) {
+  const row = state.works.find(r => r.task_id === id);
+  if (on) {
+    const first = [...state.selected.values()][0];
+    if (first && first.client_id !== row.client_id) { el.checked = false; return toast('Select the work of one client at a time.', false); }
+    state.selected.set(id, row);
+  } else state.selected.delete(id);
+  renderSelBar();
+}
+function renderSelBar() {
+  const rows = [...state.selected.values()];
+  if (!rows.length) { $('selBar').innerHTML = ''; return; }
+  const total = rows.reduce((s, r) => s + num(r.task_amount), 0);
+  $('selBar').innerHTML = `<div class="selbar"><span><strong>${rows.length}</strong> work item(s) of <strong>${h(rows[0].client_name)}</strong> · ${rs(total)}</span><span class="spacer" style="flex:1"></span>
+    ${state.work.state === 'unbilled' ? `<button class="btn primary" onclick="openMarkBilled()">Mark as billed</button><button class="btn amber" onclick="openHold()">Will not be billed…</button>` : ''}
+    <button class="btn dark" onclick="state.selected.clear();renderSelBar();loadWork()">Clear</button></div>`;
+}
+async function unholdWork(id) { try { const d = await post('/work/unhold', { task_ids: [id] }); toast(d.message); loadWork(); } catch (e) { toast(e.message, false); } }
+function openHold() {
+  const rows = [...state.selected.values()];
+  openModal(modalHead('This work will not be billed') + `<div class="muted" style="margin-bottom:10px">${rows.length} work item(s) of ${h(rows[0].client_name)}</div>
+    <div class="row2"><div><label>Reason type</label><select id="hFlag"><option value="Free">Free / complimentary</option><option value="Internal">Internal work</option><option value="Write-off">Written off</option></select></div>
+    <div><label>Reason (required)</label><input id="hReason" placeholder="Why will it not be billed?"></div></div><div id="hMsg"></div>
+    <button class="btn primary" onclick="saveHold()">Save</button>`);
+}
+async function saveHold() {
+  try { const d = await post('/work/hold', { task_ids: [...state.selected.keys()], flag: $('hFlag').value, reason: $('hReason').value }); toast(d.message); state.selected.clear(); closeModal(); loadWork(); }
+  catch (e) { msgIn('hMsg', e.message); }
+}
+
+async function openMarkBilled() {
+  const rows = [...state.selected.values()];
+  if (!firms.length) return toast('Add your firms in Settings first.', false);
+  let recoverable = [];
+  try { recoverable = (await api('/recoverable' + qs({ client_id: rows[0].client_id }))).payments; } catch (e) { /* optional */ }
+  openModal(modalHead('Mark as billed', `<span class="muted">${h(rows[0].client_name)}</span>`) + `
+    <div class="row2"><div><label>Billed by (firm)</label><select id="bFirm">${firmOptions('', 'Choose firm')}</select></div>
+      <div><label>Bill number</label><input id="bNo" placeholder="As on your invoice"></div>
+      <div><label>Bill date</label><input type="date" id="bDate" value="${today()}"></div></div>
+    <div class="table-wrap" style="box-shadow:none;border:1px solid var(--line);max-height:300px"><table style="min-width:640px"><thead><tr><th>Work</th><th class="num">Professional fees</th><th class="num">Challan</th><th class="num">Other</th><th class="num">GST</th></tr></thead><tbody>
+    ${rows.map((r, i) => `<tr><td>${h(r.work_name)}<br><small>${h(r.task_id)}</small></td>
+      ${['fees', 'challan', 'other', 'gst'].map(k => `<td><input class="alloc-input" type="number" step="0.01" min="0" data-i="${i}" data-k="${k}" value="${k === 'gst' ? 0 : num(r[k])}" oninput="calcBill()"></td>`).join('')}</tr>`).join('')}</tbody></table></div>
+    <div id="bTotals" class="box" style="margin-top:10px"></div>
+    ${recoverable.length ? `<div class="box"><h4>Paid for this client from firm money, not yet billed</h4>${recoverable.map(p => `<label style="text-transform:none;font-weight:600;display:flex;gap:8px;align-items:center;margin:3px 0"><input type="checkbox" style="width:auto" class="recPay" value="${p.id}" data-amt="${num(p.amount)}" onchange="calcBill()"> ${h(p.purpose)} · ${h(p.payee || '')} · ${rs(p.amount)} <small>${h(p.request_no)}${p.task_name ? ' · ' + h(p.task_name) : ''}</small></label>`).join('')}
+      <div class="muted" style="margin-top:4px">Tick the payments you are charging in this bill. Include their amount in the challan column above.</div></div>` : ''}
+    <div><label>Notes (optional)</label><input id="bNotes"></div><div id="bMsg"></div>
+    <div style="margin-top:12px"><button class="btn primary" onclick="saveBill()">Save bill record</button></div>`, true);
+  calcBill();
+}
+function calcBill() {
+  const sum = k => [...document.querySelectorAll(`[data-k="${k}"]`)].reduce((s, el) => s + num(el.value), 0);
+  const f = sum('fees'), c = sum('challan'), o = sum('other'), g = sum('gst');
+  const rec = [...document.querySelectorAll('.recPay:checked')].reduce((s, el) => s + num(el.dataset.amt), 0);
+  $('bTotals').innerHTML = `Professional fees <strong>${rs(f)}</strong> · Challan <strong>${rs(c)}</strong> · Other <strong>${rs(o)}</strong> · GST <strong>${rs(g)}</strong> · <span style="font-size:15px">Total <strong>${rs(f + c + o + g)}</strong></span>${rec ? `<br><small>Ticked payments to recover: ${rs(rec)} (challan entered: ${rs(c)})</small>` : ''}`;
+}
+async function saveBill() {
+  const rows = [...state.selected.values()];
+  const items = rows.map((r, i) => { const g = k => num(document.querySelector(`[data-i="${i}"][data-k="${k}"]`).value); return { task_id: r.task_id, fees: g('fees'), challan: g('challan'), other: g('other'), gst: g('gst') }; });
+  try {
+    const d = await post('/bills', { firm_id: $('bFirm').value, bill_no: $('bNo').value, bill_date: $('bDate').value, notes: $('bNotes').value, items, payment_ids: [...document.querySelectorAll('.recPay:checked')].map(el => Number(el.value)) });
+    toast(d.message); state.selected.clear(); closeModal(); loadWork();
+  } catch (e) { msgIn('bMsg', e.message); }
+}
+
+// ───────────── Bills ─────────────
+const BILL_STATES = [['active', 'All bills'], ['due', 'Money due'], ['unpaid', 'Unpaid'], ['partial', 'Part paid'], ['paid', 'Paid'], ['cancelled', 'Cancelled']];
+state.bills = { state: 'due', search: '', firm_id: '', client: '', client_name: '', date_from: '', date_to: '' };
+function bills() {
+  const b = state.bills;
+  $('main').innerHTML = `<div class="title">Bills</div><div class="sub">Every bill you recorded, and how much of it has been received.</div>
+    <div class="tabs">${BILL_STATES.map(([k, l]) => `<div class="tab ${b.state === k ? 'on' : ''}" onclick="state.bills.state='${k}';bills()">${l}</div>`).join('')}</div>
+    <div class="toolbar"><div class="f"><label>Search</label><input id="bSearch" value="${h(b.search)}" placeholder="Bill no or client" onkeydown="if(event.key==='Enter')loadBills()"></div>
+      <div class="f"><label>Firm</label><select id="bFirmF"><option value="">All firms</option>${firmOptions(b.firm_id)}</select></div>${pickerHtml('bClient', 'Client')}
+      <div class="f"><label>From</label><input type="date" id="bFrom" value="${h(b.date_from)}"></div><div class="f"><label>To</label><input type="date" id="bTo" value="${h(b.date_to)}"></div>
+      <button class="btn primary" onclick="loadBills()">Load</button></div><div id="billBox" class="muted">Loading…</div>`;
+  if (b.client) { $('bClient_v').value = b.client; $('bClient_t').value = b.client_name; }
+  loadBills();
+}
+async function loadBills() {
+  const b = state.bills; b.search = $('bSearch').value; b.firm_id = $('bFirmF').value; b.client = pickerValue('bClient'); b.client_name = $('bClient_t').value; b.date_from = $('bFrom').value; b.date_to = $('bTo').value;
+  try {
+    const d = await api('/bills' + qs({ state: b.state, search: b.search, firm_id: b.firm_id, client_id: b.client, date_from: b.date_from, date_to: b.date_to }));
+    const tot = d.bills.reduce((s, x) => ({ total: s.total + num(x.total_amount), out: s.out + num(x.outstanding) }), { total: 0, out: 0 });
+    $('billBox').innerHTML = `<div class="muted" style="margin-bottom:6px">${d.bills.length} bill(s) · total ${rs(tot.total)} · outstanding ${rs(tot.out)}</div><div class="table-wrap"><table><thead><tr><th>Firm</th><th>Bill no</th><th>Date</th><th>Client</th><th class="num">Fees</th><th class="num">Challan</th><th class="num">GST</th><th class="num">Total</th><th class="num">Received</th><th class="num">Outstanding</th><th>State</th><th></th></tr></thead><tbody>
+      ${d.bills.map(x => `<tr><td>${h(x.firm_name)}</td><td><strong>${h(x.bill_no)}</strong><br><small>${x.work_count} work</small></td><td>${h(x.bill_date)}</td><td>${h(x.client_name)}<br><small>${h(x.client_id)}</small></td>
+        <td class="num">${rs(x.fees_amount)}</td><td class="num">${rs(x.challan_amount)}</td><td class="num">${rs(x.gst_amount)}</td><td class="num"><strong>${rs(x.total_amount)}</strong></td><td class="num">${rs(x.received)}</td><td class="num">${rs(x.outstanding)}</td><td>${payChip(x.pay_state)}</td>
+        <td><button class="btn sm" onclick="openBill(${x.id})">View</button></td></tr>`).join('') || '<tr><td colspan="12" class="muted">No bills.</td></tr>'}</tbody></table></div>`;
+  } catch (e) { $('billBox').innerHTML = msgBoxHtml(e.message); }
+}
+async function openBill(id) {
+  try {
+    const d = await api('/bills/' + id); const b = d.bill;
+    openModal(modalHead(`Bill ${b.bill_no}`, payChip(b.pay_state)) + `
+      <div class="row2"><div class="box"><h4>Firm</h4>${h(b.firm_name)}</div><div class="box"><h4>Client</h4>${h(b.client_name)}<br><small>${h(b.client_id)}</small></div><div class="box"><h4>Bill date</h4>${h(b.bill_date)}</div>
+      <div class="box"><h4>Total</h4><strong>${rs(b.total_amount)}</strong><br><small>Fees ${rs(b.fees_amount)} · Challan ${rs(b.challan_amount)} · Other ${rs(b.other_amount)} · GST ${rs(b.gst_amount)}</small></div>
+      <div class="box"><h4>Received / outstanding</h4>${rs(b.received)} / <strong>${rs(b.outstanding)}</strong></div></div>
+      ${b.notes ? `<div class="box"><h4>Notes</h4>${h(b.notes)}</div>` : ''}
+      <h4 style="margin:8px 0 4px">Work in this bill</h4><div class="table-wrap" style="box-shadow:none;border:1px solid var(--line);max-height:220px"><table style="min-width:560px"><thead><tr><th>Work</th><th class="num">Fees</th><th class="num">Challan</th><th class="num">Other</th><th class="num">GST</th></tr></thead><tbody>
+      ${d.works.map(w => `<tr><td>${h(w.task_name)}<br><small>${h(w.task_id)}${w.is_active ? '' : ' · released'}</small></td><td class="num">${rs(w.fees_amount)}</td><td class="num">${rs(w.challan_amount)}</td><td class="num">${rs(w.other_amount)}</td><td class="num">${rs(w.gst_amount)}</td></tr>`).join('')}</tbody></table></div>
+      ${d.allocations.length ? `<h4 style="margin:10px 0 4px">Receipts set against this bill</h4>${d.allocations.map(a => `<div>${h(a.receipt_no)} · ${h(a.receipt_date)} · <strong>${rs(a.amount)}</strong></div>`).join('')}` : ''}
+      ${d.recovered.length ? `<h4 style="margin:10px 0 4px">Payments recovered in this bill</h4>${d.recovered.map(p => `<div>${h(p.request_no)} · ${h(p.purpose)} · ${h(p.payee || '')} · ${rs(p.amount)}</div>`).join('')}` : ''}
+      <h4 style="margin:10px 0 4px">History</h4><div class="timeline">${d.timeline.map(t => `<div><strong>${h(t.action)}</strong> <small>${h(t.actor_name || '')} · ${new Date(t.created_at).toLocaleString('en-GB')}</small>${t.note ? `<small>${h(t.note)}</small>` : ''}</div>`).join('')}</div>
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">${b.status === 'Active' ? `<button class="btn green" onclick="receiveForBill('${h(b.client_id)}','${h(b.client_name).replace(/'/g, '&#39;')}',${b.firm_id})">Record a receipt</button><button class="btn red" onclick="cancelBill(${b.id})">Cancel this bill</button>` : `<span class="muted">Cancelled: ${h(b.cancel_reason || '')}</span>`}</div>`, true);
+  } catch (e) { toast(e.message, false); }
+}
+async function cancelBill(id) {
+  const reason = prompt('Why is this bill being cancelled? (required)'); if (!reason || !reason.trim()) return;
+  try { const d = await post(`/bills/${id}/cancel`, { reason }); toast(d.message); closeModal(); if (view === 'bills') loadBills(); else if (view === 'work') loadWork(); }
+  catch (e) { toast(e.message, false); }
+}
+function receiveForBill(clientId, clientName, firmId) { closeModal(); state.prefill = { clientId, clientName, firmId }; go('receipts'); }
+
+// ───────────── Receipts ─────────────
+state.receipts = { search: '', firm_id: '', only_advance: false };
+function receipts() {
+  const r = state.receipts;
+  $('main').innerHTML = `<div class="title">Receipts and advances</div><div class="sub">Money received from clients. Set it against bills; anything left over stays as the client's advance.</div>
+    <div class="card"><h3 style="margin-bottom:10px">New receipt</h3>
+      <div class="toolbar">${pickerHtml('rClient', 'Client')}
+        <div class="f"><label>Received in firm</label><select id="rFirm" onchange="receiptFirmChanged()">${firmOptions('', 'Choose firm')}</select></div>
+        <div class="f"><label>Account</label><select id="rAcc"><option value="">Choose firm first</option></select></div>
+        <div class="f"><label>Date</label><input type="date" id="rDate" value="${today()}"></div>
+        <div class="f"><label>Amount</label><input type="number" step="0.01" min="0" id="rAmt" oninput="allocCalc()"></div>
+        <div class="f"><label>Mode</label><select id="rMode"><option>Bank transfer</option><option>UPI</option><option>Cash</option><option>Cheque</option></select></div>
+        <div class="f"><label>Reference / UTR</label><input id="rRef"></div><div class="f w2"><label>Remarks</label><input id="rRem"></div></div>
+      <div id="rOpen"></div><div id="rMsg"></div>
+      <button class="btn primary" onclick="saveReceipt()">Save receipt</button></div>
+    <div class="toolbar"><div class="f w2"><label>Search receipts</label><input id="rcSearch" value="${h(r.search)}" placeholder="Receipt no, client or reference" onkeydown="if(event.key==='Enter')loadReceipts()"></div>
+      <div class="f"><label>Firm</label><select id="rcFirm"><option value="">All firms</option>${firmOptions(r.firm_id)}</select></div>
+      <div class="f"><label>Show</label><select id="rcState"><option value="">All receipts</option><option value="advance" ${r.only_advance ? 'selected' : ''}>With advance left</option></select></div>
+      <button class="btn primary" onclick="loadReceipts()">Load</button></div><div id="rcBox" class="muted">Loading…</div>`;
+  pickerCallbacks.rClient = () => loadOpenBills();
+  if (state.prefill) { const p = state.prefill; $('rClient_v').value = p.clientId; $('rClient_t').value = `${p.clientName} (${p.clientId})`; $('rFirm').value = p.firmId; state.prefill = null; receiptFirmChanged(); }
+  loadReceipts();
+}
+async function receiptFirmChanged() {
+  const f = $('rFirm').value; const acc = $('rAcc');
+  if (!f) { acc.innerHTML = '<option value="">Choose firm first</option>'; $('rOpen').innerHTML = ''; return; }
+  try { const d = await api('/firms'); acc.innerHTML = '<option value="">No account</option>' + d.accounts.filter(a => String(a.firm_id) === f && a.status === 'Active').map(a => `<option value="${a.id}">${h(a.account_name)} (${h(a.account_type)})</option>`).join(''); } catch (e) { /* ignore */ }
+  loadOpenBills();
+}
+state.open = [];
+async function loadOpenBills() {
+  const c = pickerValue('rClient'), f = $('rFirm').value;
+  if (!c || !f) { $('rOpen').innerHTML = ''; return; }
+  try {
+    const d = await api('/open-bills' + qs({ client_id: c, firm_id: f })); state.open = d.bills;
+    const adv = await api('/advance' + qs({ client_id: c, firm_id: f }));
+    $('rOpen').innerHTML = `<div class="box" style="margin-top:10px"><h4>Bills waiting for money from this client (this firm)</h4>
+      ${d.bills.length ? `<table style="min-width:520px"><thead><tr><th>Bill</th><th>Date</th><th class="num">Outstanding</th><th class="num">Set this receipt against it</th></tr></thead><tbody>
+      ${d.bills.map((b, i) => `<tr><td><strong>${h(b.bill_no)}</strong></td><td>${h(b.bill_date)}</td><td class="num">${rs(b.outstanding)}</td><td class="num"><input class="alloc-input" type="number" step="0.01" min="0" data-bill="${b.id}" data-out="${b.outstanding}" oninput="allocCalc()"></td></tr>`).join('')}</tbody></table>
+      <button class="btn sm" style="margin-top:6px" onclick="autoAlloc('rOpen')">Fill oldest bills first</button>` : '<span class="muted">No bill is waiting for money. The whole receipt will be kept as advance.</span>'}
+      <div id="allocSum" style="margin-top:6px"></div><div class="muted" style="margin-top:4px">Advance already held for this client with this firm: <strong>${rs(adv.available)}</strong></div></div>`;
+    allocCalc();
+  } catch (e) { $('rOpen').innerHTML = msgBoxHtml(e.message); }
+}
+function autoAlloc(scope, totalId = 'rAmt') {
+  let left = num($(totalId).value);
+  document.querySelectorAll(`#${scope} [data-bill]`).forEach(el => { const t = Math.min(left, num(el.dataset.out)); el.value = t > 0 ? t.toFixed(2) : ''; left -= t; });
+  allocCalc();
+}
+function allocCalc() {
+  const el = $('allocSum'); if (!el) return;
+  const total = num($('rAmt')?.value); const used = [...document.querySelectorAll('#rOpen [data-bill]')].reduce((s, x) => s + num(x.value), 0);
+  el.innerHTML = `Set against bills <strong>${rs(used)}</strong> · Kept as advance <strong style="color:${total - used < -0.004 ? '#dc2626' : '#047857'}">${rs(total - used)}</strong>`;
+}
+async function saveReceipt() {
+  const allocations = [...document.querySelectorAll('#rOpen [data-bill]')].map(x => ({ bill_id: Number(x.dataset.bill), amount: num(x.value) })).filter(a => a.amount > 0);
+  try {
+    const d = await post('/receipts', { client_id: pickerValue('rClient'), firm_id: $('rFirm').value, account_id: $('rAcc').value || null, receipt_date: $('rDate').value, amount: $('rAmt').value, mode: $('rMode').value, reference_no: $('rRef').value, remarks: $('rRem').value, allocations });
+    toast(d.message); receipts();
+  } catch (e) { msgIn('rMsg', e.message); }
+}
+async function loadReceipts() {
+  const r = state.receipts; r.search = $('rcSearch').value; r.firm_id = $('rcFirm').value; r.only_advance = $('rcState').value === 'advance';
+  try {
+    const d = await api('/receipts' + qs({ search: r.search, firm_id: r.firm_id, state: r.only_advance ? 'advance' : '' }));
+    $('rcBox').innerHTML = `<div class="table-wrap"><table><thead><tr><th>Receipt</th><th>Date</th><th>Client</th><th>Firm</th><th class="num">Amount</th><th class="num">Set against bills</th><th class="num">Advance left</th><th>Mode / reference</th><th></th></tr></thead><tbody>
+      ${d.receipts.map(x => `<tr style="${x.status === 'Cancelled' ? 'opacity:.55' : ''}"><td><strong>${h(x.receipt_no)}</strong>${x.status === 'Cancelled' ? '<br>' + chip('Cancelled', 'grey') : ''}</td><td>${h(x.receipt_date)}</td><td>${h(x.client_name)}<br><small>${h(x.client_id)}</small></td><td>${h(x.firm_name)}</td>
+        <td class="num">${rs(x.amount)}</td><td class="num">${rs(x.allocated)}</td><td class="num">${x.advance > 0 ? `<strong>${rs(x.advance)}</strong>` : '-'}</td><td>${h(x.mode || '')}<br><small>${h(x.reference_no || '')}</small></td>
+        <td style="white-space:nowrap">${x.status === 'Active' ? `<button class="btn sm" onclick="editAlloc(${x.id})">Allocate</button> <button class="btn sm green" onclick="printReceipt(${x.id})">Print</button> <button class="btn sm red" onclick="cancelReceipt(${x.id})">Cancel</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="9" class="muted">No receipts.</td></tr>'}</tbody></table></div>`;
+  } catch (e) { $('rcBox').innerHTML = msgBoxHtml(e.message); }
+}
+async function cancelReceipt(id) {
+  const reason = prompt('Why is this receipt being cancelled? (required)'); if (!reason || !reason.trim()) return;
+  try { const d = await post(`/receipts/${id}/cancel`, { reason }); toast(d.message); loadReceipts(); } catch (e) { toast(e.message, false); }
+}
+async function editAlloc(id) {
+  try {
+    const d = await api('/receipts/' + id); const rc = d.receipt;
+    const ob = await api('/open-bills' + qs({ client_id: rc.client_id, firm_id: rc.firm_id, receipt_id: id }));
+    const mine = Object.fromEntries(d.allocations.map(a => [a.bill_id, a.amount]));
+    openModal(modalHead(`Set ${rc.receipt_no} against bills`) + `<div class="muted" style="margin-bottom:8px">${h(rc.client_name)} · ${h(rc.firm_name)} · amount ${rs(rc.amount)}</div>
+      <div id="alBox">${ob.bills.length ? `<table style="min-width:520px"><thead><tr><th>Bill</th><th>Date</th><th class="num">Outstanding</th><th class="num">This receipt</th></tr></thead><tbody>
+      ${ob.bills.map(b => `<tr><td><strong>${h(b.bill_no)}</strong></td><td>${h(b.bill_date)}</td><td class="num">${rs(b.outstanding)}</td><td class="num"><input class="alloc-input" type="number" step="0.01" min="0" data-bill="${b.id}" data-out="${b.outstanding}" value="${mine[b.id] ? num(mine[b.id]) : ''}" oninput="alCalc(${rc.amount})"></td></tr>`).join('')}</tbody></table>
+      <button class="btn sm" style="margin-top:6px" onclick="document.getElementById('alAmt').value=${rc.amount};autoAlloc('alBox','alAmt');alCalc(${rc.amount})">Fill oldest bills first</button>` : '<span class="muted">No bill is waiting for money from this client.</span>'}</div>
+      <input type="hidden" id="alAmt" value="${rc.amount}"><div id="alSum" style="margin:8px 0"></div><div id="alMsg"></div><button class="btn primary" onclick="saveAlloc(${id})">Save</button>`);
+    alCalc(rc.amount);
+  } catch (e) { toast(e.message, false); }
+}
+function alCalc(total) { const used = [...document.querySelectorAll('#alBox [data-bill]')].reduce((s, x) => s + num(x.value), 0); $('alSum').innerHTML = `Set against bills <strong>${rs(used)}</strong> · Kept as advance <strong>${rs(total - used)}</strong>`; }
+async function saveAlloc(id) {
+  const allocations = [...document.querySelectorAll('#alBox [data-bill]')].map(x => ({ bill_id: Number(x.dataset.bill), amount: num(x.value) })).filter(a => a.amount > 0);
+  try { const d = await put(`/receipts/${id}/allocations`, { allocations }); toast(d.message); closeModal(); loadReceipts(); } catch (e) { msgIn('alMsg', e.message); }
+}
+
+// Receipt print: choose with or without letterhead, then print through a Blob URL
+async function printReceipt(id) {
+  openModal(modalHead('Print receipt') + `<p style="margin-bottom:12px">Do you want the receipt on the firm's letterhead?</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn primary" onclick="doPrintReceipt(${id},true)">With letterhead</button><button class="btn" onclick="doPrintReceipt(${id},false)">Without letterhead</button></div>`);
+}
+function inWords(n) {
+  n = Math.round(n); if (!n) return 'Zero';
+  const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+  const two = x => x < 20 ? ones[x] : tens[Math.floor(x / 10)] + (x % 10 ? ' ' + ones[x % 10] : '');
+  const three = x => (Math.floor(x / 100) ? ones[Math.floor(x / 100)] + ' Hundred' + (x % 100 ? ' ' : '') : '') + (x % 100 ? two(x % 100) : '');
+  const parts = []; const cr = Math.floor(n / 1e7); n %= 1e7; const lk = Math.floor(n / 1e5); n %= 1e5; const th = Math.floor(n / 1e3); n %= 1e3;
+  if (cr) parts.push(three(cr) + ' Crore'); if (lk) parts.push(three(lk) + ' Lakh'); if (th) parts.push(three(th) + ' Thousand'); if (n) parts.push(three(n));
+  return parts.join(' ');
+}
+async function doPrintReceipt(id, letterhead) {
+  try {
+    const d = await api('/receipts/' + id); const rc = d.receipt; closeModal();
+    const phone = rc.firm_phone || org.contact_mobile || '', email = rc.firm_email || org.contact_email || '';
+    const addr = rc.firm_address || [org.address, org.city, org.state].filter(Boolean).join(', ');
+    const head = letterhead ? `<div class="lh">${org.logo_data_url ? `<img src="${h(org.logo_data_url)}" class="logo">` : ''}<div><div class="fn">${h(rc.firm_name)}</div>${addr ? `<div>${h(addr)}</div>` : ''}<div>${phone ? 'Mobile: ' + h(phone) : ''}${phone && email ? ' &nbsp;|&nbsp; ' : ''}${email ? 'Email: ' + h(email) : ''}</div>${rc.firm_gstin ? `<div>GSTIN: ${h(rc.firm_gstin)}</div>` : ''}${rc.firm_pan ? `<div>PAN: ${h(rc.firm_pan)}</div>` : ''}</div></div>` : `<div class="fn" style="margin-bottom:6px">${h(rc.firm_name)}</div>`;
+    const towards = d.allocations.length ? d.allocations.map(a => `Bill ${h(a.bill_no)} (${h(a.bill_date)}): ${rs(a.amount)}`).join('<br>') : 'Advance payment';
+    const adv = num(rc.amount) - d.allocations.reduce((s, a) => s + num(a.amount), 0);
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Receipt ${h(rc.receipt_no)}</title><style>
+      body{font-family:Arial,sans-serif;color:#111;margin:0;padding:24px} .page{max-width:760px;margin:auto;border:1px solid #999;padding:22px}
+      .lh{display:flex;gap:14px;align-items:center;border-bottom:2px solid #13203a;padding-bottom:10px;margin-bottom:14px;font-size:13px;line-height:1.5} .logo{max-height:70px;max-width:120px;object-fit:contain} .fn{font-size:20px;font-weight:800;color:#13203a}
+      h2{text-align:center;letter-spacing:2px;margin:6px 0 16px;font-size:18px} table{width:100%;border-collapse:collapse;font-size:14px} td{padding:8px 10px;border:1px solid #bbb;vertical-align:top} td:first-child{width:32%;background:#f3f5f9;font-weight:700}
+      .sign{margin-top:46px;text-align:right;font-size:13px} @page{size:A4;margin:12mm}</style></head><body><div class="page">${head}<h2>PAYMENT RECEIPT</h2>
+      <table><tr><td>Receipt no.</td><td>${h(rc.receipt_no)}</td></tr><tr><td>Date</td><td>${h(rc.receipt_date)}</td></tr><tr><td>Received from</td><td>${h(rc.client_name)} (${h(rc.client_id)})</td></tr>
+      <tr><td>Amount received</td><td><strong>${rs(rc.amount)}</strong><br>Rupees ${h(inWords(num(rc.amount)))} only</td></tr><tr><td>Mode</td><td>${h(rc.mode || '')}${rc.reference_no ? ' · Ref: ' + h(rc.reference_no) : ''}</td></tr>
+      <tr><td>Towards</td><td>${towards}${adv > 0.004 && d.allocations.length ? `<br>Advance kept: ${rs(adv)}` : ''}</td></tr>${rc.remarks ? `<tr><td>Remarks</td><td>${h(rc.remarks)}</td></tr>` : ''}</table>
+      <div class="sign">For ${h(rc.firm_name)}<br><br><br>Authorised signatory</div></div></body></html>`;
+    const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+    const w = window.open(url, '_blank');
+    if (w) w.addEventListener('load', () => { w.focus(); w.print(); });
+  } catch (e) { toast(e.message, false); }
+}
+
+// ───────────── Payments (request → approval → paid) ─────────────
+const PURPOSES = ['Government challan / fee', 'ROC / MCA fee', 'Stamp duty', 'Vendor / professional fee', 'Travel / conveyance', 'Refund of advance', 'Office expense', 'Other'];
+function payTabs() {
+  return access.manager
+    ? [['approve', 'Waiting for approval'], ['topay', 'Approved: to pay'], ['mine', 'My requests'], ['open', 'All open'], ['history', 'History']]
+    : [['mine', 'My requests']];
+}
+function payments() {
+  if (!state.payTab) state.payTab = access.manager ? 'approve' : 'mine';
+  $('main').innerHTML = `<div class="title">Payment requests</div><div class="sub">Nobody pays a client's expense before it is approved here. Every payment stays linked to the client and the work.</div>
+    <div class="toolbar"><div class="tabs" style="margin:0">${payTabs().map(([k, l]) => `<div class="tab ${state.payTab === k ? 'on' : ''}" onclick="state.payTab='${k}';payments()">${l}</div>`).join('')}</div><span class="spacer"></span>
+      <div class="f"><input id="pySearch" placeholder="Search request, client, payee" onkeydown="if(event.key==='Enter')loadPayments()"></div><button class="btn" onclick="loadPayments()">Search</button>
+      <button class="btn primary" onclick="newPayment()">+ New payment request</button></div><div id="payBox" class="muted">Loading…</div>`;
+  loadPayments();
+}
+async function loadPayments() {
+  try {
+    const d = await api('/payments' + qs({ scope: state.payTab, search: $('pySearch')?.value || '' }));
+    state.payments = d.payments;
+    $('payBox').innerHTML = `<div class="table-wrap"><table><thead><tr><th>Request</th><th>Client / work</th><th>Purpose</th><th>Payee</th><th class="num">Amount</th><th>Paid from</th><th>Requested by</th><th>Status</th><th></th></tr></thead><tbody>
+      ${d.payments.map(p => `<tr><td><strong>${h(p.request_no)}</strong><br><small>${new Date(p.requested_at).toLocaleDateString('en-GB')}${p.needed_by ? ' · needed by ' + h(p.needed_by) : ''}</small></td>
+        <td>${p.client_name ? `<strong>${h(p.client_name)}</strong><br><small>${h(p.task_name || '')}</small>` : '<span class="muted">Office expense</span>'}</td><td>${h(p.purpose)}</td><td>${h(p.payee || '')}</td>
+        <td class="num"><strong>${rs(p.status === 'Paid' ? (p.paid_amount ?? p.amount) : p.amount)}</strong></td><td>${h(p.firm_name)}<br><small>${h(p.funding)}</small></td><td>${h(p.requested_by_name)}${p.status === 'Requested' && p.age_days >= 2 ? `<br><small style="color:#b45309">${p.age_days} days waiting</small>` : ''}</td>
+        <td>${statusChip(p.status)}</td><td><button class="btn sm primary" onclick="openPayment(${p.id})">Open</button></td></tr>`).join('') || '<tr><td colspan="9" class="muted">Nothing here.</td></tr>'}</tbody></table></div>`;
+    if (access.manager && state.payTab === 'approve') { state.waiting = d.payments.length; renderNav(); }
+  } catch (e) { $('payBox').innerHTML = msgBoxHtml(e.message); }
+}
+
+async function newPayment(existing) {
+  const e = existing || {};
+  if (!firms.length) return toast('No firm is set up yet. Please ask an admin to add the firms in Billing > Settings.', false);
+  openModal(modalHead(existing ? 'Edit request ' + e.request_no : 'New payment request') + `
+    <div class="msg info">Every payment needs approval first. Choose the client and the work so the payment is linked correctly.</div>
+    <div class="row2"><div><label>Payment is for</label><select id="pPurpose" ${existing ? 'disabled' : ''} onchange="payPurposeChanged()">${PURPOSES.map(p => `<option ${e.purpose === p ? 'selected' : ''}>${h(p)}</option>`).join('')}</select></div>
+      <div><label>Payee (who will be paid)</label><input id="pPayee" value="${h(e.payee || '')}" placeholder="For example: MCA, GST Dept, vendor name"></div>
+      <div><label>Amount</label><input id="pAmt" type="number" step="0.01" min="0" value="${e.amount || ''}" oninput="payAdvanceHint()"></div>
+      <div><label>Needed by</label><input id="pNeed" type="date" value="${h(e.needed_by || '')}"></div></div>
+    <div id="pClientRow" class="row2">${existing ? `<div class="box"><h4>Client and work</h4>${h(e.client_name || '')}<br><small>${h(e.task_name || '')}</small></div>` : `${pickerHtml('pClient', 'Client')}<div><label>Work</label><select id="pTask"><option value="">Choose client first</option></select></div>`}</div>
+    <div class="row2"><div><label>Pay from firm</label><select id="pFirm" onchange="payFirmChanged()">${firmOptions(e.firm_id, 'Choose firm')}</select></div>
+      <div><label>Account</label><select id="pAcc"><option value="">Choose firm first</option></select></div>
+      <div id="pFundWrap"><label>Money source</label><select id="pFund" onchange="payAdvanceHint()"><option value="Firm funds" ${e.funding !== 'Client advance' ? 'selected' : ''}>Firm money (recover from client later)</option><option value="Client advance" ${e.funding === 'Client advance' ? 'selected' : ''}>Client's advance</option></select></div></div>
+    <div id="pAdvHint" class="muted" style="margin-bottom:8px"></div>
+    <div><label>Details (optional)</label><textarea id="pDesc" rows="2" placeholder="Any detail the approver should know">${h(e.description || '')}</textarea></div>
+    ${existing ? '' : `<div style="margin-top:8px"><label>Challan / invoice copy (optional, PDF or image up to 4 MB)</label><input type="file" id="pFile" accept=".pdf,image/*"></div>`}
+    <div id="pMsg"></div><div style="margin-top:12px"><button class="btn primary" onclick="submitPayment(${existing ? e.id : 0})">${existing ? 'Save changes' : 'Send for approval'}</button></div>`, true);
+  pickerCallbacks.pClient = async cid => {
+    try { const d = await api('/client-tasks' + qs({ client_id: cid })); $('pTask').innerHTML = '<option value="">Choose the work</option>' + d.tasks.map(t => `<option value="${h(t.task_id)}">${h(t.work_name)} · ${h(t.status || '')} (${h(t.task_id)})</option>`).join(''); } catch (er) { /* ignore */ }
+    payAdvanceHint();
+  };
+  state.editPay = existing || null;
+  payPurposeChanged(); if (e.firm_id) await payFirmChanged(e.account_id);
+}
+function payPurposeChanged() {
+  const p = $('pPurpose').value; const office = p === 'Office expense', refund = p === 'Refund of advance';
+  if ($('pClientRow')) $('pClientRow').style.display = office ? 'none' : '';
+  $('pFundWrap').style.display = (office || refund) ? 'none' : '';
+  payAdvanceHint();
+}
+async function payFirmChanged(selectedAcc) {
+  const f = $('pFirm').value; const acc = $('pAcc');
+  if (!f) { acc.innerHTML = '<option value="">Choose firm first</option>'; return; }
+  try { const d = await api('/firms'); acc.innerHTML = '<option value="">Choose account</option>' + d.accounts.filter(a => String(a.firm_id) === f && a.status === 'Active').map(a => `<option value="${a.id}" ${String(selectedAcc) === String(a.id) ? 'selected' : ''}>${h(a.account_name)} (${h(a.account_type)})</option>`).join(''); } catch (e) { /* ignore */ }
+  payAdvanceHint();
+}
+async function payAdvanceHint() {
+  const el = $('pAdvHint'); if (!el) return;
+  const cid = state.editPay ? state.editPay.client_id : pickerValue('pClient'); const f = $('pFirm')?.value;
+  if (!cid || !f || $('pPurpose').value === 'Office expense') { el.textContent = ''; return; }
+  try { const a = await api('/advance' + qs({ client_id: cid, firm_id: f })); el.innerHTML = `Advance this client has with this firm: <strong>${rs(a.available)}</strong>${a.available <= 0 ? ' <span style="color:#b45309">(none. The payment will be from firm money and recovered from the client later.)</span>' : ''}`; } catch (e) { el.textContent = ''; }
+}
+async function submitPayment(id) {
+  const body = { purpose: $('pPurpose').value, payee: $('pPayee').value, amount: $('pAmt').value, needed_by: $('pNeed').value, firm_id: $('pFirm').value, account_id: $('pAcc').value, funding: $('pFund').value, description: $('pDesc').value };
+  if (!id) { body.client_id = pickerValue('pClient'); body.task_id = $('pTask')?.value || ''; }
+  try {
+    const d = id ? await put('/payments/' + id, body) : await post('/payments', body);
+    const file = !id && $('pFile')?.files[0];
+    if (file) {
+      const fd = new FormData(); fd.append('file', file); fd.append('kind', 'request');
+      try { await api(`/payments/${d.payment.id}/attachments`, { method: 'POST', body: fd }); } catch (e) { toast('Request sent, but the file could not be added: ' + e.message, false); }
+    }
+    toast(d.message); closeModal(); payments();
+  } catch (e) { msgIn('pMsg', e.message); }
+}
+
+async function openPayment(id) {
+  try {
+    const d = await api('/payments/' + id); const p = d.payment, c = p.can; const pos = d.position;
+    openModal(modalHead(`${p.request_no}`, statusChip(p.status)) + `
+      <div class="row2"><div class="box"><h4>Payment for</h4><strong>${h(p.purpose)}</strong><br>Payee: ${h(p.payee || '-')}</div>
+        <div class="box"><h4>Client / work</h4>${p.client_name ? `<strong>${h(p.client_name)}</strong><br><small>${h(p.task_name || '')}</small>` : 'Office expense'}</div>
+        <div class="box"><h4>Amount</h4><strong style="font-size:17px">${rs(p.amount)}</strong>${p.approved_amount != null ? `<br><small>Approved: ${rs(p.approved_amount)}</small>` : ''}${p.paid_amount != null ? `<br><small>Paid: ${rs(p.paid_amount)}</small>` : ''}</div>
+        <div class="box"><h4>Paid from</h4>${h(p.firm_name)}<br><small>${h(p.account_name || '')} · ${h(p.funding)}</small></div>
+        <div class="box"><h4>Requested by</h4>${h(p.requested_by_name)}<br><small>${new Date(p.requested_at).toLocaleString('en-GB')}${p.needed_by ? ' · needed by ' + h(p.needed_by) : ''}</small></div></div>
+      ${p.description ? `<div class="box"><h4>Details</h4>${h(p.description)}</div>` : ''}
+      ${p.decision_note ? `<div class="msg ${p.status === 'Rejected' || p.status === 'Query' ? 'err' : 'info'}"><strong>${h(p.approved_by_name || '')}:</strong> ${h(p.decision_note)}</div>` : ''}
+      ${pos ? `<div class="box" style="background:#fffbeb;border-color:#fde68a"><h4>This client's position (for the approver)</h4>
+        Unbilled work: <strong>${pos.unbilled_works}</strong> · Advance with ${h(p.firm_name)}: <strong>${rs(pos.advance_available)}</strong> · Paid for client, not yet billed: <strong>${rs(pos.to_recover.amount)}</strong> (${pos.to_recover.n})<br>
+        Bills outstanding: ${pos.outstanding_by_firm.map(o => `${h(o.firm_name)} <strong>${rs(o.outstanding)}</strong> (${o.bills})`).join(' · ') || 'none'}
+        ${pos.last_payments.length ? `<br><small>Last payments: ${pos.last_payments.map(l => `${h(l.purpose)} ${rs(l.amount)} (${h(l.paid_on || '')})`).join(' · ')}</small>` : ''}</div>` : ''}
+      <h4 style="margin:8px 0 4px">Files</h4><div id="plFiles">${d.attachments.map(a => `<div style="display:flex;gap:8px;align-items:center;margin:3px 0">${chip(a.kind === 'proof' ? 'Proof of payment' : 'Request copy', a.kind === 'proof' ? 'green' : '')} <a href="#" onclick="openFile(${a.id});return false">${h(a.filename)}</a> <small>${Math.round(a.size_bytes / 1024)} KB · ${h(a.uploaded_by_name || '')}</small></div>`).join('') || '<span class="muted">No files yet.</span>'}</div>
+      ${c.attach ? `<div class="toolbar" style="margin-top:8px"><div class="f"><label>Add a file</label><input type="file" id="plFile" accept=".pdf,image/*"></div><div class="f"><label>Type</label><select id="plKind"><option value="request">Challan / invoice copy</option><option value="proof" ${p.status === 'Approved' ? 'selected' : ''}>Proof of payment</option></select></div><button class="btn" onclick="uploadPayFile(${p.id})">Upload</button></div>` : ''}
+      <div id="plMsg"></div>
+      ${c.approve ? `<div class="box" style="margin-top:8px"><h4>Decision</h4><div class="row2"><div><label>Approve amount</label><input id="plAmt" type="number" step="0.01" value="${p.amount}"></div><div><label>Note (required to reject or ask)</label><input id="plNote"></div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn green" onclick="payAction(${p.id},'approve')">Approve</button><button class="btn amber" onclick="payAction(${p.id},'query')">Ask a question</button><button class="btn red" onclick="payAction(${p.id},'reject')">Reject</button></div></div>` : ''}
+      ${c.reply ? `<div class="box" style="margin-top:8px"><h4>Reply to the question</h4><input id="plNote" placeholder="Your answer"><div style="margin-top:8px"><button class="btn primary" onclick="payAction(${p.id},'reply')">Send reply</button></div></div>` : ''}
+      ${c.pay ? `<div class="box" style="margin-top:8px"><h4>Mark as paid</h4><div class="muted" style="margin-bottom:6px">Make the payment first, upload the proof above, then fill this in.</div>
+        <div class="row2"><div><label>UTR / challan no. / reference</label><input id="plRef"></div><div><label>Paid on</label><input id="plDate" type="date" value="${today()}"></div><div><label>Amount paid</label><input id="plPaid" type="number" step="0.01" value="${p.approved_amount ?? p.amount}"></div><div><label>Note</label><input id="plNote"></div></div>
+        <button class="btn primary" onclick="payAction(${p.id},'paid')">Mark as paid</button></div>` : ''}
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">${c.edit ? `<button class="btn" onclick='editPayment(${p.id})'>Edit request</button>` : ''}${c.cancel ? `<button class="btn red" onclick="cancelPayment(${p.id},${p.status === 'Approved'})">Cancel request</button>` : ''}</div>
+      <h4 style="margin:12px 0 4px">History</h4><div class="timeline">${d.timeline.map(t => `<div><strong>${h(t.action.replace('_', ' '))}</strong> <small>${h(t.actor_name || '')} · ${new Date(t.created_at).toLocaleString('en-GB')}</small>${t.note ? `<small>${h(t.note)}</small>` : ''}</div>`).join('')}</div>`, true);
+    state.openPay = p;
+  } catch (e) { toast(e.message, false); }
+}
+async function editPayment(id) { const d = await api('/payments/' + id); closeModal(); newPayment(d.payment); }
+async function payAction(id, action) {
+  const body = { note: $('plNote')?.value || '' };
+  if (action === 'approve') body.approved_amount = $('plAmt').value;
+  if (action === 'paid') { body.reference = $('plRef').value; body.paid_on = $('plDate').value; body.paid_amount = $('plPaid').value; }
+  try { const d = await post(`/payments/${id}/${action}`, body); toast(d.message); closeModal(); payments(); }
+  catch (e) { msgIn('plMsg', e.message); }
+}
+async function cancelPayment(id, approved) {
+  const note = prompt(approved ? 'Why is this approved payment being cancelled? (required)' : 'Reason (optional)') || '';
+  if (approved && !note.trim()) return;
+  try { const d = await post(`/payments/${id}/cancel`, { note }); toast(d.message); closeModal(); payments(); } catch (e) { toast(e.message, false); }
+}
+async function uploadPayFile(id) {
+  const f = $('plFile').files[0]; if (!f) return msgIn('plMsg', 'Please choose a file.');
+  const fd = new FormData(); fd.append('file', f); fd.append('kind', $('plKind').value);
+  try { await api(`/payments/${id}/attachments`, { method: 'POST', body: fd }); toast('File added.'); openPayment(id); } catch (e) { msgIn('plMsg', e.message); }
+}
+async function openFile(id) {
+  try {
+    const res = await api('/attachments/' + id, { raw: true });
+    if (!res.ok) throw new Error('Could not open the file');
+    const blob = await res.blob(); window.open(URL.createObjectURL(blob), '_blank');
+  } catch (e) { toast(e.message, false); }
+}
+
+// ───────────── Client summary ─────────────
+function clients() {
+  $('main').innerHTML = `<div class="title">Client summary</div><div class="sub">Everything about one client on a single page: work, bills, receipts, advance and payments made for them.</div>
+    <div class="toolbar">${pickerHtml('csClient', 'Client')}<button class="btn primary" onclick="loadClientSummary()">Show</button></div><div id="csBox" class="muted">Choose a client.</div>`;
+  pickerCallbacks.csClient = () => loadClientSummary();
+}
+async function loadClientSummary() {
+  const id = pickerValue('csClient'); if (!id) return toast('Please choose a client from the list.', false);
+  try {
+    const d = await api('/clients/' + encodeURIComponent(id) + '/summary'); const w = d.works;
+    $('csBox').innerHTML = `<div class="card"><h3>${h(d.client.name)}</h3><div class="muted">${h(d.client.client_id)}${d.client.mobile_number ? ' · ' + h(d.client.mobile_number) : ''}${d.client.gst_no ? ' · GSTIN ' + h(d.client.gst_no) : ''}</div></div>
+      <div class="grid"><div class="metric warn"><strong>${w.unbilled_n}</strong><span>Unbilled work · ${rs(w.unbilled_amount)}</span></div><div class="metric"><strong>${w.billed_n}</strong><span>Work billed</span></div><div class="metric"><strong>${w.hold_n}</strong><span>Will not be billed</span></div>
+        <div class="metric warn"><strong>${rs(d.recoverable.reduce((s, x) => s + num(x.amount), 0))}</strong><span>Paid for client, not yet billed (${d.recoverable.length})</span></div></div>
+      <div class="card" style="margin-top:14px"><h3 style="margin-bottom:8px">By firm</h3><div class="table-wrap" style="box-shadow:none;padding:0;max-height:none"><table style="min-width:600px"><thead><tr><th>Firm</th><th class="num">Billed</th><th class="num">Challan in bills</th><th class="num">Received</th><th class="num">Outstanding</th><th class="num">Advance held</th></tr></thead><tbody>
+      ${d.firms.map(f => `<tr><td><strong>${h(f.name)}</strong></td><td class="num">${rs(f.billed)}</td><td class="num">${rs(f.challan)}</td><td class="num">${rs(f.received)}</td><td class="num">${rs(f.outstanding)}</td><td class="num">${rs(f.advance)}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">No bills or receipts yet.</td></tr>'}</tbody></table></div></div>
+      <div class="card"><h3 style="margin-bottom:8px">Recent bills</h3>${d.bills.map(b => `<div style="padding:3px 0"><a href="#" onclick="openBill(${b.id});return false"><strong>${h(b.bill_no)}</strong></a> · ${h(b.bill_date)} · ${h(b.firm_name)} · ${rs(b.total_amount)} · outstanding <strong>${rs(b.outstanding)}</strong></div>`).join('') || '<span class="muted">None</span>'}</div>
+      <div class="card"><h3 style="margin-bottom:8px">Recent receipts</h3>${d.receipts.map(r => `<div style="padding:3px 0">${h(r.receipt_no)} · ${h(r.receipt_date)} · ${h(r.firm_name)} · ${rs(r.amount)}${r.advance > 0 ? ` · advance left <strong>${rs(r.advance)}</strong>` : ''}</div>`).join('') || '<span class="muted">None</span>'}</div>
+      <div class="card"><h3 style="margin-bottom:8px">Paid for this client, not yet charged in a bill</h3>${d.recoverable.map(r => `<div style="padding:3px 0">${h(r.request_no)} · ${h(r.purpose)} · ${h(r.payee || '')} · ${rs(r.amount)} <small>${h(r.task_name || '')}</small></div>`).join('') || '<span class="muted">None</span>'}</div>
+      <div class="card"><h3 style="margin-bottom:8px">Payment requests</h3>${d.payments.map(r => `<div style="padding:3px 0">${h(r.request_no)} · ${h(r.requested_on)} · ${h(r.purpose)} · ${rs(r.amount)} · ${statusChip(r.status)} <small>${h(r.funding)}</small></div>`).join('') || '<span class="muted">None</span>'}</div>`;
+  } catch (e) { $('csBox').innerHTML = msgBoxHtml(e.message); }
+}
+
+// ───────────── Reports ─────────────
+const REPORT_LIST = [['unbilled', 'Unbilled work'], ['bills', 'Bills'], ['outstanding', 'Outstanding bills'], ['receipts', 'Receipts'], ['advances', 'Client advances'], ['recoverable', 'Paid for clients, not yet billed'], ['payments', 'Payment requests']];
+function reports() {
+  $('main').innerHTML = `<div class="title">Reports</div><div class="sub">See a report on screen, or download it as an Excel file.</div>
+    <div class="toolbar"><div class="f w2"><label>Report</label><select id="rpName">${REPORT_LIST.map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></div>
+      <div class="f"><label>Firm</label><select id="rpFirm"><option value="">All firms</option>${firmOptions('')}</select></div>${pickerHtml('rpClient', 'Client (optional)')}
+      <div class="f"><label>From</label><input type="date" id="rpFrom"></div><div class="f"><label>To</label><input type="date" id="rpTo"></div>
+      <button class="btn primary" onclick="loadReport()">Show</button><button class="btn green" onclick="loadReport(true)">Download Excel</button></div><div id="rpBox" class="muted">Choose a report.</div>`;
+}
+async function loadReport(download) {
+  const name = $('rpName').value;
+  const params = { firm_id: $('rpFirm').value, client_id: pickerValue('rpClient'), date_from: $('rpFrom').value, date_to: $('rpTo').value };
+  try {
+    if (download) {
+      const res = await api(`/reports/${name}` + qs({ ...params, format: 'xlsx' }), { raw: true });
+      if (!res.ok) throw new Error('Could not build the report');
+      const url = URL.createObjectURL(await res.blob()); const a = document.createElement('a'); a.href = url; a.download = `billing_${name}.xlsx`; a.click(); URL.revokeObjectURL(url); return;
+    }
+    const d = await api(`/reports/${name}` + qs(params));
+    $('rpBox').innerHTML = `<div class="muted" style="margin-bottom:6px">${h(d.title)} · ${d.rows.length} row(s)</div><div class="table-wrap"><table><thead><tr>${d.columns.map(c => `<th>${h(c)}</th>`).join('')}</tr></thead><tbody>
+      ${d.rows.map(r => `<tr>${r.map(v => `<td class="${typeof v === 'number' && !Number.isInteger(v) ? 'num' : ''}">${typeof v === 'number' ? (Number.isInteger(v) && Math.abs(v) < 100000 ? v : rs(v)) : h(v ?? '')}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${d.columns.length}" class="muted">No data.</td></tr>`}</tbody></table></div>`;
+  } catch (e) { $('rpBox').innerHTML = msgBoxHtml(e.message); }
+}
+
+// ───────────── Settings ─────────────
+async function settings() {
+  $('main').innerHTML = '<div class="title">Settings</div><div class="sub">Your firms, their bank / cash / UPI accounts, and who can approve payments.</div><div id="stBox" class="muted">Loading…</div>';
+  try {
+    const d = await api('/firms');
+    $('stBox').innerHTML = `<div class="toolbar"><button class="btn primary" onclick="firmForm()">+ Add firm</button></div>
+      ${d.firms.map(f => `<div class="card"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><h3 style="flex:1">${h(f.name)} <small>(${h(f.code)})</small> ${f.status === 'Active' ? '' : chip('Inactive', 'grey')}</h3><button class="btn sm" onclick='firmForm(${JSON.stringify(f).replace(/'/g, '&#39;')})'>Edit</button><button class="btn sm green" onclick="accountForm(${f.id})">+ Account</button></div>
+        <div class="muted" style="margin:4px 0 8px">${h(f.legal_type || '')} ${f.pan ? '· PAN ' + h(f.pan) : ''} ${f.gstin ? '· GSTIN ' + h(f.gstin) : ''}<br>${h(f.address || '')} ${f.phone ? '· ' + h(f.phone) : ''} ${f.email ? '· ' + h(f.email) : ''}</div>
+        ${d.accounts.filter(a => a.firm_id === f.id).map(a => `<div style="padding:5px 0;border-top:1px solid #f1f5f9;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div style="flex:1"><strong>${h(a.account_name)}</strong> ${chip(a.account_type)} ${a.status === 'Active' ? '' : chip('Inactive', 'grey')}<br><small>${h(a.bank_name || '')} ${h(a.account_no || '')} ${h(a.ifsc || '')} ${h(a.upi_id || '')}</small></div><button class="btn sm" onclick='accountForm(${f.id},${JSON.stringify(a).replace(/'/g, '&#39;')})'>Edit</button></div>`).join('') || '<small>No account yet.</small>'}</div>`).join('') || '<div class="msg info">Add your first firm to begin.</div>'}
+      ${access.approver ? `<div class="card"><h3 style="margin-bottom:8px">Payment approval</h3><div class="row2"><div><label>Office Manager can approve up to (₹, 0 = cannot approve)</label><input id="stOm" type="number" min="0" step="1" value="${access.om_limit || 0}"></div>
+        <div><label>Approvers can approve their own requests</label><select id="stSelf"><option value="0" ${access.self_approve ? '' : 'selected'}>No (recommended)</option><option value="1" ${access.self_approve ? 'selected' : ''}>Yes</option></select></div></div><div id="stMsg"></div><button class="btn primary" onclick="saveApprovalSettings()">Save</button></div>` : ''}`;
+  } catch (e) { $('stBox').innerHTML = msgBoxHtml(e.message); }
+}
+function firmForm(f) {
+  f = f || {};
+  openModal(modalHead(f.id ? 'Edit firm' : 'Add firm') + `<div class="row2"><div><label>Firm name</label><input id="fName" value="${h(f.name || '')}"></div><div><label>Short code (2 to 8 letters)</label><input id="fCode" value="${h(f.code || '')}" ${f.id ? 'disabled' : ''} placeholder="AKA"></div>
+    <div><label>Type</label><select id="fType">${['Proprietorship', 'Private Limited Company', 'Partnership', 'LLP', 'Other'].map(t => `<option ${f.legal_type === t ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+    <div><label>PAN</label><input id="fPan" value="${h(f.pan || '')}"></div><div><label>GSTIN (if any)</label><input id="fGst" value="${h(f.gstin || '')}"></div><div><label>Mobile</label><input id="fPhone" value="${h(f.phone || '')}"></div><div><label>Email</label><input id="fEmail" value="${h(f.email || '')}"></div>
+    ${f.id ? `<div><label>Status</label><select id="fStatus"><option ${f.status === 'Active' ? 'selected' : ''}>Active</option><option ${f.status === 'Inactive' ? 'selected' : ''}>Inactive</option></select></div>` : ''}</div>
+    <div><label>Address</label><textarea id="fAddr" rows="2">${h(f.address || '')}</textarea></div><div id="fMsg"></div><div style="margin-top:12px"><button class="btn primary" onclick="saveFirm(${f.id || 0})">Save</button></div>`);
+}
+async function saveFirm(id) {
+  const body = { name: $('fName').value, code: $('fCode').value, legal_type: $('fType').value, pan: $('fPan').value, gstin: $('fGst').value, phone: $('fPhone').value, email: $('fEmail').value, address: $('fAddr').value, status: $('fStatus')?.value };
+  try { id ? await put('/firms/' + id, body) : await post('/firms', body); closeModal(); await refreshFirms(); settings(); } catch (e) { msgIn('fMsg', e.message); }
+}
+async function refreshFirms() { const d = await api('/me'); firms = d.firms; org = d.org || org; }
+function accountForm(firmId, a) {
+  a = a || {};
+  openModal(modalHead(a.id ? 'Edit account' : 'Add account') + `<div class="row2"><div><label>Account name</label><input id="aName" value="${h(a.account_name || '')}" placeholder="HDFC Current / Cash / Firm UPI"></div>
+    <div><label>Type</label><select id="aType">${['Bank', 'Cash', 'UPI'].map(t => `<option ${a.account_type === t ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+    <div><label>Bank name</label><input id="aBank" value="${h(a.bank_name || '')}"></div><div><label>Account no.</label><input id="aNo" value="${h(a.account_no || '')}"></div><div><label>IFSC</label><input id="aIfsc" value="${h(a.ifsc || '')}"></div><div><label>UPI ID</label><input id="aUpi" value="${h(a.upi_id || '')}"></div>
+    ${a.id ? `<div><label>Status</label><select id="aStatus"><option ${a.status === 'Active' ? 'selected' : ''}>Active</option><option ${a.status === 'Inactive' ? 'selected' : ''}>Inactive</option></select></div>` : ''}</div><div id="aMsg"></div><button class="btn primary" onclick="saveAccount(${firmId},${a.id || 0})">Save</button>`);
+}
+async function saveAccount(firmId, id) {
+  const body = { firm_id: firmId, account_name: $('aName').value, account_type: $('aType').value, bank_name: $('aBank').value, account_no: $('aNo').value, ifsc: $('aIfsc').value, upi_id: $('aUpi').value, status: $('aStatus')?.value };
+  try { id ? await put('/accounts/' + id, body) : await post('/accounts', body); closeModal(); settings(); } catch (e) { msgIn('aMsg', e.message); }
+}
+async function saveApprovalSettings() {
+  try { const d = await put('/settings', { om_limit: $('stOm').value, self_approve: $('stSelf').value === '1' }); access.om_limit = d.settings.om_limit; access.self_approve = d.settings.self_approve; msgIn('stMsg', 'Saved.', 'ok'); }
+  catch (e) { msgIn('stMsg', e.message); }
+}
+
+boot();
+</script>
+</body>
+</html>

@@ -409,6 +409,7 @@
     <div class="sb-section" id="sec-management">Management</div>
     <div class="sb-item" id="sb-dataimport" onclick="showPanel('dataimport')"><span class="ic">&#128229;</span>Data Import</div>
     <div class="sb-item" id="sb-empmanagement" onclick="openAdminPortal()"><span class="ic">&#128101;</span>Employee Management</div>
+    <div class="sb-item" id="sb-billing" style="display:none;" onclick="window.location.href='/billing.html'"><span class="ic">&#128181;</span>Billing</div>
     <div class="sb-item" id="sb-mcafiling" onclick="showPanel('mcafiling')"><span class="ic">&#128196;</span>MCA Filing</div>
   </aside>
 
@@ -8632,6 +8633,10 @@ async function initOfficeApp() {
   await loadClientKycAccess();
   await loadDashboard();
   panelLoaded['dashboard'] = true;
+  // Billing: shown only when the office has it switched on (staff use it to request payments)
+  api('/billing/me', { cache: false }).then(d => {
+    if (d && d.success) { const el = document.getElementById('sb-billing'); if (el) el.style.display = ''; const m = document.getElementById('sec-management'); if (m) m.style.display = ''; }
+  }).catch(() => {});
   // Gee Bharat Studio: shown only when the office has it and this person has been given access
   api('/studio/access', { cache: false }).then(d => {
     if (d && d.success && d.allowed) document.getElementById('sb-studio').style.display = '';
