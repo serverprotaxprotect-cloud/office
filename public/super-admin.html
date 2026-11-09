@@ -115,7 +115,7 @@
           <button class="btn btn-soft" onclick="loadOrganizations()">Reload</button>
         </div>
         <div class="table-wrap"><table>
-          <thead><tr><th>Code</th><th>Name</th><th>Contact</th><th>Validity</th><th>Subscription</th><th>Status</th><th>Counts</th><th>Billing</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Code</th><th>Name</th><th>Contact</th><th>Validity</th><th>Subscription</th><th>Status</th><th>Counts</th><th>Features</th><th>Actions</th></tr></thead>
           <tbody id="orgsBody"><tr><td colspan="9">Loading...</td></tr></tbody>
         </table></div>
       </section>
@@ -333,12 +333,6 @@
           <td><span class="status ${esc(o.status)}">${esc(o.status)}</span></td>
           <td>${o.employees || 0} employees<br>${o.clients || 0} clients<br>${o.tasks || 0} tasks</td>
           <td>
-            <small style="display:block;color:#63728a;font-weight:800;margin-bottom:4px">Billing</small>
-            <select onchange="updateBillingAccess(${o.id}, this.value)" style="width:145px;padding:7px 8px;border:1px solid #d8e0ec;border-radius:8px;font-weight:700;margin-bottom:8px">
-              <option value="none" ${o.billing_access === 'none' ? 'selected' : ''}>No Access</option>
-              <option value="view" ${o.billing_access === 'view' ? 'selected' : ''}>View Only</option>
-              <option value="full" ${o.billing_access === 'full' ? 'selected' : ''}>Full Access</option>
-            </select>
             <small style="display:block;color:#63728a;font-weight:800;margin-bottom:4px">Lead Management</small>
             <select onchange="updateLeadManagementAccess(${o.id}, this.value)" style="width:145px;padding:7px 8px;border:1px solid #d8e0ec;border-radius:8px;font-weight:700;margin-bottom:8px">
               <option value="none" ${o.lead_management_access === 'none' ? 'selected' : ''}>No Access</option>
@@ -467,14 +461,6 @@
         body: JSON.stringify({ access_level: accessLevel })
       });
       showMsg(data.message || (data.success ? 'Gee Bharat Studio access updated' : 'Gee Bharat Studio access update failed'), !!data.success);
-      if (data.success) loadOrganizations();
-    }
-    async function updateBillingAccess(id, accessLevel) {
-      const data = await api('/organizations/' + id + '/features/billing', {
-        method: 'PUT',
-        body: JSON.stringify({ access_level: accessLevel })
-      });
-      showMsg(data.message || (data.success ? 'Billing access updated' : 'Billing access update failed'), !!data.success);
       if (data.success) loadOrganizations();
     }
     async function updateLeadManagementAccess(id, accessLevel) {
