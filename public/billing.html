@@ -149,6 +149,8 @@ async function boot() {
     $('orgChip').textContent = `${me.name}${me.role ? ' · ' + me.role : ''}`;
     view = access.manager ? 'dashboard' : 'payments';
     await renderNav(); go(view);
+    // Coming from the "Payment Request" button in the office page: open the form straight away
+    if (location.hash === '#new-payment') { go('payments'); history.replaceState(null, '', location.pathname); newPayment(); }
   } catch (e) {
     $('main').innerHTML = `<div class="card" style="max-width:520px;margin:60px auto"><h2>Billing is not available</h2><p class="muted" style="margin:10px 0 14px">${h(e.message)}</p><a class="btn primary" href="/office.html" style="text-decoration:none">Back to Office</a></div>`;
   }
