@@ -118,6 +118,14 @@ router.put('/settings', requireApprover, async (req, res) => {
 });
 
 // ── Client lookup (also used by staff when they raise payment requests) ──
+router.get('/clients/all', async (req, res) => {
+  try {
+    const r = await db.query(
+      `SELECT client_id, COALESCE(NULLIF(legal_name,''), business_name) AS name FROM clients WHERE organization_id=$1 ORDER BY COALESCE(NULLIF(legal_name,''), business_name) LIMIT 8000`, [req.bill.orgId]);
+    res.json({ success: true, clients: r.rows.map(c => ({ client_id: c.client_id, name: (c.name || '').trim() })) });
+  } catch (err) { fail(res, err, 'Could not load clients'); }
+});
+
 router.get('/clients', async (req, res) => {
   try {
     const s = `%${clean(req.query.search)}%`;

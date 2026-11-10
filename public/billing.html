@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GeeBharat Billing</title>
 <script src="/assets/auth-session.js"></script>
+<script src="/assets/payment-request.js"></script>
 <style>
   :root { --primary:#2155f3; --sidebar:#13203a; --sidebar2:#1d2f57; --page:#f1f5f9; --text:#0f172a; --muted:#64748b; --line:#e2e8f0; --ok:#059669; --bad:#dc2626; --warn:#b45309; }
   * { box-sizing:border-box; margin:0; padding:0; }
@@ -111,20 +112,18 @@ function msgIn(id, text, kind) { const el = $(id); if (el) el.innerHTML = text ?
 
 // Client picker: type to search, click to choose
 function pickerHtml(id, label, placeholder = 'Type client name or ID') {
-  return `<div class="f w2 picker"><label>${h(label)}</label><input id="${id}_t" placeholder="${h(placeholder)}" autocomplete="off" oninput="pickerSearch('${id}')"><input type="hidden" id="${id}_v"><div class="plist" id="${id}_l"></div></div>`;
+  return `<div class="f w2 picker"><label>${h(label)}</label><input id="${id}_t" placeholder="${h(placeholder)}" autocomplete="off" oninput="pickerSearch('${id}')" onfocus="pickerSearch('${id}')"><input type="hidden" id="${id}_v"><div class="plist" id="${id}_l"></div></div>`;
 }
-let pickTimer = null;
-function pickerSearch(id) {
-  clearTimeout(pickTimer); $(id + '_v').value = '';
-  const text = $(id + '_t').value.trim(); const list = $(id + '_l');
-  if (text.length < 2) { list.style.display = 'none'; return; }
-  pickTimer = setTimeout(async () => {
-    try {
-      const d = await api('/clients' + qs({ search: text }));
-      list.innerHTML = d.clients.map(c => `<div onclick="pickerChoose('${id}','${h(c.client_id)}','${h(c.name || c.client_id).replace(/'/g, '&#39;')}')"><strong>${h(c.name || c.client_id)}</strong> <small>${h(c.client_id)}</small></div>`).join('') || '<div class="muted">No client found</div>';
-      list.style.display = 'block';
-    } catch (e) { list.style.display = 'none'; }
-  }, 250);
+// Suggestions appear on every key: the client list is loaded once and matched in the browser
+async function pickerSearch(id) {
+  $(id + '_v').value = '';
+  const list = $(id + '_l');
+  if (!list) return;
+  const all = await GBPayRequest.clientList();
+  const text = $(id + '_t').value.trim();
+  const matches = GBPayRequest.filterClients(text);
+  list.innerHTML = matches.map(c => `<div onclick="pickerChoose('${id}','${h(c.client_id)}','${h(c.name || c.client_id).replace(/'/g, '&#39;')}')"><strong>${h(c.name || c.client_id)}</strong> <small>${h(c.client_id)}</small></div>`).join('') || '<div class="muted">No client found</div>';
+  list.style.display = all.length || text ? 'block' : 'none';
 }
 function pickerChoose(id, clientId, name) {
   $(id + '_v').value = clientId; $(id + '_t').value = `${name} (${clientId})`; $(id + '_l').style.display = 'none';
@@ -514,6 +513,7 @@ async function loadPayments() {
 }
 
 async function newPayment(existing) {
+  if (!existing) return GBPayRequest.open({ onDone: () => { if (view === 'payments') payments(); } });
   const e = existing || {};
   if (!firms.length) return toast('No firm is set up yet. Please ask an admin to add the firms in Billing > Settings.', false);
   openModal(modalHead(existing ? 'Edit request ' + e.request_no : 'New payment request') + `

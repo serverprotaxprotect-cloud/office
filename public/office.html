@@ -377,6 +377,7 @@
   <button class="notif-btn" id="notifBtn" onclick="showPanel('notifications')" title="Notifications">
     &#128276;<span class="notif-dot hidden" id="notifDot"></span>
   </button>
+  <button class="btn-back btn-pay-request" style="display:none;background:#059669" onclick="openPaymentRequest()" title="Ask for approval before paying a client's expense">&#128179; Payment Request</button>
   <button class="btn-back" onclick="window.location.href='/dashboard.html'" style="background:rgba(255,255,255,.12)">&#9200; Attendance</button>
   <button id="orgProfileBtn" class="btn-back" onclick="window.location.href='/organization-profile.html'" style="background:rgba(255,255,255,.12)">Office Profile</button>
   <button id="attendanceAdminBtn" class="btn-back" onclick="openAdminPortal()" style="background:rgba(233,69,96,.25);color:#fca5a5">&#128202; Attendance Admin</button>
@@ -2392,6 +2393,7 @@
 
 <script src="/assets/address-autocomplete.js"></script>
 <script src="/assets/auth-session.js"></script>
+<script src="/assets/payment-request.js"></script>
 <script>
 // ── Auth & RBAC ───────────────────────────────────────────────
 const officeLoginParams = new URLSearchParams(window.location.search);
@@ -2527,8 +2529,8 @@ function applyPermissions() {
   document.querySelectorAll('.btn-create-task').forEach(b => b.style.display = isEmployee ? 'none' : '');
 }
 
-// Opens Billing straight on the new payment request form (staff raise payment requests from here)
-function openPaymentRequest() { window.location.href = '/billing.html#new-payment'; }
+// Opens the shared payment request popup (staff raise payment requests from any page)
+function openPaymentRequest() { GBPayRequest.open(); }
 
 function showOfficeApp() {
   document.getElementById('officeLoginOverlay').style.display = 'none';
