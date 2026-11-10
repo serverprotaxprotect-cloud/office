@@ -96,8 +96,17 @@ async function api(path, opts = {}) {
   if (!res.ok || !data.success) { const e = new Error(data.message || 'Request failed'); e.code = data.code; throw e; }
   return data;
 }
-const post = (p, body) => api(p, { method: 'POST', body: JSON.stringify(body || {}) });
-const put = (p, body) => api(p, { method: 'PUT', body: JSON.stringify(body || {}) });
+// A double click must not send the same request twice: an identical request that is still running is reused.
+const inflight = new Map();
+function once(method, p, body) {
+  const key = method + ' ' + p + ' ' + JSON.stringify(body || {});
+  if (inflight.has(key)) return inflight.get(key);
+  const run = api(p, { method, body: JSON.stringify(body || {}) }).finally(() => inflight.delete(key));
+  inflight.set(key, run);
+  return run;
+}
+const post = (p, body) => once('POST', p, body);
+const put = (p, body) => once('PUT', p, body);
 function qs(o) { const p = new URLSearchParams(); Object.entries(o).forEach(([k, v]) => { if (v !== '' && v != null) p.set(k, v); }); const s = p.toString(); return s ? '?' + s : ''; }
 
 function openModal(html, wide) { $('modalCard').className = 'modal-card' + (wide ? ' wide' : ''); $('modalCard').innerHTML = html; $('modal').classList.add('show'); }

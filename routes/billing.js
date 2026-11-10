@@ -86,6 +86,10 @@ router.post('/accounts', requireManager, async (req, res) => {
     if (!clean(b.account_name)) throw bad('Please enter the account name.');
     const firm = await db.query(`SELECT id FROM bill_firms WHERE id=$1`, [b.firm_id]);
     if (!firm.rows.length) throw bad('Please choose a firm.');
+    const dup = await db.query(
+      `SELECT id FROM bill_accounts WHERE firm_id=$1 AND status='Active' AND LOWER(account_name)=LOWER($2) AND account_type=$3 AND COALESCE(account_no,'')=COALESCE($4,'') AND COALESCE(bank_name,'')=COALESCE($5,'') LIMIT 1`,
+      [b.firm_id, clean(b.account_name), type, clean(b.account_no) || null, clean(b.bank_name) || null]);
+    if (dup.rows.length) throw bad('This account is already added for the firm.', 409);
     const r = await db.query(
       `INSERT INTO bill_accounts (firm_id, account_name, account_type, bank_name, account_no, ifsc, upi_id) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
       [b.firm_id, clean(b.account_name), type, clean(b.bank_name) || null, clean(b.account_no) || null, clean(b.ifsc).toUpperCase() || null, clean(b.upi_id) || null]);
