@@ -91,9 +91,9 @@
       <div id="prqClientRow" class="row2"><div class="picker"><label>Client</label><input id="prqClientText" placeholder="Start typing the client name or ID" autocomplete="off" oninput="GBPayRequest.suggest()" onfocus="GBPayRequest.suggest()" onkeydown="GBPayRequest.suggestKey(event)"><div class="plist" id="prqList"></div></div>
         <div><label>Work</label><select id="prqTask"><option value="">Choose client first</option></select></div></div>
       <div class="row2"><div><label>Pay from firm</label><select id="prqFirm" onchange="GBPayRequest.firmChanged()"><option value="">Choose firm</option>${firms.map(f => `<option value="${f.id}">${h(f.name)}</option>`).join('')}</select></div>
-        <div><label>Account</label><select id="prqAcc"><option value="">Choose firm first</option></select></div>
+        <div><label>Account (the firm's account the money will go out from)</label><select id="prqAcc"><option value="">Choose firm first</option></select></div>
         <div id="prqFundWrap"><label>Money source</label><select id="prqFund" onchange="GBPayRequest.advanceHint()"><option value="Firm funds">Firm money (recover from client later)</option><option value="Client advance">Client's advance</option></select></div></div>
-      <div id="prqAdv" style="margin-bottom:8px"></div>
+      <div id="prqAccHint" style="color:#b45309;margin-bottom:6px"></div><div id="prqAdv" style="margin-bottom:8px"></div>
       <div><label>Details (optional)</label><textarea id="prqDesc" rows="2" placeholder="Any detail the approver should know"></textarea></div>
       <div style="margin-top:8px"><label>Challan / invoice copy (optional, PDF or image up to 4 MB)</label><input type="file" id="prqFile" accept=".pdf,image/*"></div>
       <div id="prqMsg"></div><div style="margin-top:12px"><button class="btn primary" id="prqSend" onclick="GBPayRequest.submit()">Send for approval</button></div>`;
@@ -109,7 +109,10 @@
   }
   function firmChanged() {
     const f = $('prqFirm').value;
-    $('prqAcc').innerHTML = f ? '<option value="">Choose account</option>' + accounts.filter(a => String(a.firm_id) === f && a.status === 'Active').map(a => `<option value="${a.id}">${h(a.account_name)} (${h(a.account_type)})</option>`).join('') : '<option value="">Choose firm first</option>';
+    const mine = accounts.filter(a => String(a.firm_id) === f && a.status === 'Active');
+    $('prqAcc').innerHTML = !f ? '<option value="">Choose firm first</option>' : (mine.length ? '<option value="">Choose account</option>' + mine.map(a => `<option value="${a.id}">${h(a.account_name)} (${h(a.account_type)})</option>`).join('') : '<option value="">No account added for this firm</option>');
+    if ($('prqAccHint')) $('prqAccHint').innerHTML = f && !mine.length ? 'This firm has no bank, cash or UPI account yet. An admin must add one in <strong>Billing &gt; Settings &gt; + Account</strong>, then you can send the request.' : '';
+    if (mine.length === 1) $('prqAcc').value = String(mine[0].id);
     advanceHint();
   }
   async function advanceHint() {
