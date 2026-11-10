@@ -138,6 +138,23 @@ router.get('/advance', async (req, res) => {
 });
 
 // ── Work (tasks) with billing state ──────────────────────────
+// Same filters as /work, but grouped by client: how much work each client has in this state
+router.get('/work/clients', requireManager, async (req, res) => {
+  try {
+    const { conds, params } = workWhere(req);
+    const taskAmt = `CASE WHEN COALESCE(t.professional_fees,0)+COALESCE(t.challan_amount,0)+COALESCE(t.other_expense,0) <> 0
+                          THEN COALESCE(t.professional_fees,0)+COALESCE(t.challan_amount,0)+COALESCE(t.other_expense,0) ELSE COALESCE(t.total_amount,0) END`;
+    const r = await db.query(
+      `SELECT t.client_id, MAX(COALESCE(NULLIF(c.legal_name,''), NULLIF(c.business_name,''), t.legal_name, t.business_name, t.client_id)) AS client_name,
+              COUNT(*)::int AS work_count, COALESCE(SUM(${taskAmt}),0) AS amount,
+              to_char(MIN(COALESCE(t.completion_date, t.due_date, t.created_at::date)),'YYYY-MM-DD') AS oldest,
+              COUNT(*) FILTER (WHERE be.id IS NULL AND h.id IS NULL AND COALESCE(t.fees_applicable,'Yes')<>'No')::int AS unbilled_count
+         ${WORK_FROM} WHERE ${conds.join(' AND ')}
+        GROUP BY t.client_id ORDER BY client_name LIMIT 1500`, params);
+    res.json({ success: true, clients: r.rows, total_clients: r.rows.length });
+  } catch (err) { fail(res, err, 'Could not load the clients'); }
+});
+
 router.get('/work', requireManager, async (req, res) => {
   try {
     const { conds, params } = workWhere(req);

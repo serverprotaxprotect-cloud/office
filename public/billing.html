@@ -79,7 +79,7 @@ const $ = id => document.getElementById(id);
 const today = () => new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10);
 const num = v => Number(v || 0);
 let me = null, access = {}, firms = [], org = {}, view = 'dashboard';
-const state = { work: { state: 'unbilled', search: '', client: '', client_name: '', firm_id: '', status: '', date_from: '', date_to: '' }, selected: new Map(), payTab: null, payments: [] };
+const state = { work: { mode: 'client', state: 'unbilled', search: '', client: '', client_name: '', firm_id: '', status: '', date_from: '', date_to: '' }, selected: new Map(), payTab: null, payments: [] };
 
 function toast(text, ok = true) {
   const t = $('toast'); t.textContent = text; t.style.background = ok ? '#059669' : '#dc2626'; t.style.display = 'block';
@@ -184,6 +184,7 @@ const WORK_STATES = [['unbilled', 'Unbilled'], ['billed', 'Billed'], ['unpaid', 
 function work() {
   const w = state.work;
   $('main').innerHTML = `<div class="title">Work</div><div class="sub">Every work item, with its billing state. Select unbilled work of one client and mark which firm billed it.</div>
+    <div class="tabs" style="margin-bottom:8px"><div class="tab ${w.mode === 'client' ? 'on' : ''}" onclick="setWorkMode('client')">&#128101; Client wise</div><div class="tab ${w.mode === 'work' ? 'on' : ''}" onclick="setWorkMode('work')">&#128221; Work wise</div></div>
     <div class="tabs">${WORK_STATES.map(([k, l]) => `<div class="tab ${w.state === k ? 'on' : ''}" onclick="setWorkState('${k}')">${l}</div>`).join('')}</div>
     <div class="toolbar">
       <div class="f w2"><label>Search</label><input id="wSearch" value="${h(w.search)}" placeholder="Client, work or task ID" onkeydown="if(event.key==='Enter')loadWork()"></div>
@@ -199,15 +200,32 @@ function work() {
   loadWork();
 }
 function setWorkState(s) { state.work.state = s; state.selected.clear(); work(); }
+function setWorkMode(m) { state.work.mode = m; if (m === 'client') { state.work.client = ''; state.work.client_name = ''; } state.selected.clear(); work(); }
+function openClientWork(id, name) { state.work.client = id; state.work.client_name = name; state.selected.clear(); work(); }
+function backToClients() { state.work.client = ''; state.work.client_name = ''; state.selected.clear(); work(); }
+// Client wise: one row per client with how much work is waiting; opening a client shows its work
+async function loadWorkClients() {
+  const w = state.work;
+  try {
+    const d = await api('/work/clients' + qs({ state: w.state, search: w.search, firm_id: w.firm_id, status: w.status, date_from: w.date_from, date_to: w.date_to }));
+    const total = d.clients.reduce((s, c) => ({ n: s.n + c.work_count, a: s.a + num(c.amount) }), { n: 0, a: 0 });
+    $('workBox').innerHTML = `<div class="muted" style="margin-bottom:6px">${d.clients.length} client(s) · ${total.n} work item(s) · ${rs(total.a)}</div>
+      <div class="table-wrap"><table><thead><tr><th>Client</th><th class="num">Work items</th><th class="num">Amount</th><th>Oldest work</th><th></th></tr></thead><tbody>
+      ${d.clients.map(c => `<tr><td><strong>${h(c.client_name)}</strong><br><small>${h(c.client_id)}</small></td><td class="num"><strong>${c.work_count}</strong></td><td class="num">${rs(c.amount)}</td><td>${h(c.oldest || '-')}</td>
+        <td><button class="btn sm primary" onclick="openClientWork('${h(c.client_id)}','${h(c.client_name).replace(/'/g, '&#39;')}')">Open work</button></td></tr>`).join('') || '<tr><td colspan="5" class="muted">Nothing here.</td></tr>'}</tbody></table></div>`;
+    renderSelBar();
+  } catch (e) { $('workBox').innerHTML = msgBoxHtml(e.message); }
+}
 async function loadWork() {
   const w = state.work;
-  w.search = $('wSearch').value; w.client = pickerValue('wClient'); w.client_name = $('wClient_t').value; w.firm_id = $('wFirm').value; w.status = $('wStatus').value; w.date_from = $('wFrom').value; w.date_to = $('wTo').value;
+  w.search = $('wSearch').value; w.client = pickerValue('wClient') || (w.mode === 'client' ? w.client : ''); w.client_name = $('wClient_t').value || w.client_name; w.firm_id = $('wFirm').value; w.status = $('wStatus').value; w.date_from = $('wFrom').value; w.date_to = $('wTo').value;
+  if (w.mode === 'client' && !w.client) return loadWorkClients();
   try {
     const d = await api('/work' + qs({ state: w.state, search: w.search, client_id: w.client, firm_id: w.firm_id, status: w.status, date_from: w.date_from, date_to: w.date_to, limit: 200 }));
     state.works = d.works;
     const billedView = w.state !== 'unbilled' && w.state !== 'hold';
     const canSelect = w.state === 'unbilled' || w.state === 'hold';
-    $('workBox').innerHTML = `<div class="muted" style="margin-bottom:6px">${d.total} work item(s) · ${rs(d.amount)}${d.total > d.works.length ? ` (showing the first ${d.works.length}; narrow the filters)` : ''}</div>
+    $('workBox').innerHTML = `${w.mode === 'client' && w.client ? `<div style="margin-bottom:8px"><button class="btn" onclick="backToClients()">&larr; All clients</button> <strong style="margin-left:8px;font-size:15px">${h(w.client_name)}</strong></div>` : ''}<div class="muted" style="margin-bottom:6px">${d.total} work item(s) · ${rs(d.amount)}${d.total > d.works.length ? ` (showing the first ${d.works.length}; narrow the filters)` : ''}</div>
       <div class="table-wrap"><table><thead><tr>${canSelect ? '<th></th>' : ''}<th>Client</th><th>Work</th><th>Status</th><th>Assigned</th><th class="num">Fees</th><th class="num">Challan</th><th class="num">Other</th><th>Billing</th><th>Payment</th><th></th></tr></thead><tbody>
       ${d.works.map(r => `<tr>
         ${canSelect ? `<td><input type="checkbox" style="width:auto" ${state.selected.has(r.task_id) ? 'checked' : ''} onchange="toggleWork('${h(r.task_id)}',this.checked,this)"></td>` : ''}
