@@ -134,15 +134,17 @@ function workWhere(req) {
 async function accountBalance(q, accountId, asOn = null) {
   const r = await q.query(
     `SELECT a.opening_balance, to_char(a.opening_date,'YYYY-MM-DD') AS opening_date,
-            COALESCE((SELECT SUM(x.amount) FROM bill_receipts x WHERE x.account_id=a.id AND x.status='Active'
+            COALESCE((SELECT SUM(x.amount) FROM bill_receipts x WHERE x.account_id=a.id AND x.status='Active' AND NOT x.not_in_bank
                         AND (a.opening_date IS NULL OR x.receipt_date >= a.opening_date) AND ($2::date IS NULL OR x.receipt_date <= $2::date)),0) AS inflow,
-            COALESCE((SELECT SUM(COALESCE(p.paid_amount, p.amount)) FROM bill_payment_requests p WHERE p.account_id=a.id AND p.status='Paid'
-                        AND (a.opening_date IS NULL OR p.paid_on >= a.opening_date) AND ($2::date IS NULL OR p.paid_on <= $2::date)),0) AS outflow
+            COALESCE((SELECT SUM(COALESCE(p.paid_amount, p.amount)) FROM bill_payment_requests p WHERE p.account_id=a.id AND p.status='Paid' AND NOT p.not_in_bank
+                        AND (a.opening_date IS NULL OR p.paid_on >= a.opening_date) AND ($2::date IS NULL OR p.paid_on <= $2::date)),0) AS outflow,
+            COALESCE((SELECT SUM(b.credit - b.debit) FROM bill_bank_entries b WHERE b.account_id=a.id AND b.linked_receipt_id IS NULL AND b.linked_payment_id IS NULL
+                        AND (a.opening_date IS NULL OR b.entry_date >= a.opening_date) AND ($2::date IS NULL OR b.entry_date <= $2::date)),0) AS other_net
        FROM bill_accounts a WHERE a.id=$1`, [accountId, asOn]);
   const row = r.rows[0];
   if (!row) return null;
   const opening = money(row.opening_balance), inflow = money(row.inflow), outflow = money(row.outflow);
-  return { opening, opening_date: row.opening_date, inflow, outflow, balance: money(opening + inflow - outflow) };
+  return { opening, opening_date: row.opening_date, inflow, outflow, balance: money(opening + inflow - outflow + money(row.other_net)), other_net: money(row.other_net) };
 }
 
 module.exports = {

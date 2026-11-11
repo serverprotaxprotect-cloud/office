@@ -150,16 +150,38 @@ router.get('/accounts/:id/statement', requireManager, async (req, res) => {
     const r = await db.query(
       `SELECT d, kind, ref, party, amount_in, amount_out FROM (
           SELECT x.receipt_date AS d, 'Receipt' AS kind, x.receipt_no AS ref, x.client_name AS party, x.amount AS amount_in, 0::numeric AS amount_out, x.id AS sid
-            FROM bill_receipts x WHERE x.account_id=$1 AND x.status='Active' AND x.receipt_date BETWEEN $2::date AND $3::date
+            FROM bill_receipts x WHERE x.account_id=$1 AND x.status='Active' AND NOT x.not_in_bank AND x.receipt_date BETWEEN $2::date AND $3::date
+          UNION ALL
+          SELECT b.entry_date, 'Bank: ' || b.head, COALESCE(b.tran_id,''), LEFT(COALESCE(b.client_name, b.note, b.remarks, ''), 90), b.credit, b.debit, b.id
+            FROM bill_bank_entries b WHERE b.account_id=$1 AND b.linked_receipt_id IS NULL AND b.linked_payment_id IS NULL AND b.entry_date BETWEEN $2::date AND $3::date
           UNION ALL
           SELECT p.paid_on, 'Payment', p.request_no, COALESCE(p.payee,'') || CASE WHEN p.client_name IS NOT NULL THEN ' (' || p.client_name || ')' ELSE '' END,
                  0::numeric, COALESCE(p.paid_amount, p.amount), p.id
-            FROM bill_payment_requests p WHERE p.account_id=$1 AND p.status='Paid' AND p.paid_on BETWEEN $2::date AND $3::date
+            FROM bill_payment_requests p WHERE p.account_id=$1 AND p.status='Paid' AND NOT p.not_in_bank AND p.paid_on BETWEEN $2::date AND $3::date
         ) m ORDER BY d, kind, sid`, [acc.id, from, to]);
     let running = start;
-    const rows = r.rows.map(m => { running = money(running + Number(m.amount_in) - Number(m.amount_out)); return { date: String(m.d).slice(0, 10), kind: m.kind, ref: m.ref, party: m.party, amount_in: Number(m.amount_in), amount_out: Number(m.amount_out), balance: running }; });
-    res.json({ success: true, account: { id: acc.id, name: acc.account_name, type: acc.account_type, firm_name: acc.firm_name, opening_balance: money(acc.opening_balance), opening_date: acc.opening_date_s }, from, to, start_balance: start, closing_balance: running, rows });
+    const rows = r.rows.map(m => { running = money(running + Number(m.amount_in) - Number(m.amount_out)); return { id: m.sid, type: m.kind === 'Receipt' ? 'receipt' : (m.kind === 'Payment' ? 'payment' : 'bank'), date: String(m.d).slice(0, 10), kind: m.kind, ref: m.ref, party: m.party, amount_in: Number(m.amount_in), amount_out: Number(m.amount_out), balance: running }; });
+    // Entered by hand but not on the bank statement: shown apart, not counted in the balance
+    const outside = (await db.query(
+      `SELECT * FROM (
+          SELECT 'receipt' AS type, x.id, x.receipt_date AS d, x.receipt_no AS ref, x.client_name AS party, x.amount AS amount_in, 0::numeric AS amount_out FROM bill_receipts x WHERE x.account_id=$1 AND x.status='Active' AND x.not_in_bank
+          UNION ALL
+          SELECT 'payment', p.id, p.paid_on, p.request_no, COALESCE(p.payee,'') || CASE WHEN p.client_name IS NOT NULL THEN ' (' || p.client_name || ')' ELSE '' END, 0::numeric, COALESCE(p.paid_amount, p.amount) FROM bill_payment_requests p WHERE p.account_id=$1 AND p.status='Paid' AND p.not_in_bank
+        ) o ORDER BY d, id`, [acc.id])).rows.map(o => ({ ...o, date: String(o.d).slice(0, 10), amount_in: Number(o.amount_in), amount_out: Number(o.amount_out) }));
+    res.json({ success: true, account: { id: acc.id, name: acc.account_name, type: acc.account_type, firm_name: acc.firm_name, opening_balance: money(acc.opening_balance), opening_date: acc.opening_date_s }, from, to, start_balance: start, closing_balance: running, rows, outside });
   } catch (err) { fail(res, err, 'Could not load the statement'); }
+});
+
+// A hand-entered receipt / payment that is not on the bank statement: count it in the balance, or keep it out
+router.post('/ledger/:type/:id/in-bank', requireManager, async (req, res) => {
+  try {
+    const table = req.params.type === 'receipt' ? 'bill_receipts' : (req.params.type === 'payment' ? 'bill_payment_requests' : null);
+    if (!table) throw bad('Unknown entry');
+    const r = await db.query(`UPDATE ${table} SET not_in_bank = $2 WHERE id=$1 RETURNING id`, [req.params.id, req.body.not_in_bank === true]);
+    if (!r.rows.length) throw bad('Entry not found', 404);
+    await logTimeline(db, req.params.type, Number(req.params.id), req.body.not_in_bank === true ? 'left_out_of_bank_balance' : 'counted_in_bank_balance', clean(req.body.note) || null, req.bill.name);
+    res.json({ success: true });
+  } catch (err) { fail(res, err, 'Could not save'); }
 });
 
 router.put('/settings', requireApprover, async (req, res) => {
@@ -614,6 +636,7 @@ router.get('/dashboard', requireManager, async (req, res) => {
   } catch (err) { fail(res, err, 'Could not load the dashboard'); }
 });
 
+router.use(require('./billingBank'));
 router.use(require('./billingReports'));
 router.use(require('./billingPayments'));
 

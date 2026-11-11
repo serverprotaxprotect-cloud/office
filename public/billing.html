@@ -143,13 +143,13 @@ document.addEventListener('click', e => { if (!e.target.closest('.picker')) docu
 const pickerValue = id => $(id + '_v')?.value || '';
 
 // ───────────── shell ─────────────
-const NAV_MANAGER = [['dashboard', 'Dashboard'], ['work', 'Work'], ['bills', 'Bills'], ['receipts', 'Receipts'], ['payments', 'Payments'], ['clients', 'Client Summary'], ['reports', 'Reports'], ['settings', 'Settings']];
+const NAV_MANAGER = [['dashboard', 'Dashboard'], ['work', 'Work'], ['bills', 'Bills'], ['receipts', 'Receipts'], ['payments', 'Payments'], ['ledger', 'Ledger'], ['bank', 'Bank Entries'], ['clients', 'Client Summary'], ['reports', 'Reports'], ['settings', 'Settings']];
 const NAV_STAFF = [['payments', 'Payment Requests']];
 async function renderNav() {
   const items = access.manager ? NAV_MANAGER : NAV_STAFF;
   $('side').innerHTML = items.map(([k, l]) => `<div class="nav ${view === k ? 'active' : ''}" onclick="go('${k}')">${l}${k === 'payments' && state.waiting ? `<span class="badge">${state.waiting}</span>` : ''}</div>`).join('');
 }
-function go(v) { view = v; renderNav(); ({ dashboard, work, bills, receipts, payments, clients, reports, settings })[v](); }
+function go(v) { view = v; renderNav(); ({ dashboard, work, bills, receipts, payments, ledger, bank, clients, reports, settings })[v](); }
 async function boot() {
   try {
     const d = await api('/me');
@@ -679,6 +679,164 @@ async function loadReport(download) {
     $('rpBox').innerHTML = `<div class="muted" style="margin-bottom:6px">${h(d.title)} · ${d.rows.length} row(s)</div><div class="table-wrap"><table><thead><tr>${d.columns.map(c => `<th>${h(c)}</th>`).join('')}</tr></thead><tbody>
       ${d.rows.map(r => `<tr>${r.map(v => `<td class="${typeof v === 'number' && !Number.isInteger(v) ? 'num' : ''}">${typeof v === 'number' ? (Number.isInteger(v) && Math.abs(v) < 100000 ? v : rs(v)) : h(v ?? '')}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${d.columns.length}" class="muted">No data.</td></tr>`}</tbody></table></div>`;
   } catch (e) { $('rpBox').innerHTML = msgBoxHtml(e.message); }
+}
+
+
+
+// ───────────── Ledger: receipts, payments and bank lines of one account with the running balance ─────────────
+state.ledger = { account_id: '', from: '', to: '', type: '', search: '', rows: [], data: null };
+async function ledger() {
+  const L = state.ledger;
+  $('main').innerHTML = '<div class="title">Ledger</div><div class="sub">Every receipt, payment and bank line of an account in date order, with the running balance. Use it to find what is missing and add it.</div><div id="lgBox" class="muted">Loading…</div>';
+  try {
+    const fd = await api('/firms');
+    L.accounts = fd.accounts.filter(a => a.status === 'Active');
+    if (!L.account_id && L.accounts.length) L.account_id = String(L.accounts[0].id);
+    if (!state.bank.heads.length) state.bank.heads = (await api('/bank-heads')).heads;
+    await ledgerLoad();
+  } catch (e) { $('lgBox').innerHTML = msgBoxHtml(e.message); }
+}
+async function ledgerLoad() {
+  const L = state.ledger;
+  if (!L.account_id) { $('lgBox').innerHTML = '<div class="msg info">Add a bank, cash or UPI account in Settings first.</div>'; return; }
+  const d = await api('/accounts/' + L.account_id + '/statement' + qs({ from: L.from, to: L.to }));
+  L.data = d; if (!L.from) L.from = d.from; if (!L.to) L.to = d.to;
+  ledgerDraw();
+}
+function ledgerDraw() {
+  const L = state.ledger, d = L.data, a = d.account;
+  const q = L.search.toLowerCase();
+  const rows = d.rows.filter(r => (!L.type || (L.type === 'receipt' && r.type === 'receipt') || (L.type === 'payment' && r.type === 'payment') || (L.type === 'bank' && r.type === 'bank') || (L.type === 'suspense' && r.kind === 'Bank: Suspense'))
+    && (!q || (r.ref + ' ' + r.party + ' ' + r.kind).toLowerCase().includes(q)));
+  const totIn = d.rows.reduce((t, r) => t + r.amount_in, 0), totOut = d.rows.reduce((t, r) => t + r.amount_out, 0);
+  $('lgBox').innerHTML = `
+    <div class="toolbar">
+      <div class="f"><label>Account</label><select onchange="state.ledger.account_id=this.value;state.ledger.from='';state.ledger.to='';ledgerLoad()">${L.accounts.map(x => `<option value="${x.id}" ${String(x.id) === String(L.account_id) ? 'selected' : ''}>${h(x.account_name)} (${h(x.account_type)})</option>`).join('')}</select></div>
+      <div class="f"><label>From</label><input type="date" value="${h(L.from)}" onchange="state.ledger.from=this.value;ledgerLoad()"></div>
+      <div class="f"><label>To</label><input type="date" value="${h(L.to)}" onchange="state.ledger.to=this.value;ledgerLoad()"></div>
+      <div class="f"><label>Show</label><select onchange="state.ledger.type=this.value;ledgerDraw()"><option value="">Everything</option><option value="receipt" ${L.type === 'receipt' ? 'selected' : ''}>Client receipts</option><option value="payment" ${L.type === 'payment' ? 'selected' : ''}>Client payments</option><option value="bank" ${L.type === 'bank' ? 'selected' : ''}>Bank lines (other heads)</option><option value="suspense" ${L.type === 'suspense' ? 'selected' : ''}>Suspense only</option></select></div>
+      <div class="f w2"><label>Search</label><input value="${h(L.search)}" placeholder="Reference, name, head" oninput="state.ledger.search=this.value;ledgerDraw()"></div>
+      <button class="btn green" onclick="ledgerAdd()">+ Add missing entry</button>
+    </div>
+    <div class="grid" style="margin-bottom:10px">
+      <div class="metric"><strong>${rs(d.start_balance)}</strong><span>Balance brought forward${a.opening_date ? ' (opening as on ' + h(a.opening_date) + ')' : ''}</span></div>
+      <div class="metric ok"><strong>${rs(totIn)}</strong><span>Received in this period</span></div>
+      <div class="metric warn"><strong>${rs(totOut)}</strong><span>Paid in this period</span></div>
+      <div class="metric"><strong>${rs(d.closing_balance)}</strong><span>Closing balance</span></div>
+    </div>
+    <div class="toolbar"><div class="f"><label>Check with your bank: closing balance as per statement (₹)</label><input id="lgBank" type="number" step="0.01" placeholder="e.g. 60813.36" oninput="ledgerCheck()"></div><div id="lgDiff" class="muted" style="align-self:flex-end;padding-bottom:8px"></div></div>
+    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Entry</th><th>Reference</th><th>Party / details</th><th class="num">In</th><th class="num">Out</th><th class="num">Balance</th><th></th></tr></thead><tbody>
+      <tr><td colspan="6"><em>Balance brought forward</em></td><td class="num">${rs(d.start_balance)}</td><td></td></tr>
+      ${rows.map(r => `<tr><td>${h(r.date)}</td><td>${chip(r.kind, r.type === 'receipt' ? 'green' : (r.type === 'payment' ? 'violet' : (r.kind === 'Bank: Suspense' ? 'red' : '')))}</td><td><small>${h(r.ref || '')}</small></td><td style="max-width:300px;word-break:break-word"><small>${h(r.party || '')}</small></td>
+        <td class="num">${r.amount_in ? rs(r.amount_in) : ''}</td><td class="num">${r.amount_out ? rs(r.amount_out) : ''}</td><td class="num">${rs(r.balance)}</td>
+        <td>${r.type === 'bank' ? `<button class="btn sm" onclick="ledgerMove(${r.id})">Move</button>` : (r.type === 'payment' ? `<button class="btn sm" onclick="openPayment(${r.id})">View</button>` : `<button class="btn sm" onclick="editAlloc(${r.id})">View</button>`)}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">No entries for these filters.</td></tr>'}
+      <tr><td colspan="6"><strong>Closing balance</strong></td><td class="num"><strong>${rs(d.closing_balance)}</strong></td><td></td></tr>
+    </tbody></table></div>
+    ${d.outside && d.outside.length ? `<div class="card" style="margin-top:14px"><h3 style="margin-bottom:4px">Entered here but not on the bank statement (${d.outside.length})</h3>
+      <div class="muted" style="margin-bottom:8px">These are not counted in the balance above. If one was really paid or received through this account, press "Count in balance".</div>
+      <div class="table-wrap"><table><thead><tr><th>Date</th><th>Entry</th><th>Reference</th><th>Party / details</th><th class="num">In</th><th class="num">Out</th><th></th></tr></thead><tbody>
+      ${d.outside.map(o => `<tr><td>${h(o.date)}</td><td>${chip(o.type === 'receipt' ? 'Receipt' : 'Payment', o.type === 'receipt' ? 'green' : 'violet')}</td><td><small>${h(o.ref || '')}</small></td><td><small>${h(o.party || '')}</small></td><td class="num">${o.amount_in ? rs(o.amount_in) : ''}</td><td class="num">${o.amount_out ? rs(o.amount_out) : ''}</td>
+        <td><button class="btn sm" onclick="ledgerCount('${o.type}',${o.id})">Count in balance</button> <button class="btn sm" onclick="${o.type === 'payment' ? 'openPayment' : 'editAlloc'}(${o.id})">View</button></td></tr>`).join('')}
+      </tbody></table></div></div>` : ''}`;
+}
+function ledgerCheck() {
+  const v = parseFloat($('lgBank').value), c = state.ledger.data.closing_balance;
+  $('lgDiff').innerHTML = isNaN(v) ? '' : (Math.abs(v - c) < 0.005 ? chip('Matches the bank', 'green') : chip('Difference ' + rs(v - c), 'red') + ' <small>Look for a missing entry of this amount.</small>');
+}
+async function ledgerCount(type, id) {
+  try { await post(`/ledger/${type}/${id}/in-bank`, { not_in_bank: false, note: 'Counted in the account balance' }); toast('Counted in the balance.'); ledgerLoad(); } catch (e) { toast(e.message, false); }
+}
+function ledgerMove(id) {
+  state.bank.rows = state.ledger.data.rows.filter(r => r.type === 'bank').map(r => ({ id: r.id, credit: r.amount_in, debit: r.amount_out, entry_date: r.date, tran_id: r.ref, remarks: r.party, head: r.kind.replace('Bank: ', ''), note: '' }));
+  bankMove(id);
+}
+const afterBankSave = () => (view === 'ledger' ? ledgerLoad() : bankLoad());
+function ledgerAdd() {
+  const L = state.ledger, today0 = new Date().toISOString().slice(0, 10);
+  openModal(modalHead('Add a missing bank entry') + `<div class="muted" style="margin-bottom:8px">For a line that is on the bank statement but not in the system. It is kept under Suspense (or the head you choose) and can be moved to a client later.</div>
+    <div class="row2"><div><label>Date</label><input id="laDate" type="date" value="${today0}"></div><div><label>Tran Id / reference</label><input id="laRef" placeholder="Optional"></div>
+      <div><label>Money received (₹)</label><input id="laCr" type="number" step="0.01"></div><div><label>Money paid (₹)</label><input id="laDr" type="number" step="0.01"></div>
+      <div><label>Head</label><select id="laHead">${state.bank.heads.filter(x => !x.client).map(x => `<option>${h(x.name)}</option>`).join('')}</select></div><div><label>Details as on bank statement</label><input id="laRem"></div></div>
+    <div id="laMsg"></div><button class="btn primary" onclick="ledgerAddSave()">Save</button>`);
+}
+async function ledgerAddSave() {
+  const L = state.ledger;
+  try { await post('/bank-entries', { account_id: L.account_id, entry_date: $('laDate').value, tran_id: $('laRef').value, credit: $('laCr').value, debit: $('laDr').value, head: $('laHead').value, remarks: $('laRem').value }); closeModal(); toast('Entry added.'); ledgerLoad(); }
+  catch (e) { msgIn('laMsg', e.message); }
+}
+
+// ───────────── Bank entries (suspense and heads) ─────────────
+state.bank = { account_id: '', head: 'Suspense', direction: '', search: '', from: '', to: '', page: 1, rows: [], sel: new Set(), heads: [] };
+async function bank() {
+  const b = state.bank;
+  $('main').innerHTML = '<div class="title">Bank Entries</div><div class="sub">Bank statement lines that are not a client receipt or payment yet. Keep them under a head, or move them to the right client.</div><div id="bkBox" class="muted">Loading…</div>';
+  try {
+    if (!b.heads.length) b.heads = (await api('/bank-heads')).heads;
+    const fd = await api('/firms');
+    b.accounts = fd.accounts.filter(a => a.status === 'Active');
+    if (!b.account_id && b.accounts.length) b.account_id = String(b.accounts[0].id);
+    await bankLoad();
+  } catch (e) { $('bkBox').innerHTML = msgBoxHtml(e.message); }
+}
+async function bankLoad() {
+  const b = state.bank;
+  const d = await api('/bank-entries' + qs({ account_id: b.account_id, head: b.head, direction: b.direction, search: b.search, from: b.from, to: b.to, page: b.page, size: 100 }));
+  b.rows = d.rows; b.total = d.total; b.by_head = d.by_head; b.sel = new Set();
+  const all = d.by_head.reduce((a, x) => ({ n: a.n + x.n, c: a.c + Number(x.credit), d: a.d + Number(x.debit) }), { n: 0, c: 0, d: 0 });
+  const pages = Math.max(1, Math.ceil(d.total.n / d.size));
+  $('bkBox').innerHTML = `
+    <div class="toolbar">
+      <div class="f"><label>Account</label><select onchange="state.bank.account_id=this.value;state.bank.page=1;bankLoad()">${b.accounts.map(a => `<option value="${a.id}" ${String(a.id) === String(b.account_id) ? 'selected' : ''}>${h(a.account_name)} (${h(a.account_type)})</option>`).join('')}</select></div>
+      <div class="f"><label>Money</label><select onchange="state.bank.direction=this.value;state.bank.page=1;bankLoad()"><option value="">In and out</option><option value="in" ${b.direction === 'in' ? 'selected' : ''}>Received (in)</option><option value="out" ${b.direction === 'out' ? 'selected' : ''}>Paid (out)</option></select></div>
+      <div class="f"><label>From</label><input type="date" value="${h(b.from)}" onchange="state.bank.from=this.value;state.bank.page=1;bankLoad()"></div>
+      <div class="f"><label>To</label><input type="date" value="${h(b.to)}" onchange="state.bank.to=this.value;state.bank.page=1;bankLoad()"></div>
+      <div class="f w2"><label>Search remarks, Tran Id, client</label><input value="${h(b.search)}" placeholder="Type and press Enter" onkeydown="if(event.key==='Enter'){state.bank.search=this.value;state.bank.page=1;bankLoad()}"></div>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 10px">
+      <span class="chip ${b.head === '' ? 'violet' : ''}" style="cursor:pointer" onclick="state.bank.head='';state.bank.page=1;bankLoad()">All heads · ${all.n}</span>
+      ${d.by_head.map(x => `<span class="chip ${b.head === x.head ? 'violet' : (x.head === 'Suspense' ? 'red' : '')}" style="cursor:pointer" title="In ${rs(x.credit)} · Out ${rs(x.debit)}" onclick="state.bank.head='${h(x.head)}';state.bank.page=1;bankLoad()">${h(x.head)} · ${x.n}</span>`).join('')}
+    </div>
+    <div class="muted" style="margin-bottom:6px">${d.total.n} line(s) shown · In ${rs(d.total.credit)} · Out ${rs(d.total.debit)}</div>
+    <div class="toolbar" id="bkBulk">
+      <div class="f"><label>Move selected lines to</label><select id="bkBulkHead">${b.heads.filter(x => !x.client).map(x => `<option>${h(x.name)}</option>`).join('')}</select></div>
+      <button class="btn primary" onclick="bankBulk()">Move selected</button><span id="bkSelN" class="muted"></span>
+    </div>
+    <div class="table-wrap"><table><thead><tr><th><input type="checkbox" onclick="bankSelAll(this.checked)"></th><th>Date</th><th>Bank remarks</th><th class="num">In</th><th class="num">Out</th><th>Head</th><th>Client / note</th><th></th></tr></thead><tbody>
+    ${d.rows.map(r => `<tr><td><input type="checkbox" class="bkc" data-id="${r.id}" onclick="bankSel(${r.id},this.checked)"></td><td>${h(r.entry_date)}</td><td style="max-width:340px;word-break:break-word"><small>${h(r.remarks)}</small><br><small class="muted">${h(r.tran_id || '')}</small></td>
+      <td class="num">${Number(r.credit) ? rs(r.credit) : ''}</td><td class="num">${Number(r.debit) ? rs(r.debit) : ''}</td>
+      <td>${chip(r.head, r.head === 'Suspense' ? 'red' : (r.linked_receipt_id || r.linked_payment_id ? 'green' : ''))}${r.auto_head ? '<br><small class="muted">auto</small>' : ''}</td>
+      <td style="max-width:240px;word-break:break-word"><small>${r.client_name ? '<strong>' + h(r.client_name) + '</strong><br>' : ''}${h(r.note || '')}</small></td>
+      <td><button class="btn sm" onclick="bankMove(${r.id})">Move</button></td></tr>`).join('') || '<tr><td colspan="8" class="muted">No entries.</td></tr>'}
+    </tbody></table></div>
+    <div class="toolbar" style="margin-top:8px">${b.page > 1 ? '<button class="btn sm" onclick="state.bank.page--;bankLoad()">Previous</button>' : ''}<span class="muted">Page ${b.page} of ${pages}</span>${b.page < pages ? '<button class="btn sm" onclick="state.bank.page++;bankLoad()">Next</button>' : ''}</div>`;
+}
+function bankSel(id, on) { const b = state.bank; on ? b.sel.add(id) : b.sel.delete(id); $('bkSelN').textContent = b.sel.size ? b.sel.size + ' selected' : ''; }
+function bankSelAll(on) { const b = state.bank; document.querySelectorAll('.bkc').forEach(c => { c.checked = on; bankSel(Number(c.dataset.id), on); }); }
+async function bankBulk() {
+  const b = state.bank; if (!b.sel.size) return toast('Please select the lines first.', false);
+  try { const d = await post('/bank-entries/bulk', { ids: [...b.sel], head: $('bkBulkHead').value }); toast(d.message); bankLoad(); } catch (e) { toast(e.message, false); }
+}
+function bankMove(id) {
+  const b = state.bank, r = b.rows.find(x => x.id === id); if (!r) return;
+  const isIn = Number(r.credit) > 0;
+  const heads = b.heads.filter(x => x.dir === 'both' || (isIn ? x.dir === 'credit' : x.dir === 'debit'));
+  openModal(modalHead(isIn ? 'Money received ' + rs(r.credit) : 'Money paid ' + rs(r.debit)) + `
+    <div class="box"><small>${h(r.entry_date)} · ${h(r.tran_id || '')}</small><br>${h(r.remarks)}</div>
+    <div class="row2"><div><label>Move to</label><select id="bmHead" onchange="bankMoveHead()">${heads.map(x => `<option value="${h(x.name)}" ${x.name === r.head ? 'selected' : ''}>${h(x.name)}</option>`).join('')}</select><small id="bmNote" class="muted"></small></div>
+      <div><label>Note</label><input id="bmText" value="${h(r.note || '')}" placeholder="Optional"></div></div>
+    <div id="bmClient" style="display:none"><div class="row2">${pickerHtml('bmC', 'Client')}<div id="bmPurposeBox"><label>Purpose</label><select id="bmPurpose">${['ROC / MCA fee', 'Government challan / fee', 'Stamp duty', 'Vendor / professional fee', 'Travel / conveyance', 'Refund of advance', 'Office expense', 'Other'].map(p => `<option>${p}</option>`).join('')}</select></div></div></div>
+    <div id="bmMsg"></div><button class="btn primary" onclick="bankMoveSave(${id})">Save</button>`);
+  bankMoveHead();
+}
+function bankMoveHead() {
+  const h0 = state.bank.heads.find(x => x.name === $('bmHead').value);
+  $('bmNote').textContent = h0 ? h0.note : '';
+  $('bmClient').style.display = h0 && h0.client ? 'block' : 'none';
+  $('bmPurposeBox').style.display = h0 && h0.name === 'Client payment' ? 'block' : 'none';
+}
+async function bankMoveSave(id) {
+  const body = { head: $('bmHead').value, note: $('bmText').value, client_id: pickerValue('bmC'), purpose: $('bmPurpose').value };
+  try { await put('/bank-entries/' + id, body); closeModal(); toast('Saved.'); afterBankSave(); } catch (e) { msgIn('bmMsg', e.message); }
 }
 
 // ───────────── Settings ─────────────
