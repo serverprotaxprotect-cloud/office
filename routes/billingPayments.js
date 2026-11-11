@@ -1,7 +1,8 @@
 const express = require('express');
 const multer = require('multer');
 const db = require('../db');
-const { clean, money, esc, financialYear, logTimeline, advanceAvailable } = require('../services/billingCommon');
+const { clean, money, esc, financialYear, logTimeline, advanceAvailable, accountBalance } = require('../services/billingCommon');
+const { v4: uuidv4 } = require('uuid');
 const { sendEmail } = require('../utils/email');
 const { createNotif } = require('./notifications');
 
@@ -90,12 +91,49 @@ async function notifyApprovers(p, byName) {
   } catch (e) { console.error('[billing notify approvers]', e.message); }
 }
 
-async function notifyRequester(p, title, msg) {
+async function notifyRequester(p, title, msg, taskId = null) {
   try {
-    await createNotif(p.requested_by_id, 'billing_payment_update', title, msg, null);
+    await createNotif(p.requested_by_id, taskId ? 'task_assigned' : 'billing_payment_update', title, msg, taskId);
     const to = await emailOf(p.requested_by_id);
     if (to) await sendEmail({ to, subject: `${title}: ${p.request_no}`, html: mailHtml(title, [esc(msg)]), text: `${msg} Open ${APP_URL}/billing.html` }).catch(e => console.error('[billing mail]', e.message));
   } catch (e) { console.error('[billing notify requester]', e.message); }
+}
+
+// When a payment is approved, a task is created for the requester so the payment shows in their task list.
+async function createPayTask(conn, req, p, amount) {
+  const ist = new Date(Date.now() + 5.5 * 3600e3);
+  const today = ist.toISOString().slice(0, 10);
+  const dateKey = today.replace(/-/g, '');
+  const prefix = String(req.user.organization_code || 'ORG').replace(/[^a-z0-9]/gi, '').toUpperCase().slice(0, 8) || 'ORG';
+  let n = parseInt((await conn.query(`SELECT COUNT(*) FROM tasks WHERE created_at::date = CURRENT_DATE`)).rows[0].count, 10) + 1;
+  let taskId;
+  for (;;) {
+    taskId = `TSK${prefix}-${dateKey}-${String(n).padStart(3, '0')}`;
+    if (!(await conn.query(`SELECT 1 FROM tasks WHERE task_id=$1`, [taskId])).rows.length) break;
+    n++;
+  }
+  const due = p.needed_by ? new Date(p.needed_by).toISOString().slice(0, 10) : today;
+  const workName = `Make payment ${p.request_no}: ${p.purpose}`;
+  const desc = [`Pay Rs ${Number(amount).toLocaleString('en-IN')} to ${p.payee || 'the payee'}`, p.client_name ? `for ${p.client_name}` : null,
+    `from ${p.funding === 'Client advance' ? "the client's advance" : "firm funds"}.`, 'After paying, open Billing > Payments, add the proof and mark the request as paid.'].filter(Boolean).join(' ');
+  await conn.query(
+    `INSERT INTO tasks (task_id,created_at,created_by_id,created_by_name,assigned_to_id,assigned_to_name,client_id,work_name,work_description,priority,status,due_date,fees_applicable,self_assigned,billing_status,active_flag,department,is_custom_work)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'High','Pending',$10::date,'No',false,'Not Applicable',true,'Internal Office',false)`,
+    [taskId, ist, req.bill.id, req.bill.name, p.requested_by_id, p.requested_by_name, p.client_id || null, workName, desc, due]);
+  await conn.query(
+    `INSERT INTO task_history (log_id,task_id,action,new_status,new_assigned_to,new_due_date,updated_by_id,updated_by_name,updated_at,remark)
+     VALUES ($1,$2,'Created','Pending',$3,$4::date,$5,$6,NOW(),$7)`,
+    ['LOG_' + uuidv4().replace(/-/g, '').slice(0, 10), taskId, p.requested_by_name, due, req.bill.id, req.bill.name, 'Created automatically on payment approval']);
+  await conn.query(`UPDATE bill_payment_requests SET pay_task_id=$2 WHERE id=$1`, [p.id, taskId]);
+  return { taskId, due };
+}
+
+async function closePayTask(conn, p, status, byName, remark) {
+  if (!p.pay_task_id) return;
+  await conn.query(`UPDATE tasks SET status=$2::varchar, completion_date=CASE WHEN $2::varchar='Completed' THEN NOW() ELSE completion_date END, last_updated_at=NOW(), last_updated_by_name=$3 WHERE task_id=$1 AND status='Pending'`, [p.pay_task_id, status, byName]);
+  await conn.query(
+    `INSERT INTO task_history (log_id,task_id,action,old_status,new_status,updated_by_name,updated_at,remark) VALUES ($1,$2,'Updated','Pending',$3,$4,NOW(),$5)`,
+    ['LOG_' + uuidv4().replace(/-/g, '').slice(0, 10), p.pay_task_id, status, byName, remark]);
 }
 
 // Checks shared by create and edit
@@ -141,7 +179,7 @@ router.get('/client-tasks', async (req, res) => {
   try {
     const r = await db.query(
       `SELECT task_id, work_name, status, to_char(due_date,'YYYY-MM-DD') AS due_date FROM tasks
-        WHERE organization_id=$1 AND client_id=$2 AND active_flag=true ORDER BY created_at DESC LIMIT 200`, [req.bill.orgId, clean(req.query.client_id)]);
+        WHERE organization_id=$1 AND client_id=$2 AND active_flag=true AND NOT EXISTS (SELECT 1 FROM bill_payment_requests pr WHERE pr.pay_task_id=tasks.task_id) ORDER BY created_at DESC LIMIT 200`, [req.bill.orgId, clean(req.query.client_id)]);
     res.json({ success: true, tasks: r.rows, purposes: PURPOSES });
   } catch (err) { fail(res, err, 'Could not load the work list'); }
 });
@@ -202,7 +240,7 @@ router.get('/payments/:id', async (req, res) => {
       const [work, bills, adv, rec, last] = await Promise.all([
         db.query(`SELECT COUNT(*) FILTER (WHERE be.id IS NULL AND h.id IS NULL AND COALESCE(t.fees_applicable,'Yes')<>'No')::int AS unbilled FROM tasks t
                     LEFT JOIN bill_entry_tasks bet ON bet.task_id=t.task_id AND bet.is_active LEFT JOIN bill_entries be ON be.id=bet.bill_id
-                    LEFT JOIN bill_task_holds h ON h.task_id=t.task_id AND h.is_active WHERE t.organization_id=$1 AND t.client_id=$2 AND t.active_flag=true`, [req.bill.orgId, p.client_id]),
+                    LEFT JOIN bill_task_holds h ON h.task_id=t.task_id AND h.is_active WHERE t.organization_id=$1 AND t.client_id=$2 AND t.active_flag=true AND NOT EXISTS (SELECT 1 FROM bill_payment_requests pr WHERE pr.pay_task_id=t.task_id)`, [req.bill.orgId, p.client_id]),
         db.query(`SELECT bf.name AS firm_name, COUNT(*)::int AS bills, COALESCE(SUM(be.total_amount - COALESCE((SELECT SUM(a.amount) FROM bill_receipt_allocations a WHERE a.bill_id=be.id),0)),0) AS outstanding
                     FROM bill_entries be JOIN bill_firms bf ON bf.id=be.firm_id WHERE be.client_id=$1 AND be.status='Active' GROUP BY bf.name`, [p.client_id]),
         advanceAvailable(db, p.client_id, p.firm_id, p.id),
@@ -211,7 +249,9 @@ router.get('/payments/:id', async (req, res) => {
       ]);
       position = { unbilled_works: work.rows[0].unbilled, outstanding_by_firm: bills.rows, advance_available: adv.available, advance_unallocated: adv.unallocated, to_recover: rec.rows[0], last_payments: last.rows };
     }
-    res.json({ success: true, payment: { ...p, can: flags(req.bill, p) }, attachments: files.rows, timeline: timeline.rows, position });
+    let account_balance = null;
+    if (req.bill.manager && p.account_id) account_balance = await accountBalance(db, p.account_id);
+    res.json({ success: true, payment: { ...p, can: flags(req.bill, p) }, attachments: files.rows, timeline: timeline.rows, position, account_balance });
   } catch (err) { fail(res, err, 'Could not load the request'); }
 });
 
@@ -252,8 +292,9 @@ async function transition(req, res, action) {
         if (amount - adv.available > 0.004) throw bad(`The client's advance with this firm is now ${rupees(adv.available)} only.`, 409);
       }
       await conn.query(`UPDATE bill_payment_requests SET status='Approved', approved_by_id=$2, approved_by_name=$3, approved_at=NOW(), approved_amount=$4, decision_note=$5, updated_at=NOW() WHERE id=$1`, [p.id, req.bill.id, req.bill.name, amount, note || null]);
-      message = `Approved for ${rupees(amount)}.`; timelineAction = 'approved';
-      notify = ['Payment approved', `Your request ${p.request_no} (${rupees(p.amount)}) was approved for ${rupees(amount)} by ${req.bill.name}. You can now make the payment and mark it as paid with proof.${note ? ' Note: ' + note : ''}`];
+      const task = await createPayTask(conn, req, p, amount);
+      message = `Approved for ${rupees(amount)}. A task has been assigned to ${p.requested_by_name} to make the payment.`; timelineAction = 'approved';
+      notify = ['Payment approved - please make the payment', `Your payment request ${p.request_no} for ${rupees(amount)} has been approved by ${req.bill.name}. A task (${task.taskId}) has been assigned to you to make this payment. After paying, open Billing > Payments, add the proof and mark it as paid.${note ? ' Note from approver: ' + note : ''}`, task.taskId];
     } else if (action === 'reject' || action === 'query') {
       if (p.status !== 'Requested') throw bad('Only a request that is waiting can be ' + (action === 'reject' ? 'rejected' : 'questioned') + '.');
       if (!canDecide(req.bill, p)) throw bad(p.requested_by_id === req.bill.id && !req.bill.self_approve ? 'You cannot decide on your own request.' : 'This amount needs an owner or director.', 403);
@@ -272,6 +313,7 @@ async function transition(req, res, action) {
       if (!(p.requested_by_id === req.bill.id || req.bill.approver)) throw bad('Only the requester or a director can cancel this.', 403);
       if (p.status === 'Approved' && !note) throw bad('Please write why an approved payment is being cancelled.');
       await conn.query(`UPDATE bill_payment_requests SET status='Cancelled', updated_at=NOW() WHERE id=$1`, [p.id]);
+      if (p.status === 'Approved') await closePayTask(conn, p, 'Cancelled', req.bill.name, 'Payment request was cancelled');
       message = 'Request cancelled.'; timelineAction = 'cancelled';
       if (p.requested_by_id !== req.bill.id) notify = ['Payment request cancelled', `Your request ${p.request_no} was cancelled by ${req.bill.name}.${note ? ' ' + note : ''}`];
     } else if (action === 'paid') {
@@ -286,12 +328,13 @@ async function transition(req, res, action) {
       const proof = (await conn.query(`SELECT COUNT(*)::int AS n FROM bill_attachments WHERE request_id=$1 AND kind='proof'`, [p.id])).rows[0].n;
       if (!proof) throw bad('Please attach the proof of payment (screenshot, challan or receipt) first.');
       await conn.query(`UPDATE bill_payment_requests SET status='Paid', paid_amount=$2, paid_on=$3::date, paid_by_name=$4, paid_reference=$5, paid_note=$6, updated_at=NOW() WHERE id=$1`, [p.id, paidAmount, paidOn, req.bill.name, reference, note || null]);
+      await closePayTask(conn, p, 'Completed', req.bill.name, 'Payment made and proof attached');
       message = 'Payment recorded.'; timelineAction = 'paid';
     } else throw bad('Unknown action');
 
     await logTimeline(conn, 'payment', p.id, timelineAction, note || null, req.bill.name);
     await conn.query('COMMIT');
-    if (notify && p.requested_by_id !== req.bill.id) await notifyRequester(p, notify[0], notify[1]);
+    if (notify && p.requested_by_id !== req.bill.id) await notifyRequester(p, notify[0], notify[1], notify[2]);
     if (action === 'reply') await notifyApprovers({ ...p, amount: p.amount }, req.bill.name);
     res.json({ success: true, message });
   } catch (err) { await conn.query('ROLLBACK').catch(() => {}); fail(res, err, 'Could not update the request'); }

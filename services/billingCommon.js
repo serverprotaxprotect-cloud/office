@@ -97,8 +97,9 @@ const payState = (total, received) => {
   return t - r > 0.004 ? 'Partly paid' : 'Paid';
 };
 const ALLOC_SUM = `(SELECT bill_id, SUM(amount) AS alloc FROM bill_receipt_allocations GROUP BY bill_id)`;
+// Tasks that were created only to carry out an approved payment are not client work, so they never appear for billing.
 const WORK_FROM = `
-  FROM tasks t
+  FROM (SELECT tk.* FROM tasks tk WHERE NOT EXISTS (SELECT 1 FROM bill_payment_requests pr WHERE pr.pay_task_id = tk.task_id)) t
   LEFT JOIN clients c ON c.client_id=t.client_id AND c.organization_id=t.organization_id
   LEFT JOIN bill_entry_tasks bet ON bet.task_id=t.task_id AND bet.is_active
   LEFT JOIN bill_entries be ON be.id=bet.bill_id
@@ -129,7 +130,23 @@ function workWhere(req) {
   return { conds, params };
 }
 
+// Money in an account on a date: opening balance + receipts - payments, counting only movements on or after the opening date.
+async function accountBalance(q, accountId, asOn = null) {
+  const r = await q.query(
+    `SELECT a.opening_balance, to_char(a.opening_date,'YYYY-MM-DD') AS opening_date,
+            COALESCE((SELECT SUM(x.amount) FROM bill_receipts x WHERE x.account_id=a.id AND x.status='Active'
+                        AND (a.opening_date IS NULL OR x.receipt_date >= a.opening_date) AND ($2::date IS NULL OR x.receipt_date <= $2::date)),0) AS inflow,
+            COALESCE((SELECT SUM(COALESCE(p.paid_amount, p.amount)) FROM bill_payment_requests p WHERE p.account_id=a.id AND p.status='Paid'
+                        AND (a.opening_date IS NULL OR p.paid_on >= a.opening_date) AND ($2::date IS NULL OR p.paid_on <= $2::date)),0) AS outflow
+       FROM bill_accounts a WHERE a.id=$1`, [accountId, asOn]);
+  const row = r.rows[0];
+  if (!row) return null;
+  const opening = money(row.opening_balance), inflow = money(row.inflow), outflow = money(row.outflow);
+  return { opening, opening_date: row.opening_date, inflow, outflow, balance: money(opening + inflow - outflow) };
+}
+
 module.exports = {
+  accountBalance,
   PAY_STATE_SQL, payState, ALLOC_SUM, WORK_FROM, workWhere,
   FEATURE_KEY, clean, money, actorId, actorName, roleOf, esc, financialYear, featureOn, billSettings, accessOf,
   billingAuth, requireManager, requireApprover, logTimeline, advanceAvailable,

@@ -369,7 +369,7 @@ function receipts() {
     <div class="card"><h3 style="margin-bottom:10px">New receipt</h3>
       <div class="toolbar">${pickerHtml('rClient', 'Client')}
         <div class="f"><label>Received in firm</label><select id="rFirm" onchange="receiptFirmChanged()">${firmOptions('', 'Choose firm')}</select></div>
-        <div class="f"><label>Account</label><select id="rAcc"><option value="">Choose firm first</option></select></div>
+        <div class="f"><label>Received in account</label><select id="rAcc"><option value="">Choose firm first</option></select></div>
         <div class="f"><label>Date</label><input type="date" id="rDate" value="${today()}"></div>
         <div class="f"><label>Amount</label><input type="number" step="0.01" min="0" id="rAmt" oninput="allocCalc()"></div>
         <div class="f"><label>Mode</label><select id="rMode"><option>Bank transfer</option><option>UPI</option><option>Cash</option><option>Cheque</option></select></div>
@@ -387,7 +387,7 @@ function receipts() {
 async function receiptFirmChanged() {
   const f = $('rFirm').value; const acc = $('rAcc');
   if (!f) { acc.innerHTML = '<option value="">Choose firm first</option>'; $('rOpen').innerHTML = ''; return; }
-  try { const d = await api('/firms'); acc.innerHTML = '<option value="">No account</option>' + d.accounts.filter(a => String(a.firm_id) === f && a.status === 'Active').map(a => `<option value="${a.id}">${h(a.account_name)} (${h(a.account_type)})</option>`).join(''); } catch (e) { /* ignore */ }
+  try { const d = await api('/firms'); acc.innerHTML = '<option value="">Choose account</option>' + d.accounts.filter(a => String(a.firm_id) === f && a.status === 'Active').map(a => `<option value="${a.id}">${h(a.account_name)} (${h(a.account_type)})</option>`).join(''); } catch (e) { /* ignore */ }
   loadOpenBills();
 }
 state.open = [];
@@ -587,6 +587,8 @@ async function openPayment(id) {
         <div class="box"><h4>Amount</h4><strong style="font-size:17px">${rs(p.amount)}</strong>${p.approved_amount != null ? `<br><small>Approved: ${rs(p.approved_amount)}</small>` : ''}${p.paid_amount != null ? `<br><small>Paid: ${rs(p.paid_amount)}</small>` : ''}</div>
         <div class="box"><h4>Paid from</h4>${h(p.firm_name)}<br><small>${h(p.account_name || '')} · ${h(p.funding)}</small></div>
         <div class="box"><h4>Requested by</h4>${h(p.requested_by_name)}<br><small>${new Date(p.requested_at).toLocaleString('en-GB')}${p.needed_by ? ' · needed by ' + h(p.needed_by) : ''}</small></div></div>
+      ${d.account_balance && ['Requested', 'Query'].includes(p.status) ? `<div class="msg ${d.account_balance.balance < Number(p.amount) ? 'err' : 'info'}"><strong>${h(p.account_name || 'Account')} balance: ${rs(d.account_balance.balance)}</strong>${d.account_balance.opening_date ? '' : ' (opening balance not set)'}${d.account_balance.balance < Number(p.amount) ? ' - this is less than the amount asked.' : ''}</div>` : ''}
+      ${p.pay_task_id && p.status === 'Approved' ? `<div class="msg info">A task <strong>${h(p.pay_task_id)}</strong> has been assigned to ${h(p.requested_by_name)} to make this payment.</div>` : ''}
       ${p.description ? `<div class="box"><h4>Details</h4>${h(p.description)}</div>` : ''}
       ${p.decision_note ? `<div class="msg ${p.status === 'Rejected' || p.status === 'Query' ? 'err' : 'info'}"><strong>${h(p.approved_by_name || '')}:</strong> ${h(p.decision_note)}</div>` : ''}
       ${pos ? `<div class="box" style="background:#fffbeb;border-color:#fde68a"><h4>This client's position (for the approver)</h4>
@@ -684,10 +686,12 @@ async function settings() {
   $('main').innerHTML = '<div class="title">Settings</div><div class="sub">Your firms, their bank / cash / UPI accounts, and who can approve payments.</div><div id="stBox" class="muted">Loading…</div>';
   try {
     const d = await api('/firms');
+    let bal = {}; try { bal = (await api('/accounts/balances')).balances || {}; } catch (e) { /* ignore */ }
+    window.accBal = bal;
     $('stBox').innerHTML = `<div class="toolbar"><button class="btn primary" onclick="firmForm()">+ Add firm</button></div>
       ${d.firms.map(f => `<div class="card"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><h3 style="flex:1">${h(f.name)} <small>(${h(f.code)})</small> ${f.status === 'Active' ? '' : chip('Inactive', 'grey')}</h3><button class="btn sm" onclick='firmForm(${JSON.stringify(f).replace(/'/g, '&#39;')})'>Edit</button><button class="btn sm green" onclick="accountForm(${f.id})">+ Add bank / cash / UPI account</button></div>
         <div class="muted" style="margin:4px 0 8px">${h(f.legal_type || '')} ${f.pan ? '· PAN ' + h(f.pan) : ''} ${f.gstin ? '· GSTIN ' + h(f.gstin) : ''}<br>${h(f.address || '')} ${f.phone ? '· ' + h(f.phone) : ''} ${f.email ? '· ' + h(f.email) : ''}</div>
-        ${d.accounts.filter(a => a.firm_id === f.id).map(a => `<div style="padding:5px 0;border-top:1px solid #f1f5f9;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div style="flex:1"><strong>${h(a.account_name)}</strong> ${chip(a.account_type)} ${a.status === 'Active' ? '' : chip('Inactive', 'grey')}<br><small>${h(a.bank_name || '')} ${h(a.account_no || '')} ${h(a.ifsc || '')} ${h(a.upi_id || '')}</small></div><button class="btn sm" onclick='accountForm(${f.id},${JSON.stringify(a).replace(/'/g, '&#39;')})'>Edit</button></div>`).join('') || `<div class="msg info" style="margin:6px 0">No bank, cash or UPI account added for this firm yet. Payments and receipts need one.<br><button class="btn green" style="margin-top:8px" onclick="accountForm(${f.id})">+ Add bank / cash / UPI account</button></div>`}</div>`).join('') || '<div class="msg info">Add your first firm to begin.</div>'}
+        ${d.accounts.filter(a => a.firm_id === f.id).map(a => `<div style="padding:5px 0;border-top:1px solid #f1f5f9;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div style="flex:1"><strong>${h(a.account_name)}</strong> ${chip(a.account_type)} ${a.status === 'Active' ? '' : chip('Inactive', 'grey')}<br><small>${h(a.bank_name || '')} ${h(a.account_no || '')} ${h(a.ifsc || '')} ${h(a.upi_id || '')}</small></div>${bal[a.id] ? `<div style="text-align:right"><small>Balance${bal[a.id].opening_date ? '' : ' (set opening balance)'}</small><br><strong style="color:${bal[a.id].balance < 0 ? '#dc2626' : '#166534'}">${rs(bal[a.id].balance)}</strong></div>` : ''}<button class="btn sm" onclick="accountStatement(${a.id})">Statement</button><button class="btn sm" onclick='accountForm(${f.id},${JSON.stringify(a).replace(/'/g, '&#39;')})'>Edit</button></div>`).join('') || `<div class="msg info" style="margin:6px 0">No bank, cash or UPI account added for this firm yet. Payments and receipts need one.<br><button class="btn green" style="margin-top:8px" onclick="accountForm(${f.id})">+ Add bank / cash / UPI account</button></div>`}</div>`).join('') || '<div class="msg info">Add your first firm to begin.</div>'}
       ${access.approver ? `<div class="card"><h3 style="margin-bottom:8px">Payment approval</h3><div class="row2"><div><label>Office Manager can approve up to (₹, 0 = cannot approve)</label><input id="stOm" type="number" min="0" step="1" value="${access.om_limit || 0}"></div>
         <div><label>Approvers can approve their own requests</label><select id="stSelf"><option value="0" ${access.self_approve ? '' : 'selected'}>No (recommended)</option><option value="1" ${access.self_approve ? 'selected' : ''}>Yes</option></select></div></div><div id="stMsg"></div><button class="btn primary" onclick="saveApprovalSettings()">Save</button></div>` : ''}`;
   } catch (e) { $('stBox').innerHTML = msgBoxHtml(e.message); }
@@ -710,11 +714,25 @@ function accountForm(firmId, a) {
   openModal(modalHead(a.id ? 'Edit account' : 'Add account') + `<div class="row2"><div><label>Account name</label><input id="aName" value="${h(a.account_name || '')}" placeholder="HDFC Current / Cash / Firm UPI"></div>
     <div><label>Type</label><select id="aType">${['Bank', 'Cash', 'UPI'].map(t => `<option ${a.account_type === t ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
     <div><label>Bank name</label><input id="aBank" value="${h(a.bank_name || '')}"></div><div><label>Account no.</label><input id="aNo" value="${h(a.account_no || '')}"></div><div><label>IFSC</label><input id="aIfsc" value="${h(a.ifsc || '')}"></div><div><label>UPI ID</label><input id="aUpi" value="${h(a.upi_id || '')}"></div>
+    <div><label>Opening balance (₹)</label><input id="aOpen" type="number" step="0.01" value="${a.opening_balance != null && Number(a.opening_balance) !== 0 ? a.opening_balance : ''}" placeholder="Balance as on the date below"></div>
+    <div><label>Opening balance as on</label><input id="aOpenDate" type="date" value="${h(String(a.opening_date || '').slice(0, 10))}"></div>
     ${a.id ? `<div><label>Status</label><select id="aStatus"><option ${a.status === 'Active' ? 'selected' : ''}>Active</option><option ${a.status === 'Inactive' ? 'selected' : ''}>Inactive</option></select></div>` : ''}</div><div id="aMsg"></div><button class="btn primary" onclick="saveAccount(${firmId},${a.id || 0})">Save</button>`);
 }
 async function saveAccount(firmId, id) {
-  const body = { firm_id: firmId, account_name: $('aName').value, account_type: $('aType').value, bank_name: $('aBank').value, account_no: $('aNo').value, ifsc: $('aIfsc').value, upi_id: $('aUpi').value, status: $('aStatus')?.value };
+  const body = { firm_id: firmId, account_name: $('aName').value, account_type: $('aType').value, bank_name: $('aBank').value, account_no: $('aNo').value, ifsc: $('aIfsc').value, upi_id: $('aUpi').value, opening_balance: $('aOpen').value, opening_date: $('aOpenDate').value, status: $('aStatus')?.value };
   try { id ? await put('/accounts/' + id, body) : await post('/accounts', body); closeModal(); settings(); } catch (e) { msgIn('aMsg', e.message); }
+}
+async function accountStatement(id, from, to) {
+  try {
+    const d = await api('/accounts/' + id + '/statement' + qs({ from: from || '', to: to || '' }));
+    const a = d.account;
+    openModal(modalHead(a.name + ' - statement', chip(a.type)) + `<div class="muted" style="margin-bottom:6px">${h(a.firm_name)} · opening balance ${rs(a.opening_balance)}${a.opening_date ? ' as on ' + h(a.opening_date) : ' (not set yet - edit the account to add it)'}</div>
+      <div class="toolbar"><div class="f"><label>From</label><input type="date" id="stFrom" value="${h(d.from)}"></div><div class="f"><label>To</label><input type="date" id="stTo" value="${h(d.to)}"></div><button class="btn" onclick="accountStatement(${id}, $('stFrom').value, $('stTo').value)">Show</button></div>
+      <div class="table-wrap"><table><thead><tr><th>Date</th><th>Entry</th><th>Reference</th><th>Party</th><th class="num">In</th><th class="num">Out</th><th class="num">Balance</th></tr></thead><tbody>
+      <tr><td colspan="6"><em>Balance brought forward</em></td><td class="num">${rs(d.start_balance)}</td></tr>
+      ${d.rows.map(r => `<tr><td>${h(r.date)}</td><td>${h(r.kind)}</td><td>${h(r.ref)}</td><td>${h(r.party || '')}</td><td class="num">${r.amount_in ? rs(r.amount_in) : ''}</td><td class="num">${r.amount_out ? rs(r.amount_out) : ''}</td><td class="num">${rs(r.balance)}</td></tr>`).join('')}
+      <tr><td colspan="6"><strong>Closing balance</strong></td><td class="num"><strong>${rs(d.closing_balance)}</strong></td></tr></tbody></table></div>`, true);
+  } catch (e) { toast(e.message, false); }
 }
 async function saveApprovalSettings() {
   try { const d = await put('/settings', { om_limit: $('stOm').value, self_approve: $('stSelf').value === '1' }); access.om_limit = d.settings.om_limit; access.self_approve = d.settings.self_approve; msgIn('stMsg', 'Saved.', 'ok'); }

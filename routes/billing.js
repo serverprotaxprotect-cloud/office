@@ -2,7 +2,7 @@ const express = require('express');
 const db = require('../db');
 const {
   clean, money, esc, financialYear, billSettings, billingAuth, requireManager, requireApprover, logTimeline, advanceAvailable,
-  PAY_STATE_SQL, payState, ALLOC_SUM, WORK_FROM, workWhere,
+  PAY_STATE_SQL, payState, ALLOC_SUM, WORK_FROM, workWhere, accountBalance,
 } = require('../services/billingCommon');
 
 const router = express.Router();
@@ -79,6 +79,15 @@ router.put('/firms/:id', requireManager, async (req, res) => {
   } catch (err) { fail(res, err, 'Could not update the firm'); }
 });
 
+// Opening balance of an account and the date it is "as on". The balance counts only money moved on or after that date.
+function openingFrom(b) {
+  if (b.opening_balance === undefined || b.opening_balance === null || String(b.opening_balance).trim() === '') return { balance: null, date: clean(b.opening_date) || null };
+  const balance = money(b.opening_balance);
+  const date = clean(b.opening_date) || null;
+  if (balance !== 0 && !/^\d{4}-\d{2}-\d{2}$/.test(date || '')) throw bad('Please choose the date the opening balance is as on.');
+  return { balance, date };
+}
+
 router.post('/accounts', requireManager, async (req, res) => {
   try {
     const b = req.body;
@@ -90,9 +99,10 @@ router.post('/accounts', requireManager, async (req, res) => {
       `SELECT id FROM bill_accounts WHERE firm_id=$1 AND status='Active' AND LOWER(account_name)=LOWER($2) AND account_type=$3 AND COALESCE(account_no,'')=COALESCE($4,'') AND COALESCE(bank_name,'')=COALESCE($5,'') LIMIT 1`,
       [b.firm_id, clean(b.account_name), type, clean(b.account_no) || null, clean(b.bank_name) || null]);
     if (dup.rows.length) throw bad('This account is already added for the firm.', 409);
+    const opening = openingFrom(b);
     const r = await db.query(
-      `INSERT INTO bill_accounts (firm_id, account_name, account_type, bank_name, account_no, ifsc, upi_id) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [b.firm_id, clean(b.account_name), type, clean(b.bank_name) || null, clean(b.account_no) || null, clean(b.ifsc).toUpperCase() || null, clean(b.upi_id) || null]);
+      `INSERT INTO bill_accounts (firm_id, account_name, account_type, bank_name, account_no, ifsc, upi_id, opening_balance, opening_date) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::date) RETURNING *`,
+      [b.firm_id, clean(b.account_name), type, clean(b.bank_name) || null, clean(b.account_no) || null, clean(b.ifsc).toUpperCase() || null, clean(b.upi_id) || null, opening.balance ?? 0, opening.date]);
     res.json({ success: true, account: r.rows[0] });
   } catch (err) { fail(res, err, 'Could not save the account'); }
 });
@@ -100,14 +110,56 @@ router.post('/accounts', requireManager, async (req, res) => {
 router.put('/accounts/:id', requireManager, async (req, res) => {
   try {
     const b = req.body;
+    const opening = openingFrom(b);
     const r = await db.query(
       `UPDATE bill_accounts SET account_name=COALESCE(NULLIF($2,''),account_name), account_type=COALESCE(NULLIF($3,''),account_type),
-              bank_name=$4, account_no=$5, ifsc=$6, upi_id=$7, status=COALESCE(NULLIF($8,''),status) WHERE id=$1 RETURNING *`,
+              bank_name=$4, account_no=$5, ifsc=$6, upi_id=$7, status=COALESCE(NULLIF($8,''),status),
+              opening_balance=COALESCE($9::numeric, opening_balance), opening_date=CASE WHEN $9::numeric IS NULL THEN opening_date ELSE $10::date END WHERE id=$1 RETURNING *`,
       [req.params.id, clean(b.account_name), ['Bank', 'Cash', 'UPI'].includes(b.account_type) ? b.account_type : '', clean(b.bank_name) || null,
-        clean(b.account_no) || null, clean(b.ifsc).toUpperCase() || null, clean(b.upi_id) || null, ['Active', 'Inactive'].includes(b.status) ? b.status : '']);
+        clean(b.account_no) || null, clean(b.ifsc).toUpperCase() || null, clean(b.upi_id) || null, ['Active', 'Inactive'].includes(b.status) ? b.status : '', opening.balance, opening.date]);
     if (!r.rows.length) throw bad('Account not found', 404);
     res.json({ success: true, account: r.rows[0] });
   } catch (err) { fail(res, err, 'Could not update the account'); }
+});
+
+// Balance of every account today
+router.get('/accounts/balances', requireManager, async (req, res) => {
+  try {
+    const accs = await db.query(`SELECT id FROM bill_accounts ORDER BY id`);
+    const out = {};
+    for (const a of accs.rows) out[a.id] = await accountBalance(db, a.id);
+    res.json({ success: true, balances: out });
+  } catch (err) { fail(res, err, 'Could not load the balances'); }
+});
+
+// Statement of one account: opening balance, every receipt (in) and payment (out), and the running balance
+router.get('/accounts/:id/statement', requireManager, async (req, res) => {
+  try {
+    const acc = (await db.query(`SELECT a.*, to_char(a.opening_date,'YYYY-MM-DD') AS opening_date_s, bf.name AS firm_name FROM bill_accounts a JOIN bill_firms bf ON bf.id=a.firm_id WHERE a.id=$1`, [req.params.id])).rows[0];
+    if (!acc) throw bad('Account not found', 404);
+    const today = new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10);
+    const to = /^\d{4}-\d{2}-\d{2}$/.test(clean(req.query.to)) ? clean(req.query.to) : today;
+    let from = /^\d{4}-\d{2}-\d{2}$/.test(clean(req.query.from)) ? clean(req.query.from) : (acc.opening_date_s || '2000-01-01');
+    if (acc.opening_date_s && from < acc.opening_date_s) from = acc.opening_date_s;
+    // balance just before the first day shown
+    let start = money(acc.opening_balance);
+    if (!acc.opening_date_s || from > acc.opening_date_s) {
+      const before = new Date(new Date(from + 'T00:00:00Z').getTime() - 86400000).toISOString().slice(0, 10);
+      start = (await accountBalance(db, acc.id, before)).balance;
+    }
+    const r = await db.query(
+      `SELECT d, kind, ref, party, amount_in, amount_out FROM (
+          SELECT x.receipt_date AS d, 'Receipt' AS kind, x.receipt_no AS ref, x.client_name AS party, x.amount AS amount_in, 0::numeric AS amount_out, x.id AS sid
+            FROM bill_receipts x WHERE x.account_id=$1 AND x.status='Active' AND x.receipt_date BETWEEN $2::date AND $3::date
+          UNION ALL
+          SELECT p.paid_on, 'Payment', p.request_no, COALESCE(p.payee,'') || CASE WHEN p.client_name IS NOT NULL THEN ' (' || p.client_name || ')' ELSE '' END,
+                 0::numeric, COALESCE(p.paid_amount, p.amount), p.id
+            FROM bill_payment_requests p WHERE p.account_id=$1 AND p.status='Paid' AND p.paid_on BETWEEN $2::date AND $3::date
+        ) m ORDER BY d, kind, sid`, [acc.id, from, to]);
+    let running = start;
+    const rows = r.rows.map(m => { running = money(running + Number(m.amount_in) - Number(m.amount_out)); return { date: String(m.d).slice(0, 10), kind: m.kind, ref: m.ref, party: m.party, amount_in: Number(m.amount_in), amount_out: Number(m.amount_out), balance: running }; });
+    res.json({ success: true, account: { id: acc.id, name: acc.account_name, type: acc.account_type, firm_name: acc.firm_name, opening_balance: money(acc.opening_balance), opening_date: acc.opening_date_s }, from, to, start_balance: start, closing_balance: running, rows });
+  } catch (err) { fail(res, err, 'Could not load the statement'); }
 });
 
 router.put('/settings', requireApprover, async (req, res) => {
@@ -428,11 +480,9 @@ router.post('/receipts', requireManager, async (req, res) => {
     const amount = money(b.amount);
     if (amount <= 0) throw bad('Please enter the amount received.');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(clean(b.receipt_date))) throw bad('Please choose the receipt date.');
-    let account = null;
-    if (b.account_id) {
-      account = (await conn.query(`SELECT * FROM bill_accounts WHERE id=$1 AND firm_id=$2`, [b.account_id, firm.id])).rows[0];
-      if (!account) throw bad('This account does not belong to the chosen firm.');
-    }
+    if (!b.account_id) throw bad('Please choose the account that received the money (it keeps the account balance right).');
+    const account = (await conn.query(`SELECT * FROM bill_accounts WHERE id=$1 AND firm_id=$2 AND status='Active'`, [b.account_id, firm.id])).rows[0];
+    if (!account) throw bad('This account does not belong to the chosen firm.');
     const receiptRow = { client_id: client.client_id, firm_id: firm.id, amount };
     const allocs = await checkAllocations(conn, receiptRow, b.allocations || []);
     const fy = financialYear(b.receipt_date);
